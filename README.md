@@ -1,4 +1,4 @@
-# LMP：Linux Microscopy
+# Linux microscope
 
 ## 项目目标
 
@@ -24,7 +24,7 @@ ToDo...
 
 
 
-![](https://wx2.sinaimg.cn/mw690/005yyrljly1gdfu8xhbabj31880qck3b.jpg)
+![](https://wx2.sinaimg.cn/mw690/005yyrljly1gdoj1zyuhsj31gd0u0apq.jpg)
 
 
 
