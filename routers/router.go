@@ -6,10 +6,9 @@ import (
 	"net/http"
 )
 
-
 func RegisterRouter(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "mulSelect.html", nil)
+		c.HTML(http.StatusOK, "mulSelect1.html", nil)
 	})
 	//权限验证
 
