@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        *{
+            margin: 0 auto;
+            text-align: center;
+        }
+        #wrapper{
+            margin-top: 200px;
+        }
+        #wrapper p{
+            font-size: 50px;
+            font-weight: bold;
+        }
+        #wrapper>img{
+            height: 140px;
+        }
+        #sub{
+            width: 100px;
+            cursor: pointer;
+            height: 30px;
+            font-size: 20px;
+        }
+        #inner{
+
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper">
+        <p>Linux Microscope</p>
+        <br>
+        <img src="./imgs/Linux.jpg"/>
+        <br>
+        <br>
+        <div id="inner">
+            <form action="/data/collect" method="post">
+                <input type="checkbox" name="dispatchingdelay" value="true">dispatchingdelay&nbsp;&nbsp;&nbsp;
+                <input type="checkbox" name="waitingqueuelength" value="true">waitingqueuelength&nbsp;&nbsp;&nbsp;
+                <input type="checkbox" name="softirqtime" value="true">softirqtime&nbsp;&nbsp;&nbsp;
+                <input type="checkbox" name="hardirqtime" value="true">hardirqtime&nbsp;&nbsp;&nbsp;
+                <input type="checkbox" name="oncputime" value="true">oncputime&nbsp;&nbsp;&nbsp;
+                <br>
+                <br>
+                <input id="sub" type="submit" value="submit">
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>
+
+
