@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(
     description="Extraction the data of the task_struct",)
 
 # 定义必须参数pid
-parser.add_argument("pid", help="the process's pid")
+parser.add_argument("pid", help="please input pid")
 
 args = parser.parse_args()
 
