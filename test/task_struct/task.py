@@ -15,7 +15,8 @@ import time
 parser = argparse.ArgumentParser(
     description="Extraction the data of the task_struct",)
 
-parser.add_argument("-P", "--pid", help="the process's pid")
+# 定义必须参数pid
+parser.add_argument("pid", help="the process's pid")
 
 args = parser.parse_args()
 
