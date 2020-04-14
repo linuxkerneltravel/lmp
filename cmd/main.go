@@ -14,6 +14,7 @@ func Run() {
 
 func initWeb() {
 	r := gin.Default()
+	r.Static("/static", "../static")
 	r.LoadHTMLFiles("../static/mulSelect1.html")
 	routers.RegisterRouter(r)
 	r.Run()
