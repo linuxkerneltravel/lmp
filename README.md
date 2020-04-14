@@ -30,9 +30,13 @@ ToDo...
 
 ## BPF当前进展
 
-/bpf：这部分提取来进程管理部分的指标，分别是过去一秒内的调度延迟、软中断时间、硬中断时间、特定进程的oncpu时间、就绪队列长度。
+/test/bpf：这部分提取来进程管理部分的指标，分别是过去一秒内的调度延迟、软中断时间、硬中断时间、特定进程的oncpu时间、就绪队列长度。
 
-/task_struct：这是一个提取进程描述符task_struct字段的小例子，数据存储在influxdb中，前端使用Grafana可视化工具展示数据
+/test/task_struct：这是一个提取进程描述符task_struct字段的小例子，数据存储在influxdb中，前端使用Grafana可视化工具展示数据
 
 
 
+## 感谢以下开源项目的支持
+
+- [Gin] - [https://gin-gonic.com/](https://gin-gonic.com/)
+- [bcc] - [https://github.com/iovisor/bcc](https://github.com/iovisor/bcc)
