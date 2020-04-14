@@ -8,32 +8,35 @@
 
 
 
-## 技术要点
+## startup
 
-第一阶段要点：
+TODO...
 
-1. goweb框架gin、golang操作influxdb
-2. BPF技术提取性能数据
-3. 前端实现
-
-（实现图中逻辑）
-
-
-
-ToDo...
-
-
+## 项目架构
 
 ![](https://wx2.sinaimg.cn/mw690/005yyrljly1gdoj1zyuhsj31gd0u0apq.jpg)
 
 
 
-## BPF当前进展
+## 界面截图
 
-/test/bpf：这部分提取来进程管理部分的指标，分别是过去一秒内的调度延迟、软中断时间、硬中断时间、特定进程的oncpu时间、就绪队列长度。
+<details>
+<summary>展开查看</summary>
+<pre><code>
+<img src="./static/imgs/homepage.png" width="2880" height="450" /><br/><br/>
+</code></pre>
+</details>
+## 项目结构概览
 
-/test/task_struct：这是一个提取进程描述符task_struct字段的小例子，数据存储在influxdb中，前端使用Grafana可视化工具展示数据
-
+<details>
+<summary>展开查看</summary>
+<pre><code>.
+├── main  项目的主要应用
+├── main/pkg  外部应用程序可以使用的库代码
+├── vendor  项目依赖的其他第三方库
+├── website  vue-element-admin
+</code></pre>
+</details>
 
 
 ## 感谢以下开源项目的支持
