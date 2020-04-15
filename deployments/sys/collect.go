@@ -4,23 +4,52 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"lmp_ui/deployments/message"
-	_ "lmp_ui/internal/BPF"
+	"lmp_ui/internal/BPF"
 	_ "net/http"
 )
 
 type Data struct{}
 
+func (d *Data)Handle(c *gin.Context) {
+	//处理前端的配置消息
+	d.Collect(c)
+	//生成python文件和C文件
+	d.Generator(c)
+}
+
 func (d *Data)Collect(c *gin.Context) {
 	//得到前端发来的配置信息
 	m := fillConfigMessage(c)
-	//将配置信息发送给BPF generator
-	//var b BPF.BPFBody
-	//file := b.Generator(&m)
+	//TODO..
 
 	fmt.Println(m)
 
-	//c.JSON(http.StatusOK,name)
 }
+
+//根据配置，生成python文件和C文件
+//TODO..接收配置信息
+func (d *Data)Generator(c *gin.Context) {
+	//先创建python文件
+	py := bpf.NewConcreteBuilderPy()
+	//把创建好的ConcreteBuilderPy传递给DirectorPy
+	directorpy := bpf.NewDirectorPy(&py)
+	//开始构造python文件
+	directorpy.ConstructPy()
+	result1 := py.GetResultPy()
+	fmt.Println(result1)
+	//TODO..
+
+	//创建C文件
+	C := bpf.NewConcreteBuilderC()
+	//把创建好的ConcreteBuilderPy传递给DirectorPy
+	directorc := bpf.NewDirectorC(&C)
+	//开始构造python文件
+	directorc.ConstructC()
+	result2 := py.GetResultC()
+	fmt.Println(result2)
+	//TODO..
+}
+
 
 func fillConfigMessage(c *gin.Context) message.ConfigMessage {
 	var m message.ConfigMessage
