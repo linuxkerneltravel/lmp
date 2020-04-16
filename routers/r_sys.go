@@ -7,6 +7,6 @@ import (
 
 func RegisterRouterSys(r *gin.Engine) {
 	data := sys.Data{}
-	r.POST("/data/collect", data.Collect)
+	r.POST("/data/collect", data.Handle)
 	//r.POST("/data/display")
 }
