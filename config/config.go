@@ -50,7 +50,7 @@ var Flags = []cli.Flag{
 	},
 	cli.UintFlag{
 		Name:  "port,p",
-		Value: 8084,
+		Value: 8080,
 		Usage: "service port",
 	},
 	cli.StringFlag{
