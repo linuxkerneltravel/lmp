@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	store = cookie.NewStore([]byte("funapi_!&&"))
+	store = cookie.NewStore([]byte("lmp_!&&"))
 )
 
 const (
