@@ -23,8 +23,8 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	debug.SetTraceback("crash")
 	app := cli.NewApp()
-	app.Name = "fun_api"
-	app.Usage = "fun api"
+	app.Name = "lmp"
+	app.Usage = "lmp"
 	app.Flags = config.Flags
 	app.Action = func(c *cli.Context) error {
 		logger, _ := seelog.LoggerFromConfigAsBytes([]byte(logtoconsoleconf))
