@@ -13,8 +13,11 @@ all:
 	go build -o cmd/main cmd/main.go
 
 clean:
-	rm cmd/main
-
+	rm -rf cmd/main
+	rm -rf $(COLLECTDIR)
+	rm -rf $(PRODIR)
+	rm -rf $(GRADIR)
+	rm -rf $(DASHDIR)
 install:
 	@echo "BEGIN INSTALL LMP"
 	mkdir -p $(COLLECTDIR)
