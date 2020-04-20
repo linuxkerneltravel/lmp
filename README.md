@@ -51,9 +51,26 @@ TODO...
 
 ### 编译
 ```sh
+$ docker pull prom/prometheus
+$ docker pull grafana/grafana
 $ git clone https://github.com/linuxkerneltravel/lmp
-$ cd lmp 
+$ cd lmp
 $ make
+$ make install
+
+  这里需要将/usr/libexec/lmp/prometheus/prometheus.yml中xxx替换为本机的IP地址
+
+$ docker run  -d \
+$   -p 9090:9090 \
+$   -v /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  \
+$   prom/prometheus
+
+$ docker run -d \
+$   -p 3000:3000 \
+$   --name=grafana \
+$   -v /opt/grafana-storage:/var/lib/grafana \
+$   grafana/grafana
+
 $ ./cmd/main
 ```
 
