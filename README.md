@@ -14,7 +14,7 @@ TODO...
 
 ## 项目架构
 
-![](https://wx2.sinaimg.cn/mw690/005yyrljly1gdoj1zyuhsj31gd0u0apq.jpg)
+![](./static/imgs/arch.png)
 
 ## 界面截图
 
