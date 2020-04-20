@@ -29,6 +29,11 @@ var (
 	Online       = flag.Bool("online", false, "online flag")
 )
 
+// For static bpf files
+const (
+	DefaultCollectorPath = "/usr/libexec/lmp/collector"
+)
+
 func IsSet(name string) bool           { return config.IsSet(name) }
 func Bool(name string) bool            { return config.Bool(name) }
 func Int(name string) int              { return config.Int(name) }
