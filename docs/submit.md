@@ -3,7 +3,7 @@
 
 ## 参与方式方式
 具体提交 pr 的流程如下：
-![](imgs/pr.png)
+![](https://wx1.sinaimg.cn/mw690/005yyrljly1ge05totr55j31hm0oih0b.jpg)
 
 ## 详细步骤说明
 ### 1.fork 我们的站点项目到自己的仓库
