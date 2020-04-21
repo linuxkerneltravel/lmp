@@ -30,8 +30,8 @@ func do_collect(c *Context)  {
 
 	// For static bpf files
 	go execute()
-	fmt.Println("starte extracting data...")
-	seelog.Info("starte extracting data...")
+	fmt.Println("start extracting data...")
+	seelog.Info("start extracting data...")
 
 	c.Redirect(http.StatusMovedPermanently,"http://127.0.0.1:3000/")
 
