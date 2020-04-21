@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"path"
+	"fmt"
 	"os/exec"
 	"github.com/cihub/seelog"
 )
