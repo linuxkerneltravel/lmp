@@ -29,4 +29,4 @@ install:
 	install -m 755 test/bpf/collect.py $(COLLECTDIR)
 	install -m 640 test/bpf/collect.c $(COLLECTDIR)
 	install -m 640 test/prometheus/* $(PRODIR)
-	install -m 640 test/grafana/dashboard.json $(DASHDIR)
+	install -m 640 test/grafana/* $(DASHDIR)
