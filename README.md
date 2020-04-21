@@ -58,7 +58,7 @@ $ cd lmp
 $ make
 $ make install
 
-  这里需要将/usr/libexec/lmp/prometheus/prometheus.yml中xxx替换为本机的IP地址
+  这里需要将/opt/prometheus/prometheus.yml中xxx替换为本机的IP地址
 
 $ docker run  -d \
 $   -p 9090:9090 \
