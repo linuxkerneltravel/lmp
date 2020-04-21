@@ -16,7 +16,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 4,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -343,17 +343,7 @@
             "mean"
           ],
           "defaults": {
-            "mappings": [
-              {
-                "$$hashKey": "object:1093",
-                "id": 0,
-                "op": "=",
-                "text": "N/A",
-                "type": 1,
-                "value": "null"
-              }
-            ],
-            "nullValueMode": "connected",
+            "mappings": [],
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -366,15 +356,14 @@
                   "value": 80
                 }
               ]
-            },
-            "unit": "none"
+            }
           },
           "overrides": [],
           "values": false
         },
         "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "horizontal"
+        "orientation": "auto"
       },
       "pluginVersion": "6.7.2",
       "targets": [
@@ -399,7 +388,7 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {
@@ -422,5 +411,5 @@
   "variables": {
     "list": []
   },
-  "version": 6
+  "version": 1
 }
