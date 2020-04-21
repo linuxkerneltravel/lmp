@@ -3,8 +3,8 @@ VERSION = 0.1
 
 PREFIX    ?= /usr/libexec/lmp
 COLLECTDIR = $(PREFIX)/collector
-PRODIR = $(PREFIX)/prometheus
 PRE ?= /opt
+PRODIR = $(PRE)/prometheus
 GRADIR = $(PRE)/grafana-storage
 DASHDIR = $(PRE)/grafana
 
@@ -14,10 +14,11 @@ all:
 
 clean:
 	rm -rf cmd/main
-	rm -rf $(COLLECTDIR)
+	rm -rf $(PREFIX)
 	rm -rf $(PRODIR)
 	rm -rf $(GRADIR)
 	rm -rf $(DASHDIR)
+
 install:
 	@echo "BEGIN INSTALL LMP"
 	mkdir -p $(COLLECTDIR)
@@ -27,5 +28,5 @@ install:
 	chmod 777 -R $(GRADIR)
 	install -m 755 test/bpf/collect.py $(COLLECTDIR)
 	install -m 640 test/bpf/collect.c $(COLLECTDIR)
-	install -m 640 test/prometheus/prometheus.yml $(PRODIR)
+	install -m 640 test/prometheus/* $(PRODIR)
 	install -m 640 test/grafana/dashboard.json $(DASHDIR)
