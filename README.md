@@ -76,7 +76,7 @@ $ ./cmd/main
 
 ### 打开浏览器进行本地观测
 http://localhost:8080/
-登录grafana之后，导入/opt/grafana下的dashboard.json文件即可查看。
+登录grafana之后，导入/opt/grafana下的json文件即可查看。
 
 ### 卸载
 ```sh
