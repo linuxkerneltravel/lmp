@@ -1,0 +1,11 @@
+{
+	"subsystem":"cpu",
+	"metrics":"task.py",
+	"cmd":
+		{
+			"pid": "46953"
+		   
+		}
+	  
+}
+
