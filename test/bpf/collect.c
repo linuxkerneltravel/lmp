@@ -122,7 +122,7 @@ int trace_ttwu_do_wakeup(struct pt_regs *ctx, struct rq *rq, struct task_struct 
 //----------------oncpu----------------------
 static inline void store_start(u32 tgid, u32 pid, u64 ts)
 {
-    if (tgid != 32642)
+    if (tgid != PID)
         return;
 
     start_oncpu.update(&pid, &ts);
@@ -130,7 +130,7 @@ static inline void store_start(u32 tgid, u32 pid, u64 ts)
 
 static inline void update_hist(u32 tgid, u32 pid, u64 ts, struct pt_regs *ctx)
 {
-    if (tgid != 32642)
+    if (tgid != PID)
         return;
     u64 key_oncpu = 4;      //存储总的oncpu时间
 
