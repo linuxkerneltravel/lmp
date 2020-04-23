@@ -32,11 +32,8 @@ import argparse
 from prometheus_client import Gauge,start_http_server
 
 
-
 # from tempfile import NamedTemporaryFile
-from os import open, close, dup, unlink, O_WRONLY
-
-# import asyncio
+import os
 
 
 # 定义命令行参数
@@ -47,28 +44,18 @@ parser.add_argument("-P", "--pid", help="the process's pid")
 
 args = parser.parse_args()
 print(args.pid)
-file_data = ""      # BPF 文件
 
 
-# def alter(file,old_str,new_str):
-#     """
-#     :param file:文件名
-#     :param old_str:就字符串
-#     :param new_str:新字符串
-#     :return:
-#     """
-#     f = open(file, "r+")
-#     for line in f:
-#         if old_str in line:
-#             line = line.replace(old_str,new_str)
-#         file_data += line
-
-# alter('bpf-cpulat.c','PID',args.pid)
+fp = open('bpf.c','w')
+lines = open('collect.c').readlines()
+for s in lines:
+    fp.write(s.replace('PID',args.pid))
+fp.close()
 
 
 frequency = 99
 
-b = BPF(src_file='collect.c')
+b = BPF(src_file='bpf.c')
 # b = BPF(text = file_data)
 b.attach_kprobe(event="ttwu_do_wakeup", fn_name="trace_ttwu_do_wakeup")
 b.attach_kprobe(event="wake_up_new_task", fn_name="trace_wake_up_new_task")
@@ -147,7 +134,7 @@ def print_event(cpu, data, size):
 exiting = 0 
 # f = open("/home/zcy/my_bcc/my_data/cpu-runqlat/data.csv",'w')
 if __name__ == '__main__':
-    start_http_server(8002)           #8006端口启动
+    start_http_server(8002)           #8002端口启动
     b["result"].open_perf_buffer(print_event)
     while 1:
     	try:

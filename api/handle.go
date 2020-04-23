@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/exec"
 	"github.com/cihub/seelog"
+	"strconv"
 )
 
 func init() {
@@ -22,14 +23,18 @@ func init() {
 
 func do_collect(c *Context)  {
 	//data := sys.Data{}
-	//m := fillConfigMessage(c)
+	m := fillConfigMessage(c)
 	//TODO..
 
-	//fmt.Println(m)
+	fmt.Println(m)
 	//data.Handle(&m)
+	pid,err:= strconv.Atoi(m.Pid)
+	if err != nil {
+		seelog.Error("pid error")
+	}
 
 	// For static bpf files
-	go execute()
+	go execute(pid)
 	fmt.Println("start extracting data...")
 	seelog.Info("start extracting data...")
 
@@ -44,9 +49,12 @@ func Ping(c *Context) {
 }
 
 
-func execute() {
+func execute(pid int) {
 	collector := path.Join(config.DefaultCollectorPath, "collect.py")
-	cmd := exec.Command("python", collector)
+	arg1 := "-P"
+	arg2 := strconv.Itoa(pid)
+	//fmt.Println(collector)
+	cmd := exec.Command("python", collector, arg1, arg2)
 	stdout, err := cmd.StdoutPipe();
 	if err != nil {
 		seelog.Error(err)
@@ -115,6 +123,11 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 		m.OnCpuTime = true
 	} else {
 		m.OnCpuTime = false
+	}
+	if pid, ok := c.GetPostForm("pid"); ok {
+		m.Pid = pid
+	} else {
+		m.Pid = "-1"
 	}
 	return m
 }
