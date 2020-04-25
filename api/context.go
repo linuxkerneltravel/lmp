@@ -575,7 +575,7 @@ func function(pc uintptr) []byte {
 const handlerLogConfig = `
 <seelog>
 	<outputs>
-		<rollingfile formatid="local" type="size" filename="./logs/funapi.log" maxsize="134217728" maxrolls="5" />
+		<rollingfile formatid="local" type="size" filename="./logs/lmp_server.log" maxsize="134217728" maxrolls="5" />
 	</outputs>
 	<formats>
 		<format id="local" format="%Date %Time [%Level] %File:%Line %Func %Msg%n"/>
