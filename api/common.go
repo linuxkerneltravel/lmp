@@ -65,7 +65,7 @@ func NewServer(config *cli.Context) *gin.Engine {
 	}
 
 	if config.Bool("weblogin") {
-		r.Use(sessions.Sessions("funapisession", store))
+		r.Use(sessions.Sessions("lmpsession", store))
 		r.Use(func(c *gin.Context) {
 			session := sessions.Default(c)
 			v := session.Get("loginName")
