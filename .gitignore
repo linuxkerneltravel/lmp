@@ -1,0 +1,25 @@
+**/.DS_Store
+**/desktop.ini
+.idea/
+.vscode/
+vendor
+
+.DS_Store
+.gitkeep
+# Vim ignore
+# source: https://github.com/github/gitignore/blob/master/Global/Vim.gitignore
+
+# swap
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
+# session
+Session.vim
+# temporary
+.netrwhist
+*~
+# auto-generated tag files
+tags
+
+nohup.out
