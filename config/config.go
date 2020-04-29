@@ -3,7 +3,6 @@ package config
 import (
 	"flag"
 	"os"
-
 	"github.com/urfave/cli"
 )
 
@@ -27,8 +26,10 @@ var (
 	config       Config
 	Auth         = os.Getenv("AUTH") == "true"
 	Online       = flag.Bool("online", false, "online flag")
-	Host         string
+	InHost       string
+	Outhost      string
 	Port         string
+	GrafanaIp    string
 )
 
 // For static bpf files
@@ -51,9 +52,14 @@ func Set(name, value string) error     { return config.Set(name, value) }
 // Value: utils.GetInternalIPv4Address(),
 var Flags = []cli.Flag{
 	cli.StringFlag{
-		Name:  "host",
+		Name:  "inhost",
 		Value: "0.0.0.0",
-		Usage: "service listen address",
+		Usage: "service listen inside ipaddress",
+	},
+	cli.StringFlag{
+		Name:  "outhost",
+		Value: "0.0.0.0",
+		Usage: "service listen outside address",
 	},
 	cli.UintFlag{
 		Name:  "port,p",

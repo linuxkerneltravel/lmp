@@ -44,9 +44,12 @@ func main() {
 			c.File(fmt.Sprintf("%s/index.html", "static"))
 		})
 
-		config.Host = c.String("host")
+		config.InHost = c.String("inhost")
+		config.Outhost = c.String("outhost")
 		config.Port = c.String("port")
-		listenAddress := config.Host + ":" + config.Port
+		
+		listenAddress := config.InHost + ":" + config.Port
+		config.GrafanaIp = config.Outhost + ":" + "3000"
 		seelog.Info("Serve on ", listenAddress)
 
 		return gracehttp.Serve(&http.Server{
