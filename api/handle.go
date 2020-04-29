@@ -1,15 +1,16 @@
 package api
 
 import (
-	"lmp/pkg/model"
-	"lmp/config"
-	"github.com/gin-gonic/gin"
-	"net/http"
-	"path"
 	"fmt"
+	"lmp/config"
+	"lmp/pkg/model"
+	"net/http"
 	"os/exec"
-	"github.com/cihub/seelog"
+	"path"
 	"strconv"
+
+	"github.com/cihub/seelog"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -21,14 +22,14 @@ func init() {
 	})
 }
 
-func do_collect(c *Context)  {
+func do_collect(c *Context) {
 	//data := sys.Data{}
 	m := fillConfigMessage(c)
 	//TODO..
 
 	fmt.Println(m)
 	//data.Handle(&m)
-	pid,err:= strconv.Atoi(m.Pid)
+	pid, err := strconv.Atoi(m.Pid)
 	if err != nil {
 		seelog.Error("pid error")
 	}
@@ -38,16 +39,14 @@ func do_collect(c *Context)  {
 	fmt.Println("start extracting data...")
 	seelog.Info("start extracting data...")
 
-	c.Redirect(http.StatusMovedPermanently,"http://127.0.0.1:3000/")
+	c.Redirect(http.StatusMovedPermanently, config.Host+":"+"3000")
 
 	return
 }
 
-
 func Ping(c *Context) {
 	c.JSON(200, gin.H{"message": "pong"})
 }
-
 
 func execute(pid int) {
 	collector := path.Join(config.DefaultCollectorPath, "collect.py")
@@ -55,15 +54,15 @@ func execute(pid int) {
 	arg2 := strconv.Itoa(pid)
 	//fmt.Println(collector)
 	cmd := exec.Command("python", collector, arg1, arg2)
-	stdout, err := cmd.StdoutPipe();
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		seelog.Error(err)
 		return
 	}
-	defer stdout.Close();
+	defer stdout.Close()
 
-	stderr, err := cmd.StderrPipe();
-	if  err != nil {
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
 		seelog.Error(err)
 		return
 	}
@@ -84,7 +83,7 @@ func execute(pid int) {
 	//	}
 	//}()
 	err = cmd.Start()
-	if  err != nil {
+	if err != nil {
 		seelog.Error(err)
 		return
 	}
@@ -95,7 +94,6 @@ func execute(pid int) {
 		return
 	}
 }
-
 
 func fillConfigMessage(c *Context) model.ConfigMessage {
 	var m model.ConfigMessage
