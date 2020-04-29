@@ -44,9 +44,9 @@ func main() {
 			c.File(fmt.Sprintf("%s/index.html", "static"))
 		})
 
-		host := c.String("host")
-		port := c.String("port")
-		listenAddress := host + ":" + port
+		config.Host = c.String("host")
+		config.Port = c.String("port")
+		listenAddress := config.Host + ":" + config.Port
 		seelog.Info("Serve on ", listenAddress)
 
 		return gracehttp.Serve(&http.Server{
