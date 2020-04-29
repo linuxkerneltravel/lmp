@@ -27,6 +27,8 @@ var (
 	config       Config
 	Auth         = os.Getenv("AUTH") == "true"
 	Online       = flag.Bool("online", false, "online flag")
+	Host         string
+	Port         string
 )
 
 // For static bpf files
