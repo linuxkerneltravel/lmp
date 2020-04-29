@@ -38,9 +38,7 @@ func do_collect(c *Context) {
 	go execute(pid)
 	fmt.Println("start extracting data...")
 	seelog.Info("start extracting data...")
-
-	c.Redirect(http.StatusMovedPermanently, config.Host+":"+"3000")
-
+	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
 }
 
