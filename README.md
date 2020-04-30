@@ -1,12 +1,6 @@
 # Linux microscope
 
-## 项目目标
-
-1. 帮助运维人员更全面地了解系统实时运行状态
-2. 希望通过BPF技术来探测系统性能数据
-3. 能够通过web形式展示性能数据
-
-
+LMP是一个基于bcc(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
 
 ## startup
 
@@ -47,40 +41,63 @@ TODO...
 </code></pre>
 </details>
 
-## 本地测试
+##  安装lmp
 
-### 编译
-```sh
-$ docker pull prom/prometheus
-$ docker pull grafana/grafana
-$ git clone https://github.com/linuxkerneltravel/lmp
-$ cd lmp
-$ make
-$ make install
+###  Ubuntu-source
 
-  这里需要将/opt/prometheus/prometheus.yml中xxx替换为本机的IP地址
+#### 从源码构建lmp，需要的基本环境：
 
-$ docker run  -d \
-$   -p 9090:9090 \
-$   -v /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  \
-$   prom/prometheus
+- golang
+- docker
 
-$ docker run -d \
-$   -p 3000:3000 \
-$   --name=grafana \
-$   -v /opt/grafana-storage:/var/lib/grafana \
-$   grafana/grafana
+###  安装依赖docker镜像
 
-$ ./cmd/main
+```
+# For prometheus 
+ docker pull prom/prometheus
+# For grafana
+ docker pull grafana/grafana
 ```
 
-### 打开浏览器进行本地观测
-http://localhost:8080/
-登录grafana之后，导入/opt/grafana下的json文件即可查看。
+### 编译并安装
+
+```
+ git clone https://github.com/linuxkerneltravel/lmp
+ cd lmp
+ make
+ make install
+```
+
+## 本地运行
+
+```
+# 修改配置文件
+ 将/opt/prometheus/prometheus.yml中xxx替换为本机的IP地址
+#run prometheus
+ docker run  -d \
+   -p 9090:9090 \
+   -v /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  \
+   prom/prometheus
+
+#run grafana
+ docker run -d \
+   -p 3000:3000 \
+   --name=grafana \
+   -v /opt/grafana-storage:/var/lib/grafana \
+   grafana/grafana
+
+#run lmp
+ ./cmd/main
+```
+
+### 进行观测
+
+http://localhost:8080/ 登录grafana之后，导入/opt/grafana下的json文件即可查看。
 
 ### 卸载
-```sh
-$ make clean
+
+```
+make clean
 ```
 
 ## 感谢以下开源项目的支持
