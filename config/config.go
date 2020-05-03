@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+
 	"github.com/urfave/cli"
 )
 
@@ -34,7 +35,7 @@ var (
 
 // For static bpf files
 const (
-	DefaultCollectorPath = "/usr/libexec/lmp/collector"
+	DefaultCollectorPath = "/usr/libexec/lmp/collector/vfsstat.c"
 )
 
 func IsSet(name string) bool           { return config.IsSet(name) }
