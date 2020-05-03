@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"lmp/config"
+	"lmp/deployments/sys"
 	"lmp/pkg/model"
 	"net/http"
 	"os/exec"
@@ -26,8 +27,12 @@ func do_collect(c *Context) {
 	//data := sys.Data{}
 	m := fillConfigMessage(c)
 	//TODO..
-
+	//开始生成文件
 	fmt.Println(m)
+	
+	var a sys.Data
+	go a.Handle(&m)
+
 	//data.Handle(&m)
 	pid, err := strconv.Atoi(m.Pid)
 	if err != nil {
@@ -40,6 +45,7 @@ func do_collect(c *Context) {
 	seelog.Info("start extracting data...")
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
+
 }
 
 func Ping(c *Context) {
@@ -120,10 +126,16 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 	} else {
 		m.OnCpuTime = false
 	}
+	if _, ok := c.GetPostForm("vfsstat"); ok {
+		m.Vfsstat = true
+	} else {
+		m.Vfsstat = false
+	}
 	if pid, ok := c.GetPostForm("pid"); ok {
 		m.Pid = pid
 	} else {
 		m.Pid = "-1"
 	}
+
 	return m
 }
