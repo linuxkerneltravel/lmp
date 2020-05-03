@@ -1,8 +1,8 @@
-package bpf_code
+package bpfcode
 
 //for vfsstat
 const (
-	vfsstatdatatype = `
+	Vfsstatdatatype = `
 	enum stat_types {
 		S_READ = 1,
 		S_WRITE,
@@ -14,7 +14,7 @@ const (
 
 	BPF_ARRAY(stats, u64, S_MAXSTAT);
 	`
-	vfsstatcode = `
+	Vfsstatcode = `
 	static void stats_increment(int key) {
     	u64 *leaf = stats.lookup(&key);
     	if (leaf) (*leaf)++;
