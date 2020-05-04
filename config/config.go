@@ -35,7 +35,8 @@ var (
 
 // For static bpf files
 const (
-	DefaultCollectorPath = "/usr/libexec/lmp/collector/vfsstat.c"
+	DefaultCollectorPath = "/usr/libexec/lmp/collector/"
+	BpfPath = "/usr/libexec/lmp/collector/vfsstat.c"
 )
 
 func IsSet(name string) bool           { return config.IsSet(name) }

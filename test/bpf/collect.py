@@ -46,8 +46,8 @@ args = parser.parse_args()
 print(args.pid)
 
 
-fp = open('bpf.c','w')
-lines = open('collect.c').readlines()
+fp = open('/usr/libexec/lmp/collector/bpf.c','w')
+lines = open('/usr/libexec/lmp/collector/collect.c').readlines()
 for s in lines:
     fp.write(s.replace('PID',args.pid))
 fp.close()
@@ -55,7 +55,7 @@ fp.close()
 
 frequency = 99
 
-b = BPF(src_file='bpf.c')
+b = BPF(src_file='/usr/libexec/lmp/collector/bpf.c')
 # b = BPF(text = file_data)
 b.attach_kprobe(event="ttwu_do_wakeup", fn_name="trace_ttwu_do_wakeup")
 b.attach_kprobe(event="wake_up_new_task", fn_name="trace_wake_up_new_task")
