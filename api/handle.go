@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"os/exec"
 	"path"
-	"strconv"
-
 	"github.com/cihub/seelog"
 	"github.com/gin-gonic/gin"
+	"strings"
+	"bufio"
 )
 
 func init() {
@@ -24,46 +24,46 @@ func init() {
 }
 
 func do_collect(c *Context) {
-	//data := sys.Data{}
+	//生成配置
 	m := fillConfigMessage(c)
-	//TODO..
-	//开始生成文件
-	fmt.Println(m)
-	
-	var a sys.Data
-	go a.Handle(&m)
 
-	//data.Handle(&m)
-	pid, err := strconv.Atoi(m.Pid)
-	if err != nil {
-		seelog.Error("pid error")
-	}
+	//根据配置生成文件
+	var bpffile sys.BpfFile
+	bpffile.Generator(&m)
 
-	// For static bpf files
-	go execute(pid)
-	fmt.Println("start extracting data...")
-	seelog.Info("start extracting data...")
+	//执行文件
+	go execute(m)
+
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
-
 }
 
 func Ping(c *Context) {
 	c.JSON(200, gin.H{"message": "pong"})
 }
 
-func execute(pid int) {
+func execute(m model.ConfigMessage) {
 	collector := path.Join(config.DefaultCollectorPath, "collect.py")
-	arg1 := "-P"
-	arg2 := strconv.Itoa(pid)
-	//fmt.Println(collector)
-	cmd := exec.Command("python", collector, arg1, arg2)
+	script := make([]string, 0)
+
+	script = append(script, "-P")
+	script = append(script, m.Pid)
+	newScript := strings.Join(script, " ")
+	cmd := exec.Command("sudo","python", collector, newScript)
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		seelog.Error(err)
 		return
 	}
 	defer stdout.Close()
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Println(line)
+		}
+	}()
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -71,21 +71,14 @@ func execute(pid int) {
 		return
 	}
 	defer stderr.Close()
-	//go func() {
-	//	scanner := bufio.NewScanner(stdout)
-	//	for scanner.Scan() {
-	//		line := scanner.Text()
-	//		fmt.Println(line)
-	//	}
-	//}()
-	//
-	//go func() {
-	//	scanner := bufio.NewScanner(stderr)
-	//	for scanner.Scan() {
-	//		line := scanner.Text()
-	//		fmt.Println(line)
-	//	}
-	//}()
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Println(line)
+		}
+	}()
+
 	err = cmd.Start()
 	if err != nil {
 		seelog.Error(err)
@@ -97,6 +90,7 @@ func execute(pid int) {
 		seelog.Error(err)
 		return
 	}
+	seelog.Info("start extracting data...")
 }
 
 func fillConfigMessage(c *Context) model.ConfigMessage {
