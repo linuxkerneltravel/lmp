@@ -18,7 +18,7 @@ type BpfFile struct{}
 //TODO..接收配置信息
 func (d *BpfFile) Generator(m *model.ConfigMessage) {
 	//先创建python文件
-	py := bpf.NewConcreteBuilderPy()
+	py := bpf.NewConcreteBuilderPy(m)
 	//把创建好的ConcreteBuilderPy传递给DirectorPy
 	directorpy := bpf.NewDirectorPy(&py)
 	//开始构造python文件
@@ -27,7 +27,7 @@ func (d *BpfFile) Generator(m *model.ConfigMessage) {
 	fmt.Println(result1)
 
 	//创建C文件
-	C := bpf.NewConcreteBuilderC()
+	C := bpf.NewConcreteBuilderC(m)
 	//把创建好的ConcreteBuilderPy传递给DirectorPy
 	directorc := bpf.NewDirectorC(&C)
 	//开始构造python文件
