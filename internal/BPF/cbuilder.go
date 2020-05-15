@@ -4,6 +4,7 @@ import (
 	"lmp/config"
 	"lmp/deployments/common"
 	"lmp/internal/bpfcode"
+	"lmp/pkg/model"
 	"os"
 )
 
@@ -18,29 +19,36 @@ type CBuilder interface {
 
 type ConcreteBuilderC struct {
 	f *os.File
+	m *model.ConfigMessage
 }
 
 //返回ConcreteBuilderC的实例
-func NewConcreteBuilderC() ConcreteBuilderC {
+func NewConcreteBuilderC(m *model.ConfigMessage) ConcreteBuilderC {
 	return ConcreteBuilderC{
-		f: common.Creatfile(config.BpfPath),
+		f: common.Creatfile(config.BpfPathC),
+		m: m,
 	}
 }
 
 //实现接口的方法
 func (c *ConcreteBuilderC) AddCommonCFileFront() {
 
-	common.CopyFileContext("./internal/bpfcode/bpf.txt", config.BpfPath)
+	common.CopyFileContext("./internal/bpfcode/bpf.txt", config.BpfPathC)
 
 }
 func (c *ConcreteBuilderC) AddPrivateCFile() {
-
-	common.ReplceStringInFile(config.BpfPath, "VFSSTAT-DATATYPE", bpfcode.Vfsstatdatatype)
-
+	if c.m.Vfsstat {
+		common.ReplceStringInFile(config.BpfPathC, "VFSSTAT-DATATYPE", bpfcode.Vfsstatdatatype)
+	} else {
+		common.ReplceStringInFile(config.BpfPathC, "VFSSTAT-DATATYPE", "")
+	}
 }
 func (c *ConcreteBuilderC) AddCommonCFileEnd() {
-
-	common.ReplceStringInFile(config.BpfPath, "VFSSTAT-CODE", bpfcode.Vfsstatcode)
+	if c.m.Vfsstat {
+		common.ReplceStringInFile(config.BpfPathC, "VFSSTAT-CODE", bpfcode.Vfsstatcode)
+	} else {
+		common.ReplceStringInFile(config.BpfPathC, "VFSSTAT-CODE", "")
+	}
 }
 
 //最后生成的成果
@@ -51,6 +59,6 @@ type ProductC struct {
 //生成成果，
 func (b *ConcreteBuilderC) GetResultC() ProductC {
 	return ProductC{
-		f: common.Getfile(),
+		f: common.Getfile(config.BpfPathC),
 	}
 }
