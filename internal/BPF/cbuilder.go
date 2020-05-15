@@ -4,6 +4,7 @@ import (
 	"lmp/config"
 	"lmp/deployments/common"
 	"lmp/internal/bpfcode"
+	"lmp/pkg/model"
 	"os"
 )
 
@@ -18,12 +19,14 @@ type CBuilder interface {
 
 type ConcreteBuilderC struct {
 	f *os.File
+	m *model.ConfigMessage
 }
 
 //返回ConcreteBuilderC的实例
-func NewConcreteBuilderC() ConcreteBuilderC {
+func NewConcreteBuilderC(m *model.ConfigMessage) ConcreteBuilderC {
 	return ConcreteBuilderC{
 		f: common.Creatfile(config.BpfPath),
+		m: m,
 	}
 }
 
