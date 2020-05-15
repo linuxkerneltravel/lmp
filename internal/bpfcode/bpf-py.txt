@@ -1,0 +1,31 @@
+#!/usr/bin/python
+# @lint-avoid-python-3-compatibility-imports
+
+from __future__ import print_function
+from bcc import BPF
+from ctypes import c_int
+from time import sleep, strftime
+from sys import argv
+
+
+TIMESTAMP
+
+
+b = BPF(src_file='vfsstat.c')
+ATTACHKPROBE
+
+
+VFSSTATTYPES
+
+
+
+while (1):
+    try:
+        sleep(interval)
+    except KeyboardInterrupt:
+        pass
+        exit()
+
+
+    VFSSTATCODE
+

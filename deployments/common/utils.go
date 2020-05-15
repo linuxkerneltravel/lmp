@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"lmp/config"
 	"os"
 	"strings"
 )
 
 //生成初始文件返回文件指针
 func Creatfile(path string) *os.File {
-	file, err := os.Create(config.BpfPath)
+	file, err := os.Create(path)
 	if err != nil {
 		fmt.Println("created failed")
 	}
@@ -20,8 +19,8 @@ func Creatfile(path string) *os.File {
 }
 
 //打开文件返回文件指针
-func Getfile() *os.File {
-	file, err := os.Open(config.BpfPath)
+func Getfile(location string) *os.File {
+	file, err := os.Open(location)
 	if err != nil {
 		fmt.Println("return file failed")
 	}

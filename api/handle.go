@@ -29,6 +29,7 @@ func do_collect(c *Context) {
 
 	//根据配置生成文件
 	var bpffile sys.BpfFile
+
 	bpffile.Generator(&m)
 
 	//执行文件
