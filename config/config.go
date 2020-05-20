@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/urfave/cli"
+	"github.com/go-ini/ini"
 )
 
 // Config is a configuration interface
@@ -22,6 +23,11 @@ type Config interface {
 	Set(name, value string) error
 }
 
+// Cfg type, the type that load the conf file
+type Cfg struct {
+	Raw *ini.File
+}
+
 var (
 	initializers []func(Config)
 	config       Config
@@ -31,6 +37,14 @@ var (
 	Outhost      string
 	Port         string
 	GrafanaIp    string
+)
+
+//for influxdb
+//use const temporary, we have Cfg ahead
+const (
+	InfluxdbAddr     = "http://127.0.0.1:8086"
+	InfluxdbUsername =  "root"
+	InfluxdbPassword = "root1234"
 )
 
 // For static bpf files
