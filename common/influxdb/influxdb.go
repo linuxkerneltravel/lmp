@@ -2,17 +2,19 @@ package influxdb
 
 //该文件写influxdb的全局变量和init
 
-import(
+import (
+	"fmt"
+	"lmp/config"
+
 	"github.com/cihub/seelog"
 	"github.com/influxdata/influxdb/client/v2"
-	"lmp/config"
 )
 
 //globe engine
 var Conn client.Client
 
 type InfluxStore struct {
-	Cfg    *config.Cfg
+	Cfg *config.Cfg
 	////读出文件的数据，把读出的文件的内容写入到rc。
 	//rc    chan []byte
 	////Process把rc的数据
@@ -23,7 +25,7 @@ type InfluxStore struct {
 
 func NewInfluxStore() InfluxStore {
 	return InfluxStore{
-		Cfg:nil,
+		Cfg: nil,
 	}
 }
 
@@ -39,13 +41,23 @@ func (i *InfluxStore) Init() error {
 	}
 
 	seelog.Info("connecting to influxdb...")
+
 	q := client.NewQuery("create database log_process", "", "")
 	_, err = Conn.Query(q)
 	if err != nil {
 		seelog.Error("create database log_process failed!")
 		return err
 	}
+	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+		Database:  "log_process",
+		Precision: "s",
+	})
+	if err != nil {
+		seelog.Error("conneting database log_process failed!")
+	}
 	seelog.Info("connecting to influxdb succeed")
+	//fmt.Println("conneting success")
+	i.CreateNewMeasurement("s", bp, Conn)
 
 	return nil
 }
