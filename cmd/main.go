@@ -10,6 +10,7 @@ import (
 
 	"lmp/api"
 	"lmp/config"
+	"lmp/common/influxdb"
 
 	"github.com/cihub/seelog"
 	"github.com/facebookgo/grace/gracehttp"
@@ -34,6 +35,9 @@ func main() {
 
 		pidfile.SetPidfilePath(os.Args[0] + ".pid")
 		pidfile.Write()
+
+		influxStore := influxdb.NewInfluxStore()
+		influxStore.Init()
 
 		srv := api.NewServer(c)
 		// srv.LoadHTMLGlob("static/*")
