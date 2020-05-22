@@ -21,6 +21,12 @@ type InfluxStore struct {
 	//write Writer
 }
 
+func NewInfluxStore() InfluxStore {
+	return InfluxStore{
+		Cfg:nil,
+	}
+}
+
 func (i *InfluxStore) Init() error {
 	Conn, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     config.InfluxdbAddr,
