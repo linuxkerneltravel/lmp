@@ -12,6 +12,7 @@ import (
 
 //globe engine
 var Conn client.Client
+var bp client.BatchPoints
 
 type InfluxStore struct {
 	Cfg *config.Cfg
@@ -48,7 +49,7 @@ func (i *InfluxStore) Init() error {
 		seelog.Error("create database log_process failed!")
 		return err
 	}
-	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+	bp, err = client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  "log_process",
 		Precision: "s",
 	})
