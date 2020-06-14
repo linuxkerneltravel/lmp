@@ -30,6 +30,7 @@ from bcc import BPF, PerfType, PerfSWConfig
 from time import sleep, strftime
 import argparse
 from prometheus_client import Gauge,start_http_server
+from influxdb import InfluxDBClient
 
 
 # from tempfile import NamedTemporaryFile
@@ -45,6 +46,12 @@ parser.add_argument("-P", "--pid", help="the process's pid")
 args = parser.parse_args()
 print(args.pid)
 
+def connect(dbname,ip='localhost',port=8086,user='admin',passwd='admin'):
+    return InfluxDBClient(ip,port,user,passwd,dbname)
+
+# 连接数据库
+# client = InfluxDBClient('localhost',8086,'admin','123456','task_struct')
+client = connect(DBNAME,user='admin',passwd=123)
 
 fp = open('/usr/libexec/lmp/collector/bpf.c','w')
 lines = open('/usr/libexec/lmp/collector/collect.c').readlines()
@@ -79,20 +86,36 @@ b.attach_kprobe(event="account_page_dirtied", fn_name="do_count_apd")
 b.attach_kprobe(event="mark_buffer_dirty", fn_name="do_count_mbd")
 
 
-latency_time = Gauge('total_latency_time', 'latency time ',['host'])
-length = Gauge('total_len', 'the length of runqueue',['host'])
-oncpu_time = Gauge('total_oncpu_time', 'the on-CPU time of PID',['host'])
-softirq = Gauge('total_softirq', 'the softirq time',['host'])
-hardirq = Gauge('total_hardirq', 'the hardirq time',['host'])
-read_t = Gauge('total_read_t', 'the read_t times',['host'])
-write_t = Gauge('total_write_t', 'the write_t times',['host'])
-fsync_t = Gauge('total_fsync_t', 'the fsync_t times',['host'])
-open_t = Gauge('total_open_t', 'the open_t times',['host'])
-create_t = Gauge('total_create_t', 'the create_t times',['host'])
+# latency_time = Gauge('total_latency_time', 'latency time ',['host'])
+# length = Gauge('total_len', 'the length of runqueue',['host'])
+# oncpu_time = Gauge('total_oncpu_time', 'the on-CPU time of PID',['host'])
+# softirq = Gauge('total_softirq', 'the softirq time',['host'])
+# hardirq = Gauge('total_hardirq', 'the hardirq time',['host'])
+# read_t = Gauge('total_read_t', 'the read_t times',['host'])
+# write_t = Gauge('total_write_t', 'the write_t times',['host'])
+# fsync_t = Gauge('total_fsync_t', 'the fsync_t times',['host'])
+# open_t = Gauge('total_open_t', 'the open_t times',['host'])
+# create_t = Gauge('total_create_t', 'the create_t times',['host'])
 
 
 print("start... Hit Ctrl-C to end.")
 
+data_struct = {"measurement":'test',
+                "tags":['pid'],
+                "fields":['total_latency_time','total_len','total_oncpu_time','total_softirq','total_hardirq','total_read','total_write','total_fsync','total_open','total_create']}
+
+class test_data(object):
+    def __init__(self,a,b,c,d,e,f,g,h,i,j):
+            self.total_latency_time = a
+            self.total_len = b
+            self.total_oncpu_time = c
+            self.total_softirq = d
+            self.total_hardirq = e
+            self.total_read = f
+            self.total_write = g
+            self.total_fsync = h
+            self.total_open = i
+            self.total_create = j
 
 def print_event(cpu, data, size):
     global start
@@ -117,24 +140,28 @@ def print_event(cpu, data, size):
     ratio = 0
     if total > 0:
         ratio = float(hits) / total
-
-    latency_time.labels(host="a").set(event.total_latency_time)
-    length.labels(host="a").set(event.total_len)
-    oncpu_time.labels(host="a").set(event.total_oncpu_time)
-    softirq.labels(host="a").set(event.total_softirq)
-    hardirq.labels(host="a").set(event.total_hardirq)
-    read_t.labels(host="a").set(event.total_read)
-    write_t.labels(host="a").set(event.total_write)
-    fsync_t.labels(host="a").set(event.total_fsync)
-    open_t.labels(host="a").set(event.total_open)
-    create_t.labels(host="a").set(event.total_create)
+    data = test_data(event.total_latency_time,event.total_len,event.total_oncpu_time,event.total_softirq,event.total_hardirq,event.total_read,event.total_write,event.total_fsync,event.total_open,event.total_create)
+    write2db(data_struct,data,client)
     b["stats"].clear()
     b["cachestat"].clear()
+
+#     latency_time.labels(host="a").set(event.total_latency_time)
+#     length.labels(host="a").set(event.total_len)
+#     oncpu_time.labels(host="a").set(event.total_oncpu_time)
+#     softirq.labels(host="a").set(event.total_softirq)
+#     hardirq.labels(host="a").set(event.total_hardirq)
+#     read_t.labels(host="a").set(event.total_read)
+#     write_t.labels(host="a").set(event.total_write)
+#     fsync_t.labels(host="a").set(event.total_fsync)
+#     open_t.labels(host="a").set(event.total_open)
+#     create_t.labels(host="a").set(event.total_create)
+
+
 
 exiting = 0 
 # f = open("/home/zcy/my_bcc/my_data/cpu-runqlat/data.csv",'w')
 if __name__ == '__main__':
-    start_http_server(8002)           #8002端口启动
+    # start_http_server(8002)           #8002端口启动
     b["result"].open_perf_buffer(print_event)
     while 1:
     	try:
