@@ -8,7 +8,7 @@ TODO...
 
 ## 项目架构
 
-![](./docs/LMP-arch.png)
+![](./static/imgs/LMP-arch3.png)
 
 ## 界面截图
 
