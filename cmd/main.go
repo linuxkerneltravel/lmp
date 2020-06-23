@@ -45,7 +45,7 @@ func main() {
 		srv.Use(static.Serve("/", static.LocalFile("static", false)))
 		srv.StaticFS("/static", http.Dir("static/"))
 		srv.NoRoute(func(c *gin.Context) {
-			c.File(fmt.Sprintf("%s/index.html", "static"))
+			c.File(fmt.Sprintf("%s/register.html", "static"))
 		})
 
 		config.InHost = c.String("inhost")
