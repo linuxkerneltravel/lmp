@@ -146,7 +146,7 @@ func UserRegister(c *Context) {
 		seelog.Error("err ->", err.Error())
 		c.String(http.StatusBadRequest, "输入的数据不合法")
 	}
-	seelog.Info("email", user.Username, "password", user.Password, "password again", user.PasswordAgain)
+	seelog.Info("username", user.Username, "password", user.Password, "password again", user.PasswordAgain)
 	fmt.Println(user)
 	//c.Redirect(http.StatusMovedPermanently, "/")
 }
