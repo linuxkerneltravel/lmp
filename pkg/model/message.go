@@ -16,5 +16,7 @@ type ConfigMessage struct {
 type UserModel struct {
 	Username      string `form:"username"`
 	Password      string `form:"password"`
-	PasswordAgain string `form:"password-again"`
+	//Gin 对于数据校验使用的是 validator.v8 库，该库提供多种校验方法。通过 binding:"" 方式来进行对数据的校验。
+	//官方文档：https://godoc.org/gopkg.in/go-playground/validator.v9
+	PasswordAgain string `form:"password-again" binding:"eqfield=Password"`
 }
