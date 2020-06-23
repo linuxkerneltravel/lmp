@@ -5,7 +5,6 @@ import (
 	"lmp/config"
 	"lmp/deployments/sys"
 	"lmp/pkg/model"
-	"log"
 
 	//"log"
 	"net/http"
@@ -24,6 +23,8 @@ func init() {
 		engine.GET("/ping", Ping)
 		engine.POST("/data/collect", Do_collect)
 		engine.POST("/register", UserRegister)
+		engine.POST("/login", UserLogin)
+
 	})
 }
 
@@ -151,17 +152,32 @@ func UserRegister(c *Context) {
 
 
 	//接收数据合法后，存入数据库mysql
+	/*
 	passwordAgain := c.PostForm("password-again")
 	if passwordAgain != user.Password {
 		c.String(http.StatusBadRequest, "密码校验无效，两次密码不一致")
 		log.Panicln("密码校验无效，两次密码不一致")
 	}
+	 */
 	id := user.Save()
 	seelog.Info("username", user.Username, "password", user.Password, "password again", user.PasswordAgain)
 
 	seelog.Info("id is ", id)
 	fmt.Println(id)
 	fmt.Println(user)
-	//c.Redirect(http.StatusMovedPermanently, "/")
+	c.File(fmt.Sprintf("%s/login.html", "static"))
 }
 
+//用户登录处理器函数
+func UserLogin(c *Context) {
+	var user model.UserModel
+	if e := c.Bind(&user); e != nil {
+		seelog.Error("login 绑定错误", e.Error())
+	}
+
+	u := user.QueryByEmail()
+	if u.Password == user.Password {
+		seelog.Info("登录成功", u.Username)
+		c.File(fmt.Sprintf("%s/index.html", "static"))
+	}
+}

@@ -1,8 +1,8 @@
 package model
 
 import (
-	initDB "lmp/common/mysql"
 	"github.com/cihub/seelog"
+	initDB "lmp/common/mysql"
 )
 
 func (user *UserModel) Save() int64 {
@@ -15,4 +15,15 @@ func (user *UserModel) Save() int64 {
 		seelog.Error("user insert id error", err.Error())
 	}
 	return id
+}
+
+
+func (user *UserModel) QueryByEmail() UserModel {
+	u := UserModel{}
+	row := initDB.Db.QueryRow("select * from user where username = ?;", user.Username)
+	e := row.Scan(&u.Username, &u.Password)
+	if e != nil {
+		seelog.Warn(e)
+	}
+	return u
 }
