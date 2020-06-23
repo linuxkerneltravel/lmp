@@ -1,10 +1,12 @@
 package api
 
 import (
+	//"context"
 	"fmt"
 	"lmp/config"
 	"lmp/deployments/sys"
 	"lmp/pkg/model"
+	//"log"
 	"net/http"
 	"os/exec"
 	"path"
@@ -19,13 +21,15 @@ func init() {
 		engine := router.Group("/api")
 
 		engine.GET("/ping", Ping)
-		engine.POST("/data/collect", do_collect)
+		engine.POST("/data/collect", Do_collect)
+		engine.POST("/register", UserRegister)
 	})
 }
 
-func do_collect(c *Context) {
+func Do_collect(c *Context) {
 	//生成配置
 	m := fillConfigMessage(c)
+	fmt.Println(m)
 
 	//根据配置生成文件
 	var bpffile sys.BpfFile
@@ -133,4 +137,16 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 	}
 
 	return m
+}
+
+//用户注册处理器函数
+func UserRegister(c *Context) {
+	var user model.UserModel
+	if err := c.ShouldBind(&user); err != nil {
+		seelog.Error("err ->", err.Error())
+		c.String(http.StatusBadRequest, "输入的数据不合法")
+	}
+	seelog.Info("email", user.Username, "password", user.Password, "password again", user.PasswordAgain)
+	fmt.Println(user)
+	//c.Redirect(http.StatusMovedPermanently, "/")
 }
