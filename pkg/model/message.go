@@ -13,6 +13,7 @@ type ConfigMessage struct {
 
 
 //用于用户登录注册
+//目前参数只有用户名和密码，后续迭代添加
 type UserModel struct {
 	Username      string `form:"username"`
 	Password      string `form:"password"`

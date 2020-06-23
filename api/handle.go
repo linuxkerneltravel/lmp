@@ -1,11 +1,12 @@
 package api
 
 import (
-	//"context"
 	"fmt"
 	"lmp/config"
 	"lmp/deployments/sys"
 	"lmp/pkg/model"
+	"log"
+
 	//"log"
 	"net/http"
 	"os/exec"
@@ -141,12 +142,26 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 
 //用户注册处理器函数
 func UserRegister(c *Context) {
+	//接收前端传入的参数，并绑定到一个UserModel结构体变量中
 	var user model.UserModel
 	if err := c.ShouldBind(&user); err != nil {
 		seelog.Error("err ->", err.Error())
 		c.String(http.StatusBadRequest, "输入的数据不合法")
 	}
+
+
+	//接收数据合法后，存入数据库mysql
+	passwordAgain := c.PostForm("password-again")
+	if passwordAgain != user.Password {
+		c.String(http.StatusBadRequest, "密码校验无效，两次密码不一致")
+		log.Panicln("密码校验无效，两次密码不一致")
+	}
+	id := user.Save()
 	seelog.Info("username", user.Username, "password", user.Password, "password again", user.PasswordAgain)
+
+	seelog.Info("id is ", id)
+	fmt.Println(id)
 	fmt.Println(user)
 	//c.Redirect(http.StatusMovedPermanently, "/")
 }
+

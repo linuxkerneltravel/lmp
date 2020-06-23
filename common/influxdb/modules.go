@@ -1,7 +1,7 @@
 package influxdb
 
 import (
-	"fmt"
+	_"fmt"
 	"time"
 
 	"github.com/cihub/seelog"
