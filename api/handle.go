@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"lmp/config"
+	"lmp/daemon"
 	"lmp/pkg/model"
 
 	"bufio"
@@ -23,6 +24,7 @@ func init() {
 		engine.POST("/data/collect", Do_collect)
 		engine.POST("/register", UserRegister)
 		engine.POST("/login", UserLogin)
+		engine.POST("/uploadfiles", LoadFiles)
 
 	})
 }
@@ -182,3 +184,37 @@ func UserLogin(c *Context) {
 		c.File(fmt.Sprintf("%s/index.html", "static"))
 	}
 }
+
+func LoadFiles(c *Context) {
+	// Gets the name value of the form data parameter
+	f, err := c.FormFile("bpffile")
+
+	// Error handling
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err,
+		})
+		return
+	} else {
+		// Save the plugin file to the plugins directory
+		path := "plugins/"
+		filePath := path + f.Filename
+
+		c.SaveUploadedFile(f, filePath)
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "OK",
+		})
+
+		// Put the name of the newly uploaded plug-in into the pipeline Filename
+		daemon.FileChan <- f.Filename
+	}
+}
+
+
+
+
+
+
+
+
