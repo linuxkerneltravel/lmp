@@ -3,10 +3,13 @@
 //
 package bpf
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 // Define global slices for storing all plugins
-var pluginServices []*PluginService
+var PluginServices []*PluginService
 
 type PluginService struct {
 	F *os.File
@@ -15,12 +18,21 @@ type PluginService struct {
 }
 
 // Register plugins
-func (p *PluginService) RegisterPluginService(name string, f *os.File, info string) {
-	pluginServices = append(pluginServices, &PluginService{
+func RegisterPluginService(name string, f *os.File, info string) {
+	PluginServices = append(PluginServices, &PluginService{
 		F : f,
 		Name : name,
 		Info : info,
 	})
+}
+
+// Outputs the names of all plugins
+func OutputPluginService() {
+	for _,plugin := range PluginServices {
+		fmt.Println(plugin.Name)
+		fmt.Println(plugin.Info)
+		fmt.Println(plugin.F)
+	}
 }
 
 // Save this plugin to database
