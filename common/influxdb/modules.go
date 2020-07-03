@@ -1,3 +1,7 @@
+//
+// Created by ChenYu Zhao
+// Modidied by Qiangzhixing Cheng on 2020/7/1
+//
 package influxdb
 
 import (

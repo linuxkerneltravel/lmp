@@ -1,3 +1,6 @@
+//
+// Created by ChenYuZhao
+//
 package influxdb
 
 //该文件写influxdb的全局变量和init

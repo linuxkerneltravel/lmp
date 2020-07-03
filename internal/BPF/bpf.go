@@ -1,5 +1,39 @@
+//
+// Created by ChenYuZhao on 2020/7/1.
+//
 package bpf
 
+import "os"
+
+//定义全局切片，用于存放所有的插件
+var pluginServices []*PluginService
+
+type PluginService struct {
+	F *os.File
+	Name string
+	Info string
+}
+
+func (p *PluginService) RegisterPluginService(name string, f *os.File, info string) {
+	pluginServices = append(pluginServices, &PluginService{
+		F : f,
+		Name : name,
+		Info : info,
+	})
+}
+
+func (p *PluginService) SetInfo {
+
+}
+
+func (p *PluginService) Save2Mysql {
+
+}
+
+//
+
+
+/*
 type DirectorPy struct {
 	//生成python文件的接口
 	pyBuilder PyBuilder
@@ -35,3 +69,4 @@ func (d *DirectorC) ConstructC() {
 	d.cBuilder.AddPrivateCFile()
 	d.cBuilder.AddCommonCFileEnd()
 }
+*/
