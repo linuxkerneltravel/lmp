@@ -1,3 +1,7 @@
+//
+// Created by Zhenwen Xu
+// Modified by ChenYuZhao on 2020/7/3.
+//
 package api
 
 import (
@@ -210,11 +214,3 @@ func LoadFiles(c *Context) {
 		daemon.FileChan <- f.Filename
 	}
 }
-
-
-
-
-
-
-
-
