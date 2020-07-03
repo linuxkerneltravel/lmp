@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"lmp/config"
+	"lmp/daemon"
 	"lmp/pkg/model"
 
 	"bufio"
@@ -185,9 +186,10 @@ func UserLogin(c *Context) {
 }
 
 func LoadFiles(c *Context) {
-	//获取表单数据 参数为name值
+	// Gets the name value of the form data parameter
 	f, err := c.FormFile("bpffile")
-	//错误处理
+
+	// Error handling
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err,
@@ -199,11 +201,13 @@ func LoadFiles(c *Context) {
 		filePath := path + f.Filename
 
 		c.SaveUploadedFile(f, filePath)
-		//fmt.Println(f.Filename, f.Size)
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": "OK",
 		})
+
+		// Put the name of the newly uploaded plug-in into the pipeline Filename
+		daemon.FileChan <- f.Filename
 	}
 }
 
