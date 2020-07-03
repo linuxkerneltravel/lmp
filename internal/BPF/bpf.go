@@ -5,7 +5,7 @@ package bpf
 
 import "os"
 
-//定义全局切片，用于存放所有的插件
+// Define global slices for storing all plugins
 var pluginServices []*PluginService
 
 type PluginService struct {
@@ -14,6 +14,7 @@ type PluginService struct {
 	Info string
 }
 
+// Register plugins
 func (p *PluginService) RegisterPluginService(name string, f *os.File, info string) {
 	pluginServices = append(pluginServices, &PluginService{
 		F : f,
@@ -22,11 +23,8 @@ func (p *PluginService) RegisterPluginService(name string, f *os.File, info stri
 	})
 }
 
-func (p *PluginService) SetInfo {
-
-}
-
-func (p *PluginService) Save2Mysql {
+// Save this plugin to database
+func (p *PluginService) Save2DB() {
 
 }
 
