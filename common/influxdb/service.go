@@ -1,3 +1,7 @@
+//
+// Created by ChenYu Zhao on
+// Modidied by Qiangzhixing Cheng on 2020/7/1
+//
 package influxdb
 
 //该文件写数据库中数据要转成的格式
