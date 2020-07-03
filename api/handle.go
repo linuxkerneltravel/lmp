@@ -3,17 +3,16 @@ package api
 import (
 	"fmt"
 	"lmp/config"
-	"lmp/deployments/sys"
 	"lmp/pkg/model"
 
+	"bufio"
+	"github.com/cihub/seelog"
+	"github.com/gin-gonic/gin"
 	//"log"
 	"net/http"
 	"os/exec"
 	"path"
-	"github.com/cihub/seelog"
-	"github.com/gin-gonic/gin"
 	"strings"
-	"bufio"
 )
 
 func init() {
@@ -28,26 +27,28 @@ func init() {
 	})
 }
 
+func Ping(c *Context) {
+	c.JSON(200, gin.H{"message": "pong"})
+}
+
 func Do_collect(c *Context) {
-	//生成配置
-	m := fillConfigMessage(c)
-	fmt.Println(m)
+	////生成配置
+	//m := fillConfigMessage(c)
+	//fmt.Println(m)
+	//
+	////根据配置生成文件
+	//var bpffile sys.BpfFile
+	//
+	//bpffile.Generator(&m)
+	//
+	////执行文件
+	//go execute(m)
 
-	//根据配置生成文件
-	var bpffile sys.BpfFile
-
-	bpffile.Generator(&m)
-
-	//执行文件
-	go execute(m)
 
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
 }
 
-func Ping(c *Context) {
-	c.JSON(200, gin.H{"message": "pong"})
-}
 
 func execute(m model.ConfigMessage) {
 	collector := path.Join(config.DefaultCollectorPath, "collect.py")
