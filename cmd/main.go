@@ -11,6 +11,7 @@ import (
 	"lmp/api"
 	"lmp/config"
 	"lmp/common/influxdb"
+	"lmp/daemon"
 
 	"github.com/cihub/seelog"
 	"github.com/facebookgo/grace/gracehttp"
@@ -38,6 +39,11 @@ func main() {
 
 		influxStore := influxdb.NewInfluxStore()
 		influxStore.Init()
+
+		//bpf scan service
+		bpfscan := &daemon.BpfScan{}
+		bpfscan.Init()
+		bpfscan.Run()
 
 		srv := api.NewServer(c)
 		// srv.LoadHTMLGlob("static/*")
