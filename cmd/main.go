@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	bpf "lmp/internal/BPF"
 	"math/rand"
 	"net/http"
 	"os"
@@ -46,8 +47,6 @@ func main() {
 		bpfscan.Run()
 
 		srv := api.NewServer(c)
-		// srv.LoadHTMLGlob("static/*")
-
 		srv.Use(static.Serve("/", static.LocalFile("static", false)))
 		srv.StaticFS("/static", http.Dir("static/"))
 		srv.NoRoute(func(c *gin.Context) {
@@ -61,6 +60,18 @@ func main() {
 		listenAddress := config.InHost + ":" + config.Port
 		config.GrafanaIp = config.Outhost + ":" + "3000"
 		seelog.Info("Serve on ", listenAddress)
+
+		// The following timer code is used to test the plug-in mechanism, If you like to delete it, delete it
+		ticker := time.NewTicker(time.Second * 1) // 运行时长
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					fmt.Println(bpf.PluginServices)
+				}
+			}
+			ticker.Stop()
+		}()
 
 		return gracehttp.Serve(&http.Server{
 			Addr:         listenAddress,
