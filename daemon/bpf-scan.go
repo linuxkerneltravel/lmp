@@ -22,13 +22,12 @@ func (b *BpfScan) Init() error {
 }
 
 func (b *BpfScan) Run() {
-	//读取/plugins下的插件名称
+	// Read the name of the plug-in in the directory
 	files, _ := ioutil.ReadDir("./plugins")
 	for _, f := range files {
 		// Register plugins
 		file,_ := os.Open("./plugins/"+f.Name())
 		bpf.RegisterPluginService(f.Name(),file,"")
-		//fmt.Println(f.Name())
 	}
 	bpf.OutputPluginService()
 }
