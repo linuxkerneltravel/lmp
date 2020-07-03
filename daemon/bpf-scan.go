@@ -1,16 +1,16 @@
 package daemon
 
 import (
-	_ "fmt"
-	"io/ioutil"
 	"os"
 
 	"lmp/internal/BPF"
 )
 
-func init() {
-	//RegisterDaemonService("bpfscan",&BpfScan{})
+var FileChan chan string
 
+func init() {
+	// Init FileChan
+	FileChan = make(chan string, 10)
 }
 
 type BpfScan struct {
@@ -18,17 +18,19 @@ type BpfScan struct {
 }
 
 func (b *BpfScan) Init() error {
+
 	return nil
 }
 
+// Service : Update the system's current plug-in
 func (b *BpfScan) Run() {
-	//读取/plugins下的插件名称
-	files, _ := ioutil.ReadDir("./plugins")
-	for _, f := range files {
-		// Register plugins
-		file,_ := os.Open("./plugins/"+f.Name())
-		bpf.RegisterPluginService(f.Name(),file,"")
-		//fmt.Println(f.Name())
-	}
-	bpf.OutputPluginService()
+	go func() {
+		for {
+			select {
+			case fname := <- FileChan:
+				file,_ := os.Open("./plugins/" + fname)
+				bpf.RegisterPluginService(fname,file,"")
+			}
+		}
+	}()
 }

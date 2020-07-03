@@ -5,11 +5,25 @@ package bpf
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 )
 
 // Define global slices for storing all plugins
 var PluginServices []*PluginService
+
+func init() {
+	// Read the name of the plug-in in the directory
+	files, _ := ioutil.ReadDir("./plugins")
+	fmt.Println(files)
+	for _, f := range files {
+		// Register plugins
+		file,_ := os.Open("./plugins/"+f.Name())
+		RegisterPluginService(f.Name(),file,"")
+	}
+
+	//OutputPluginService()
+}
 
 type PluginService struct {
 	F *os.File
@@ -39,8 +53,6 @@ func OutputPluginService() {
 func (p *PluginService) Save2DB() {
 
 }
-
-//
 
 
 /*
