@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        *{
+            margin: 0 auto;
+            text-align: center;
+        }
+        #wrapper{
+            margin-top: 160px;
+        }
+        #wrapper p{
+            font-size: 70px;
+            font-weight: bold;
+        }
+        #wrapper>img{
+            height: 180px;
+        }
+        #sub{
+            width: 100px;
+            cursor: pointer;
+            height: 30px;
+            font-size: 20px;
+        }
+        #inner{
+
+        }
+    </style>
+</head>
+<body>
+<div id="wrapper">
+    <p>注册</p>
+    <br>
+    <div id="inner">
+        <form action="/api/register" method="post">
+            <label for="other"></label>
+            <br>username:<input type="text" name="username" value=""></br>
+            <br>password:<input type="text" name="password" value=""></br>
+            <br>password-again:<input type="text" name="password-again" value=""></br>
+            <br><br>
+            <input id="sub" type="submit" value="submit">
+        </form>
+    </div>
+</div>
+
+</body>
+</html>
+
+
