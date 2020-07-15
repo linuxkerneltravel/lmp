@@ -8,6 +8,7 @@ package main
 
 import (
 	"fmt"
+	bpf "lmp/internal/BPF"
 	"math/rand"
 	"net/http"
 	"os"
@@ -73,7 +74,7 @@ func main() {
 				select {
 				case <-ticker.C:
 					// 该处可以用来反馈给用户目前支持的插件
-					//fmt.Println(bpf.PluginServices.)
+					fmt.Println(bpf.PluginServices)
 					//for _,plugin := range bpf.PluginServices {
 						//fmt.Println(plugin.Name)
 						//fmt.Println(plugin.Info)
