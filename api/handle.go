@@ -5,15 +5,14 @@
 package api
 
 import (
+	"bufio"
 	"fmt"
+	"github.com/cihub/seelog"
+	"github.com/gin-gonic/gin"
 	"lmp/config"
 	"lmp/daemon"
 	bpf "lmp/internal/BPF"
 	"lmp/pkg/model"
-
-	"bufio"
-	"github.com/cihub/seelog"
-	"github.com/gin-gonic/gin"
 	//"log"
 	"net/http"
 	"os/exec"
@@ -29,7 +28,7 @@ func init() {
 		engine.POST("/data/collect", Do_collect)
 		engine.POST("/register", UserRegister)
 		engine.POST("/login", UserLogin)
-		engine.POST("/uploadfiles", LoadFiles)
+		engine.POST("/uploadfiles", UpLoadFiles)
 		engine.GET("/service", PrintService)
 	})
 }
@@ -51,11 +50,9 @@ func Do_collect(c *Context) {
 	////执行文件
 	//go execute(m)
 
-
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
 }
-
 
 func execute(m model.ConfigMessage) {
 	collector := path.Join(config.DefaultCollectorPath, "collect.py")
@@ -64,7 +61,7 @@ func execute(m model.ConfigMessage) {
 	script = append(script, "-P")
 	script = append(script, m.Pid)
 	newScript := strings.Join(script, " ")
-	cmd := exec.Command("sudo","python", collector, newScript)
+	cmd := exec.Command("sudo", "python", collector, newScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -158,15 +155,14 @@ func UserRegister(c *Context) {
 		c.String(http.StatusBadRequest, "输入的数据不合法")
 	}
 
-
 	//接收数据合法后，存入数据库mysql
 	/*
-	passwordAgain := c.PostForm("password-again")
-	if passwordAgain != user.Password {
-		c.String(http.StatusBadRequest, "密码校验无效，两次密码不一致")
-		log.Panicln("密码校验无效，两次密码不一致")
-	}
-	 */
+		passwordAgain := c.PostForm("password-again")
+		if passwordAgain != user.Password {
+			c.String(http.StatusBadRequest, "密码校验无效，两次密码不一致")
+			log.Panicln("密码校验无效，两次密码不一致")
+		}
+	*/
 	id := user.Save()
 	seelog.Info("username", user.Username, "password", user.Password, "password again", user.PasswordAgain)
 
@@ -190,40 +186,31 @@ func UserLogin(c *Context) {
 	}
 }
 
-func LoadFiles(c *Context) {
-	// Gets the name value of the form data parameter
-	f, err := c.FormFile("bpffile")
-
-	// Error handling
+func UpLoadFiles(c *Context) {
+	form, err := c.MultipartForm()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err,
 		})
-		return
-	} else {
-		// Save the plugin file to the plugins directory
-		path := "plugins/"
-		filePath := path + f.Filename
-
-		c.SaveUploadedFile(f, filePath)
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "OK",
-		})
-
-		// Put the name of the newly uploaded plug-in into the pipeline Filename
-		daemon.FileChan <- f.Filename
 	}
+	files := form.File["upload[]"]
+
+	for _, file := range files {
+		seelog.Info(file.Filename)
+		c.SaveUploadedFile(file, config.PluginPath)
+		// Put the name of the newly uploaded plug-in into the pipeline Filename
+		daemon.FileChan <- file.Filename
+	}
+
+	c.String(http.StatusOK, fmt.Sprintf("%d files uploaded!", len(files)))
 }
 
 // Feedback existing plugins to the front end
 func PrintService(c *Context) {
 	var pluginsName []string
 
-	for _,plugin := range bpf.PluginServices {
-		pluginsName = append(pluginsName,plugin.Name)
-		//fmt.Println(plugin.Info)
-		//fmt.Println(plugin.F)
+	for _, plugin := range bpf.PluginServices {
+		pluginsName = append(pluginsName, plugin.Name)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
