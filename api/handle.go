@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"lmp/config"
 	"lmp/daemon"
+	bpf "lmp/internal/BPF"
 	"lmp/pkg/model"
 
 	"bufio"
@@ -29,7 +30,7 @@ func init() {
 		engine.POST("/register", UserRegister)
 		engine.POST("/login", UserLogin)
 		engine.POST("/uploadfiles", LoadFiles)
-
+		engine.GET("/service", PrintService)
 	})
 }
 
@@ -213,4 +214,19 @@ func LoadFiles(c *Context) {
 		// Put the name of the newly uploaded plug-in into the pipeline Filename
 		daemon.FileChan <- f.Filename
 	}
+}
+
+// Feedback existing plugins to the front end
+func PrintService(c *Context) {
+	var pluginsName []string
+
+	for _,plugin := range bpf.PluginServices {
+		pluginsName = append(pluginsName,plugin.Name)
+		//fmt.Println(plugin.Info)
+		//fmt.Println(plugin.F)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"plugins": pluginsName,
+	})
 }

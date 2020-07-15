@@ -8,7 +8,6 @@ package main
 
 import (
 	"fmt"
-	bpf "lmp/internal/BPF"
 	"math/rand"
 	"net/http"
 	"os"
@@ -16,8 +15,8 @@ import (
 	"time"
 
 	"lmp/api"
-	"lmp/config"
 	"lmp/common/influxdb"
+	"lmp/config"
 	"lmp/daemon"
 
 	"github.com/cihub/seelog"
@@ -73,7 +72,14 @@ func main() {
 			for {
 				select {
 				case <-ticker.C:
-					fmt.Println(bpf.PluginServices)
+					// 该处可以用来反馈给用户目前支持的插件
+					//fmt.Println(bpf.PluginServices.)
+					//for _,plugin := range bpf.PluginServices {
+						//fmt.Println(plugin.Name)
+						//fmt.Println(plugin.Info)
+						//fmt.Println(plugin.F)
+					//}
+					//fmt.Println(bpf.PluginServices[1].Name)
 				}
 			}
 			ticker.Stop()
