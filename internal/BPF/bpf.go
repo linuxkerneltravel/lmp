@@ -1,6 +1,8 @@
 //
-// Created by ChenYuZhao on 2020/7/1.
+// Created by ChenYu Zhao
+// Modified by Chenyu Zhao on 2020/7/3
 //
+
 package bpf
 
 import (
@@ -22,6 +24,7 @@ func init() {
 		RegisterPluginService(f.Name(),file,"")
 	}
 
+	//PrintPluginService()
 	//OutputPluginService()
 }
 
@@ -40,8 +43,8 @@ func RegisterPluginService(name string, f *os.File, info string) {
 	})
 }
 
-// Outputs the names of all plugins
-func OutputPluginService() {
+// Print the names of all plugins
+func PrintPluginService() {
 	for _,plugin := range PluginServices {
 		fmt.Println(plugin.Name)
 		fmt.Println(plugin.Info)
