@@ -6,7 +6,7 @@ package influxdb
 //该文件写influxdb的全局变量和init
 
 import (
-	_"fmt"
+	// "fmt"
 	"lmp/config"
 
 	"github.com/cihub/seelog"
