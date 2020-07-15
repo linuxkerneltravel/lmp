@@ -2,6 +2,7 @@
 // Created by ChenYu Zhao
 // Modified by Chenyu Zhao on 2020/7/3
 //
+
 package bpf
 
 import (
@@ -24,6 +25,7 @@ func init() {
 	}
 
 	//PrintPluginService()
+	//OutputPluginService()
 }
 
 type PluginService struct {

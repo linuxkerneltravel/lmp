@@ -1,6 +1,6 @@
 //
 // Created by ChenYu Zhao on
-// Modidied by Qiangzhixing Cheng
+// Modidied by Qiangzhixing Cheng on 2020/7/1
 //
 package influxdb
 
