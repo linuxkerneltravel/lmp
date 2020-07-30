@@ -12,7 +12,7 @@ import (
 	"lmp/Rebuild/common/config"
 )
 
-func handler(c *cli.Context) error {
+func cliAction(c *cli.Context) error {
 	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(logtoconsoleconf))
 	seelog.ReplaceLogger(logger)
 	defer seelog.Flush()
@@ -31,9 +31,12 @@ func handler(c *cli.Context) error {
 
 	return gracehttp.Serve(&http.Server{
 		Addr:         listenAddress,
-		//Handler:      srv,
+		Handler:      gracehttpHandler,
 		ReadTimeout:  100 * time.Second,
 		WriteTimeout: 100 * time.Second,
 	})
 }
 
+func gracehttpHandler() {
+
+}
