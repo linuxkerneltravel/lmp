@@ -33,7 +33,7 @@ func main() {
 	app.Name = "LMP"
 	app.Usage = usageInfo
 	app.Version = config.Version
-	app.Action = handler
+	app.Action = cliAction
 
 	app.Flags = config.Flags
 	app.Before = doBeforeJob
