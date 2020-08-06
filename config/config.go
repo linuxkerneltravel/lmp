@@ -1,3 +1,7 @@
+//
+// Created by Zhenwen Xu
+// Modified by Chenyu Zhao
+//
 package config
 
 import (
@@ -50,8 +54,9 @@ const (
 // For static bpf files
 const (
 	DefaultCollectorPath = "/usr/libexec/lmp/collector/"
-	BpfPathC              = "/usr/libexec/lmp/collector/vfsstat.c"
-	BpfPathPy                = "/usr/libexec/lmp/collector/vfsstat.py"
+	BpfPathC             = "/usr/libexec/lmp/collector/vfsstat.c"
+	BpfPathPy            = "/usr/libexec/lmp/collector/vfsstat.py"
+	PluginPath			 = "plugins/"
 )
 
 func IsSet(name string) bool           { return config.IsSet(name) }

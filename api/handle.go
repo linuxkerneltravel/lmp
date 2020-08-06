@@ -1,17 +1,23 @@
+//
+// Created by Zhenwen Xu
+// Modified by ChenYuZhao on 2020/7/3.
+//
 package api
 
 import (
+	"bufio"
 	"fmt"
+	"github.com/cihub/seelog"
+	"github.com/gin-gonic/gin"
 	"lmp/config"
-	"lmp/deployments/sys"
+	"lmp/daemon"
+	bpf "lmp/internal/BPF"
 	"lmp/pkg/model"
+	//"log"
 	"net/http"
 	"os/exec"
 	"path"
-	"github.com/cihub/seelog"
-	"github.com/gin-gonic/gin"
 	"strings"
-	"bufio"
 )
 
 func init() {
@@ -19,28 +25,33 @@ func init() {
 		engine := router.Group("/api")
 
 		engine.GET("/ping", Ping)
-		engine.POST("/data/collect", do_collect)
+		engine.POST("/data/collect", Do_collect)
+		engine.POST("/register", UserRegister)
+		engine.POST("/login", UserLogin)
+		engine.POST("/uploadfiles", UpLoadFiles)
+		engine.GET("/service", PrintService)
 	})
-}
-
-func do_collect(c *Context) {
-	//生成配置
-	m := fillConfigMessage(c)
-
-	//根据配置生成文件
-	var bpffile sys.BpfFile
-
-	bpffile.Generator(&m)
-
-	//执行文件
-	go execute(m)
-
-	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
-	return
 }
 
 func Ping(c *Context) {
 	c.JSON(200, gin.H{"message": "pong"})
+}
+
+func Do_collect(c *Context) {
+	////生成配置
+	//m := fillConfigMessage(c)
+	//fmt.Println(m)
+	//
+	////根据配置生成文件
+	//var bpffile sys.BpfFile
+	//
+	//bpffile.Generator(&m)
+	//
+	////执行文件
+	//go execute(m)
+
+	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
+	return
 }
 
 func execute(m model.ConfigMessage) {
@@ -50,7 +61,7 @@ func execute(m model.ConfigMessage) {
 	script = append(script, "-P")
 	script = append(script, m.Pid)
 	newScript := strings.Join(script, " ")
-	cmd := exec.Command("sudo","python", collector, newScript)
+	cmd := exec.Command("sudo", "python", collector, newScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -133,4 +144,76 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 	}
 
 	return m
+}
+
+//用户注册处理器函数
+func UserRegister(c *Context) {
+	//接收前端传入的参数，并绑定到一个UserModel结构体变量中
+	var user model.UserModel
+	if err := c.ShouldBind(&user); err != nil {
+		seelog.Error("err ->", err.Error())
+		c.String(http.StatusBadRequest, "输入的数据不合法")
+	}
+
+	//接收数据合法后，存入数据库mysql
+	/*
+		passwordAgain := c.PostForm("password-again")
+		if passwordAgain != user.Password {
+			c.String(http.StatusBadRequest, "密码校验无效，两次密码不一致")
+			log.Panicln("密码校验无效，两次密码不一致")
+		}
+	*/
+	id := user.Save()
+	seelog.Info("username", user.Username, "password", user.Password, "password again", user.PasswordAgain)
+
+	seelog.Info("id is ", id)
+	fmt.Println(id)
+	fmt.Println(user)
+	c.File(fmt.Sprintf("%s/login.html", "static"))
+}
+
+//用户登录处理器函数
+func UserLogin(c *Context) {
+	var user model.UserModel
+	if e := c.Bind(&user); e != nil {
+		seelog.Error("login 绑定错误", e.Error())
+	}
+
+	u := user.QueryByEmail()
+	if u.Password == user.Password {
+		seelog.Info("登录成功", u.Username)
+		c.File(fmt.Sprintf("%s/index.html", "static"))
+	}
+}
+
+func UpLoadFiles(c *Context) {
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err,
+		})
+	}
+	files := form.File["upload[]"]
+
+	for _, file := range files {
+		seelog.Info(file.Filename)
+		c.SaveUploadedFile(file, config.PluginPath)
+		// Put the name of the newly uploaded plug-in into the pipeline Filename
+		daemon.FileChan <- file.Filename
+	}
+
+	c.String(http.StatusOK, fmt.Sprintf("%d files uploaded!", len(files)))
+}
+
+// Feedback existing plugins to the front end
+func PrintService(c *Context) {
+	var pluginsName []string
+
+	for _, plugin := range bpf.PluginServices {
+		pluginsName = append(pluginsName, plugin.Name)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"plugins": pluginsName,
+	})
 }
