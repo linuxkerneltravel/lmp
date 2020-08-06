@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"lmp/config"
 	"lmp/daemon"
+	"lmp/deployments/sys"
 	bpf "lmp/internal/BPF"
 	"lmp/pkg/model"
 	//"log"
@@ -38,23 +39,24 @@ func Ping(c *Context) {
 }
 
 func Do_collect(c *Context) {
-	////生成配置
-	//m := fillConfigMessage(c)
-	//fmt.Println(m)
-	//
-	////根据配置生成文件
-	//var bpffile sys.BpfFile
-	//
-	//bpffile.Generator(&m)
-	//
-	////执行文件
-	//go execute(m)
+	//生成配置
+	m := fillConfigMessage(c)
+	fmt.Println(m)
+
+	//根据配置生成文件
+	var bpffile sys.BpfFile
+
+	bpffile.Generator(&m)
+
+	//执行文件
+	go execute(m)
 
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
 }
 
 func execute(m model.ConfigMessage) {
+	//todo:change the bpffile directory to the plugin directory
 	collector := path.Join(config.DefaultCollectorPath, "collect.py")
 	script := make([]string, 0)
 
