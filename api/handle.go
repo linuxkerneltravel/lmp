@@ -49,8 +49,6 @@ func Do_collect(c *Context) {
 	//	seelog.Error("Error when open the bpf file.")
 	//}
 
-	//执行文件
-	//go execute(m)
 	for _,filePath := range m.BpfFilePath {
 		go execute(filePath,m)
 	}
