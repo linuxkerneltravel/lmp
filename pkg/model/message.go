@@ -12,6 +12,8 @@ type ConfigMessage struct {
 	OnCpuTime          bool   `json:"oncputime"`
 	Pid                string `json:"pid"`
 	Vfsstat            bool   `json:"vfsstat"`
+
+	BpfFilePath		   []string	`json:"bpfFilePath"`
 }
 
 

@@ -11,10 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"lmp/config"
 	"lmp/daemon"
-	"lmp/deployments/sys"
 	bpf "lmp/internal/BPF"
 	"lmp/pkg/model"
-	//"log"
 	"net/http"
 	"os/exec"
 	"path"
@@ -44,25 +42,33 @@ func Do_collect(c *Context) {
 	fmt.Println(m)
 
 	//根据配置生成文件
-	var bpffile sys.BpfFile
-
-	bpffile.Generator(&m)
+	//var bpffile sys.BpfFile
+	//bpffile.Generator(&m)
+	//file,err := os.Open("./plugins/" + fname)
+	//if err != nil {
+	//	seelog.Error("Error when open the bpf file.")
+	//}
 
 	//执行文件
-	go execute(m)
+	//go execute(m)
+	for _,filePath := range m.BpfFilePath {
+		go execute(filePath,m)
+	}
+
 
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
 }
 
-func execute(m model.ConfigMessage) {
-	//todo:change the bpffile directory to the plugin directory
-	collector := path.Join(config.DefaultCollectorPath, "collect.py")
+func execute(filepath string, m model.ConfigMessage) {
+	collector := path.Join(config.BpfPathC, filepath)
 	script := make([]string, 0)
 
+	// todo : determine if a PID parameter is required
 	script = append(script, "-P")
 	script = append(script, m.Pid)
 	newScript := strings.Join(script, " ")
+
 	cmd := exec.Command("sudo", "python", collector, newScript)
 
 	stdout, err := cmd.StdoutPipe()
@@ -107,35 +113,47 @@ func execute(m model.ConfigMessage) {
 	seelog.Info("start extracting data...")
 }
 
+//func execute(m model.ConfigMessage) {
+//	//todo:change the bpffile directory to the plugin directory
+//	collector := path.Join(config.PluginPath, "a")
+//}
+
 func fillConfigMessage(c *Context) model.ConfigMessage {
 	var m model.ConfigMessage
+
 	if _, ok := c.GetPostForm("dispatchingdelay"); ok {
 		m.DispatchingDelay = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "dispatchingdelay.py")
 	} else {
 		m.DispatchingDelay = false
 	}
 	if _, ok := c.GetPostForm("waitingqueuelength"); ok {
 		m.WaitingQueueLength = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "waitingqueuelength.py")
 	} else {
 		m.WaitingQueueLength = false
 	}
 	if _, ok := c.GetPostForm("softirqtime"); ok {
 		m.SoftIrqTime = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "softirqtime.py")
 	} else {
 		m.SoftIrqTime = false
 	}
 	if _, ok := c.GetPostForm("hardirqtime"); ok {
 		m.HardIrqTime = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "hardirqtime.py")
 	} else {
 		m.HardIrqTime = false
 	}
 	if _, ok := c.GetPostForm("oncputime"); ok {
 		m.OnCpuTime = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "oncputime.py")
 	} else {
 		m.OnCpuTime = false
 	}
 	if _, ok := c.GetPostForm("vfsstat"); ok {
 		m.Vfsstat = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "vfsstat.py")
 	} else {
 		m.Vfsstat = false
 	}
