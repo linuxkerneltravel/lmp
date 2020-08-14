@@ -11,11 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"lmp/config"
 	"lmp/daemon"
-	bpf "lmp/internal/BPF"
+	"lmp/internal/BPF"
 	"lmp/pkg/model"
 	"net/http"
 	"os/exec"
-	"strings"
 )
 
 func init() {
@@ -61,14 +60,16 @@ func Do_collect(c *Context) {
 
 func execute(filepath string, m model.ConfigMessage) {
 	//collector := path.Join(config.BpfPathC, filepath)
-	script := make([]string, 0)
+	//script := make([]string, 0)
 
 	// todo : determine if a PID parameter is required
-	script = append(script, "-P")
-	script = append(script, m.Pid)
-	newScript := strings.Join(script, " ")
+	//script = append(script, "-P")
+	//script = append(script, m.Pid)
+	//newScript := strings.Join(script, " ")
 
-	cmd := exec.Command("sudo", "python", filepath, newScript)
+	fmt.Println(filepath)
+	cmd := exec.Command("sudo", "python", filepath)
+	//cmd := exec.Command("sudo", "python", filepath, newScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
