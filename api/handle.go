@@ -15,7 +15,6 @@ import (
 	"lmp/pkg/model"
 	"net/http"
 	"os/exec"
-	"path"
 	"strings"
 )
 
@@ -40,6 +39,7 @@ func Do_collect(c *Context) {
 	//生成配置
 	m := fillConfigMessage(c)
 	fmt.Println(m)
+	fmt.Println(m.BpfFilePath)
 
 	//根据配置生成文件
 	//var bpffile sys.BpfFile
@@ -50,6 +50,7 @@ func Do_collect(c *Context) {
 	//}
 
 	for _,filePath := range m.BpfFilePath {
+		fmt.Println(filePath)
 		go execute(filePath,m)
 	}
 
@@ -59,7 +60,7 @@ func Do_collect(c *Context) {
 }
 
 func execute(filepath string, m model.ConfigMessage) {
-	collector := path.Join(config.BpfPathC, filepath)
+	//collector := path.Join(config.BpfPathC, filepath)
 	script := make([]string, 0)
 
 	// todo : determine if a PID parameter is required
@@ -67,7 +68,7 @@ func execute(filepath string, m model.ConfigMessage) {
 	script = append(script, m.Pid)
 	newScript := strings.Join(script, " ")
 
-	cmd := exec.Command("sudo", "python", collector, newScript)
+	cmd := exec.Command("sudo", "python", filepath, newScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -154,6 +155,12 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "vfsstat.py")
 	} else {
 		m.Vfsstat = false
+	}
+	if _, ok := c.GetPostForm("dcache"); ok {
+		m.Vfsstat = true
+		m.BpfFilePath = append(m.BpfFilePath, config.PluginPath + "dcache.py")
+	} else {
+		m.Dcache = false
 	}
 	if pid, ok := c.GetPostForm("pid"); ok {
 		m.Pid = pid

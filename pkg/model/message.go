@@ -10,8 +10,9 @@ type ConfigMessage struct {
 	SoftIrqTime        bool   `json:"softirqtime"`
 	HardIrqTime        bool   `json:"hardirqtime"`
 	OnCpuTime          bool   `json:"oncputime"`
-	Pid                string `json:"pid"`
 	Vfsstat            bool   `json:"vfsstat"`
+	Dcache			   bool   `json:"dcache"`
+	Pid                string `json:"pid"`
 
 	BpfFilePath		   []string	`json:"bpfFilePath"`
 }
