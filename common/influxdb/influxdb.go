@@ -9,7 +9,7 @@ import (
 	"lmp/config"
 
 	"github.com/cihub/seelog"
-	"github.com/influxdata/influxdb/client/v2"
+	client "github.com/influxdata/influxdb/client/v2"
 )
 
 //globe engine
