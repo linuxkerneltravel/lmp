@@ -212,6 +212,7 @@ func UserLogin(c *Context) {
 	}
 }
 
+// Delete later
 func UpLoadFile(c *Context) {
 	file, err := c.FormFile("bpffile")
 	if err != nil {
@@ -234,13 +235,14 @@ func UpLoadFiles(c *Context) {
 			"error": err,
 		})
 	}
-	// todo : mutil
+	// todo :  Multiple files uploaded
 	files := form.File["bpffile"]
 	fmt.Println("file:", files)
+	fmt.Println(config.PluginPath)
 
 	for _, file := range files {
 		seelog.Info(file.Filename)
-		c.SaveUploadedFile(file, config.PluginPath)
+		c.SaveUploadedFile(file, config.PluginPath + file.Filename)
 		// Put the name of the newly uploaded plug-in into the pipeline Filename
 		daemon.FileChan <- file.Filename
 	}
