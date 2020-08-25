@@ -212,6 +212,21 @@ func UserLogin(c *Context) {
 	}
 }
 
+func UpLoadFile(c *Context) {
+	file, err := c.FormFile("bpffile")
+	if err != nil {
+		c.String(http.StatusBadRequest, "FormFile failed")
+		return
+	}
+	fmt.Println("file:", file.Filename)
+
+	if err := c.SaveUploadedFile(file, config.PluginPath); err != nil {
+		c.String(http.StatusBadRequest, "upload failed:%s", err.Error())
+		return
+	}
+	c.String(http.StatusOK, "upload success")
+}
+
 func UpLoadFiles(c *Context) {
 	form, err := c.MultipartForm()
 	if err != nil {
@@ -219,7 +234,9 @@ func UpLoadFiles(c *Context) {
 			"error": err,
 		})
 	}
-	files := form.File["upload[]"]
+	// todo : mutil
+	files := form.File["bpffile"]
+	fmt.Println("file:", files)
 
 	for _, file := range files {
 		seelog.Info(file.Filename)

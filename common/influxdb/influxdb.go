@@ -9,7 +9,7 @@ import (
 	"lmp/config"
 
 	"github.com/cihub/seelog"
-	client "github.com/influxdata/influxdb/client/v2"
+	"github.com/influxdata/influxdb/client/v2"
 )
 
 //globe engine
@@ -43,12 +43,12 @@ func (i *InfluxStore) Init() error {
 		return err
 	}
 
-	seelog.Info("connecting to influxdb...")
+	seelog.Info("[influxdb] : connecting to influxdb succeed")
 
 	q := client.NewQuery("create database log_process", "", "")
 	_, err = Conn.Query(q)
 	if err != nil {
-		seelog.Error("create database log_process failed!")
+		seelog.Error("[influxdb] : create database log_process failed!")
 		return err
 	}
 	bp, err = client.NewBatchPoints(client.BatchPointsConfig{
@@ -56,9 +56,8 @@ func (i *InfluxStore) Init() error {
 		Precision: "s",
 	})
 	if err != nil {
-		seelog.Error("conneting database log_process failed!")
+		seelog.Error("[influxdb] : conneting database log_process failed!")
 	}
-	seelog.Info("connecting to influxdb succeed")
 	//fmt.Println("conneting success")
 	i.CreateNewMeasurement("s", bp, Conn)
 
