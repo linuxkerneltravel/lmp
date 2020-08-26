@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 )
 
 // Define global slices for storing all plugins
@@ -36,11 +37,14 @@ type PluginService struct {
 // Register plugins
 func RegisterPluginService(name string, f *os.File, info string) {
 	if name != "api.py" && name != "db_modules.py" && name != "lmp_influxdb.py" && name != "db_modules.pyc" && name != "lmp_influxdb.pyc" {
-		PluginServices = append(PluginServices, &PluginService{
-			F : f,
-			Name : name,
-			Info : info,
-		})
+		if !strings.HasSuffix(name,".c"){
+			PluginServices = append(PluginServices, &PluginService{
+				F : f,
+				Name : strings.Trim(name, ".py"),
+				Info : info,
+			})
+		}
+
 	}
 }
 
