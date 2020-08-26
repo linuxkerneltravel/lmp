@@ -24,10 +24,10 @@ docker run -d \
 -p 8083:8083 \
 -p 8086:8086 \
 --name influxdb \
--v /home/zcy/gocode/src/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
--v /home/zcy/gocode/src/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
--v /home/zcy/gocode/src/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
--v /home/zcy/gocode/src/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
+-v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+-v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+-v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+-v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 ```
 
 

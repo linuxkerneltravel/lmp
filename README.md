@@ -12,16 +12,15 @@ TODO...
 
 ## 界面截图
 
-<details>
-<summary>展开查看</summary>
-<pre><code>
-<img src="./static/imgs/homepage.png" width="2880" height="450" /><br/><br/>
-</code></pre>
-</details>
+![homepage](./static/imgs/homepage.png)
+
+![homepage](./static/imgs/grafana.png)
+
+![homepage](./static/imgs/data.png)
 
 ## 项目结构概览
 
-<details>
+<details> 
 <summary>展开查看</summary>
 <pre><code>.
 ├── README.md
@@ -72,12 +71,6 @@ TODO...
 
 ```
 # 修改配置文件
- 将/opt/prometheus/prometheus.yml中xxx替换为本机的IP地址
-#run prometheus
- docker run  -d \
-   -p 9090:9090 \
-   -v /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  \
-   prom/prometheus
 
 #run grafana
  docker run -d \
@@ -85,6 +78,17 @@ TODO...
    --name=grafana \
    -v /opt/grafana-storage:/var/lib/grafana \
    grafana/grafana
+
+#run influxdb
+    docker run -d \
+    -p 8083:8083 \
+    -p 8086:8086 \
+    --name influxdb \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
+
 
 #run lmp
  ./cmd/main
@@ -122,12 +126,11 @@ TODO...
 
 ## Interface screenshot
 
-<details>
-<summary>Expand to view</summary>
-<pre><code>
-<img src="./static/imgs/homepage.png" width="2880" height="450" /><br/><br/>
-</code></pre>
-</details>
+![homepage](./static/imgs/homepage.png)
+
+![homepage](./static/imgs/grafana.png)
+
+![homepage](./static/imgs/data.png)
 
 
 ## Project structure overview  
@@ -182,12 +185,6 @@ TODO...
 
 ```
 # Modify configuration file
- Replace xxx in /opt/prometheus/prometheus.yml with the IP address of the machine
-#run prometheus
- docker run  -d \
-   -p 9090:9090 \
-   -v /opt/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  \
-   prom/prometheus
 
 #run grafana
  docker run -d \
@@ -195,6 +192,16 @@ TODO...
    --name=grafana \
    -v /opt/grafana-storage:/var/lib/grafana \
    grafana/grafana
+   
+#run influxdb
+    docker run -d \
+    -p 8083:8083 \
+    -p 8086:8086 \
+    --name influxdb \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
 #run lmp
  ./cmd/main
