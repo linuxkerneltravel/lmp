@@ -17,7 +17,6 @@ var PluginServices []*PluginService
 func init() {
 	// Read the name of the plug-in in the directory
 	files, _ := ioutil.ReadDir("./plugins")
-	fmt.Println(files)
 	for _, f := range files {
 		// Register plugins
 		file,_ := os.Open("./plugins/"+f.Name())
