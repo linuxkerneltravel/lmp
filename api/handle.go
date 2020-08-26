@@ -11,11 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"lmp/config"
 	"lmp/daemon"
-	bpf "lmp/internal/BPF"
+	"lmp/internal/BPF"
 	"lmp/pkg/model"
 	"net/http"
 	"os/exec"
-	"strings"
 )
 
 func init() {
@@ -61,14 +60,16 @@ func Do_collect(c *Context) {
 
 func execute(filepath string, m model.ConfigMessage) {
 	//collector := path.Join(config.BpfPathC, filepath)
-	script := make([]string, 0)
+	//script := make([]string, 0)
 
 	// todo : determine if a PID parameter is required
-	script = append(script, "-P")
-	script = append(script, m.Pid)
-	newScript := strings.Join(script, " ")
+	//script = append(script, "-P")
+	//script = append(script, m.Pid)
+	//newScript := strings.Join(script, " ")
 
-	cmd := exec.Command("sudo", "python", filepath, newScript)
+	fmt.Println(filepath)
+	cmd := exec.Command("sudo", "python", filepath)
+	//cmd := exec.Command("sudo", "python", filepath, newScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -211,6 +212,22 @@ func UserLogin(c *Context) {
 	}
 }
 
+// Delete later
+func UpLoadFile(c *Context) {
+	file, err := c.FormFile("bpffile")
+	if err != nil {
+		c.String(http.StatusBadRequest, "FormFile failed")
+		return
+	}
+	fmt.Println("file:", file.Filename)
+
+	if err := c.SaveUploadedFile(file, config.PluginPath); err != nil {
+		c.String(http.StatusBadRequest, "upload failed:%s", err.Error())
+		return
+	}
+	c.String(http.StatusOK, "upload success")
+}
+
 func UpLoadFiles(c *Context) {
 	form, err := c.MultipartForm()
 	if err != nil {
@@ -218,11 +235,14 @@ func UpLoadFiles(c *Context) {
 			"error": err,
 		})
 	}
-	files := form.File["upload[]"]
+	// todo :  Multiple files uploaded
+	files := form.File["bpffile"]
+	fmt.Println("file:", files)
+	fmt.Println(config.PluginPath)
 
 	for _, file := range files {
 		seelog.Info(file.Filename)
-		c.SaveUploadedFile(file, config.PluginPath)
+		c.SaveUploadedFile(file, config.PluginPath + file.Filename)
 		// Put the name of the newly uploaded plug-in into the pipeline Filename
 		daemon.FileChan <- file.Filename
 	}
