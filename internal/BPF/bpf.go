@@ -36,11 +36,13 @@ type PluginService struct {
 
 // Register plugins
 func RegisterPluginService(name string, f *os.File, info string) {
-	PluginServices = append(PluginServices, &PluginService{
-		F : f,
-		Name : name,
-		Info : info,
-	})
+	if name != "api.py" && name != "db_modules.py" && name != "lmp_influxdb.py" && name != "db_modules.pyc" && name != "lmp_influxdb.pyc" {
+		PluginServices = append(PluginServices, &PluginService{
+			F : f,
+			Name : name,
+			Info : info,
+		})
+	}
 }
 
 // Print the names of all plugins
