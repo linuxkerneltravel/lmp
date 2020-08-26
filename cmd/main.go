@@ -31,6 +31,7 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	debug.SetTraceback("crash")
+	fmt.Println(logo)
 	app := cli.NewApp()
 	app.Name = "lmp"
 	app.Usage = "lmp"
@@ -93,6 +94,7 @@ func main() {
 		})
 	}
 	app.Run(os.Args)
+
 }
 
 const (
@@ -106,4 +108,32 @@ const (
 		</formats>
 	</seelog>
 	`
+)
+
+
+const (
+	logo = `
+                                L                               
+                               MMPMML                           
+                              LML    MMML                       
+                             MML        LMMLL                   
+                           LPML             LMMPL               
+                           MM      ML          LLMML            
+          LMP            LML     LMMMM             MM           
+          LMP            MM     LMM  ML            MM           
+          LMP          LMM      MM    ML           MM           
+          LMP         LML     LML      MM          MM           
+          LMP        LML      ML        MPL        MM           
+          LMP       LMM      MM          MM        MM           
+          LMP      LML     LMP            PML      MM           
+          LMP     PML     LML              LML     MM           
+          LMP    LMPLMPLMPLMPLMPLMPLMPLMPLMPLMP    MM           
+          LMP           LMM                        MM           
+           LMML         ML                      LMMMM           
+               MMMM    ML                    LMMM               
+                  LLMMML                LMMML                   
+                        LML          LMMLL                      
+                          LMMML LLMMLL                          
+                              LLLL   
+`
 )

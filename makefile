@@ -15,7 +15,7 @@ all:
 clean:
 	rm -rf cmd/main
 	rm -rf logs
-	rm -rf main.pid
+	rm -rf cmd/main.pid
 	rm -rf $(PREFIX)
 	rm -rf $(PRODIR)
 	rm -rf $(GRADIR)
