@@ -43,6 +43,8 @@ func RegisterPluginService(name string, f *os.File, info string) {
 				Name : strings.Trim(name, ".py"),
 				Info : info,
 			})
+			fmt.Println("[plugins] :" + strings.Trim(name, ".py"))
+
 		}
 
 	}

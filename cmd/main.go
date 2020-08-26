@@ -57,7 +57,7 @@ func main() {
 		srv.Use(static.Serve("/", static.LocalFile("static", false)))
 		srv.StaticFS("/static", http.Dir("static/"))
 		srv.NoRoute(func(c *gin.Context) {
-			c.File(fmt.Sprintf("%s/file.html", "static"))
+			c.File(fmt.Sprintf("%s/index.html", "static"))
 		})
 
 		config.InHost = c.String("inhost")
@@ -74,10 +74,9 @@ func main() {
 			for {
 				select {
 				case <-ticker.C:
-					// 该处可以用来反馈给用户目前支持的插件
 					//fmt.Println(bpf.PluginServices)
 					for _,plugin := range bpf.PluginServices {
-						fmt.Println(plugin.Name)
+						fmt.Println("[pligins]: " + plugin.Name)
 						fmt.Println()
 					}
 					//fmt.Println(bpf.PluginServices[1].Name)
@@ -94,7 +93,6 @@ func main() {
 		})
 	}
 	app.Run(os.Args)
-
 }
 
 const (
