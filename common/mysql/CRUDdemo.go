@@ -21,7 +21,7 @@ type user struct {
 // 定义一个初始化数据库的函数
 func initDB() (err error) {
 	// DSN:Data Source Name
-	dsn := "root:asdvbn789@tcp(127.0.0.1:3306)/sql_test?charset=utf8mb4&parseTime=True"
+	dsn := "user:password@tcp(127.0.0.1:3306)/sql_test?charset=utf8mb4&parseTime=True"
 	// 不会校验账号密码是否正确
 	// 注意！！！这里不要使用:=，我们是给全局变量赋值，然后在main函数中使用全局变量db
 	// 返回值已经定义了err，所以err也不用定义了

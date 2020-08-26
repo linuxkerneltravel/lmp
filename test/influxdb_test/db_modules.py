@@ -10,8 +10,3 @@ def write2db(datatype,data,client):
     for y in datatype['fields']:
         tmp[0]["fields"][y] = getattr(data,y)
     client.write_points(tmp)
-
-def delete_db(client,measurement,*,require):
-    sql = 'delete from ' + measurement + ' where '+ require +';'
-    client.query(sql)
-

@@ -8,7 +8,6 @@ package main
 
 import (
 	"fmt"
-	bpf "lmp/internal/BPF"
 	"math/rand"
 	"net/http"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/urfave/cli"
+	"lmp/internal/BPF"
 )
 
 func main() {
@@ -68,18 +68,17 @@ func main() {
 		seelog.Info("Serve on ", listenAddress)
 
 		// The following timer code is used to test the plug-in mechanism, If you like to delete it, delete it
-		ticker := time.NewTicker(time.Second * 15) // 运行时长
+		ticker := time.NewTicker(time.Second * 5) // 运行时长
 		go func() {
 			for {
 				select {
 				case <-ticker.C:
 					// 该处可以用来反馈给用户目前支持的插件
-					fmt.Println(bpf.PluginServices)
-					//for _,plugin := range bpf.PluginServices {
-						//fmt.Println(plugin.Name)
-						//fmt.Println(plugin.Info)
-						//fmt.Println(plugin.F)
-					//}
+					//fmt.Println(bpf.PluginServices)
+					for _,plugin := range bpf.PluginServices {
+						fmt.Println(plugin.Name)
+						fmt.Println()
+					}
 					//fmt.Println(bpf.PluginServices[1].Name)
 				}
 			}
