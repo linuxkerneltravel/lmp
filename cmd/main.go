@@ -56,7 +56,7 @@ func main() {
 		srv.Use(static.Serve("/", static.LocalFile("static", false)))
 		srv.StaticFS("/static", http.Dir("static/"))
 		srv.NoRoute(func(c *gin.Context) {
-			c.File(fmt.Sprintf("%s/index.html", "static"))
+			c.File(fmt.Sprintf("%s/file.html", "static"))
 		})
 
 		config.InHost = c.String("inhost")
@@ -68,7 +68,7 @@ func main() {
 		seelog.Info("Serve on ", listenAddress)
 
 		// The following timer code is used to test the plug-in mechanism, If you like to delete it, delete it
-		ticker := time.NewTicker(time.Second * 4) // 运行时长
+		ticker := time.NewTicker(time.Second * 15) // 运行时长
 		go func() {
 			for {
 				select {
