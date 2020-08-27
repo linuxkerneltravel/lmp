@@ -1,3 +1,116 @@
+![](./static/imgs/LMP-logo.png)
+# Linux microscope
+
+LMP is a web tool for real-time display of Linux system performance data based on BCC (BPF Compiler Collection), which uses BPF (Berkeley Packet Filter), also known as eBPF. Currently, LMP is tested on ubuntu18.04 and the kernel version is 4.15.0.
+
+## startup
+
+TODO...
+
+## Project architecture
+![](./static/imgs/LMP-arch3.png)
+
+## Interface screenshot
+
+![homepage](./static/imgs/homepage.png)
+
+![homepage](./static/imgs/grafana.png)
+
+![homepage](./static/imgs/data.png)
+
+
+## Project structure overview  
+
+<details>
+<summary>Expand to view</summary>
+<pre><code>.
+├── README.md
+├── api           Protocol files, interface files for front-end interaction, etc., the routing settings and routing functions of this project
+├── cmd           File of Main()
+├── config        Configuration
+├── deployments   Some configuration and templates issued by the backend
+├── docs          Design document, record document, etc.
+├── go.mod
+├── go.sum
+├── internal      The code encapsulated in this project, including BPF code, etc.
+├── pkg           Common code that can be used by other projects
+├── static        Some static pages used in the project, including front-end static display pages, pictures, etc.
+├── test          Test catalog, including functional test, performance test, etc.
+└── vendor        Other third-party libraries that this project depends on
+</code></pre>
+</details>
+
+##  install lmp
+
+###  Ubuntu-source
+
+#### Build lmp from source，The basic environment required is as follows：
+
+- golang
+- docker
+
+###  Install dependent docker image
+
+```
+# For prometheus 
+ docker pull prom/prometheus
+# For grafana
+ docker pull grafana/grafana
+```
+
+### Compile and install
+
+```
+ git clone https://github.com/linuxkerneltravel/lmp
+ cd lmp
+ make
+ make install
+```
+
+## Run locally
+
+```
+# Modify configuration file
+
+#run grafana
+ docker run -d \
+   -p 3000:3000 \
+   --name=grafana \
+   -v /opt/grafana-storage:/var/lib/grafana \
+   grafana/grafana
+   
+#run influxdb
+    docker run -d \
+    -p 8083:8083 \
+    -p 8086:8086 \
+    --name influxdb \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
+
+#run lmp
+ ./cmd/main
+```
+
+### observation
+
+http://localhost:8080/  After logging in to grafana, import the json file under /opt/grafana to view it.
+
+### Uninstall
+
+```
+make clean
+```
+
+## Thanks for the support of the following open source projects
+
+- [Gin] - [https://gin-gonic.com/](https://gin-gonic.com/)
+- [bcc] - [https://github.com/iovisor/bcc](https://github.com/iovisor/bcc)
+
+# ZH
+
+![](./static/imgs/LMP-logo.png)
 # Linux microscope
 
 LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
@@ -111,113 +224,3 @@ make clean
 
 
 
-# English
-
-# Linux microscope
-
-LMP is a web tool for real-time display of Linux system performance data based on BCC (BPF Compiler Collection), which uses BPF (Berkeley Packet Filter), also known as eBPF. Currently, LMP is tested on ubuntu18.04 and the kernel version is 4.15.0.
-
-## startup
-
-TODO...
-
-## Project architecture
-![](./static/imgs/LMP-arch3.png)
-
-## Interface screenshot
-
-![homepage](./static/imgs/homepage.png)
-
-![homepage](./static/imgs/grafana.png)
-
-![homepage](./static/imgs/data.png)
-
-
-## Project structure overview  
-
-<details>
-<summary>Expand to view</summary>
-<pre><code>.
-├── README.md
-├── api           Protocol files, interface files for front-end interaction, etc., the routing settings and routing functions of this project
-├── cmd           File of Main()
-├── config        Configuration
-├── deployments   Some configuration and templates issued by the backend
-├── docs          Design document, record document, etc.
-├── go.mod
-├── go.sum
-├── internal      The code encapsulated in this project, including BPF code, etc.
-├── pkg           Common code that can be used by other projects
-├── static        Some static pages used in the project, including front-end static display pages, pictures, etc.
-├── test          Test catalog, including functional test, performance test, etc.
-└── vendor        Other third-party libraries that this project depends on
-</code></pre>
-</details>
-
-##  install lmp
-
-###  Ubuntu-source
-
-#### Build lmp from source，The basic environment required is as follows：
-
-- golang
-- docker
-
-###  Install dependent docker image
-
-```
-# For prometheus 
- docker pull prom/prometheus
-# For grafana
- docker pull grafana/grafana
-```
-
-### Compile and install
-
-```
- git clone https://github.com/linuxkerneltravel/lmp
- cd lmp
- make
- make install
-```
-
-## Run locally
-
-```
-# Modify configuration file
-
-#run grafana
- docker run -d \
-   -p 3000:3000 \
-   --name=grafana \
-   -v /opt/grafana-storage:/var/lib/grafana \
-   grafana/grafana
-   
-#run influxdb
-    docker run -d \
-    -p 8083:8083 \
-    -p 8086:8086 \
-    --name influxdb \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
-
-#run lmp
- ./cmd/main
-```
-
-### observation
-
-http://localhost:8080/  After logging in to grafana, import the json file under /opt/grafana to view it.
-
-### Uninstall
-
-```
-make clean
-```
-
-## Thanks for the support of the following open source projects
-
-- [Gin] - [https://gin-gonic.com/](https://gin-gonic.com/)
-- [bcc] - [https://github.com/iovisor/bcc](https://github.com/iovisor/bcc)
