@@ -111,27 +111,15 @@ const (
 
 const (
 	logo = `
-		                                L                               
-		                               MMPMML                           
-		                              LML    MMML                       
-		                             MML        LMMLL                   
-		                           LPML             LMMPL               
-		                           MM      ML          LLMML            
-		          LMP            LML     LMMMM             MM           
-		          LMP            MM     LMM  ML            MM           
-		          LMP          LMM      MM    ML           MM           
-		          LMP         LML     LML      MM          MM           
-		          LMP        LML      ML        MPL        MM           	
-		          LMP       LMM      MM          MM        MM           
-		          LMP      LML     LMP            PML      MM           
-		          LMP     PML     LML              LML     MM           
-		          LMP    LMPLMPLMPLMPLMPLMPLMPLMPLMPLMP    MM           
-		          LMP           LMM                        MM           
-		           LMML         ML                      LMMMM           
-		               MMMM    ML                    LMMM               
-		                  LLMMML                LMMML                   
-		                        LML          LMMLL                      
-		                          LMMML LLMMLL                          
-		                              LLLL    
+                     ___        ___      ___       __________
+                    /LMP|      /LMP\    /LMP|     /LMPLMPLMPL\     
+                   /LMP/      |LMPLM|   LMPLM\    |LMPLMPLMPLM|
+                   LMP|      /LMPLMPL\  LMPLMP|  /MPL      LMP|
+                   LMP|      |LM| \LM| /LM| LMP| |MP       LMP|
+                   LMP|      |LM|  LMP LM/  \LM| |MPLMPLMPLMP/
+                   LMP|      /LM|  \LMPLM|   \LMPLMPLMPLMPL/      
+                  /LMP|_____|LM|    \LMPL/   |LMPLM/
+                  |LMPLMPLMPLMP/    |LMPL|    LMPLM|
+                  \LMPLMPLMPLM/     \LMPL/     \LMP/
 `
 )
