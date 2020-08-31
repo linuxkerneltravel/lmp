@@ -42,7 +42,7 @@ func Do_collect(c *Context) {
 	//fmt.Println(m.BpfFilePath)
 
 	for _,filePath := range m.BpfFilePath {
-		fmt.Println(filePath)
+		//fmt.Println(filePath)
 		go execute(filePath,m)
 	}
 
@@ -52,7 +52,7 @@ func Do_collect(c *Context) {
 
 func execute(filepath string, m model.ConfigMessage) {
 	var newScript string
-	// If pidflag is true, then we should add the pid par
+	// If pidflag is true, then we should add the pid parameter
 	if m.PidFlag == true {
 		script := make([]string, 0)
 		script = append(script, "-P")
@@ -62,6 +62,8 @@ func execute(filepath string, m model.ConfigMessage) {
 		newScript = ""
 	}
 	// fmt.Println(filepath)
+	fmt.Println("[ConfigMessage] :", m.PidFlag, m.Pid)
+	fmt.Println("[string] :", filepath, newScript)
 	cmd := exec.Command("sudo", "python", filepath, newScript)
 
 	stdout, err := cmd.StdoutPipe()
@@ -105,11 +107,6 @@ func execute(filepath string, m model.ConfigMessage) {
 	}
 	seelog.Info("start extracting data...")
 }
-
-//func execute(m model.ConfigMessage) {
-//	//todo:change the bpffile directory to the plugin directory
-//	collector := path.Join(config.PluginPath, "a")
-//}
 
 func fillConfigMessage(c *Context) model.ConfigMessage {
 	var m model.ConfigMessage
@@ -156,13 +153,18 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 	} else {
 		m.Dcache = false
 	}
+	// Todo : Is this PID process exists?
 	if _, ok := c.GetPostForm("pid"); ok {
 		m.PidFlag = true
 		// Then store the real pid number
 		if pid, ok := c.GetPostForm("pidnum"); ok {
-			m.Pid = pid
+			if pid != "-1" {
+				m.Pid = pid
+			} else {
+				m.PidFlag = false
+			}
 		} else {
-			m.Pid = "-1"
+			m.PidFlag = false
 		}
 	} else {
 		m.PidFlag = false
