@@ -12,7 +12,7 @@ TODO...
 
 ## Interface screenshot
 
-![homepage](./static/imgs/homepage.png)
+![homepage2](./static/imgs/homepage2.png)
 
 ![homepage](./static/imgs/grafana.png)
 
@@ -125,7 +125,7 @@ TODO...
 
 ## 界面截图
 
-![homepage](./static/imgs/homepage.png)
+![homepage2](./static/imgs/homepage2.png)
 
 ![homepage](./static/imgs/grafana.png)
 
