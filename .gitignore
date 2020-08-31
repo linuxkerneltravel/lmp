@@ -2,8 +2,8 @@
 **/desktop.ini
 .idea/
 .vscode/
-cmd/main
-cmd/main.pid
+/cmd/main
+/cmd/main.pid
 logs
 
 .DS_Store
