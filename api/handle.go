@@ -15,6 +15,7 @@ import (
 	"lmp/pkg/model"
 	"net/http"
 	"os/exec"
+	"strings"
 )
 
 func init() {
@@ -37,39 +38,31 @@ func Ping(c *Context) {
 func Do_collect(c *Context) {
 	//生成配置
 	m := fillConfigMessage(c)
-	fmt.Println(m)
-	fmt.Println(m.BpfFilePath)
-
-	//根据配置生成文件
-	//var bpffile sys.BpfFile
-	//bpffile.Generator(&m)
-	//file,err := os.Open("./plugins/" + fname)
-	//if err != nil {
-	//	seelog.Error("Error when open the bpf file.")
-	//}
+	//fmt.Println(m)
+	//fmt.Println(m.BpfFilePath)
 
 	for _,filePath := range m.BpfFilePath {
 		fmt.Println(filePath)
 		go execute(filePath,m)
 	}
 
-
 	c.Redirect(http.StatusMovedPermanently, "http://"+config.GrafanaIp)
 	return
 }
 
 func execute(filepath string, m model.ConfigMessage) {
-	//collector := path.Join(config.BpfPathC, filepath)
-	//script := make([]string, 0)
-
-	// todo : determine if a PID parameter is required
-	//script = append(script, "-P")
-	//script = append(script, m.Pid)
-	//newScript := strings.Join(script, " ")
-
-	fmt.Println(filepath)
-	cmd := exec.Command("sudo", "python", filepath)
-	//cmd := exec.Command("sudo", "python", filepath, newScript)
+	var newScript string
+	// If pidflag is true, then we should add the pid par
+	if m.PidFlag == true {
+		script := make([]string, 0)
+		script = append(script, "-P")
+		script = append(script, m.Pid)
+		newScript = strings.Join(script, " ")
+	} else {
+		newScript = ""
+	}
+	// fmt.Println(filepath)
+	cmd := exec.Command("sudo", "python", filepath, newScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -163,10 +156,16 @@ func fillConfigMessage(c *Context) model.ConfigMessage {
 	} else {
 		m.Dcache = false
 	}
-	if pid, ok := c.GetPostForm("pid"); ok {
-		m.Pid = pid
+	if _, ok := c.GetPostForm("pid"); ok {
+		m.PidFlag = true
+		// Then store the real pid number
+		if pid, ok := c.GetPostForm("pidnum"); ok {
+			m.Pid = pid
+		} else {
+			m.Pid = "-1"
+		}
 	} else {
-		m.Pid = "-1"
+		m.PidFlag = false
 	}
 
 	return m
