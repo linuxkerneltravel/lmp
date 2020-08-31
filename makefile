@@ -9,8 +9,8 @@ GRADIR = $(PRE)/grafana-storage
 DASHDIR = $(PRE)/grafana
 
 all:
-	# go build -mod=vendor -o cmd/main cmd/main.go
-	go build -o cmd/main cmd/main.go
+	go build -mod=vendor -o cmd/main cmd/main.go
+	# go build -o cmd/main cmd/main.go
 
 clean:
 	rm -rf cmd/main
