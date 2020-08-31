@@ -25,7 +25,6 @@ import (
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/urfave/cli"
-	"lmp/internal/BPF"
 )
 
 func main() {
@@ -74,12 +73,10 @@ func main() {
 			for {
 				select {
 				case <-ticker.C:
-					//fmt.Println(bpf.PluginServices)
-					for _,plugin := range bpf.PluginServices {
-						fmt.Println("[pligins]: " + plugin.Name)
-						fmt.Println()
-					}
-					//fmt.Println(bpf.PluginServices[1].Name)
+					//for _,plugin := range bpf.PluginServices {
+					//	fmt.Println("[plugins]: " + plugin.Name)
+					//	fmt.Println()
+					//}
 				}
 			}
 			ticker.Stop()
