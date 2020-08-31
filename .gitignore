@@ -2,7 +2,9 @@
 **/desktop.ini
 .idea/
 .vscode/
-vendor
+cmd/main
+cmd/main.pid
+logs
 
 .DS_Store
 .gitkeep
