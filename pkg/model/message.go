@@ -12,8 +12,11 @@ type ConfigMessage struct {
 	OnCpuTime          bool   `json:"oncputime"`
 	Vfsstat            bool   `json:"vfsstat"`
 	Dcache			   bool   `json:"dcache"`
-	Pid                string `json:"pid"`
+	PidFlag			   bool   `json:"pidflag"`
 
+	// The real pid number
+	Pid                string `json:"pid"`
+	// Store the config above to the 'BpfFilePath'
 	BpfFilePath		   []string	`json:"bpfFilePath"`
 }
 
