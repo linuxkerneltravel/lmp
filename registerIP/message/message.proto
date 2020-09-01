@@ -4,6 +4,7 @@ package message;
 
 service Register {
   rpc RegisterNode (RegisterRequest) returns (RegisterReply) {}
+  rpc
 }
 
 message RegisterRequest {

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"lmp-grpc/registerIP/message"
 	"net"
 	"os"
+	"time"
 )
 
 func GetIntranetIp() {
@@ -38,15 +40,45 @@ func main() {
 	defer conn.Close()
 
 	c := message.NewRegisterClient(conn)
-	// 调用server的SayHello方法
-	r,err := c.RegisterNode(context.Background(), &message.RegisterRequest{
-		Ip:"",
-		Port:"",
-		HostName:"node1"})
-	if err != nil {
-		fmt.Printf("could not register: %v", err)
+	// 调用server的 RegisterNode 方法
+	for {
+		r,err := c.RegisterNode(context.Background(), &message.RegisterRequest{
+			Ip:"",
+			Port:"",
+			HostName:"node1"})
+		if err != nil {
+			fmt.Printf("could not register: %v", err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		fmt.Printf("Register: %s !\n", r)
+		conn.Close()
+		break
+		// If register success, then we close the connect.
 	}
-	fmt.Printf("Register: %s !\n", r)
+
+	// Then we shart a grpc server
+	// Listen to localhost:8972
+	lis,err := net.Listen("tcp", ":8080")
+	if err != nil {
+		fmt.Printf("failed to listen: %v", err)
+		return
+	}
+	// Build rpc server
+	s := grpc.NewServer()
+	// Register service
+	message.RegisterRegisterServer(s, &server{})
+
+	// 在给定的gRPC服务器上注册服务器反射服务
+	reflection.Register(s)
+	// Serve方法在lis上接受传入连接，为每个连接创建一个ServerTransport和server的goroutine。
+	// 该goroutine读取gRPC请求，然后调用已注册的处理程序来响应它们。
+	fmt.Println("start...")
+	err = s.Serve(lis)
+	if err != nil {
+		fmt.Printf("failed to serve: %v", err)
+		return
+	}
 
 	GetIntranetIp()
 }
