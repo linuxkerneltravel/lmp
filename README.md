@@ -7,7 +7,7 @@ LMP is a web tool for real-time display of Linux system performance data based o
 
 TODO...
 
-## Project architecture
+## Project architecture(Abandoned)
 ![](./static/imgs/LMP-arch3.png)
 
 ## Interface screenshot
@@ -119,7 +119,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 
 TODO...
 
-## 项目架构
+## 项目架构（已弃用）
 
 ![](./static/imgs/LMP-arch3.png)
 
