@@ -5,6 +5,7 @@
 /cmd/main
 /cmd/main.pid
 logs
+vendor
 
 .DS_Store
 .gitkeep
