@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"lmp/logic"
 	"lmp/models"
 	"lmp/settings"
-	"net/http"
 )
 
 func Collect(c *gin.Context) {
@@ -13,10 +13,11 @@ func Collect(c *gin.Context) {
 	//fmt.Println(m)
 	//fmt.Println(m.BpfFilePath)
 
-	//执行逻辑
-	logic.DoCollect(m)
+	if err := logic.DoCollect(m); err != nil {
+		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
+	}
 
-	c.Redirect(http.StatusMovedPermanently, "http://"+settings.Conf.GrafanaConfig.IP)
+	ResponseRediect(c, settings.Conf.GrafanaConfig.IP)
 	return
 }
 
