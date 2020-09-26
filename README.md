@@ -1,4 +1,4 @@
-![](./docs/LMP-logo.png)
+![](./static/imgs/LMP-logo.png)
 # Linux microscope
 
 LMP is a web tool for real-time display of Linux system performance data based on BCC (BPF Compiler Collection), which uses BPF (Berkeley Packet Filter), also known as eBPF. Currently, LMP is tested on ubuntu18.04 and the kernel version is 4.15.0.
@@ -110,7 +110,7 @@ make clean
 
 # ZH
 
-![](./docs/LMP-logo.png)
+![](./static/imgs/LMP-logo.png)
 # Linux microscope
 
 LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
