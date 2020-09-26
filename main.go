@@ -21,6 +21,8 @@ import (
 // go 开发比较通用的脚手架
 
 func main() {
+	fmt.Println(models.Logo)
+
 	pidfile.SetPidfilePath(os.Args[0] + ".pid")
 	pidfile.Write()
 
