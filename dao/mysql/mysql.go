@@ -5,7 +5,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"refactor/settings"
+	"lmp/settings"
 
 	_ "github.com/go-sql-driver/mysql"
 )

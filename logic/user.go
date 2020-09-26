@@ -1,9 +1,9 @@
 package logic
 
 import (
-	"refactor/dao/mysql"
-	"refactor/models"
-	"refactor/pkg/snowflake"
+	"lmp/dao/mysql"
+	"lmp/models"
+	"lmp/pkg/snowflake"
 )
 
 func SignUp(p *models.ParamSignUp) (err error) {

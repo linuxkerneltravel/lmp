@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"refactor/models"
+	"lmp/models"
 )
 
 const secret = "LMP"

@@ -3,8 +3,8 @@ package routes
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"refactor/controllers"
-	"refactor/logger"
+	"lmp/controllers"
+	"lmp/logger"
 )
 
 func SetupRouter(mode string) *gin.Engine {
