@@ -4,6 +4,7 @@
 .vscode/
 lmp
 web_app.log
+lmp.pid
 
 .DS_Store
 .gitkeep

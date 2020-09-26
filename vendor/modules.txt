@@ -8,6 +8,8 @@ github.com/facebookgo/pidfile
 github.com/fsnotify/fsnotify
 # github.com/gin-contrib/sse v0.1.0
 github.com/gin-contrib/sse
+# github.com/gin-gonic/contrib v0.0.0-20200913005814-1c32036e7ea4
+github.com/gin-gonic/contrib/static
 # github.com/gin-gonic/gin v1.6.3
 github.com/gin-gonic/gin
 github.com/gin-gonic/gin/binding

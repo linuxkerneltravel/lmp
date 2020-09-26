@@ -18,8 +18,6 @@ import (
 	"lmp/settings"
 )
 
-// go 开发比较通用的脚手架
-
 func main() {
 	fmt.Println(models.Logo)
 
@@ -37,27 +35,23 @@ func main() {
 	}
 	defer zap.L().Sync()
 
-	// 3、初始化mysql
 	//if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
 	//	fmt.Println("Init mysql failed, err:", err)
 	//	return
 	//}
 	//defer mysql.Close()
-	// 4、初始化redis连接
-	// 这个暂时先放下
 
 	bpfscan := &models.BpfScan{}
 	if err := bpfscan.Init(); err != nil {
 		fmt.Println("Init bpfscan failed, err:", err)
 	}
 	bpfscan.Run()
+	bpfscan.Watch()
 
 	if err := snowflake.Init(settings.Conf.StartTime, settings.Conf.MachineID); err != nil {
 		fmt.Println("Init snowflake failed, err:", err)
 		return
 	}
-
-	// todo:翻译器，validator库参数校验若干实用技巧
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
 
@@ -76,9 +70,9 @@ func main() {
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)                      // 创建一个接收信号的通道
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM) // 这里不会阻塞
-	<-quit                                               // 在这里阻塞，当接收到上面两种信号的时候才会往下进行
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 	zap.L().Info("shutdown server ...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
