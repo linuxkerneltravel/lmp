@@ -7,6 +7,7 @@ require (
 	github.com/facebookgo/atomicfile v0.0.0-20151019160806-2de1f203e7d5 // indirect
 	github.com/facebookgo/pidfile v0.0.0-20150612191647-f242e2999868
 	github.com/fsnotify/fsnotify v1.4.7
+	github.com/gin-gonic/contrib v0.0.0-20200913005814-1c32036e7ea4
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/jmoiron/sqlx v1.2.0
