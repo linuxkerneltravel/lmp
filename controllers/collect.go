@@ -9,7 +9,7 @@ import (
 )
 
 func Collect(c *gin.Context) {
-	m := fillConfigMessage(c)
+	m := fillFrontMessage(c)
 	//fmt.Println(m)
 	//fmt.Println(m.BpfFilePath)
 
@@ -21,7 +21,7 @@ func Collect(c *gin.Context) {
 	return
 }
 
-func fillConfigMessage(c *gin.Context) models.ConfigMessage {
+func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 	var m models.ConfigMessage
 
 	if _, ok := c.GetPostForm("dispatchingdelay"); ok {
