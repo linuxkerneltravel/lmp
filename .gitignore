@@ -2,9 +2,8 @@
 **/desktop.ini
 .idea/
 .vscode/
-/cmd/main
-/cmd/main.pid
-logs
+lmp
+web_app.log
 vendor
 
 .DS_Store
