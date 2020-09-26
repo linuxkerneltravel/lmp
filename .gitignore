@@ -3,7 +3,7 @@
 .idea/
 .vscode/
 lmp
-web_app.log
+lmp.log
 lmp.pid
 vendor
 
