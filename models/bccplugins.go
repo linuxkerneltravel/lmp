@@ -103,7 +103,6 @@ func (b *BpfScan) Watch() {
 		for {
 			select {
 			case <-ticker.C:
-				fmt.Println(PluginServices.Plugins)
 				for _, v := range PluginServices.Plugins {
 					if !Exists(settings.Conf.PluginConfig.Path + v.Name) {
 						UnregisterPluginService(v.Name)
