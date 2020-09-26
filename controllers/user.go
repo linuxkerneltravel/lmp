@@ -3,9 +3,9 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"refactor/dao/mysql"
-	"refactor/logic"
-	"refactor/models"
+	"lmp/dao/mysql"
+	"lmp/logic"
+	"lmp/models"
 )
 
 // SignUPHandler 函数处理注册请求

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"refactor/settings"
+	"lmp/settings"
 	"runtime/debug"
 	"strings"
 	"time"

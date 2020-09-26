@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bluebell/pkg/snowflake"
+	"lmp/pkg/snowflake"
 	"context"
 	"fmt"
 	"go.uber.org/zap"
@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"bluebell/logger"
-	"bluebell/routes"
-	"bluebell/settings"
+	"lmp/logger"
+	"lmp/routes"
+	"lmp/settings"
 )
 
 // go 开发比较通用的脚手架
