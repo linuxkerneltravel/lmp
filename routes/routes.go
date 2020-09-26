@@ -2,8 +2,9 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
 	"lmp/controllers"
+	"net/http"
+
 	"lmp/logger"
 )
 
@@ -13,11 +14,7 @@ func SetupRouter(mode string) *gin.Engine {
 	}
 
 	r := gin.New()
-
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
-
-	r.POST("/signup", controllers.SignUpHandler)
-	r.POST("/login", controllers.LoginHandler)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
@@ -27,5 +24,9 @@ func SetupRouter(mode string) *gin.Engine {
 			"msh": "404",
 		})
 	})
+
+	r.POST("/signup", controllers.SignUpHandler)
+	r.POST("/login", controllers.LoginHandler)
+	r.POST("/uploadfiles", controllers.UpLoadFiles)
 	return r
 }
