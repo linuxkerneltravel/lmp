@@ -26,3 +26,9 @@ redis:
   host: "127.0.0.1"
   port: 16379
   db: 0
+
+plugin:
+  path: "./plugins/"
+
+grafana:
+  ip: "localhost:3000"

@@ -16,3 +16,9 @@ func UpLoadFiles(c *gin.Context) {
 
 	ResponseSuccess(c, fmt.Sprintf("plugin uploaded!"))
 }
+
+func PrintAllplugins(c *gin.Context) {
+	allPlugins := logic.GetAllplugins()
+
+	ResponseSuccess(c, allPlugins)
+}
