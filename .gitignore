@@ -5,6 +5,7 @@
 lmp
 web_app.log
 lmp.pid
+vendor
 
 .DS_Store
 .gitkeep
