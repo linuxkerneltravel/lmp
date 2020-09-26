@@ -9,11 +9,13 @@ import (
 	"strings"
 )
 
-func DoCollect(m models.ConfigMessage) {
+func DoCollect(m models.ConfigMessage) (err error) {
 	for _, filePath := range m.BpfFilePath {
 		//fmt.Println(filePath)
 		go execute(filePath, m)
 	}
+
+	return nil
 }
 
 func execute(filepath string, m models.ConfigMessage) {

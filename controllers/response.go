@@ -41,3 +41,10 @@ func ResponseSuccess(c *gin.Context, data interface{}) {
 		Data: data,
 	})
 }
+
+func ResponseRediect(c *gin.Context, data string) {
+	c.Redirect(
+		http.StatusMovedPermanently,
+		"http://"+data,
+	)
+}
