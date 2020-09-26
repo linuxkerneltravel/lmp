@@ -9,10 +9,12 @@ import (
 var Conf = new(Config)
 
 type Config struct {
-	*AppConfig   `mapstructure:"app"`
-	*LogConfig   `mapstructure:"log"`
-	*MySQLConfig `mapstructure:"mysql"`
-	*RedisConfig `mapstructure:"redis"`
+	*AppConfig     `mapstructure:"app"`
+	*LogConfig     `mapstructure:"log"`
+	*MySQLConfig   `mapstructure:"mysql"`
+	*RedisConfig   `mapstructure:"redis"`
+	*PluginConfig  `mapstructure:"Plugin"`
+	*GrafanaConfig `mapstructure:"grafana"`
 }
 
 type AppConfig struct {
@@ -46,6 +48,14 @@ type RedisConfig struct {
 	Host string `mapstructure:"host"`
 	Port int    `mapstructure:"port"`
 	Db   int    `mapstructure:"db"`
+}
+
+type PluginConfig struct {
+	Path string `mapstructure:"path"`
+}
+
+type GrafanaConfig struct {
+	IP string `mapstructure:"ip"`
 }
 
 func Init() (err error) {

@@ -28,5 +28,8 @@ func SetupRouter(mode string) *gin.Engine {
 	r.POST("/signup", controllers.SignUpHandler)
 	r.POST("/login", controllers.LoginHandler)
 	r.POST("/uploadfiles", controllers.UpLoadFiles)
+	r.GET("/allplugins", controllers.PrintAllplugins)
+	r.POST("/data/collect", controllers.Collect)
+
 	return r
 }

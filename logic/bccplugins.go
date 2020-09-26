@@ -17,10 +17,18 @@ func SavePlugins(form *multipart.Form, c *gin.Context) (err error) {
 
 	for _, file := range files {
 		zap.L().Info(file.Filename)
-		c.SaveUploadedFile(file, PluginPath + file.Filename)
+		c.SaveUploadedFile(file, PluginPath+file.Filename)
 		// Put the name of the newly uploaded plug-in into the pipeline Filename
 		models.FileChan <- file.Filename
 	}
 
 	return nil
+}
+
+func GetAllplugins() (pluginsName []string) {
+	for _, plugin := range models.PluginServices {
+		pluginsName = append(pluginsName, plugin.Name)
+	}
+
+	return pluginsName
 }
