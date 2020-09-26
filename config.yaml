@@ -8,7 +8,7 @@ app:
 
 log:
   level: "debug"
-  filename: "./web_app.log"
+  filename: "./lmp.log"
   max_size: 200
   max_backups: 7
   max_age: 67

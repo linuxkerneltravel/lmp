@@ -13,9 +13,9 @@ all:
 	# go build -o cmd/main cmd/main.go
 
 clean:
-	rm -rf cmd/main
-	rm -rf logs
-	rm -rf cmd/main.pid
+	rm -rf lmp
+	rm -rf lmp.log
+	rm -rf lmp.pid
 	rm -rf $(PREFIX)
 	rm -rf $(PRODIR)
 	rm -rf $(GRADIR)
