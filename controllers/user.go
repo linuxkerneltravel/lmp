@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"errors"
 
 	"lmp/dao/mysql"
 	"lmp/logic"
@@ -13,7 +13,6 @@ import (
 // SignUPHandler 函数处理注册请求
 func SignUpHandler(c *gin.Context) {
 	p := new(models.ParamSignUp)
-	// todo:参数校验输出错误的时候把英文翻译成英文，validator库参数校验若干实用技巧
 	if err := c.ShouldBindJSON(p); err != nil { // 只能检测请求的格式、类型对不对
 		zap.L().Error("SignUp with invalid param", zap.Error(err))
 		ResponseError(c, CodeInvalidParam)
