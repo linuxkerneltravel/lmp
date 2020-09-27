@@ -33,7 +33,7 @@ func SetupRouter(mode string) *gin.Engine {
 	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 
 	r.NoRoute(func(c *gin.Context) {
-		c.File(fmt.Sprintf("%s/file.html", "static"))
+		c.File(fmt.Sprintf("%s/index.html", "static"))
 	})
 
 	return r
