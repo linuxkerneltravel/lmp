@@ -5,7 +5,6 @@ import (
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"lmp/controllers"
-	"lmp/middlewares"
 	"net/http"
 
 	"lmp/logger"
@@ -31,7 +30,7 @@ func SetupRouter(mode string) *gin.Engine {
 	r.POST("/data/collect", controllers.Collect)
 
 	// Logicals that require login
-	r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
+	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 
 	r.NoRoute(func(c *gin.Context) {
 		c.File(fmt.Sprintf("%s/file.html", "static"))
