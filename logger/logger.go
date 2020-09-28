@@ -2,18 +2,18 @@ package logger
 
 import (
 	"lmp/settings"
-	"net"
-	"net/http"
-	"net/http/httputil"
 	"os"
-	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"net"
+	"strings"
+	"net/http/httputil"
+	"runtime/debug"
+	"net/http"
 )
 
 /*
@@ -22,6 +22,8 @@ import (
 		zap.L().Error(" ", zap.String( key string, val string ))
 		zap.L().Error(" ", zap.Any( key string, value interface{} ))
 */
+
+var lg *zap.Logger
 
 func Init(cfg *settings.LogConfig, mode string) (err error) {
 	writeSyncer := getLogWriter(
@@ -86,7 +88,7 @@ func GinLogger() gin.HandlerFunc {
 		c.Next()
 
 		cost := time.Since(start)
-		zap.L().Info(path,
+		lg.Info(path,
 			zap.Int("status", c.Writer.Status()),
 			zap.String("method", c.Request.Method),
 			zap.String("path", path),
@@ -117,7 +119,7 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 
 				httpRequest, _ := httputil.DumpRequest(c.Request, false)
 				if brokenPipe {
-					zap.L().Error(c.Request.URL.Path,
+					lg.Error(c.Request.URL.Path,
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 					)
@@ -128,13 +130,13 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 				}
 
 				if stack {
-					zap.L().Error("[Recovery from panic]",
+					lg.Error("[Recovery from panic]",
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 						zap.String("stack", string(debug.Stack())),
 					)
 				} else {
-					zap.L().Error("[Recovery from panic]",
+					lg.Error("[Recovery from panic]",
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 					)
