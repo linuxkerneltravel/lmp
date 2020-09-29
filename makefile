@@ -10,7 +10,6 @@ DASHDIR = $(PRE)/grafana
 
 all:
 	go build -mod=vendor -o lmp main.go
-	# go build -o cmd/main cmd/main.go
 
 clean:
 	rm -rf lmp
@@ -27,13 +26,13 @@ install:
 	mkdir /var/lib/influxdb/data
 	mkdir /var/lib/influxdb/meta
 	mkdir /var/lib/influxdb/wal influxdb
-	mkdir -p $(COLLECTDIR)
-	mkdir -p $(PRODIR)
-	mkdir -p $(GRADIR)
-	mkdir -p $(DASHDIR)
-	chmod 777 -R $(GRADIR)
-	# install -m 755 test/bpf/collect.py $(COLLECTDIR)
-	# install -m 640 test/bpf/collect.c $(COLLECTDIR)
-	# install -m 644 test/prometheus/* $(PRODIR)
-	# install -m 640 test/grafana/* $(DASHDIR)
+# 	mkdir -p $(COLLECTDIR)
+# 	mkdir -p $(PRODIR)
+# 	mkdir -p $(GRADIR)
+# 	mkdir -p $(DASHDIR)
+# 	chmod 777 -R $(GRADIR)
+# 	install -m 755 test/bpf/collect.py $(COLLECTDIR)
+# 	install -m 640 test/bpf/collect.c $(COLLECTDIR)
+# 	install -m 644 test/prometheus/* $(PRODIR)
+# 	install -m 640 test/grafana/* $(DASHDIR)
 

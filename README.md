@@ -3,12 +3,8 @@
 
 LMP is a web tool for real-time display of Linux system performance data based on BCC (BPF Compiler Collection), which uses BPF (Berkeley Packet Filter), also known as eBPF. Currently, LMP is tested on ubuntu18.04 and the kernel version is 4.15.0.
 
-## startup
-
-TODO...
-
-## Project architecture(Abandoned)
-![](./static/imgs/LMP-arch3.png)
+## Project architecture
+![](./static/imgs/LMP-arch4.png)
 
 ## Interface screenshot
 
@@ -24,19 +20,27 @@ TODO...
 <details>
 <summary>Expand to view</summary>
 <pre><code>.
+.
+├── LICENSE
 ├── README.md
-├── api           Protocol files, interface files for front-end interaction, etc., the routing settings and routing functions of this project
-├── cmd           File of Main()
-├── config        Configuration
-├── deployments   Some configuration and templates issued by the backend
-├── docs          Design document, record document, etc.
-├── go.mod
-├── go.sum
-├── internal      The code encapsulated in this project, including BPF code, etc.
-├── pkg           Common code that can be used by other projects
-├── static        Some static pages used in the project, including front-end static display pages, pictures, etc.
-├── test          Test catalog, including functional test, performance test, etc.
-└── vendor        Other third-party libraries that this project depends on
+├── bcctest            Hold all test codes, including bcc、influxdb, etc
+├── cmd                Store LMP pid number after startup
+├── config.yaml        Project profile
+├── controllers        Controller layer code stored in CLD layers
+├── dao                Dao layer code stored in CLD layers
+├── logger             Zap Log Library Initialization Related Code
+├── logic              Logic layer code stored in CLD layers
+├── main.go
+├── makefile
+├── middlewares        Holds middleware, such as JWT, used in the project
+├── models             Data structure, such as a user、BpfScan, used in a storage project
+├── pkg                A third-party library, such as JWT、snowflake, used in a project
+├── plugins            Storage bcc plugins
+├── routes             Store initialization routing code
+├── settings           Hold viper Initialize related code
+├── static             Hold static HTML files, pictures, etc
+├── test               Store influxdb initial configuration, files, etc
+└── vendor             Storage of project dependencies
 </code></pre>
 </details>
 
@@ -56,6 +60,8 @@ TODO...
  docker pull prom/prometheus
 # For grafana
  docker pull grafana/grafana
+# For MySql
+ docker pull mysql
 ```
 
 ### Compile and install
@@ -67,10 +73,11 @@ TODO...
  make install
 ```
 
-## Run locally
+##  Single machine node, Run locally
 
 ```
 # Modify configuration file
+ vim lmp/config.yaml
 
 #run grafana
  docker run -d \
@@ -90,12 +97,13 @@ TODO...
     -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
 #run lmp
- ./cmd/main
+ cd lmp/
+ ./lmp
 ```
 
 ### observation
 
-http://localhost:8080/  After logging in to grafana, import the json file under /opt/grafana to view it.
+http://localhost:8080/  After logging in to grafana, view it.
 
 ### Uninstall
 
@@ -115,13 +123,9 @@ make clean
 
 LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
 
-## startup
+## 项目架构
 
-TODO...
-
-## 项目架构（已弃用）
-
-![](./static/imgs/LMP-arch3.png)
+![](./static/imgs/LMP-arch4.png)
 
 ## 界面截图
 
@@ -135,20 +139,28 @@ TODO...
 
 <details> 
 <summary>展开查看</summary>
-<pre><code>.
+<pre><code>
+.
+├── LICENSE
 ├── README.md
-├── api   协议文件、前端交互的接口文件等, 本项目的路由设置与路由函数
-├── cmd   main函数文件目录
-├── config   配置文件
-├── deployments   后端下发的一些配置文件与模板
-├── docs   本项目设计文档，项目经历记录文档等
-├── go.mod
-├── go.sum
-├── internal   本项目封装的代码，其中包括BPF代码等
-├── pkg   通用的可以被其他项目所使用的一些代码
-├── static   项目用到的一些静态页面，包括前端静态展示页、图片等
-├── test   测试目录，包括功能测试，性能测试等
-└── vendor   本项目依赖的其它第三方库
+├── bcctest            存放所有的测试代码，包括bcc、influxdb等
+├── cmd                存放LMP启动之后的pid号
+├── config.yaml        项目配置文件
+├── controllers        存放CLD分层中的controller层代码
+├── dao                存放CLD分层中的dao层代码
+├── logger             存放zap日志库初始化相关代码
+├── logic              存放CLD分层中的logic层代码
+├── main.go
+├── makefile
+├── middlewares        存放项目中使用到的中间件，例如JWT
+├── models             存放项目中使用到的数据结构，例如user、BpfScan等
+├── pkg                存放项目中使用的第三方库，例如JWT、snowflake等
+├── plugins            存放bcc插件
+├── routes             存放初始化路由相关代码
+├── settings           存放viper初始化相关代码
+├── static             存放静态HTML文件、图片等
+├── test               存放influxdb初始配置、文件等
+└── vendor             存放项目依赖库    
 </code></pre>
 </details>
 
@@ -169,6 +181,8 @@ TODO...
  docker pull prom/prometheus
 # For grafana
  docker pull grafana/grafana
+# For MySql
+ docker pull mysql
 ```
 
 ### 编译并安装
@@ -180,10 +194,11 @@ TODO...
  make install
 ```
 
-## 本地运行
+## 单机节点，本地运行
 
 ```
 # 修改配置文件
+ vim lmp/config.yaml
 
 #run grafana
  docker run -d \
@@ -204,12 +219,13 @@ TODO...
 
 
 #run lmp
- ./cmd/main
+ cd lmp/
+ ./lmp
 ```
 
 ### 进行观测
 
-http://localhost:8080/ 登录grafana之后，导入/opt/grafana下的json文件即可查看。
+http://localhost:8080/ 登录grafana之后，即可观测。
 
 ### 卸载
 
