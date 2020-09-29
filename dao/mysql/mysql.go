@@ -2,12 +2,11 @@ package mysql
 
 import (
 	"fmt"
-	"github.com/jmoiron/sqlx"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"lmp/settings"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 var db *sqlx.DB
@@ -26,8 +25,9 @@ func Init(cfg *settings.MySQLConfig) (err error) {
 		zap.L().Error("connect DB failed", zap.Error(err))
 		return err
 	}
-	db.SetMaxOpenConns(viper.GetInt("mysql.max_open_conns"))
-	db.SetMaxIdleConns(viper.GetInt("mysql.max_idle_conns"))
+	db.SetMaxOpenConns(settings.Conf.MySQLConfig.MaxOpenConns)
+	db.SetMaxIdleConns(settings.Conf.MySQLConfig.MaxIdleConns)
+	fmt.Println("mysql init success")
 	return nil
 }
 

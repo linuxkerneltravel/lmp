@@ -23,12 +23,17 @@ clean:
 
 install:
 	@echo "BEGIN INSTALL LMP"
+	mkdir /etc/influxdb/influxdb.conf 
+	mkdir /var/lib/influxdb/data
+	mkdir /var/lib/influxdb/meta
+	mkdir /var/lib/influxdb/wal influxdb
 	mkdir -p $(COLLECTDIR)
 	mkdir -p $(PRODIR)
 	mkdir -p $(GRADIR)
 	mkdir -p $(DASHDIR)
 	chmod 777 -R $(GRADIR)
-	install -m 755 test/bpf/collect.py $(COLLECTDIR)
-	install -m 640 test/bpf/collect.c $(COLLECTDIR)
-	install -m 644 test/prometheus/* $(PRODIR)
-	install -m 640 test/grafana/* $(DASHDIR)
+	# install -m 755 test/bpf/collect.py $(COLLECTDIR)
+	# install -m 640 test/bpf/collect.c $(COLLECTDIR)
+	# install -m 644 test/prometheus/* $(PRODIR)
+	# install -m 640 test/grafana/* $(DASHDIR)
+

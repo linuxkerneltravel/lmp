@@ -19,6 +19,7 @@
 # Licensed under the Apache License, Version 2.0 (the "License")
 #
 # 12-Dec-2016   Brendan Gregg   Created this.
+# 17-Sep-2020   Chenyu Zhao     Edited
 
 from __future__ import print_function
 from bcc import BPF, PerfType, PerfSWConfig
@@ -51,7 +52,7 @@ class lmp_data(object):
             self.glob = a
             self.runqlen = b
 
-data_struct = {"measurement":'lmpdata',
+data_struct = {"measurement":'runqlenTable',
                 "tags":['glob'],
                 "fields":['runqlen']}
 

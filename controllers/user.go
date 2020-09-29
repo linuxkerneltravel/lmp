@@ -20,7 +20,7 @@ func SignUpHandler(c *gin.Context) {
 	}
 
 	if err := logic.SignUp(p); err != nil {
-		if errors.Is(err, mysql.ErrorUserExist) {
+		if errors.Is(err, mysql.ErrorUserExit) {
 			zap.L().Error("SignUp with User Exists", zap.Error(err))
 			ResponseError(c, CodeUserExist)
 		}
@@ -41,7 +41,7 @@ func LoginHandler(c *gin.Context) {
 
 	if err := logic.Login(p); err != nil {
 		zap.L().Error("logic.Login failed", zap.Error(err))
-		if errors.Is(err, mysql.ErrorUserExist) {
+		if errors.Is(err, mysql.ErrorUserExit) {
 			ResponseError(c, CodeUserNotExist)
 		}
 		ResponseError(c, CodeServerBusy)

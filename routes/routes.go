@@ -17,6 +17,7 @@ func SetupRouter(mode string) *gin.Engine {
 
 	r := gin.New()
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
+	//r := gin.Default()
 	r.Use(static.Serve("/", static.LocalFile("static", false)))
 	r.StaticFS("/static", http.Dir("static/"))
 
