@@ -7,9 +7,9 @@ import (
 )
 
 func SignUp(p *models.ParamSignUp) (err error) {
-	if err = mysql.CheckUserExist(p.Username); err != nil {
-		return err
-	}
+	//if err = mysql.CheckUserExist(p.Username); err != nil {
+	//	return err
+	//}
 
 	userID := snowflake.GenID()
 
@@ -19,8 +19,7 @@ func SignUp(p *models.ParamSignUp) (err error) {
 		Password: p.Password,
 	}
 
-
-	return mysql.InsertUser(&user)
+	return mysql.Register(&user)
 }
 
 func Login(p *models.ParamLogin) (err error) {

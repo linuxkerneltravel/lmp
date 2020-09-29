@@ -7,15 +7,14 @@ import (
 	"go.uber.org/zap"
 	"lmp/models"
 	"lmp/pkg/snowflake"
-	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"lmp/logger"
 	"lmp/routes"
 	"lmp/settings"
+	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -54,11 +53,17 @@ func main() {
 	}
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
+	//err := r.Run(fmt.Sprintf(":%d", settings.Conf.AppConfig.Port))
+	//if err != nil {
+	//	fmt.Printf("run server failed, err:%v\n", err)
+	//	return
+	//}
 
-	// 测试配置文件读取是否正确
+	//测试配置文件读取是否正确
 	//fmt.Printf("Conf:%#v\n", settings.Conf.AppConfig)
 	//fmt.Printf("Conf:%#v\n", settings.Conf.LogConfig)
 
+	fmt.Println(settings.Conf.AppConfig.Port)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.Conf.AppConfig.Port),
 		Handler: r,

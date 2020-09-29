@@ -2,18 +2,18 @@ package logger
 
 import (
 	"lmp/settings"
-	"net"
-	"net/http"
-	"net/http/httputil"
 	"os"
-	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"net"
+	"strings"
+	"net/http/httputil"
+	"runtime/debug"
+	"net/http"
 )
 
 /*
@@ -23,6 +23,7 @@ import (
 		zap.L().Error(" ", zap.Any( key string, value interface{} ))
 */
 
+// InitLogger 初始化Logger
 func Init(cfg *settings.LogConfig, mode string) (err error) {
 	writeSyncer := getLogWriter(
 		cfg.Filename,

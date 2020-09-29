@@ -1,5 +1,5 @@
 app:
-  name: "web_app"
+  name: "lmp"
   mode: "dev"
   version: "v0.0.1"
   port: 8080
@@ -18,7 +18,7 @@ mysql:
   port: 3306
   user: "root"
   password: "root123456"
-  dbname: "sql_demo"
+  dbname: "lmp"
   max_open_conns: 200
   max_idle_conns: 50
 
