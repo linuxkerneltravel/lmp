@@ -7,6 +7,7 @@ import (
 	"lmp/controllers"
 	"net/http"
 
+	"lmp/logger"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -14,9 +15,9 @@ func SetupRouter(mode string) *gin.Engine {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	//r := gin.New()
-	//r.Use(logger.GinLogger(), logger.GinRecovery(true))
-	r := gin.Default()
+	r := gin.New()
+	r.Use(logger.GinLogger(), logger.GinRecovery(true))
+	//r := gin.Default()
 	r.Use(static.Serve("/", static.LocalFile("static", false)))
 	r.StaticFS("/static", http.Dir("static/"))
 

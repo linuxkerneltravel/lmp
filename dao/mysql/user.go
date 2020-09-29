@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"lmp/pkg/snowflake"
+	"database/sql"
 )
 
 const secret = "LMP"
@@ -35,16 +36,16 @@ func CheckUserExist(username string) error {
 }
 
 func Register(user *models.User) (err error) {
-	//sqlStr := `select count(user_id) from user where username = ?`
-	//var count int64
-	//err = db.Get(&count, sqlStr, user.Username)
-	//if err != nil && err != sql.ErrNoRows {
-	//	return err
-	//}
-	//if count > 0 {
-	//	// 用户已存在
-	//	return ErrorUserExit
-	//}
+	sqlStr := `select count(user_id) from user where username = ?`
+	var count int64
+	err = db.Get(&count, sqlStr, user.Username)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if count > 0 {
+		// 用户已存在
+		return ErrorUserExit
+	}
 	// 生成user_id
 	userID := snowflake.GenID()
 	if err != nil {
@@ -53,7 +54,8 @@ func Register(user *models.User) (err error) {
 	// 生成加密密码
 	password := encryptPassword([]byte(user.Password))
 	// 把用户插入数据库
-	sqlStr := "insert into user(user_id, username, password) values (?,?,?)"
+	sqlStr = `insert into user(user_id, username, password) values (?,?,?)`
+	//_, err = db.Exec(sqlStr, 999, "superman", 123)
 	_, err = db.Exec(sqlStr, userID, user.Username, password)
 	return
 }
@@ -81,24 +83,22 @@ func InsertUser(user *models.User) (err error) {
 	return
 }
 
-
-
 func Login(user *models.User) (err error) {
-	//originPassword := user.Password // 记录一下原始密码
-	//sqlStr := `select user_id, username, password from user where username = ?`
-	//err = db.Get(user, sqlStr, user.Username)
-	//if err != nil && err != sql.ErrNoRows {
-	//	// 查询数据库出错
-	//	return
-	//}
-	//if err == sql.ErrNoRows {
-	//	// 用户不存在
-	//	return ErrorUserNotExit
-	//}
-	//// 生成加密密码与查询到的密码比较
-	//password := encryptPassword([]byte(originPassword))
-	//if user.Password != password {
-	//	return ErrorPasswordWrong
-	//}
+	originPassword := user.Password // 记录一下原始密码
+	sqlStr := `select user_id, username, password from user where username = ?`
+	err = db.Get(user, sqlStr, user.Username)
+	if err != nil && err != sql.ErrNoRows {
+		// 查询数据库出错
+		return
+	}
+	if err == sql.ErrNoRows {
+		// 用户不存在
+		return ErrorUserNotExit
+	}
+	// 生成加密密码与查询到的密码比较
+	password := encryptPassword([]byte(originPassword))
+	if user.Password != password {
+		return ErrorPasswordWrong
+	}
 	return
 }
