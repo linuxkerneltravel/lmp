@@ -32,3 +32,6 @@ plugin:
 
 grafana:
   ip: "localhost:3000"
+
+influxdb:
+  port: ""
