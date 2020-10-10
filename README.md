@@ -96,8 +96,12 @@ LMP is a web tool for real-time display of Linux system performance data based o
     -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
     -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
+#run mysql
+    docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
+
 #run lmp
  cd lmp/
+ make
  ./lmp
 ```
 
@@ -217,9 +221,12 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
     -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
     -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
+#run mysql
+    docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
 
 #run lmp
  cd lmp/
+ make
  ./lmp
 ```
 

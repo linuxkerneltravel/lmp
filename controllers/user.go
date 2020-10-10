@@ -39,7 +39,8 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	if err := logic.Login(p); err != nil {
+	token, err := logic.Login(p)
+	if err != nil {
 		zap.L().Error("logic.Login failed", zap.Error(err))
 		if errors.Is(err, mysql.ErrorUserExit) {
 			ResponseError(c, CodeUserNotExist)
@@ -47,5 +48,5 @@ func LoginHandler(c *gin.Context) {
 		ResponseError(c, CodeServerBusy)
 	}
 
-	ResponseSuccess(c, nil)
+	ResponseSuccess(c, token)
 }

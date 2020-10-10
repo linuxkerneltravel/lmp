@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"lmp/logger"
+	"lmp/middlewares"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -26,9 +27,10 @@ func SetupRouter(mode string) *gin.Engine {
 	})
 	r.POST("/signup", controllers.SignUpHandler)
 	r.POST("/login", controllers.LoginHandler)
-	r.POST("/uploadfiles", controllers.UpLoadFiles)
-	r.GET("/allplugins", controllers.PrintAllplugins)
-	r.POST("/data/collect", controllers.Collect)
+
+	r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
+	r.GET("/allplugins", middlewares.JWTAuthMiddleware(), controllers.PrintAllplugins)
+	r.POST("/data/collect", middlewares.JWTAuthMiddleware(), controllers.Collect)
 
 	// Logicals that require login
 	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
