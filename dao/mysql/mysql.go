@@ -20,7 +20,7 @@ func Init(cfg *settings.MySQLConfig) (err error) {
 		cfg.Dbname,
 	)
 
-	db, err := sqlx.Connect("mysql", dsn)
+	db, err = sqlx.Connect("mysql", dsn)
 	if err != nil {
 		zap.L().Error("connect DB failed", zap.Error(err))
 		return err
