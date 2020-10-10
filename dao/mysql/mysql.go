@@ -27,7 +27,6 @@ func Init(cfg *settings.MySQLConfig) (err error) {
 	}
 	db.SetMaxOpenConns(settings.Conf.MySQLConfig.MaxOpenConns)
 	db.SetMaxIdleConns(settings.Conf.MySQLConfig.MaxIdleConns)
-	fmt.Println("mysql init success")
 	return nil
 }
 

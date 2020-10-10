@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"github.com/facebookgo/pidfile"
 	"go.uber.org/zap"
+	"lmp/dao/mysql"
+	"lmp/logger"
 	"lmp/models"
 	"lmp/pkg/snowflake"
-	"os"
-	"lmp/logger"
 	"lmp/routes"
 	"lmp/settings"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -34,11 +35,11 @@ func main() {
 	}
 	defer zap.L().Sync()
 
-	//if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
-	//	fmt.Println("Init mysql failed, err:", err)
-	//	return
-	//}
-	//defer mysql.Close()
+	if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
+		fmt.Println("Init mysql failed, err:", err)
+		return
+	}
+	defer mysql.Close()
 
 	bpfscan := &models.BpfScan{}
 	if err := bpfscan.Init(); err != nil {
@@ -53,17 +54,12 @@ func main() {
 	}
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
-	//err := r.Run(fmt.Sprintf(":%d", settings.Conf.AppConfig.Port))
-	//if err != nil {
-	//	fmt.Printf("run server failed, err:%v\n", err)
-	//	return
-	//}
 
 	//测试配置文件读取是否正确
 	//fmt.Printf("Conf:%#v\n", settings.Conf.AppConfig)
 	//fmt.Printf("Conf:%#v\n", settings.Conf.LogConfig)
+	//fmt.Println(settings.Conf.AppConfig.Port)
 
-	fmt.Println(settings.Conf.AppConfig.Port)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.Conf.AppConfig.Port),
 		Handler: r,
