@@ -66,6 +66,7 @@ b.attach_kprobe(event="vfs_create", fn_name="do_create")
 
 # connect to influxdb
 client = db.connect(DBNAME,user='root',passwd=123456)
+CLIENT
 
 data_struct = {"measurement":'vfsstatTable',
                 "tags":['glob'],
