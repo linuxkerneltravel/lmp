@@ -6,6 +6,7 @@ lmp
 lmp.log
 lmp.pid
 vendor
+test/influxdb_config/wal/_internal/monitor
 
 .DS_Store
 .gitkeep

@@ -61,7 +61,7 @@ def print_event(cpu, data, size):
     event = b["result"].event(data)
     test_data = lmp_data('glob', event.len)
     write2db(data_struct, test_data, client)
-    print(event.len)
+    # print(event.len)
     # if start == 0:
     #         start = event.ts
     # time_s = (float(event.ts - start)) / 1000000000
