@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"github.com/facebookgo/pidfile"
 	"go.uber.org/zap"
+	"lmp/dao/influxdb"
+	"lmp/dao/mysql"
 	"lmp/logger"
 	"lmp/models"
 	"lmp/pkg/snowflake"
 	"lmp/routes"
 	"lmp/settings"
 	"net/http"
-	"lmp/dao/mysql"
 	"os"
 	"os/signal"
 	"syscall"
@@ -41,6 +42,11 @@ func main() {
 	}
 	defer mysql.Close()
 
+	if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
+		fmt.Println("Init influxdb failed, err:", err)
+		return
+	}
+
 	bpfscan := &models.BpfScan{}
 	if err := bpfscan.Init(); err != nil {
 		fmt.Println("Init bpfscan failed, err:", err)
@@ -58,7 +64,9 @@ func main() {
 	//测试配置文件读取是否正确
 	//fmt.Printf("Conf:%#v\n", settings.Conf.AppConfig)
 	//fmt.Printf("Conf:%#v\n", settings.Conf.LogConfig)
-	//fmt.Println(settings.Conf.AppConfig.Port)
+	//fmt.Printf("Conf:%#v\n", settings.Conf.InfluxdbConfig)
+	//fmt.Printf("Conf:%#v\n", settings.Conf.PluginConfig)
+	//fmt.Println(settings.Conf.InfluxdbConfig.Host)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.Conf.AppConfig.Port),

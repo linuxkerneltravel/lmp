@@ -40,6 +40,10 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
+# github.com/influxdata/influxdb1-client v0.0.0-20200827194710-b269163b24ab
+github.com/influxdata/influxdb1-client/models
+github.com/influxdata/influxdb1-client/pkg/escape
+github.com/influxdata/influxdb1-client/v2
 # github.com/jmoiron/sqlx v1.2.0
 github.com/jmoiron/sqlx
 github.com/jmoiron/sqlx/reflectx

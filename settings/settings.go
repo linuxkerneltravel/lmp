@@ -9,12 +9,13 @@ import (
 var Conf = new(Config)
 
 type Config struct {
-	*AppConfig     `mapstructure:"app"`
-	*LogConfig     `mapstructure:"log"`
-	*MySQLConfig   `mapstructure:"mysql"`
-	*RedisConfig   `mapstructure:"redis"`
-	*PluginConfig  `mapstructure:"Plugin"`
-	*GrafanaConfig `mapstructure:"grafana"`
+	*AppConfig      `mapstructure:"app"`
+	*LogConfig      `mapstructure:"log"`
+	*MySQLConfig    `mapstructure:"mysql"`
+	*InfluxdbConfig `mapstructure:"influxdb"`
+	*RedisConfig    `mapstructure:"redis"`
+	*PluginConfig   `mapstructure:"Plugin"`
+	*GrafanaConfig  `mapstructure:"grafana"`
 }
 
 type AppConfig struct {
@@ -42,6 +43,14 @@ type MySQLConfig struct {
 	Dbname       string `mapstructure:"dbname"`
 	MaxOpenConns int    `mapstructure:"max_open_conns"`
 	MaxIdleConns int    `mapstructure:"max_idle_conns"`
+}
+
+type InfluxdbConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	Dbname   string `mapstructure:"dbname"`
 }
 
 type RedisConfig struct {
