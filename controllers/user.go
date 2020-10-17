@@ -44,8 +44,14 @@ func LoginHandler(c *gin.Context) {
 		zap.L().Error("logic.Login failed", zap.Error(err))
 		if errors.Is(err, mysql.ErrorUserExit) {
 			ResponseError(c, CodeUserNotExist)
+			return
+		}
+		if errors.Is(err, mysql.ErrorInvalidPassword) {
+			ResponseError(c, CodeInvalidPassword)
+			return
 		}
 		ResponseError(c, CodeServerBusy)
+		return
 	}
 
 	ResponseSuccess(c, token)
