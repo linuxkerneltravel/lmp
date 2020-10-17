@@ -9,25 +9,28 @@ import (
 	"strings"
 )
 
-func DoCollect(m models.ConfigMessage) (err error) {
+func DoCollect(m models.ConfigMessage, dbname string) (err error) {
 	for _, filePath := range m.BpfFilePath {
-		//fmt.Println(filePath)
-		go execute(filePath, m)
+		go execute(filePath, m, dbname)
 	}
 
 	return nil
 }
 
-func execute(filepath string, m models.ConfigMessage) {
+func execute(filepath string, m models.ConfigMessage, dbname string) {
 	var newScript string
 	// If pidflag is true, then we should add the pid parameter
+	script := make([]string, 0)
 	if m.PidFlag == true {
-		script := make([]string, 0)
+		script = append(script, "-D")
+		script = append(script, dbname)
 		script = append(script, "-P")
 		script = append(script, m.Pid)
 		newScript = strings.Join(script, " ")
 	} else {
-		newScript = ""
+		script = append(script, "-D")
+		script = append(script, dbname)
+		newScript = strings.Join(script, " ")
 	}
 	// fmt.Println(filepath)
 	// fmt.Println("[ConfigMessage] :", m.PidFlag, m.Pid)

@@ -3,11 +3,11 @@ package mysql
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"lmp/models"
 	"fmt"
+	"lmp/models"
 
-	"lmp/pkg/snowflake"
 	"database/sql"
+	"lmp/pkg/snowflake"
 )
 
 const secret = "LMP"
@@ -67,7 +67,7 @@ func InsertUser(user *models.User) (err error) {
 	//return
 
 	sqlStr := `insert into user(user_id, username, password) values (?,?,?)`
-	ret,err := db.Exec(sqlStr, user.UserID, user.Username, user.Password)
+	ret, err := db.Exec(sqlStr, user.UserID, user.Username, user.Password)
 	if err != nil {
 		fmt.Printf("insert failed, err:%v\n", err)
 		return
@@ -98,7 +98,7 @@ func Login(user *models.User) (err error) {
 	// 生成加密密码与查询到的密码比较
 	password := encryptPassword([]byte(originPassword))
 	if user.Password != password {
-		return ErrorPasswordWrong
+		return ErrorInvalidPassword
 	}
 	return
 }
