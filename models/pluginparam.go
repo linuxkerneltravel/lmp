@@ -15,4 +15,6 @@ type ConfigMessage struct {
 	Pid string `json:"pid"`
 	// Store the config above to the 'BpfFilePath'
 	BpfFilePath []string `json:"bpfFilePath"`
+	// time
+	CollectTime int `json:"collecttime"`
 }
