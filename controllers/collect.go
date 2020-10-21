@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"context"
+	_ "context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -9,7 +9,7 @@ import (
 	"lmp/models"
 	"lmp/settings"
 	"strconv"
-	"time"
+	_ "time"
 )
 
 func Collect(c *gin.Context) {
@@ -24,9 +24,9 @@ func Collect(c *gin.Context) {
 	}
 
 	// 3、把dbname作为一个参数和填充好的表单数据一块下发给logic层
-	ctx, cancel := context.WithTimeout(context.Background(), (time.Duration(m.CollectTime))*time.Second)
-	defer cancel()
-	if err := logic.DoCollect(ctx, m, dbname); err != nil {
+	//ctx, cancel := context.WithTimeout(context.Background(), (time.Duration(m.CollectTime))*time.Second)
+	//defer cancel()
+	if err := logic.DoCollect(m, dbname); err != nil {
 		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
 	}
 
