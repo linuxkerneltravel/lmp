@@ -1,12 +1,15 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"lmp/logic"
 	"lmp/models"
 	"lmp/settings"
+	"strconv"
+	"time"
 )
 
 func Collect(c *gin.Context) {
@@ -21,7 +24,9 @@ func Collect(c *gin.Context) {
 	}
 
 	// 3、把dbname作为一个参数和填充好的表单数据一块下发给logic层
-	if err := logic.DoCollect(m, dbname); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), (time.Duration(m.CollectTime))*time.Second)
+	defer cancel()
+	if err := logic.DoCollect(ctx, m, dbname); err != nil {
 		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
 	}
 
@@ -90,6 +95,15 @@ func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 		}
 	} else {
 		m.PidFlag = false
+	}
+
+	// fill timeField
+	if collectTime, ok := c.GetPostForm("collecttime"); ok {
+		// 记得转为秒
+		tmpTime, _ := strconv.Atoi(collectTime)
+		m.CollectTime = tmpTime * 60
+	} else {
+		m.CollectTime = settings.Conf.PluginConfig.CollectTime * 60
 	}
 
 	return m

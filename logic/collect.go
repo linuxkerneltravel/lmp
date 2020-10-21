@@ -2,6 +2,7 @@ package logic
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"go.uber.org/zap"
 	"lmp/models"
@@ -9,12 +10,20 @@ import (
 	"strings"
 )
 
-func DoCollect(m models.ConfigMessage, dbname string) (err error) {
+func DoCollect(ctx context.Context, m models.ConfigMessage, dbname string) (err error) {
 	for _, filePath := range m.BpfFilePath {
-		go execute(filePath, m, dbname)
+		go executeCollect(ctx, filePath, m, dbname)
 	}
-
 	return nil
+}
+
+func executeCollect(ctx context.Context, filepath string, m models.ConfigMessage, dbname string) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		execute(filepath, m, dbname)
+	}
 }
 
 func execute(filepath string, m models.ConfigMessage, dbname string) {
