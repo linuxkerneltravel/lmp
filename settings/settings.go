@@ -60,7 +60,8 @@ type RedisConfig struct {
 }
 
 type PluginConfig struct {
-	Path string `mapstructure:"path"`
+	Path        string `mapstructure:"path"`
+	CollectTime int    `mapstructure:"collecttime"`
 }
 
 type GrafanaConfig struct {
