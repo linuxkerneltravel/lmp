@@ -36,6 +36,7 @@ redis:
 
 plugin:
   path: "./plugins/"
+  collecttime: 5
 
 grafana:
   ip: "localhost:3000"
