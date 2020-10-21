@@ -8,22 +8,27 @@ import (
 	"lmp/models"
 	"os/exec"
 	"strings"
+	"syscall"
+	"time"
 )
 
-func DoCollect(ctx context.Context, m models.ConfigMessage, dbname string) (err error) {
+func DoCollect(m models.ConfigMessage, dbname string) (err error) {
 	for _, filePath := range m.BpfFilePath {
-		go executeCollect(ctx, filePath, m, dbname)
+		go execute(filePath, m, dbname)
 	}
 	return nil
 }
 
 func executeCollect(ctx context.Context, filepath string, m models.ConfigMessage, dbname string) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		execute(filepath, m, dbname)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			execute(filepath, m, dbname)
+		}
 	}
+
 }
 
 func execute(filepath string, m models.ConfigMessage, dbname string) {
@@ -41,10 +46,25 @@ func execute(filepath string, m models.ConfigMessage, dbname string) {
 		script = append(script, dbname)
 		newScript = strings.Join(script, " ")
 	}
-	// fmt.Println(filepath)
-	// fmt.Println("[ConfigMessage] :", m.PidFlag, m.Pid)
-	// fmt.Println("[string] :", filepath, newScript)
+	//fmt.Println(filepath)
+	//fmt.Println("[ConfigMessage] :", m.PidFlag, m.Pid)
+	//fmt.Println("[string] :", filepath, newScript)
 	cmd := exec.Command("sudo", "python", filepath, newScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				return
+			default:
+			}
+
+		}
+	}()
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -85,5 +105,4 @@ func execute(filepath string, m models.ConfigMessage, dbname string) {
 		zap.L().Error("error in cmd.Wait()", zap.Error(err))
 		return
 	}
-	zap.L().Info("start extracting data...")
 }
