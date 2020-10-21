@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 #-*- coding:utf-8 -*-
 from influxdb import InfluxDBClient
-
+protocol = 'line'
 def write2db(datatype,data,client):
     tmp = [{"measurement":None,"tags":{},"fields":{},}] 
     tmp[0]["measurement"] = datatype["measurement"]
