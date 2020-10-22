@@ -2,7 +2,7 @@ package influxdb
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb1-client/v2"
+	client "github.com/influxdata/influxdb1-client/v2"
 	"lmp/settings"
 )
 

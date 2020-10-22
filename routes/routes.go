@@ -17,6 +17,7 @@ func SetupRouter(mode string) *gin.Engine {
 	}
 
 	r := gin.New()
+	r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
 	//r := gin.Default()
 	r.Use(static.Serve("/", static.LocalFile("static", false)))
@@ -34,11 +35,11 @@ func SetupRouter(mode string) *gin.Engine {
 
 	// for tianjin
 	r.GET("/irq_delay", controllers.QueryIRQ)
-	r.GET("/cpuutilize", controllers.QueryIRQ)
-	r.GET("/picknext", controllers.QueryIRQ)
-	r.GET("/taskswitch", controllers.QueryIRQ)
-	r.GET("/harddiskreadwritetime", controllers.QueryIRQ)
-	r.GET("/watermark", controllers.QueryIRQ)
+	r.GET("/cpuutilize", controllers.QueryCpuUtilize)
+	r.GET("/picknext", controllers.QueryPickNext)
+	r.GET("/taskswitch", controllers.QueryTaskSwitch)
+	r.GET("/harddiskreadwritetime", controllers.QueryHardDiskReadWriteTime)
+	r.GET("/watermark", controllers.QueryWaterMark)
 
 	// Logicals that require login
 	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
@@ -48,4 +49,24 @@ func SetupRouter(mode string) *gin.Engine {
 	})
 
 	return r
+}
+
+// 跨域中间件
+func cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("origin")
+		if len(origin) == 0 {
+			origin = c.Request.Header.Get("Origin")
+		}
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST")
+		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	}
 }
