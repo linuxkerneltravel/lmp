@@ -182,7 +182,7 @@ func (log *Logger) Debug(msg string, fields ...Field) {
 
 // Info logs a message at InfoLevel. The message includes any fields passed
 // at the log site, as well as any fields accumulated on the logger.
-func (log *Logger) Info(msg string, fields ...Field) {
+func (log *Logger)Info(msg string, fields ...Field) {
 	if ce := log.check(InfoLevel, msg); ce != nil {
 		ce.Write(fields...)
 	}

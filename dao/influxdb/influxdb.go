@@ -22,14 +22,15 @@ func Init(cfg *settings.InfluxdbConfig) (err error) {
 	return nil
 }
 
-
 // 根据用户名建库
-func CreatDatabase(dataBaseName string){
+func CreatDatabase(dataBaseName string) (err error) {
 	query := client.NewQuery(fmt.Sprintf("CREATE DATABASE %s", dataBaseName), "", "")
-	response,err:=db.Query(query)
-	if err!=nil{
-		zap.L().Error(" ", zap.Error(err))
+	_, err = db.Query(query)
+	if err != nil {
+		zap.L().Error("ERROR in CreatDatabase:", zap.Error(err))
+		return err
 	}
 	//zap输出
-	fmt.Println(response)
+	zap.L().Info(fmt.Sprintf("create database succeed,%s", dataBaseName))
+	return
 }

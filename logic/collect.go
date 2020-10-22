@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"go.uber.org/zap"
+	"lmp/dao/influxdb"
 	"lmp/models"
 	"os/exec"
 	"strings"
@@ -13,6 +14,11 @@ import (
 )
 
 func DoCollect(m models.ConfigMessage, dbname string) (err error) {
+	// 得到当前的用户名，之后利用这个用户名作为influxdb的dbname
+	if err = influxdb.CreatDatabase(dbname); err != nil {
+		zap.L().Error("ERROR in DoCollect:", zap.Error(err))
+	}
+
 	for _, filePath := range m.BpfFilePath {
 		go execute(filePath, m, dbname)
 	}
