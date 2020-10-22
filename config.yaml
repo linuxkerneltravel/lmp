@@ -1,6 +1,6 @@
 app:
   name: "lmp"
-  mode: "dev"
+  mode: "release"
   version: "v0.0.1"
   port: 8080
   machine_id: 1
