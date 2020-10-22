@@ -19,18 +19,6 @@ func DoCollect(m models.ConfigMessage, dbname string) (err error) {
 	return nil
 }
 
-func executeCollect(ctx context.Context, filepath string, m models.ConfigMessage, dbname string) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			execute(filepath, m, dbname)
-		}
-	}
-
-}
-
 func execute(filepath string, m models.ConfigMessage, dbname string) {
 	var newScript string
 	// If pidflag is true, then we should add the pid parameter
@@ -52,7 +40,7 @@ func execute(filepath string, m models.ConfigMessage, dbname string) {
 	cmd := exec.Command("sudo", "python", filepath, newScript)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.CollectTime)*time.Second)
 	defer cancel()
 	go func() {
 		for {
