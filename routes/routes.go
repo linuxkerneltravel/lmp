@@ -32,7 +32,13 @@ func SetupRouter(mode string) *gin.Engine {
 	r.GET("/allplugins", middlewares.JWTAuthMiddleware(), controllers.PrintAllplugins)
 	r.POST("/data/collect", middlewares.JWTAuthMiddleware(), controllers.Collect)
 
+	// for tianjin
 	r.GET("/irq_delay", controllers.QueryIRQ)
+	r.GET("/cpuutilize", controllers.QueryIRQ)
+	r.GET("/picknext", controllers.QueryIRQ)
+	r.GET("/taskswitch", controllers.QueryIRQ)
+	r.GET("/harddiskreadwritetime", controllers.QueryIRQ)
+	r.GET("/watermark", controllers.QueryIRQ)
 
 	// Logicals that require login
 	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
