@@ -17,7 +17,7 @@ func SetupRouter(mode string) *gin.Engine {
 	}
 
 	r := gin.New()
-	r.Use(cors())
+	// r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
 	//r := gin.Default()
 	r.Use(static.Serve("/", static.LocalFile("static", false)))
@@ -31,21 +31,21 @@ func SetupRouter(mode string) *gin.Engine {
 
 	r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 	r.GET("/allplugins", middlewares.JWTAuthMiddleware(), controllers.PrintAllplugins)
-	r.POST("/data/collect", middlewares.JWTAuthMiddleware(), controllers.Collect)
+	r.POST("/data/collect", controllers.Collect)
 
 	// for tianjin
 	r.GET("/irq_delay", controllers.QueryIRQ)
-	r.GET("/cpuutilize", controllers.QueryCpuUtilize)
-	r.GET("/picknext", controllers.QueryPickNext)
-	r.GET("/taskswitch", controllers.QueryTaskSwitch)
-	r.GET("/harddiskreadwritetime", controllers.QueryHardDiskReadWriteTime)
-	r.GET("/watermark", controllers.QueryWaterMark)
+	r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
+	r.GET("/pick_next", controllers.QueryPickNext)
+	r.GET("/task_switch", controllers.QueryTaskSwitch)
+	r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
+	r.GET("/water_mark", controllers.QueryWaterMark)
 
 	// Logicals that require login
 	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 
 	r.NoRoute(func(c *gin.Context) {
-		c.File(fmt.Sprintf("%s/index.html", "static"))
+		c.File(fmt.Sprintf("%s/login.html", "static"))
 	})
 
 	return r
