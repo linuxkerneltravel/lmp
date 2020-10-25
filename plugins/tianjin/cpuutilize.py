@@ -4,15 +4,6 @@ from __future__ import print_function
 from bcc import BPF
 from time import sleep, strftime
 
-# for influxdb
-from influxdb import InfluxDBClient
-import lmp_influxdb as db
-from db_modules import write2db
-
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
-
 bpf_text = """
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
@@ -79,23 +70,13 @@ int pick_start(struct pt_regs *ctx, struct task_struct *prev)
 }
 """
 
-# data structure from template
-class lmp_data(object):
-    def __init__(self,a,b):
-            self.glob = a
-            self.perce = b
-                    
-
-data_struct = {"measurement":'cpuutilize',
-                "tags":['glob',],
-                "fields":['perce']}
 
 b = BPF(text=bpf_text)
 b.attach_kprobe(event="finish_task_switch", fn_name="pick_start")
 
 dist = b.get_table("dist")
 
-#print("%-6s%-16s%-16s%-6s" % ("CPU", "TOTAL(ns)", "IDLE(ns)", "PERCE"))
+print("%-6s%-16s%-16s%-6s" % ("CPU", "TOTAL(ns)", "IDLE(ns)", "PERCE"))
 
 cpu = [0,0]
 times = 0
@@ -106,13 +87,10 @@ while (1):
         for k, v in dist.items():
         	cpu[k.value] = 1.0 *(v.total - v.idle) / v.total * 100
         	times += 1
-	        #print("%-6d%-16d%-16d%-6.4f%%" % (k.value, v.total, v.idle, 1.0 *(v.total - v.idle) / v.total * 100))
+	        print("%-6d%-16d%-16d%-6.4f%%" % (k.value, v.total, v.idle, 1.0 *(v.total - v.idle) / v.total * 100))
 		
 		if times == 2:
-			print('cpu[]:', cpu[0], cpu[1], cpu[0] + cpu[1])
 			times = 0
-			test_data = lmp_data('glob', cpu[0] + cpu[1])
-			write2db(data_struct, test_data, client)
         dist.clear()
 
     except KeyboardInterrupt:

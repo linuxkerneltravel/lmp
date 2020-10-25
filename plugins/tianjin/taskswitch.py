@@ -4,15 +4,6 @@ from __future__ import print_function
 from bcc import BPF
 from time import sleep, strftime
 
-# for influxdb
-from influxdb import InfluxDBClient
-import lmp_influxdb as db
-from db_modules import write2db
-
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
-
 
 bpf_text = """
 #include <uapi/linux/ptrace.h>
@@ -66,19 +57,6 @@ int switch_end(struct pt_regs *ctx, struct task_struct *prev)
 }
 """
 
-# data structure from template
-class lmp_data(object):
-    def __init__(self,a,b,c,d):
-            self.glob = a
-            self.cpu = b
-            self.pid = c
-            self.duration = d
-                    
-
-data_struct = {"measurement":'taskswitch',
-                "tags":['glob','cpu','pid',],
-                "fields":['duration']}
-
 b = BPF(text=bpf_text)
 b.attach_kretprobe(event="pick_next_task_fair", fn_name="switch_start")
 b.attach_kretprobe(event="pick_next_task_idle", fn_name="switch_start")
@@ -90,15 +68,13 @@ b.attach_kprobe(event="finish_task_switch", fn_name="switch_end")
 
 dist = b.get_table("dist")
 
-#print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(ns)"))
+print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(ns)"))
 
 while (1):
     try:
         sleep(1)
         for k, v in dist.items():
-            #print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value))
-            test_data = lmp_data('glob', k.cpu, k.pid, v.value)
-            write2db(data_struct, test_data, client)
+            print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value))
         dist.items()
     except KeyboardInterrupt:
         exit()

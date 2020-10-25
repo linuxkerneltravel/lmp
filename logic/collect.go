@@ -53,9 +53,7 @@ func netExecute(m models.ConfigMessage) {
 			case <-ctx.Done():
 				syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				return
-			default:
 			}
-
 		}
 	}()
 
@@ -121,7 +119,6 @@ func execute(filepath string, m models.ConfigMessage, dbname string) {
 			case <-ctx.Done():
 				syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				return
-			default:
 			}
 
 		}

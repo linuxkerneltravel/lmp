@@ -26,7 +26,7 @@ func Collect(c *gin.Context) {
 		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
 	}
 
-	//ResponseRediect(c, settings.Conf.GrafanaConfig.IP)
+	ResponseRediect(c, settings.Conf.GrafanaConfig.IP)
 
 	ResponseSuccess(c, fmt.Sprintf("collecting..."))
 }

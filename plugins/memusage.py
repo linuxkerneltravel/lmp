@@ -7,6 +7,31 @@ import sys
 from time import sleep
 import thread
 
+# for influxdb
+from influxdb import InfluxDBClient
+import lmp_influxdb as db
+from db_modules import write2db
+
+DBNAME = 'lmp'
+
+client = db.connect(DBNAME,user='root',passwd=123456)
+
+title = ['DMA','DMA32','Normal']
+#print("%-9s%-9s%-9s" % (title[0], title[1], title[2]))
+
+# data structure from template
+class lmp_data(object):
+    def __init__(self,a,b,c,d):
+            self.glob = a
+            self.dma = b
+            self.dma32 = c
+            self.normal = d    
+
+data_struct = {"measurement":'memusage',
+                "tags":['glob'],
+                "fields":['dma','dma32','normal']}
+
+
 def load_BPF(thread_name, delay):
     b = BPF(text = '''
             #include <uapi/linux/ptrace.h>
@@ -25,12 +50,8 @@ def load_BPF(thread_name, delay):
 
 def zone_info(thread_name, delay):
 	path = "/proc/zoneinfo"
-	title = ['Node','utilization']
-        name = ['DMA','DMA32','Normal']
-        
-	DMA = ['DMA','0']
-	DMA32 = ['DMA32','0']
-	Normal = ['Normal','0']
+	title = ['DMA','DMA32','Normal']
+        data = ['0','0','0']
 	while 1:
 		try:
 			sleep(1)
@@ -42,7 +63,8 @@ def zone_info(thread_name, delay):
 		managed = '0'
 		count = 0
                 i = 0
-                print(title)
+                k = 0
+                #print(title)
 		while line:
 			if ':' in line:
 				line = line.replace(':', '')
@@ -57,19 +79,20 @@ def zone_info(thread_name, delay):
 			if pages_free != '0' and managed != '0' and count ==2:
 			    result = float(pages_free)/float(managed)
                             if i == 0:
-                                DMA[1] = result
-                                print(DMA)
+                                data[i] = "%.4f"%result
                             elif i==1:
-                                DMA32[1] = result
-                                print(DMA32)
+                                data[i] ="%.4f"% result
                             elif i == 2:
-                                Normal[1] = result
-                                print(Normal)
+                                data[i] ="%.4f"% result
                             i = i+1
 			    count = 0
 
 			line = f.readline()
-		print('------------')
+                #print(data)
+                #print("%-9s%-9s%-9s" % (data[0], data[1], data[2]))
+                test_data = lmp_data('glob', data[0], data[1], data[2])
+            	write2db(data_struct, test_data, client)
+		#print('------------')
 		f.close()
 try:
     thread.start_new_thread(load_BPF, ("BPF progream", 0))
@@ -78,4 +101,7 @@ except:
     print"Error:unable to start thread"
 
 while 1:
-    pass
+	try:
+		pass
+	except KeyboardInterrupt:
+		exit()
