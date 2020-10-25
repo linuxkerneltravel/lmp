@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        *{
+            margin: 0 auto;
+            text-align: center;
+        }
+        #wrapper{
+            margin-top: 160px;
+        }
+        #wrapper p{
+            font-size: 70px;
+            font-weight: bold;
+        }
+        #wrapper>img{
+            height: 180px;
+        }
+        #sub{
+            width: 100px;
+            cursor: pointer;
+            height: 30px;
+            font-size: 20px;
+        }
+        #inner{
+
+        }
+    </style>
+</head>
+<body>
+<div id="wrapper">
+    <p>Linux Microscope</p>
+    <br>
+    <img src="./imgs/Linux.jpg"/>
+    <br>
+    <br>
+    <div id="inner">
+        <form action="/data/collect" method="post">
+            <input type="checkbox" name="cpuutilize" value="true">cpuutilize
+            <input type="checkbox" name="irq" value="true">irq
+            <input type="checkbox" name="picknext" value="true">picknext
+            <input type="checkbox" name="taskswitch" value="true">hardirqtime
+            <br>
+            <input type="checkbox" name="harddiskreadwritetime" value="true">oncputime
+            <input type="checkbox" name="memusage" value="true">memusage
+            <input type="checkbox" name="netlatency" value="true">netlatency
+
+            <label for="other"></label>
+            <input type="text" name="collecttime" value="">
+            <br>
+            <br>
+            <br>
+            <input id="sub" type="submit" value="submit">
+        </form>
+    </div>
+</div>
+
+</body>
+</html>
+
+

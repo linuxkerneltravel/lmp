@@ -90,7 +90,7 @@ b.attach_kprobe(event="finish_task_switch", fn_name="switch_end")
 
 dist = b.get_table("dist")
 
-print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(ns)"))
+#print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(ns)"))
 
 while (1):
     try:

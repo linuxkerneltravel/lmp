@@ -1,0 +1,126 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+	pageEncoding="UTF-8"%>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>个人中心</title>
+<%
+	pageContext.setAttribute("APP_PATH", request.getContextPath());
+%>
+<!-- bootstrap -->
+<link
+	href="${APP_PATH}/static/bootstrap-3.3.7-dist/css/bootstrap.min.css"
+	rel="stylesheet" />
+<!-- 引入jqury,bootsrapt都依赖jqury，必须放在前面 -->
+<script type="text/javascript"
+	src="${APP_PATH}/static/js/jquery-3.3.1.min.js"></script>
+<!-- 引入js -->
+<script type="text/javascript"
+	src="${APP_PATH}/static/bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+
+</head>
+<body>
+	<f:view>
+	<jsp:include page="header.jsp" />
+	<div class="row" style="background: #9BCD9B; margin-top: -20px;">
+			<div class="col-md-8 col-md-offset-2">
+				<ul class="nav nav-pills" role="tablist">
+					<li role="presentation"><a href="index">主页
+					</a></li>
+					<li role="presentation" ><a href="fuzhu">辅助系统</a></li>
+					<li role="presentation"class="active"><a href="usercenter">个人中心 </a></li>
+				</ul>
+			</div>
+		</div>
+		<div class="container">
+			<div class="row">
+				
+
+			</div>
+			<div class="row">
+				<div class="col-md-2">
+				
+				
+				</div>
+				 
+				<div class="col-md-10">
+				<table class="table table-striped" id="user_table">
+				<thead>
+				<tr>
+					<td colspan="2"><h4>个人信息</h4>	</td>		
+				</tr>				 
+				</thead>
+				<tbody>
+				
+				</tbody>
+				</table>
+				
+				</div>
+
+			</div>
+
+
+		</div>
+		<jsp:include page="footer.jsp" />
+	</f:view>
+	<script type="text/javascript">
+	//检查有没有登录，
+	function checkLogin(){
+		var docName = $.cookie("docName");
+		if(docName!=""&&docName!=undefined){
+			//
+		}else{
+			//转到登录
+			window.location.href="login";
+		}
+	}	
+	checkLogin();
+	//给表格填充内容，
+	var doctor = $.cookie("doctor");	
+	 //如果
+	if (doctor!=""||doctor!=undefined) {		
+		//docId+dpId+docName+docGender+docPhone+docEmail
+		doctor =doctor.split(",");
+		dpId=doctor[0];	
+		docName=doctor[2];
+		docPhone=doctor[4];
+		docGender=doctor[3]=="M"?"男":"女";
+		docEmail=doctor[5];	 
+		docDept=$.cookie("docDept");
+		var tableTd=$("#user_table tbody");//只有一个tbody
+		var nameTd=$("<tr></tr>").append("<td>账号：</td>").append("<td>"+docName+"</td>");
+		var deptTd=$("<tr></tr>").append("<td>科室：</td>").append("<td>"+docDept+"</td>");
+		var genderTd=$("<tr></tr>").append("<td>性别：</td>").append("<td>"+docGender+"</td>");
+		var phoneTd=$("<tr></tr>").append("<td>手机号：</td>").append("<td>"+docPhone+"</td>");
+		var emailTd=$("<tr></tr>").append("<td>邮箱：</td>").append("<td>"+docEmail+"</td>");
+		var editTd=$("<tr></tr>").append("<td colspan='2'><button type='button' class='btn btn-primary' >修改</button>&nbsp;<button type='button' class='btn btn-danger' id='logout'>退出</button></td>");
+		tableTd.append(nameTd)
+				.append(deptTd)
+			.append(genderTd)
+			.append(phoneTd)
+			.append(emailTd)
+			.append(editTd)
+			;
+	
+	}else{//doctor 不存在,转到登录页		
+		window.location.href="login";
+	}	
+	
+	//修改，弹出模态框，修改
+	
+	//退出，清空cookie
+	$(document).on("click","#logout",function(){
+		if (confirm("是否退出当前账号？")) {
+			$.removeCookie("docName");
+			$.removeCookie("doctor");
+			$.removeCookie("docDept");
+			
+			window.location.href="login";
+		}
+		
+	});
+	</script>
+</body>
+</html>

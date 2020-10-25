@@ -112,8 +112,8 @@ b.attach_kprobe(event="blk_account_io_completion",
 TASK_COMM_LEN = 16  # linux/sched.h
 DISK_NAME_LEN = 32  # linux/genhd.h
 # header
-print("%-14s %-14s %-6s %-7s %-2s %-22s %-10s %7s " % ("TIME(s)", "COMM", "PID",
-    "DISK", "T", "SECTOR", "BYTES", "LAT(ms)"))
+# print("%-14s %-14s %-6s %-7s %-2s %-22s %-10s %7s " % ("TIME(s)", "COMM", "PID",
+#     "DISK", "T", "SECTOR", "BYTES", "LAT(ms)"))
 
 rwflg = ""
 start_ts = 0
@@ -137,15 +137,15 @@ def print_event(cpu, data, size):
         prev_ts = start_ts
     if start_ts == 1:
         delta = float(delta) + (event.ts - prev_ts)
-    print("%-14.9f %-14.14s %-6s %-7s %-2s %-22s %-7s %7.2f " % (
-        delta / 1000000, event.name.decode('utf-8', 'replace'), event.pid,
-        event.disk_name.decode('utf-8', 'replace'), rwflg, val,
-        event.len, float(event.delta) / 1000000))
+    # print("%-14.9f %-14.14s %-6s %-7s %-2s %-22s %-7s %7.2f " % (
+    #     delta / 1000000, event.name.decode('utf-8', 'replace'), event.pid,
+    #     event.disk_name.decode('utf-8', 'replace'), rwflg, val,
+    #     event.len, float(event.delta) / 1000000))
     test_data = lmp_data('glob', event.name.decode('utf-8', 'replace'), event.pid,
         event.disk_name.decode('utf-8', 'replace'), rwflg,
         event.len, float(event.delta) / 1000000)
     # print(event.pid, time)
-    # write2db(data_struct, test_data, client)
+    write2db(data_struct, test_data, client)
     prev_ts = event.ts
     start_ts = 1
 

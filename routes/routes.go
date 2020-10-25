@@ -17,11 +17,13 @@ func SetupRouter(mode string) *gin.Engine {
 	}
 
 	r := gin.New()
-	// r.Use(cors())
+	r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
 	//r := gin.Default()
 	r.Use(static.Serve("/", static.LocalFile("static", false)))
 	r.StaticFS("/static", http.Dir("static/"))
+	//r.Use(static.Serve("/", static.LocalFile("webview", false)))
+	//r.StaticFS("/webview", http.Dir("webview/"))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
@@ -31,7 +33,7 @@ func SetupRouter(mode string) *gin.Engine {
 
 	r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 	r.GET("/allplugins", middlewares.JWTAuthMiddleware(), controllers.PrintAllplugins)
-	r.POST("/data/collect", controllers.Collect)
+	r.POST("/data/collect", middlewares.JWTAuthMiddleware(), controllers.Collect)
 
 	// for tianjin
 	r.GET("/irq_delay", controllers.QueryIRQ)

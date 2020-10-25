@@ -86,12 +86,12 @@ b.attach_kprobe(event="irq_exit", fn_name="handler_end")
 
 exitt = b.get_table("exitt")
 
-print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(us)"))
+#print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(us)"))
 while (1):
     try:
         sleep(1)
         for k, v in exitt.items():
-            print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value / 1000))
+            #print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value / 1000))
             test_data = lmp_data('glob', k.cpu, k.pid, v.value/1000)
             write2db(data_struct, test_data, client)
         exitt.clear()
