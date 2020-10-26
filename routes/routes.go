@@ -1,8 +1,6 @@
 package routes
 
 import (
-	"fmt"
-	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"lmp/controllers"
 	"net/http"
@@ -20,10 +18,34 @@ func SetupRouter(mode string) *gin.Engine {
 	r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
 	//r := gin.Default()
-	r.Use(static.Serve("/", static.LocalFile("static", false)))
-	r.StaticFS("/static", http.Dir("static/"))
-	//r.Use(static.Serve("/", static.LocalFile("webview", false)))
-	//r.StaticFS("/webview", http.Dir("webview/"))
+	//r.Use(static.Serve("/", static.LocalFile("static", false)))
+
+	//r.LoadHTMLGlob("./static/webview/*")
+
+	//r.Use(static.Serve("/", static.LocalFile("static", false)))
+	//r.StaticrFS("/static", http.Dir("static/"))
+
+	r.LoadHTMLFiles("./static/webview/index.html")
+	r.Static("/static", "./static")
+
+	r.NoRoute(func(c *gin.Context) {
+		//c.Header("Content-type", "text/html, charset=utf-8")
+		c.HTML(http.StatusOK, "index.html", nil)
+		//c.File(fmt.Sprintf("%s/webview/index.html", "static"))
+	})
+
+	//r.LoadHTMLGlob("static/webview/*")
+	//r.LoadHTMLGlob("static/index.html")
+
+	//r.LoadHTMLGlob("static/*")
+
+	//r.LoadHTMLGlob("static/CSS/*")
+	//r.LoadHTMLGlob("static/js/*")
+	//r.LoadHTMLGlob("static/webview/*")
+	//r.LoadHTMLGlob("static/bootstrap-3.3.7-dist/css/*")
+	//r.LoadHTMLGlob("static/bootstrap-3.3.7-dist/fonts/*")
+	//r.LoadHTMLGlob("static/bootstrap-3.3.7-dist/js/*")
+	//r.LoadHTMLGlob("static/images/*")
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
@@ -46,9 +68,13 @@ func SetupRouter(mode string) *gin.Engine {
 	// Logicals that require login
 	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 
-	r.NoRoute(func(c *gin.Context) {
-		c.File(fmt.Sprintf("%s/login.html", "static"))
-	})
+	//r.NoRoute(func(c *gin.Context) {
+	//	c.Header("Content-type", "text/html, charset=utf-8")
+	//	//c.String(200, c.File(fmt.Sprintf("%s/index.html", "static")))
+	//	//c.File(fmt.Sprintf("%s/index.html", "static"))
+	//	c.HTML(200, "index.html", nil)
+	//	//c.File(fmt.Sprintf("%s/index.html", "static"))
+	//})
 
 	return r
 }

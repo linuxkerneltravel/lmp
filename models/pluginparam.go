@@ -21,16 +21,17 @@ package models
 
 // ConfigMessage struct
 type ConfigMessage struct {
+	Data Configure `json:"data"`
+	// time
+	CollectTime int      `json:"collecttime"`
+	BpfFilePath []string `json:"bpfFilePath"`
+}
+
+type Configure struct {
 	Cpuutilize            bool `json:"cpuutilize"`
 	Irq                   bool `json:"irq"`
-	Picknext              bool `json:"picknext"`
 	Taskswitch            bool `json:"taskswitch"`
+	Picknext              bool `json:"picknext"`
 	Harddiskreadwritetime bool `json:"harddiskreadwritetime"`
 	Memusage              bool `json:"memusage"`
-	Netlatency            bool `json:"netlatency"`
-
-	// Store the config above to the 'BpfFilePath'
-	BpfFilePath []string `json:"bpfFilePath"`
-	// time
-	CollectTime int `json:"collecttime"`
 }
