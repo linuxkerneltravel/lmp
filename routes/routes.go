@@ -25,14 +25,14 @@ func SetupRouter(mode string) *gin.Engine {
 	//r.Use(static.Serve("/", static.LocalFile("static", false)))
 	//r.StaticrFS("/static", http.Dir("static/"))
 
-	r.LoadHTMLFiles("./static/webview/index.html")
-	r.Static("/static", "./static")
+	//r.LoadHTMLFiles("./static/webview/index.html")
+	//r.Static("/static", "./static")
 
-	r.NoRoute(func(c *gin.Context) {
-		//c.Header("Content-type", "text/html, charset=utf-8")
-		c.HTML(http.StatusOK, "index.html", nil)
-		//c.File(fmt.Sprintf("%s/webview/index.html", "static"))
-	})
+	//r.NoRoute(func(c *gin.Context) {
+	//	//c.Header("Content-type", "text/html, charset=utf-8")
+	//	c.HTML(http.StatusOK, "index.html", nil)
+	//	//c.File(fmt.Sprintf("%s/webview/index.html", "static"))
+	//})
 
 	//r.LoadHTMLGlob("static/webview/*")
 	//r.LoadHTMLGlob("static/index.html")
