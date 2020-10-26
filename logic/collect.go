@@ -24,10 +24,6 @@ func DoCollect(m models.ConfigMessage, dbname string) (err error) {
 		go execute(filePath, m, dbname)
 	}
 
-	if m.Netlatency == true {
-		go netExecute(m)
-	}
-
 	return nil
 }
 

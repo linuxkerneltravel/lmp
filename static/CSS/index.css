@@ -1,0 +1,18 @@
+.header{
+width: 100%;
+height: 50px;
+border: medium none;
+line-height:50px;
+}
+.footer{
+    width:100%;
+    height: 150px;
+    border: medium none;
+
+}
+.main{
+    font-size:20px;
+    font-weight:bold;
+    font-family: 'Times New Roman', Times, serif;
+    top:-280px;
+}
