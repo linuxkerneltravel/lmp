@@ -21,15 +21,17 @@ title = ['DMA','DMA32','Normal']
 
 # data structure from template
 class lmp_data(object):
-    def __init__(self,a,b,c,d):
-            self.glob = a
-            self.dma = b
-            self.dma32 = c
-            self.normal = d    
+    def __init__(self,a,b,c,d,e):
+		self.time = a
+		self.glob = b
+		self.dma = c
+		self.dma32 = d
+		self.normal = e
 
 data_struct = {"measurement":'memusage',
-                "tags":['glob'],
-                "fields":['dma','dma32','normal']}
+			   "time":[],
+			   "tags":['glob'],
+			   "fields":['dma','dma32','normal']}
 
 
 def load_BPF(thread_name, delay):
@@ -90,7 +92,7 @@ def zone_info(thread_name, delay):
 			line = f.readline()
                 #print(data)
                 #print("%-9s%-9s%-9s" % (data[0], data[1], data[2]))
-                test_data = lmp_data('glob', data[0], data[1], data[2])
+                test_data = lmp_data(datetime.now().isoformat(),'glob', data[0], data[1], data[2])
             	write2db(data_struct, test_data, client)
 		#print('------------')
 		f.close()

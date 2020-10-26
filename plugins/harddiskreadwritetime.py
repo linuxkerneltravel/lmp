@@ -89,19 +89,21 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
 
 # data structure from template
 class lmp_data(object):
-    def __init__(self,a,b,c,d,e,f,g):
-            self.glob = a
-            self.comm = b
-            self.pid = c
-            self.disk = d
-            self.t = e
-            self.bytes = f
-            self.lat = g
+    def __init__(self,a,b,c,d,e,f,g,h):
+            self.time = a
+            self.glob = b
+            self.comm = c
+            self.pid = d
+            self.disk = e
+            self.t = f
+            self.bytes = g
+            self.lat = h
                     
 
 data_struct = {"measurement":'HardDiskReadWriteTime',
-                "tags":['glob','comm','pid',],
-                "fields":['disk','t','bytes','lat']}
+               "time":[],
+               "tags":['glob','comm','pid',],
+               "fields":['disk','t','bytes','lat']}
 
 if BPF.get_kprobe_functions(b'blk_start_request'):
     b.attach_kprobe(event="blk_start_request", fn_name="trace_pid_start")
@@ -141,7 +143,7 @@ def print_event(cpu, data, size):
     #     delta / 1000000, event.name.decode('utf-8', 'replace'), event.pid,
     #     event.disk_name.decode('utf-8', 'replace'), rwflg, val,
     #     event.len, float(event.delta) / 1000000))
-    test_data = lmp_data('glob', event.name.decode('utf-8', 'replace'), event.pid,
+    test_data = lmp_data(datetime.now().isoformat(),'glob', event.name.decode('utf-8', 'replace'), event.pid,
         event.disk_name.decode('utf-8', 'replace'), rwflg,
         event.len, float(event.delta) / 1000000)
     # print(event.pid, time)

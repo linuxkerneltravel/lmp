@@ -70,15 +70,17 @@ int handler_end(struct pt_regs *ctx)
 
 # data structure from template
 class lmp_data(object):
-    def __init__(self,a,b,c,d):
-            self.glob = a
-            self.cpu = b
-            self.pid = c
-            self.duration = d    
+    def __init__(self,a,b,c,d,e):
+            self.time = a
+            self.glob = b
+            self.cpu = c
+            self.pid = d
+            self.duration = e
 
 data_struct = {"measurement":'irq',
-                "tags":['glob','cpu','pid'],
-                "fields":['duration']}
+               "time":[],
+               "tags":['glob','cpu','pid'],
+               "fields":['duration']}
 
 b = BPF(text=bpf_text)
 b.attach_kprobe(event="irq_enter", fn_name="handler_start")
@@ -92,7 +94,7 @@ while (1):
         sleep(1)
         for k, v in exitt.items():
             #print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value / 1000))
-            test_data = lmp_data('glob', k.cpu, k.pid, v.value/1000)
+            test_data = lmp_data(datetime.now().isoformat(),'glob', k.cpu, k.pid, v.value/1000)
             write2db(data_struct, test_data, client)
         exitt.clear()
     except KeyboardInterrupt:
