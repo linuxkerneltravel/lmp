@@ -12,6 +12,9 @@ from influxdb import InfluxDBClient
 import lmp_influxdb as db
 from db_modules import write2db
 
+from datetime import datetime
+
+
 DBNAME = 'lmp'
 
 client = db.connect(DBNAME,user='root',passwd=123456)
