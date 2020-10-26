@@ -1,6 +1,7 @@
 package logic
 
 import (
+	"fmt"
 	"github.com/influxdata/influxdb1-client/v2"
 	"go.uber.org/zap"
 	"lmp/dao/influxdb"
@@ -31,6 +32,7 @@ func DoQueryPickNext() (res []client.Result, err error) {
 		zap.L().Error("ERROR in DoQueryPickNext():", zap.Error(err))
 		return nil, err
 	}
+	fmt.Println(res)
 	return
 }
 
