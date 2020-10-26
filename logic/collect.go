@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	//"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"lmp/dao/influxdb"
 	"lmp/models"
+	"lmp/settings"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -15,12 +16,13 @@ import (
 
 func DoCollect(m models.ConfigMessage, dbname string) (err error) {
 	// 得到当前的用户名，之后利用这个用户名作为influxdb的dbname
-	if err = influxdb.CreatDatabase(dbname); err != nil {
-		zap.L().Error("ERROR in DoCollect:", zap.Error(err))
-	}
-
-	fmt.Println(m)
-	for _, filePath := range m.BpfFilePath {
+	//if err = influxdb.CreatDatabase(dbname); err != nil {
+	//	zap.L().Error("ERROR in DoCollect:", zap.Error(err))
+	//}
+	bpfFilePath := fillFrontMessage(m)
+	fmt.Println("logic collect is here:", m)
+	for _, filePath := range bpfFilePath {
+		//fmt.Println(m.)
 		go execute(filePath, m, dbname)
 	}
 
@@ -107,7 +109,7 @@ func execute(filepath string, m models.ConfigMessage, dbname string) {
 	cmd := exec.Command("sudo", "python", filepath, newScript)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.CollectTime)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.CollectTime)*time.Second*60)
 	defer cancel()
 	go func() {
 		for {
@@ -159,4 +161,28 @@ func execute(filepath string, m models.ConfigMessage, dbname string) {
 		zap.L().Error("error in cmd.Wait()", zap.Error(err))
 		return
 	}
+}
+
+func fillFrontMessage(m models.ConfigMessage) []string {
+	var bpfFilePath []string
+	if m.Data.Cpuutilize == true {
+		bpfFilePath = append(bpfFilePath, settings.Conf.PluginConfig.Path+"cpuutilize.py")
+	}
+	if m.Data.Irq == true {
+		bpfFilePath = append(bpfFilePath, settings.Conf.PluginConfig.Path+"irq.py")
+	}
+	if m.Data.Taskswitch == true {
+		bpfFilePath = append(bpfFilePath, settings.Conf.PluginConfig.Path+"taskswitch.py")
+	}
+	if m.Data.Picknext == true {
+		bpfFilePath = append(bpfFilePath, settings.Conf.PluginConfig.Path+"picknext.py")
+	}
+	if m.Data.Harddiskreadwritetime == true {
+		bpfFilePath = append(bpfFilePath, settings.Conf.PluginConfig.Path+"harddiskreadwritetime.py")
+	}
+	if m.Data.Memusage == true {
+		bpfFilePath = append(bpfFilePath, settings.Conf.PluginConfig.Path+"memusage.py")
+	}
+
+	return bpfFilePath
 }
