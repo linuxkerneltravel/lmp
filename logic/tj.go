@@ -8,7 +8,7 @@ import (
 
 func DoQueryIRQ() (res []client.Result, err error) {
 	// 调用dao层influxdb API
-	res, err = influxdb.QueryDB(`select last("duration") from "picknext"`)
+	res, err = influxdb.QueryDB(`select last("duration") from "irq"`)
 	if err != nil {
 		zap.L().Error("ERROR in DoQueryIRQ():", zap.Error(err))
 		return nil, err
@@ -17,7 +17,7 @@ func DoQueryIRQ() (res []client.Result, err error) {
 }
 
 func DoQueryCpuUtilize() (res []client.Result, err error) {
-	res, err = influxdb.QueryDB(`select last("perce") from "picknext"`)
+	res, err = influxdb.QueryDB(`select last("perce") from "cpuutilize"`)
 	if err != nil {
 		zap.L().Error("ERROR in DoQueryIRQ():", zap.Error(err))
 		return nil, err
@@ -35,7 +35,7 @@ func DoQueryPickNext() (res []client.Result, err error) {
 }
 
 func DoQueryTaskSwitch() (res []client.Result, err error) {
-	res, err = influxdb.QueryDB(`select last("duration") from "picknext"`)
+	res, err = influxdb.QueryDB(`select last("duration") from "taskswitch"`)
 	if err != nil {
 		zap.L().Error("ERROR in DoQueryTaskSwitch():", zap.Error(err))
 		return nil, err
@@ -44,7 +44,7 @@ func DoQueryTaskSwitch() (res []client.Result, err error) {
 }
 
 func DoQueryHardDiskReadWriteTime() (res []client.Result, err error) {
-	res, err = influxdb.QueryDB(`select last("lat") from "picknext"`)
+	res, err = influxdb.QueryDB(`select last("lat") from "HardDiskReadWriteTime"`)
 	if err != nil {
 		zap.L().Error("ERROR in DoQueryHardDiskReadWriteTime():", zap.Error(err))
 		return nil, err
@@ -53,7 +53,7 @@ func DoQueryHardDiskReadWriteTime() (res []client.Result, err error) {
 }
 
 func DoQueryWaterMark() (res []client.Result, err error) {
-	res, err = influxdb.QueryDB(``)
+	res, err = influxdb.QueryDB(`select last("normal") from "memusage"`)
 	if err != nil {
 		zap.L().Error("ERROR in DoQueryWaterMark():", zap.Error(err))
 		return nil, err
