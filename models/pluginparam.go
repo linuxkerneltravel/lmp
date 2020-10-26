@@ -23,8 +23,8 @@ package models
 type ConfigMessage struct {
 	Data Configure `json:"data"`
 	// time
-	CollectTime int      `json:"collecttime"`
-	BpfFilePath []string `json:"bpfFilePath"`
+	CollectTime int `json:"collecttime"`
+	//BpfFilePath []string `json:"bpfFilePath"`
 }
 
 type Configure struct {
