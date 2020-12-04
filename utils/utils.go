@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"os/signal"
+	"syscall"
 )
 
 func PathExist(path string) (bool, error) {
@@ -47,4 +50,15 @@ func CopyFile(dstName string, srcName string) error {
 		return err
 	}
 	return nil
+}
+
+func ListenToSystemSignals(cmd *exec.Cmd) {
+	signalChan := make(chan os.Signal, 1)
+
+	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGKILL)
+	select {
+	case <-signalChan:
+		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		os.Exit(-1)
+	}
 }
