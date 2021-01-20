@@ -94,14 +94,17 @@ sudo docker pull influxdb
     -p 8083:8083 \
     -p 8086:8086 \
     --name influxdb \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
 #run mysql
- sudo docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
-
+ sudo docker run -d -e \
+    --name mysql \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/mysql_config/:/var/lib/mysql \
+    -p 3306:3306 mysql 
+    
 #run lmp
  cd lmp/
  make
