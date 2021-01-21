@@ -52,16 +52,19 @@ LMP is a web tool for real-time display of Linux system performance data based o
 
 - golang
 - docker
+- bcc
 
 ###  Install dependent docker image
 
 ```
 # For prometheus 
- docker pull prom/prometheus
+sudo docker pull prom/prometheus
 # For grafana
- docker pull grafana/grafana
+sudo docker pull grafana/grafana
 # For MySql
- docker pull mysql
+sudo docker pull mysql
+# For Influxdb
+sudo docker pull influxdb
 ```
 
 ### Compile and install
@@ -70,7 +73,7 @@ LMP is a web tool for real-time display of Linux system performance data based o
  git clone https://github.com/linuxkerneltravel/lmp
  cd lmp
  make
- make install
+ sudo make install
 ```
 
 ##  Single machine node, Run locally
@@ -80,29 +83,32 @@ LMP is a web tool for real-time display of Linux system performance data based o
  vim lmp/config.yaml
 
 #run grafana
- docker run -d \
+ sudo docker run -d \
    -p 3000:3000 \
    --name=grafana \
    -v /opt/grafana-storage:/var/lib/grafana \
    grafana/grafana
    
 #run influxdb
-    docker run -d \
+ sudo docker run -d \
     -p 8083:8083 \
     -p 8086:8086 \
     --name influxdb \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
 #run mysql
-    docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
-
+ sudo docker run -d -e \
+    --name mysql \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/mysql_config/:/var/lib/mysql \
+    -p 3306:3306 mysql 
+    
 #run lmp
  cd lmp/
  make
- ./lmp
+ sudo ./lmp
 ```
 
 ### observation
@@ -182,12 +188,15 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 
 ```
 # For prometheus 
- docker pull prom/prometheus
+sudo docker pull prom/prometheus
 # For grafana
- docker pull grafana/grafana
+sudo docker pull grafana/grafana
 # For MySql
- docker pull mysql
+sudo docker pull mysql
+# For Influxdb
+sudo docker pull influxdb
 ```
+
 
 ### 编译并安装
 
@@ -195,7 +204,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
  git clone https://github.com/linuxkerneltravel/lmp
  cd lmp
  make
- make install
+ sudo make install
 ```
 
 ## 单机节点，本地运行
@@ -205,14 +214,14 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
  vim lmp/config.yaml
 
 #run grafana
- docker run -d \
+ sudo docker run -d \
    -p 3000:3000 \
    --name=grafana \
    -v /opt/grafana-storage:/var/lib/grafana \
    grafana/grafana
 
 #run influxdb
-    docker run -d \
+ sudo docker run -d \
     -p 8083:8083 \
     -p 8086:8086 \
     --name influxdb \
@@ -222,12 +231,12 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
     -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
 #run mysql
-    docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
+ sudo docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
 
 #run lmp
  cd lmp/
  make
- ./lmp
+ sudo ./lmp
 ```
 
 ### 进行观测
