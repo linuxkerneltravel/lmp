@@ -22,10 +22,10 @@ clean:
 
 install:
 	@echo "BEGIN INSTALL LMP"
-	mkdir /etc/influxdb/influxdb.conf 
-	mkdir /var/lib/influxdb/data
-	mkdir /var/lib/influxdb/meta
-	mkdir /var/lib/influxdb/wal influxdb
+	mkdir -p /etc/influxdb/influxdb.conf 
+	mkdir -p /var/lib/influxdb/data
+	mkdir -p /var/lib/influxdb/meta
+	mkdir -p /var/lib/influxdb/wal influxdb
 # 	mkdir -p $(COLLECTDIR)
 # 	mkdir -p $(PRODIR)
 # 	mkdir -p $(GRADIR)
