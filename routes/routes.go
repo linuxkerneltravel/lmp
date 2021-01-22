@@ -1,12 +1,12 @@
 package routes
 
 import (
-	"lmp/controllers"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
+	"lmp/controllers"
 	"lmp/logger"
+
+	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(mode string) *gin.Engine {
