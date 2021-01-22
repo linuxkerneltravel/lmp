@@ -3,17 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"lmp/dao/influxdb"
 	"lmp/logger"
 	"lmp/models"
 	"lmp/pkg/snowflake"
 	"lmp/routes"
 	"lmp/settings"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/facebookgo/pidfile"
 	"go.uber.org/zap"
