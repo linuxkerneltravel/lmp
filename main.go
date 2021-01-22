@@ -3,10 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/facebookgo/pidfile"
-	"go.uber.org/zap"
 	"lmp/dao/influxdb"
-	"lmp/dao/mysql"
 	"lmp/logger"
 	"lmp/models"
 	"lmp/pkg/snowflake"
@@ -17,6 +14,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/facebookgo/pidfile"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -36,12 +36,12 @@ func main() {
 	}
 	defer zap.L().Sync()
 
-	if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
+	/*if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
 		fmt.Println("Init mysql failed, err:", err)
 		return
 	}
 	defer mysql.Close()
-
+	*/
 	if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
 		fmt.Println("Init influxdb failed, err:", err)
 		return

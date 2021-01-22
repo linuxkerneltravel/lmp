@@ -1,12 +1,12 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	"lmp/controllers"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+
 	"lmp/logger"
-	"lmp/middlewares"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -34,9 +34,9 @@ func SetupRouter(mode string) *gin.Engine {
 	r.POST("/signup", controllers.SignUpHandler)
 	r.POST("/login", controllers.LoginHandler)
 
-	r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
-	r.GET("/allplugins", middlewares.JWTAuthMiddleware(), controllers.PrintAllplugins)
-	r.POST("/data/collect", middlewares.JWTAuthMiddleware(), controllers.Collect)
+	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
+	r.GET("/allplugins", controllers.PrintAllplugins)
+	r.POST("/data/collect", controllers.Collect)
 
 	// for tianjin
 	r.GET("/irq_delay", controllers.QueryIRQ)
