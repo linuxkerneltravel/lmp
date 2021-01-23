@@ -5,11 +5,7 @@ import (
 	"fmt"
 	_ "time"
 
-	"lmp/logic"
-	"lmp/models"
-
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 func Collect(c *gin.Context) {
@@ -17,23 +13,27 @@ func Collect(c *gin.Context) {
 	//m := fillFrontMessage(c)
 	//fmt.Println("I am here", m)
 
-	p := new(models.ConfigMessage)
-	if err := c.ShouldBindJSON(p); err != nil {
-		zap.L().Error("Login with invalid param", zap.Error(err))
-		ResponseError(c, CodeInvalidParam)
-		return
-	}
-
-	fmt.Println("controller p is here", p)
-	// 2、得到当前的用户名，之后利用这个用户名作为influxdb的dbname
-	dbname, err := getCurrentUsername(c)
-	if err != nil {
-		zap.L().Error("error in getCurrentUsername()", zap.Error(err))
-	}
-	// 3、把dbname作为一个参数和填充好的表单数据一块下发给logic层
-	if err := logic.DoCollect(*p, dbname); err != nil {
-		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
-	}
+	//p := new(models.ConfigMessage)
+	//if err := c.ShouldBindJSON(p); err != nil {
+	//	zap.L().Error("Login with invalid param", zap.Error(err))
+	//	ResponseError(c, CodeInvalidParam)
+	//	return
+	//}
+	//
+	//fmt.Println("controller p is here", p)
+	//// 2、得到当前的用户名，之后利用这个用户名作为influxdb的dbname
+	//dbname, err := getCurrentUsername(c)
+	//if err != nil {
+	//	zap.L().Error("error in getCurrentUsername()", zap.Error(err))
+	//	ResponseError(c, CodeInvalidParam)
+	//	return
+	//}
+	//// 3、把dbname作为一个参数和填充好的表单数据一块下发给logic层
+	//if err := logic.DoCollect(*p, dbname); err != nil {
+	//	zap.L().Error("error in logic.DoCollect()", zap.Error(err))
+	//	ResponseError(c, CodeInvalidParam)
+	//	return
+	//}
 	//ResponseRediect(c, settings.Conf.GrafanaConfig.IP)
 
 	ResponseSuccess(c, fmt.Sprintf("collecting..."))
