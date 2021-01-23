@@ -51,9 +51,6 @@ func main() {
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
 
-	//测试配置文件读取是否正确
-	//fmt.Printf("Conf:%#v\n", settings.Conf.AppConfig)
-
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.Conf.AppConfig.Port),
 		Handler: r,
