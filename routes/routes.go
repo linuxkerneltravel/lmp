@@ -17,24 +17,11 @@ func SetupRouter(mode string) *gin.Engine {
 	r := gin.New()
 	r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
-	//r := gin.Default()
-	//r.Use(static.Serve("/", static.LocalFile("static", false)))
-
-	//r.LoadHTMLGlob("./static/webview/*")
-
-	//r.Use(static.Serve("/", static.LocalFile("static", false)))
-	//r.StaticrFS("/static", http.Dir("static/"))
-
-	//r.LoadHTMLFiles("./static/webview/index.html")
-	//r.Static("/static", "./static")
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
-	r.POST("/signup", controllers.SignUpHandler)
-	r.POST("/login", controllers.LoginHandler)
 
-	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
 	r.GET("/allplugins", controllers.PrintAllplugins)
 	r.POST("/data/collect", controllers.Collect)
 
@@ -45,15 +32,6 @@ func SetupRouter(mode string) *gin.Engine {
 	r.GET("/task_switch", controllers.QueryTaskSwitch)
 	r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
 	r.GET("/water_mark", controllers.QueryWaterMark)
-
-	// Logicals that require login
-	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
-
-	//	c.Header("Content-type", "text/html, charset=utf-8")
-	//	//c.String(200, c.File(fmt.Sprintf("%s/index.html", "static")))
-	//	//c.File(fmt.Sprintf("%s/index.html", "static"))
-	//	c.HTML(200, "index.html", nil)
-	//	//c.File(fmt.Sprintf("%s/index.html", "static"))
 
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusOK, &controllers.ResponseData{
