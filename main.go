@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"lmp/dao/influxdb"
 	"lmp/logger"
 	"lmp/models"
 	"lmp/pkg/snowflake"
@@ -45,10 +44,12 @@ func main() {
 		defer mysql.Close()
 	*/
 
-	if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
-		fmt.Println("Init influxdb failed, err:", err)
-		return
-	}
+	/*
+		if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
+			fmt.Println("Init influxdb failed, err:", err)
+			return
+		}
+	*/
 
 	bpfscan := &models.BpfScan{}
 	if err := bpfscan.Init(); err != nil {
@@ -66,10 +67,6 @@ func main() {
 
 	//测试配置文件读取是否正确
 	//fmt.Printf("Conf:%#v\n", settings.Conf.AppConfig)
-	//fmt.Printf("Conf:%#v\n", settings.Conf.LogConfig)
-	//fmt.Printf("Conf:%#v\n", settings.Conf.InfluxdbConfig)
-	//fmt.Printf("Conf:%#v\n", settings.Conf.PluginConfig)
-	//fmt.Println(settings.Conf.InfluxdbConfig.Host)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.Conf.AppConfig.Port),

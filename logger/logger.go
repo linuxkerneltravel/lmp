@@ -54,8 +54,9 @@ func Init(cfg *settings.LogConfig, mode string) (err error) {
 
 	lg := zap.New(core, zap.AddCaller())
 	// 替换 zap 库中全局的 logger
-	zap.ReplaceGlobals(lg)
 	// 这样子替换以后，在其他的包里面就可以使用:  zap.L().Info()  zap.L().Error()
+	zap.ReplaceGlobals(lg)
+
 	return nil
 }
 
