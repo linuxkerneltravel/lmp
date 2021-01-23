@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
+
 	"lmp/logic"
+
+	"github.com/gin-gonic/gin"
 )
 
 func UpLoadFiles(c *gin.Context) {

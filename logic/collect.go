@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	//"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"lmp/models"
-	"lmp/settings"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
+
+	"lmp/models"
+	"lmp/settings"
+
+	"go.uber.org/zap"
 )
 
 func DoCollect(m models.ConfigMessage, dbname string) (err error) {

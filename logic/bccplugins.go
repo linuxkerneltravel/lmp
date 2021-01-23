@@ -1,11 +1,13 @@
 package logic
 
 import (
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"mime/multipart"
+
 	"lmp/models"
 	"lmp/settings"
-	"mime/multipart"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func SavePlugins(form *multipart.Form, c *gin.Context) (err error) {
