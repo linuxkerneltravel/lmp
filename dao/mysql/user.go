@@ -2,11 +2,11 @@ package mysql
 
 import (
 	"crypto/md5"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"lmp/models"
 
-	"database/sql"
+	"lmp/models"
 	"lmp/pkg/snowflake"
 )
 

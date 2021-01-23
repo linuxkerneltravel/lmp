@@ -1,8 +1,9 @@
 package snowflake
 
 import (
-	sf "github.com/bwmarrin/snowflake"
 	"time"
+
+	sf "github.com/bwmarrin/snowflake"
 )
 
 var node *sf.Node
@@ -21,4 +22,3 @@ func Init(startTime string, machineID int64) (err error) {
 func GenID() int64 {
 	return node.Generate().Int64()
 }
-

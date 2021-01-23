@@ -2,9 +2,11 @@ package influxdb
 
 import (
 	"fmt"
+
+	"lmp/settings"
+
 	client "github.com/influxdata/influxdb1-client/v2"
 	"go.uber.org/zap"
-	"lmp/settings"
 )
 
 var db client.Client

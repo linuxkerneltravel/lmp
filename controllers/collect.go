@@ -3,12 +3,13 @@ package controllers
 import (
 	_ "context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"lmp/models"
+	_ "time"
 
 	"lmp/logic"
-	_ "time"
+	"lmp/models"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func Collect(c *gin.Context) {

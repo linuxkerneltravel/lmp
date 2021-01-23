@@ -2,12 +2,13 @@ package controllers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 
 	"lmp/dao/mysql"
 	"lmp/logic"
 	"lmp/models"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // SignUPHandler 函数处理注册请求

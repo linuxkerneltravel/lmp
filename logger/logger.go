@@ -1,19 +1,20 @@
 package logger
 
 import (
-	"lmp/settings"
+	"net"
+	"net/http"
+	"net/http/httputil"
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
+
+	"lmp/settings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"net"
-	"strings"
-	"net/http/httputil"
-	"runtime/debug"
-	"net/http"
 )
 
 /*

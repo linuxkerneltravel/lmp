@@ -2,13 +2,15 @@ package models
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
-	"lmp/settings"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"lmp/settings"
+
+	"go.uber.org/zap"
 )
 
 // Define global slices for storing all plugins
