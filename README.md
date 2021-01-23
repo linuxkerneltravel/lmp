@@ -61,8 +61,6 @@ LMP is a web tool for real-time display of Linux system performance data based o
 sudo docker pull prom/prometheus
 # For grafana
 sudo docker pull grafana/grafana
-# For MySql
-sudo docker pull mysql
 # For Influxdb
 sudo docker pull influxdb
 ```
@@ -98,12 +96,6 @@ sudo docker pull influxdb
     -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
     -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
     -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
-
-#run mysql
- sudo docker run -d -e \
-    --name mysql \
-    -v ${YOUR_PROJECT_PATH}/lmp/test/mysql_config/:/var/lib/mysql \
-    -p 3306:3306 mysql 
     
 #run lmp
  cd lmp/
@@ -191,8 +183,6 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 sudo docker pull prom/prometheus
 # For grafana
 sudo docker pull grafana/grafana
-# For MySql
-sudo docker pull mysql
 # For Influxdb
 sudo docker pull influxdb
 ```
@@ -229,9 +219,6 @@ sudo docker pull influxdb
     -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
     -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
     -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
-
-#run mysql
- sudo docker run -itd --name mysql-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root123456 mysql
 
 #run lmp
  cd lmp/
