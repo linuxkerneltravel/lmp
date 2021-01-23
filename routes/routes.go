@@ -1,12 +1,14 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 
 	"lmp/controllers"
 	"lmp/logger"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/contrib/static"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -17,6 +19,8 @@ func SetupRouter(mode string) *gin.Engine {
 	r := gin.New()
 	r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
+	r.Use(static.Serve("/", static.LocalFile("static", false)))
+	r.StaticFS("/static", http.Dir("static/"))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
@@ -26,19 +30,15 @@ func SetupRouter(mode string) *gin.Engine {
 	r.POST("/data/collect", controllers.Collect)
 
 	// for tianjin
-	r.GET("/irq_delay", controllers.QueryIRQ)
-	r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
-	r.GET("/pick_next", controllers.QueryPickNext)
-	r.GET("/task_switch", controllers.QueryTaskSwitch)
-	r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
-	r.GET("/water_mark", controllers.QueryWaterMark)
+	//r.GET("/irq_delay", controllers.QueryIRQ)
+	//r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
+	//r.GET("/pick_next", controllers.QueryPickNext)
+	//r.GET("/task_switch", controllers.QueryTaskSwitch)
+	//r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
+	//r.GET("/water_mark", controllers.QueryWaterMark)
 
 	r.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusOK, &controllers.ResponseData{
-			Code: 200,
-			Msg:  0,
-			Data: 0,
-		})
+		c.File(fmt.Sprintf("%s/index.html", "static"))
 	})
 
 	return r
