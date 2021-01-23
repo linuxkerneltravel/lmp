@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"net/http"
 
 	"lmp/controllers"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/contrib/static"
+	"fmt"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -38,6 +38,7 @@ func SetupRouter(mode string) *gin.Engine {
 	//r.GET("/water_mark", controllers.QueryWaterMark)
 
 	r.NoRoute(func(c *gin.Context) {
+		c.Header("Content-Type", "text/html,charset=utf-8")
 		c.File(fmt.Sprintf("%s/index.html", "static"))
 	})
 
