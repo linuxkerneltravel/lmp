@@ -11,7 +11,6 @@ import (
 
 	"lmp/logger"
 	"lmp/models"
-	"lmp/pkg/snowflake"
 	"lmp/routes"
 	"lmp/settings"
 
@@ -37,14 +36,6 @@ func main() {
 	defer zap.L().Sync()
 
 	/*
-		if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
-			fmt.Println("Init mysql failed, err:", err)
-			return
-		}
-		defer mysql.Close()
-	*/
-
-	/*
 		if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
 			fmt.Println("Init influxdb failed, err:", err)
 			return
@@ -57,11 +48,6 @@ func main() {
 	}
 	bpfscan.Run()
 	bpfscan.Watch()
-
-	if err := snowflake.Init(settings.Conf.StartTime, settings.Conf.MachineID); err != nil {
-		fmt.Println("Init snowflake failed, err:", err)
-		return
-	}
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
 
