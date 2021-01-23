@@ -6,9 +6,9 @@ import (
 	"lmp/controllers"
 	"lmp/logger"
 
-	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/contrib/static"
 	"fmt"
+	"github.com/gin-gonic/contrib/static"
+	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(mode string) *gin.Engine {

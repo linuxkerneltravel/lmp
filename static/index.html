@@ -38,17 +38,16 @@
     <br>
     <div id="inner">
         <form action="/data/collect" method="post">
-            <input type="checkbox" name="dispatchingdelay" value="true">dispatchingdelay&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="waitingqueuelength" value="true">waitingqueuelength&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="softirqtime" value="true">softirqtime&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="hardirqtime" value="true">hardirqtime&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" name="cpuutilize" value="true">cpuutilize&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" name="irq" value="true">irq&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" name="memusage" value="true">memusage&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" name="picknexttask" value="true">picknexttask&nbsp;&nbsp;&nbsp;
             <br>
-            <input type="checkbox" name="oncputime" value="true">oncputime&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" name="runqlen" value="true">runqlen&nbsp;&nbsp;&nbsp;
             <input type="checkbox" name="vfsstat" value="true">vfsstat&nbsp;&nbsp;&nbsp;
             <input type="checkbox" name="dcache" value="true">dcache&nbsp;
-            <input type="checkbox" name="pid" value="true">pid
             <label for="other"></label>
-            <input type="text" name="pidnum" value="-1">
+            <input type="text" name="collecttime" value="-1">
             <br>
             <br>
             <br>

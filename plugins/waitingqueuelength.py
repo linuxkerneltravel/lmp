@@ -71,3 +71,7 @@ def print_event(cpu, data, size):
 b["result"].open_perf_buffer(print_event)
 while 1:
     b.perf_buffer_poll()
+    try:
+        pass
+    except KeyboardInterrupt:
+        exit()
