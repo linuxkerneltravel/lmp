@@ -172,15 +172,13 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 
 #### 从源码构建lmp，需要的基本环境：
 
-- golang
-- docker
+- golang：go1.12及以上；
+- docker：influxdb、grafana；
 - bcc环境
 
 ###  安装依赖docker镜像
 
 ```
-# For prometheus 
-sudo docker pull prom/prometheus
 # For grafana
 sudo docker pull grafana/grafana
 # For Influxdb
@@ -194,13 +192,12 @@ sudo docker pull influxdb
  git clone https://github.com/linuxkerneltravel/lmp
  cd lmp
  make
- sudo make install
 ```
 
 ## 单机节点，本地运行
 
 ```
-# 修改配置文件
+# 项目的所有配置均位于config.yaml中，grafana的默认端口为3000端口，influxdb的默认端口为8086，修改配置信息的方式如下：
  vim lmp/config.yaml
 
 #run grafana
@@ -210,15 +207,15 @@ sudo docker pull influxdb
    -v /opt/grafana-storage:/var/lib/grafana \
    grafana/grafana
 
-#run influxdb
+#run influxdb，按照如下命令启动influxdb之后，会自动带有database lmp，influxdb的用户名和密码位于config.yaml中
  sudo docker run -d \
     -p 8083:8083 \
     -p 8086:8086 \
     --name influxdb \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    -v ${YOUR_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
+    -v ${YOUR_PROJECT_PATH}/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb
 
 #run lmp
  cd lmp/
@@ -227,6 +224,8 @@ sudo docker pull influxdb
 ```
 
 ### 进行观测
+
+grafana
 
 http://localhost:8080/ 登录grafana之后，即可观测。
 
