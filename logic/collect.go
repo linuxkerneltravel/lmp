@@ -14,7 +14,6 @@ import (
 )
 
 func DoCollect(m models.ConfigMessage) (err error) {
-	fmt.Println("logic collect is here:", m)
 	for _, filePath := range m.BpfFilePath {
 		//fmt.Println(m.)
 		go execute(filePath, m)

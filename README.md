@@ -131,9 +131,9 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 
 ## 界面截图
 
-![homepage2](./static/imgs/homepage2.png)
+![homepage](./static/imgs/homepage.png)
 
-![homepage](./static/imgs/grafana.png)
+![homepage](./static/imgs/grafana1.png)
 
 ![homepage](./static/imgs/data.png)
 
@@ -204,7 +204,6 @@ sudo docker pull influxdb
  sudo docker run -d \
    -p 3000:3000 \
    --name=grafana \
-   -v /opt/grafana-storage:/var/lib/grafana \
    grafana/grafana
 
 #run influxdb，按照如下命令启动influxdb之后，会自动带有database lmp，influxdb的用户名和密码位于config.yaml中
@@ -223,11 +222,35 @@ sudo docker pull influxdb
  sudo ./lmp
 ```
 
-### 进行观测
+### 观测-步骤
 
-grafana
+在单机节点上部署完成lmp并启动之后，通过浏览器访问8080端口即可。如果是本地查看，则访问localhost:8080，如果远程访问，则访问remoteip:8080即可。
 
-http://localhost:8080/ 登录grafana之后，即可观测。
+8080端口返回页面如下，该页面仅用于观测指标下发，输入栏输入的是观测时间，单位是分钟。可一次下发多个指标，但是注意实际环境使用bcc的开销问题，建议单个指标下发对比开销之后，再组合多个指标观测。
+
+![homepage](./static/imgs/homepage.png)
+
+另外开启grafana页面，通过浏览器访问3000端口即可。如果是本地查看，则访问localhost:3000，如果远程访问，则访问remoteip:3000即可。
+
+grafana用于指标数据观测，进入grafana之后，首先需要登录进入grafana，初始用户名和密码均为admin，之后需要配置grafana连接influxdb：
+
+![grafana1](./static/imgs/grafana1.png)
+
+按照自己的ip地址配置完成以后，点击save&test按钮，测试influxdb是否连接成功，出现如下提示说明连接成功：
+
+![grafana2](./static/imgs/grafana2.png)
+
+接下来导入/lmp/test/grafana-JSON下的lmp.json文件，即可自动创建grafana的dashboard：
+
+![grafana3](./static/imgs/grafana3.png)
+
+在Dashboards中Manage中，点击Import，上传lmp.json文件即可观测：
+
+
+
+
+
+
 
 ### 卸载
 

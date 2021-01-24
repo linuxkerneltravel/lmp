@@ -16,7 +16,6 @@ import (
 
 func Collect(c *gin.Context) {
 	m := fillFrontMessage(c)
-	fmt.Println("I m here", m)
 
 	if err := logic.DoCollect(m); err != nil {
 		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
@@ -50,13 +49,13 @@ func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 	}
 	if v, ok := c.GetPostForm("picknexttask"); ok && v == "true" {
 		m.Picknexttask = true
-		m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"picknexttask.py")
+		m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"picknext.py")
 	} else {
 		m.Picknexttask = false
 	}
 	if v, ok := c.GetPostForm("runqlen"); ok && v == "true" {
 		m.Runqlen = true
-		m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"runqlen.py")
+		m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"waitingqueuelength.py")
 	} else {
 		m.Runqlen = false
 	}
