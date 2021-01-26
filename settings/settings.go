@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
@@ -69,7 +70,8 @@ type GrafanaConfig struct {
 }
 
 func Init() (err error) {
-	viper.SetConfigName("config") // 所以在目录下不要写同名字的配置文件，因为会混乱
+	// 在目录下不要写同名字的配置文件，否则会混乱
+	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 
 	if err := viper.ReadInConfig(); err != nil {

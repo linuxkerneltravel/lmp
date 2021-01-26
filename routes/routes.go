@@ -1,12 +1,14 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
-	"lmp/controllers"
 	"net/http"
 
+	"lmp/controllers"
 	"lmp/logger"
-	"lmp/middlewares"
+
+	"fmt"
+	"github.com/gin-gonic/contrib/static"
+	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -17,50 +19,27 @@ func SetupRouter(mode string) *gin.Engine {
 	r := gin.New()
 	r.Use(cors())
 	r.Use(logger.GinLogger(), logger.GinRecovery(true))
-	//r := gin.Default()
-	//r.Use(static.Serve("/", static.LocalFile("static", false)))
-
-	//r.LoadHTMLGlob("./static/webview/*")
-
-	//r.Use(static.Serve("/", static.LocalFile("static", false)))
-	//r.StaticrFS("/static", http.Dir("static/"))
-
-	//r.LoadHTMLFiles("./static/webview/index.html")
-	//r.Static("/static", "./static")
+	r.Use(static.Serve("/", static.LocalFile("static", false)))
+	r.StaticFS("/static", http.Dir("static/"))
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
-	r.POST("/signup", controllers.SignUpHandler)
-	r.POST("/login", controllers.LoginHandler)
 
-	r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
-	r.GET("/allplugins", middlewares.JWTAuthMiddleware(), controllers.PrintAllplugins)
-	r.POST("/data/collect", middlewares.JWTAuthMiddleware(), controllers.Collect)
+	r.GET("/allplugins", controllers.PrintAllplugins)
+	r.POST("/data/collect", controllers.Collect)
 
 	// for tianjin
-	r.GET("/irq_delay", controllers.QueryIRQ)
-	r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
-	r.GET("/pick_next", controllers.QueryPickNext)
-	r.GET("/task_switch", controllers.QueryTaskSwitch)
-	r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
-	r.GET("/water_mark", controllers.QueryWaterMark)
-
-	// Logicals that require login
-	// r.POST("/uploadfiles", middlewares.JWTAuthMiddleware(), controllers.UpLoadFiles)
-
-	//	c.Header("Content-type", "text/html, charset=utf-8")
-	//	//c.String(200, c.File(fmt.Sprintf("%s/index.html", "static")))
-	//	//c.File(fmt.Sprintf("%s/index.html", "static"))
-	//	c.HTML(200, "index.html", nil)
-	//	//c.File(fmt.Sprintf("%s/index.html", "static"))
+	//r.GET("/irq_delay", controllers.QueryIRQ)
+	//r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
+	//r.GET("/pick_next", controllers.QueryPickNext)
+	//r.GET("/task_switch", controllers.QueryTaskSwitch)
+	//r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
+	//r.GET("/water_mark", controllers.QueryWaterMark)
 
 	r.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusOK, &controllers.ResponseData{
-			Code: 200,
-			Msg:  0,
-			Data: 0,
-		})
+		c.Header("Content-Type", "text/html,charset=utf-8")
+		c.File(fmt.Sprintf("%s/index.html", "static"))
 	})
 
 	return r

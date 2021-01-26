@@ -66,7 +66,6 @@ b.attach_kprobe(event="vfs_create", fn_name="do_create")
 
 # connect to influxdb
 client = db.connect(DBNAME,user='root',passwd=123456)
-CLIENT
 
 data_struct = {"measurement":'vfsstatTable',
                 "tags":['glob'],
@@ -112,7 +111,7 @@ while (1):
     times=1
     for stype in stat_types.keys():
         idx = stat_types[stype]
-        print(idx)
+        # print(idx)
         try:
             val = b["stats"][c_int(idx)].value / interval
         except:

@@ -1,19 +1,20 @@
 package logger
 
 import (
-	"lmp/settings"
+	"net"
+	"net/http"
+	"net/http/httputil"
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
+
+	"lmp/settings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"net"
-	"strings"
-	"net/http/httputil"
-	"runtime/debug"
-	"net/http"
 )
 
 /*
@@ -53,8 +54,9 @@ func Init(cfg *settings.LogConfig, mode string) (err error) {
 
 	lg := zap.New(core, zap.AddCaller())
 	// 替换 zap 库中全局的 logger
-	zap.ReplaceGlobals(lg)
 	// 这样子替换以后，在其他的包里面就可以使用:  zap.L().Info()  zap.L().Error()
+	zap.ReplaceGlobals(lg)
+
 	return nil
 }
 
