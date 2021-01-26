@@ -1,9 +1,10 @@
 package controllers
 
 import (
+	"lmp/logic"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"lmp/logic"
 )
 
 func QueryIRQ(c *gin.Context) {

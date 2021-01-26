@@ -3,20 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/facebookgo/pidfile"
-	"go.uber.org/zap"
-	"lmp/dao/influxdb"
-	"lmp/dao/mysql"
-	"lmp/logger"
-	"lmp/models"
-	"lmp/pkg/snowflake"
-	"lmp/routes"
-	"lmp/settings"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"lmp/logger"
+	"lmp/models"
+	"lmp/routes"
+	"lmp/settings"
+
+	"github.com/facebookgo/pidfile"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -36,16 +35,12 @@ func main() {
 	}
 	defer zap.L().Sync()
 
-	if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
-		fmt.Println("Init mysql failed, err:", err)
-		return
-	}
-	defer mysql.Close()
-
-	if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
-		fmt.Println("Init influxdb failed, err:", err)
-		return
-	}
+	/*
+		if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
+			fmt.Println("Init influxdb failed, err:", err)
+			return
+		}
+	*/
 
 	bpfscan := &models.BpfScan{}
 	if err := bpfscan.Init(); err != nil {
@@ -54,19 +49,7 @@ func main() {
 	bpfscan.Run()
 	bpfscan.Watch()
 
-	if err := snowflake.Init(settings.Conf.StartTime, settings.Conf.MachineID); err != nil {
-		fmt.Println("Init snowflake failed, err:", err)
-		return
-	}
-
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
-
-	//测试配置文件读取是否正确
-	//fmt.Printf("Conf:%#v\n", settings.Conf.AppConfig)
-	//fmt.Printf("Conf:%#v\n", settings.Conf.LogConfig)
-	//fmt.Printf("Conf:%#v\n", settings.Conf.InfluxdbConfig)
-	//fmt.Printf("Conf:%#v\n", settings.Conf.PluginConfig)
-	//fmt.Println(settings.Conf.InfluxdbConfig.Host)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.Conf.AppConfig.Port),

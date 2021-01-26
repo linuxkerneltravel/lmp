@@ -100,8 +100,6 @@ b.attach_kprobe(event="finish_task_switch", fn_name="pick_start")
 
 dist = b.get_table("dist")
 
-#print("%-6s%-16s%-16s%-6s" % ("CPU", "TOTAL(ns)", "IDLE(ns)", "PERCE"))
-
 cpu = [0,0]
 # times = 0
 
@@ -111,15 +109,9 @@ while (1):
         for k, v in dist.items():
             cpu[k.value] = 1.0 *(v.total - v.idle) / v.total * 100
             #times += 1
-            print("%-6d%-16d%-16d%-6.4f%%" % (k.value, v.total, v.idle, 1.0 *(v.total - v.idle) / v.total * 100))
+            #print("%-6d%-16d%-16d%-6.4f%%" % (k.value, v.total, v.idle, 1.0 *(v.total - v.idle) / v.total * 100))
             test_data = lmp_data(datetime.now().isoformat(),'glob', cpu[k.value])
             write2db(data_struct, test_data, client)
-		
-        # if times == 2:
-        #    print('cpu[]:', cpu[0], cpu[1], cpu[0] + cpu[1])
-        #    times = 0
-        #    test_data = lmp_data('glob', cpu[0] + cpu[1])
-        #    write2db(data_struct, test_data, client)
         dist.clear()
 
     except KeyboardInterrupt:

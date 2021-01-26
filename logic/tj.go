@@ -1,9 +1,10 @@
 package logic
 
 import (
+	"lmp/dao/influxdb"
+
 	"github.com/influxdata/influxdb1-client/v2"
 	"go.uber.org/zap"
-	"lmp/dao/influxdb"
 )
 
 func DoQueryIRQ() (res []client.Result, err error) {

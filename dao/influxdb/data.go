@@ -2,8 +2,10 @@ package influxdb
 
 import (
 	"fmt"
-	client "github.com/influxdata/influxdb1-client/v2"
+
 	"lmp/settings"
+
+	client "github.com/influxdata/influxdb1-client/v2"
 )
 
 // Gets a specified number of data

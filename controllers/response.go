@@ -1,8 +1,9 @@
 package controllers
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 /*
@@ -40,11 +41,4 @@ func ResponseSuccess(c *gin.Context, data interface{}) {
 		Msg:  CodeSuccess.Msg(),
 		Data: data,
 	})
-}
-
-func ResponseRediect(c *gin.Context, data string) {
-	c.Redirect(
-		http.StatusMovedPermanently,
-		"http://"+data,
-	)
 }

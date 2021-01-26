@@ -2,21 +2,21 @@ package models
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
-	"lmp/settings"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"lmp/settings"
+
+	"go.uber.org/zap"
 )
 
-// Define global slices for storing all plugins
 var PluginServices GlobalPluginService
 var FileChan chan string
 
 func init() {
-	// Init FileChan
 	FileChan = make(chan string, 10)
 }
 
@@ -31,7 +31,7 @@ type PluginService struct {
 	Info string
 }
 
-// Register plugins
+// 注册插件
 func RegisterPluginService(name string, f *os.File, info string) {
 	if name != "api.py" && name != "db_modules.py" && name != "lmp_influxdb.py" && name != "db_modules.pyc" && name != "lmp_influxdb.pyc" {
 		if !strings.HasSuffix(name, ".c") {
@@ -60,7 +60,7 @@ func UnregisterPluginService(name string) {
 	PluginServices.Plugins = ps
 }
 
-// Print the names of all plugins
+// 输出所有插件的名称
 func PrintPluginService() {
 	for _, plugin := range PluginServices.Plugins {
 		fmt.Println(plugin.Name)
@@ -69,7 +69,7 @@ func PrintPluginService() {
 	}
 }
 
-// BpfScan：Maintenance of global slices
+// BpfScan：维护所有的插件
 type BpfScan struct {
 }
 
