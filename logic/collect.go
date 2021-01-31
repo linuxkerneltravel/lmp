@@ -14,15 +14,20 @@ import (
 )
 
 func DoCollect(m models.ConfigMessage) (err error) {
+	exitChan := make(chan bool, len(m.BpfFilePath))
+
 	for _, filePath := range m.BpfFilePath {
-		//fmt.Println(m.)
-		go execute(filePath, m.CollectTime)
+		go execute(filePath, m.CollectTime, exitChan)
 	}
 
+	for i:=0; i<len(m.BpfFilePath); i++ {
+		<-exitChan
+	}
+	fmt.Println("This is DoCollect routine")
 	return nil
 }
 
-func execute(filepath string, collectTime int) {
+func execute(filepath string, collectTime int, exitChan chan bool) {
 	defer func() {
 		if err := recover(); err != nil {
 			zap.L().Error("error in execute routine, err:", zap.Error(err.(error)))
@@ -42,7 +47,6 @@ func execute(filepath string, collectTime int) {
 				syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				return
 			}
-
 		}
 	}()
 
@@ -85,4 +89,7 @@ func execute(filepath string, collectTime int) {
 		zap.L().Error("error in cmd.Wait()", zap.Error(err))
 		return
 	}
+
+	exitChan <- true
+	fmt.Println("This execute routine!")
 }
