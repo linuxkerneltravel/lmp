@@ -16,13 +16,13 @@ import (
 func DoCollect(m models.ConfigMessage) (err error) {
 	for _, filePath := range m.BpfFilePath {
 		//fmt.Println(m.)
-		go execute(filePath, m)
+		go execute(filePath, m.CollectTime)
 	}
 
 	return nil
 }
 
-func execute(filepath string, m models.ConfigMessage) {
+func execute(filepath string, collectTime int) {
 	defer func() {
 		if err := recover(); err != nil {
 			zap.L().Error("error in execute routine, err:", zap.Error(err.(error)))
@@ -33,7 +33,7 @@ func execute(filepath string, m models.ConfigMessage) {
 	cmd := exec.Command("sudo", "python", filepath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.CollectTime)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(collectTime) * time.Second)
 	defer cancel()
 	go func() {
 		for {
