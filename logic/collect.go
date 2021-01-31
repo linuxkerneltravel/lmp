@@ -25,6 +25,7 @@ func DoCollect(m models.ConfigMessage) (err error) {
 func execute(filepath string, m models.ConfigMessage) {
 	defer func() {
 		if err := recover(); err != nil {
+			zap.L().Error("error in execute routine, err:", zap.Error(err.(error)))
 			fmt.Println("error in execute routine, err:", err)
 		}
 	}()
