@@ -72,9 +72,7 @@ func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 		m.Dcache = false
 	}
 
-	// fill timeField
 	if collectTime, ok := c.GetPostForm("collecttime"); ok {
-		// 记得转为秒
 		tmpTime, _ := strconv.Atoi(collectTime)
 		m.CollectTime = tmpTime * 60
 	} else {

@@ -23,6 +23,12 @@ func DoCollect(m models.ConfigMessage) (err error) {
 }
 
 func execute(filepath string, m models.ConfigMessage) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("error in execute routine, err:", err)
+		}
+	}()
+
 	cmd := exec.Command("sudo", "python", filepath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
