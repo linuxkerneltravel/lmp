@@ -3,6 +3,7 @@ module lmp
 go 1.12
 
 require (
+	github.com/anuraghazra/github-readme-stats v0.0.0-20210127134132-ce0a97c29d29 // indirect
 	github.com/facebookgo/atomicfile v0.0.0-20151019160806-2de1f203e7d5 // indirect
 	github.com/facebookgo/pidfile v0.0.0-20150612191647-f242e2999868
 	github.com/fsnotify/fsnotify v1.4.7
