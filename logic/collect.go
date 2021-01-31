@@ -23,7 +23,7 @@ func DoCollect(m models.ConfigMessage) (err error) {
 	for i:=0; i<len(m.BpfFilePath); i++ {
 		<-exitChan
 	}
-	fmt.Println("This is DoCollect routine")
+	fmt.Println("This is DoCollect routine!")
 	return nil
 }
 
@@ -91,5 +91,5 @@ func execute(filepath string, collectTime int, exitChan chan bool) {
 	}
 
 	exitChan <- true
-	fmt.Println("This execute routine!")
+	fmt.Println("This is execute routine!")
 }
