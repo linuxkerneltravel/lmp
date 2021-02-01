@@ -14,16 +14,17 @@ import (
 )
 
 func DoCollect(m models.ConfigMessage) (err error) {
+	//todo:save all pids
 	exitChan := make(chan bool, len(m.BpfFilePath))
 
 	for _, filePath := range m.BpfFilePath {
 		go execute(filePath, m.CollectTime, exitChan)
 	}
 
-	for i:=0; i<len(m.BpfFilePath); i++ {
+	for i := 0; i < len(m.BpfFilePath); i++ {
 		<-exitChan
 	}
-	fmt.Println("This is DoCollect routine!")
+
 	return nil
 }
 
@@ -38,23 +39,7 @@ func execute(filepath string, collectTime int, exitChan chan bool) {
 	cmd := exec.Command("sudo", "python", filepath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(collectTime) * time.Second)
-	defer cancel()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-				return
-			}
-		}
-	}()
-
 	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		zap.L().Error("error in cmd.StdoutPipe()", zap.Error(err))
-		return
-	}
 	defer stdout.Close()
 	go func() {
 		scanner := bufio.NewScanner(stdout)
@@ -65,10 +50,6 @@ func execute(filepath string, collectTime int, exitChan chan bool) {
 	}()
 
 	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		zap.L().Error("error in cmd.StderrPipe()", zap.Error(err))
-		return
-	}
 	defer stderr.Close()
 	go func() {
 		scanner := bufio.NewScanner(stderr)
@@ -84,12 +65,23 @@ func execute(filepath string, collectTime int, exitChan chan bool) {
 		return
 	}
 
-	err = cmd.Wait()
-	if err != nil {
-		zap.L().Error("error in cmd.Wait()", zap.Error(err))
-		return
-	}
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			zap.L().Error("error in cmd.Wait()", zap.Error(err))
+			return
+		}
+	}()
 
-	exitChan <- true
-	fmt.Println("This is execute routine!")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(collectTime)*time.Second)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			exitChan <- true
+			return
+		}
+	}
 }

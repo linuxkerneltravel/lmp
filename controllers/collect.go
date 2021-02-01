@@ -23,7 +23,7 @@ func Collect(c *gin.Context) {
 		return
 	}
 
-	ResponseSuccess(c, fmt.Sprintf("collecting..."))
+	ResponseSuccess(c, fmt.Sprintf("completed"))
 }
 
 func fillFrontMessage(c *gin.Context) models.ConfigMessage {
