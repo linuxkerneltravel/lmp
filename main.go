@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,8 +19,17 @@ import (
 	"go.uber.org/zap"
 )
 
+func showlogo() {
+	logo, err := ioutil.ReadFile("./misc/lmp.logo")
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	fmt.Print(string(logo))
+}
+
 func main() {
-	fmt.Println(models.Logo)
+	showlogo()
 
 	pidfile.SetPidfilePath(os.Args[0] + ".pid")
 	pidfile.Write()
