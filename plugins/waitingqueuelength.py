@@ -30,10 +30,13 @@ from os import open, close, dup, unlink, O_WRONLY
 from influxdb import InfluxDBClient
 import lmp_influxdb as db
 from db_modules import write2db
-DBNAME = 'lmp'
+from config import cfg
 
-# connect to influxdb
-client = db.connect(DBNAME,user='root',passwd=123456)
+DBNAME = cfg.getProperty("influxdb.dbname")
+USER = cfg.getProperty("influxdb.user")
+PASSWORD = cfg.getProperty("influxdb.password")
+
+client = db.connect(DBNAME,user=USER,passwd=PASSWORD)
 
 frequency = 20
 interval = 99999999
