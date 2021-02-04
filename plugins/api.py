@@ -5,14 +5,19 @@ from influxdb import InfluxDBClient
 import lmp_influxdb as db
 from db_modules import write2db
 from datetime import datetime
-DBNAME = 'lmp'
+from config import read_config
+
+cfg = read_config()
+DBNAME = cfg.getProperty("influxdb.dbname")
+USER = cfg.getProperty("influxdb.user")
+PASSWORD = cfg.getProperty("influxdb.password")
 
 #在lmp项目中连接influxdb数据库使用lmp_influxdb模块中的connect()
 #除了数据库名称dbname是必选参数外，其余参数默认设置
 #数据地址:localhost; port:8086; user:'admin'; passwd:'admin'; 
 
 #下面语句等于InfluxDBClient('localhost',8086,'root','123456','lmp')
-client = db.connect(DBNAME,user='root',passwd=123456)
+client = db.connect(DBNAME,user=USER,passwd=PASSWORD)
 
 #写入数据库需要使用write2db(datatype,data,client)
 #datatype是预先定义的数据格式，主要内容是bpf.c中用来输出数据的数据结构体的字段名

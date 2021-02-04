@@ -22,7 +22,11 @@ from sys import argv
 
 import lmp_influxdb as db
 from db_modules import write2db
-DBNAME = 'lmp'
+from config import cfg
+
+DBNAME = cfg.getProperty("influxdb.dbname")
+USER = cfg.getProperty("influxdb.user")
+PASSWORD = cfg.getProperty("influxdb.password")
 
 def usage():
     print("USAGE: %s [interval [count]]" % argv[0])
@@ -65,7 +69,7 @@ b.attach_kprobe(event="vfs_open", fn_name="do_open")
 b.attach_kprobe(event="vfs_create", fn_name="do_create")
 
 # connect to influxdb
-client = db.connect(DBNAME,user='root',passwd=123456)
+client = db.connect(DBNAME,user=USER,passwd=PASSWORD)
 
 data_struct = {"measurement":'vfsstatTable',
                 "tags":['glob'],

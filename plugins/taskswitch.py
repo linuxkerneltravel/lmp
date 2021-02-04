@@ -10,11 +10,14 @@ import lmp_influxdb as db
 from db_modules import write2db
 
 from datetime import datetime
+from config import cfg
+
+DBNAME = cfg.getProperty("influxdb.dbname")
+USER = cfg.getProperty("influxdb.user")
+PASSWORD = cfg.getProperty("influxdb.password")
 
 
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
+client = db.connect(DBNAME,user=USER,passwd=PASSWORD)
 
 
 bpf_text = """
