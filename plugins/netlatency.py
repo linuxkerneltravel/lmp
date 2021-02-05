@@ -9,10 +9,14 @@ import argparse
 from influxdb import InfluxDBClient
 import lmp_influxdb as db
 from db_modules import write2db
+from config import cfg
 
-DBNAME = 'lmp'
+DBNAME = cfg.getProperty("influxdb.dbname")
+USER = cfg.getProperty("influxdb.user")
+PASSWORD = cfg.getProperty("influxdb.password")
 
-client = db.connect(DBNAME,user='root',passwd=123456)
+
+client = db.connect(DBNAME,user=USER,passwd=PASSWORD)
 
 examples = """examples:
     ./srtt           # default 1000us

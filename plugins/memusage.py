@@ -14,10 +14,14 @@ from db_modules import write2db
 
 from datetime import datetime
 
+from config import cfg
 
-DBNAME = 'lmp'
+DBNAME = cfg.getProperty("influxdb.dbname")
+USER = cfg.getProperty("influxdb.user")
+PASSWORD = cfg.getProperty("influxdb.password")
 
-client = db.connect(DBNAME,user='root',passwd=123456)
+
+client = db.connect(DBNAME,user=USER,passwd=PASSWORD)
 
 title = ['DMA','DMA32','Normal']
 #print("%-9s%-9s%-9s" % (title[0], title[1], title[2]))
