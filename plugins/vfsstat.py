@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # @lint-avoid-python-3-compatibility-imports
 #
 # vfsstat.py   Count some VFS calls.
@@ -14,7 +14,6 @@
 # 14-Aug-2015   Brendan Gregg   Created this.
 # 15-Sep-2020   Chenyu Zhao     Edited
 
-from __future__ import print_function
 from bcc import BPF
 from ctypes import c_int
 from time import sleep, strftime

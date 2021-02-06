@@ -1,5 +1,4 @@
-#!/usr/bin/python
-from __future__ import print_function
+#!/usr/bin/python3
 from bcc import BPF
 import re, signal, sys
 from time import sleep
@@ -18,7 +17,7 @@ client = db.connect(DBNAME,user='root',passwd=123456)
 
 # load BPF program
 b = BPF(text="""
-#include <uapi/linux/ptrace.h>
+#inc3lude <uapi/linux/ptrace.h>
 #include <linux/blkdev.h>
 struct val_t {
     u32 pid;
