@@ -17,7 +17,7 @@ client = db.connect(DBNAME,user='root',passwd=123456)
 
 # load BPF program
 b = BPF(text="""
-#inc3lude <uapi/linux/ptrace.h>
+#include <uapi/linux/ptrace.h>
 #include <linux/blkdev.h>
 struct val_t {
     u32 pid;
