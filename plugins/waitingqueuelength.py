@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 # @lint-avoid-python-3-compatibility-imports
 #
@@ -21,6 +21,7 @@
 # 12-Dec-2016   Brendan Gregg   Created this.
 # 17-Sep-2020   Chenyu Zhao     Edited
 
+from __future__ import print_function
 from bcc import BPF, PerfType, PerfSWConfig
 from time import sleep, strftime
 from tempfile import NamedTemporaryFile

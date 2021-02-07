@@ -1,4 +1,5 @@
-#!/usr/bin/python3
+#!/usr/bin/python
+from __future__ import print_function
 from bcc import BPF
 from socket import inet_ntop, ntohs, AF_INET, AF_INET6
 from struct import pack
