@@ -1,6 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-from __future__ import print_function
 from bcc import BPF
 from time import sleep, strftime
 
@@ -120,3 +119,4 @@ while (1):
 
 
 
+    
