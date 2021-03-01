@@ -1,9 +1,8 @@
 package logic
 
 import (
-	"lmp/dao/influxdb"
-
-	"github.com/influxdata/influxdb1-client/v2"
+	client "github.com/influxdata/influxdb1-client/v2"
+	"github.com/linuxkerneltravel/lmp/dao/influxdb"
 	"go.uber.org/zap"
 )
 
