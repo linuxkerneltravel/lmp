@@ -10,12 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"lmp/logger"
-	"lmp/models"
-	"lmp/routes"
-	"lmp/settings"
-
 	"github.com/facebookgo/pidfile"
+	"github.com/linuxkerneltravel/lmp/logger"
+	"github.com/linuxkerneltravel/lmp/models"
+	"github.com/linuxkerneltravel/lmp/routes"
+	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
