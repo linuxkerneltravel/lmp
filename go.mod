@@ -1,4 +1,4 @@
-module lmp
+module github.com/linuxkerneltravel/lmp
 
 go 1.12
 

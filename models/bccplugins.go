@@ -8,8 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"lmp/settings"
-
+	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
@@ -98,8 +97,9 @@ func (b *BpfScan) Run() {
 }
 
 func (b *BpfScan) Watch() {
-	ticker := time.NewTicker(time.Second * 3) // 运行时长
 	go func() {
+		ticker := time.NewTicker(time.Second * 3) // 运行时长
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
@@ -110,7 +110,6 @@ func (b *BpfScan) Watch() {
 				}
 			}
 		}
-		ticker.Stop()
 	}()
 }
 

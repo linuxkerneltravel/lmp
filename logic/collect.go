@@ -8,8 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"lmp/models"
-
+	"github.com/linuxkerneltravel/lmp/models"
 	"go.uber.org/zap"
 )
 

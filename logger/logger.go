@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"lmp/settings"
-
 	"github.com/gin-gonic/gin"
+	"github.com/linuxkerneltravel/lmp/settings"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
