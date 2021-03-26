@@ -70,6 +70,13 @@ func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 	} else {
 		m.Dcache = false
 	}
+	if v, ok := c.GetPostForm("ContainerNet"); ok && v == "true" {
+                m.ContainerNet = true
+                m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"ContainerNet.py")
+        } else {
+                m.ContainerNet = false
+        }
+
 
 	if collectTime, ok := c.GetPostForm("collecttime"); ok {
 		tmpTime, _ := strconv.Atoi(collectTime)
