@@ -6,8 +6,8 @@ lmp
 lmp.log
 lmp.pid
 vendor
-test/influxdb_config/
-test/mysql_config
+test/influxdb_config/*
+test/mysql_config/*
 
 .DS_Store
 .gitkeep

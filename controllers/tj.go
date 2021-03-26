@@ -1,9 +1,8 @@
 package controllers
 
 import (
-	"lmp/logic"
-
 	"github.com/gin-gonic/gin"
+	"github.com/linuxkerneltravel/lmp/logic"
 	"go.uber.org/zap"
 )
 

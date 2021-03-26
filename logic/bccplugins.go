@@ -3,10 +3,9 @@ package logic
 import (
 	"mime/multipart"
 
-	"lmp/models"
-	"lmp/settings"
-
 	"github.com/gin-gonic/gin"
+	"github.com/linuxkerneltravel/lmp/models"
+	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
