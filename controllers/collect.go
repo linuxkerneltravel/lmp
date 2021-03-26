@@ -6,10 +6,11 @@ import (
 	"strconv"
 	_ "time"
 
+	"lmp/logic"
+	"lmp/models"
+	"lmp/settings"
+
 	"github.com/gin-gonic/gin"
-	"github.com/linuxkerneltravel/lmp/logic"
-	"github.com/linuxkerneltravel/lmp/models"
-	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
@@ -22,11 +23,18 @@ func Collect(c *gin.Context) {
 		return
 	}
 
-	ResponseSuccess(c, fmt.Sprintf("completed"))
+	ResponseSuccess(c, fmt.Sprintf("collecting..."))
 }
 
 func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 	var m models.ConfigMessage
+
+	if v, ok := c.GetPostForm("swap_pagefault"); ok && v == "true" {
+                m.Swap_pagefault = true
+                m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"swap_pagefault.py")
+        } else {
+                m.Cpuutilize = false
+        }
 
 	if v, ok := c.GetPostForm("cpuutilize"); ok && v == "true" {
 		m.Cpuutilize = true
@@ -71,7 +79,9 @@ func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 		m.Dcache = false
 	}
 
+	// fill timeField
 	if collectTime, ok := c.GetPostForm("collecttime"); ok {
+		// 记得转为秒
 		tmpTime, _ := strconv.Atoi(collectTime)
 		m.CollectTime = tmpTime * 60
 	} else {

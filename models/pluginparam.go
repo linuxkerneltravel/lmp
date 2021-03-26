@@ -9,7 +9,7 @@ type ConfigMessage struct {
 	Runqlen      bool `json:"runqlen"`
 	Vfsstat      bool `json:"vfsstat"`
 	Dcache       bool `json:"dcache"`
-
+	Swap_pagefault bool `json:"swap_pagefault"`
 	// Store the config above to the 'BpfFilePath'
 	BpfFilePath []string `json:"bpfFilePath"`
 	// time
