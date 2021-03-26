@@ -3,23 +3,32 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"lmp/logger"
-	"lmp/models"
-	"lmp/routes"
-	"lmp/settings"
-
 	"github.com/facebookgo/pidfile"
+	"github.com/linuxkerneltravel/lmp/logger"
+	"github.com/linuxkerneltravel/lmp/models"
+	"github.com/linuxkerneltravel/lmp/routes"
+	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
+func showlogo() {
+	logo, err := ioutil.ReadFile("./misc/lmp.logo")
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	fmt.Print(string(logo))
+}
+
 func main() {
-	fmt.Println(models.Logo)
+	showlogo()
 
 	pidfile.SetPidfilePath(os.Args[0] + ".pid")
 	pidfile.Write()
