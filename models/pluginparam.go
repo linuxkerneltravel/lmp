@@ -9,6 +9,7 @@ type ConfigMessage struct {
 	Runqlen      bool `json:"runqlen"`
 	Vfsstat      bool `json:"vfsstat"`
 	Dcache       bool `json:"dcache"`
+	ContainerNet bool `json:"ContainerNet"`
 
 	// Store the config above to the 'BpfFilePath'
 	BpfFilePath []string `json:"bpfFilePath"`
