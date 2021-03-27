@@ -5,16 +5,10 @@ import re, signal, sys
 from time import sleep
 
 # for influxdb
-from influxdb import InfluxDBClient
-import lmp_influxdb as db
+from init_db import influx_client
 from db_modules import write2db
 
 from datetime import datetime
-
-
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
 
 # load BPF program
 b = BPF(text="""
@@ -150,7 +144,7 @@ def print_event(cpu, data, size):
         event.disk_name.decode('utf-8', 'replace'), rwflg,
         event.len, float(event.delta) / 1000000)
     # print(event.pid, time)
-    write2db(data_struct, test_data, client)
+    write2db(data_struct, test_data, influx_client,1)
     prev_ts = event.ts
     start_ts = 1
 
