@@ -16,6 +16,15 @@ func DoQueryIRQ() (res []client.Result, err error) {
 	return
 }
 
+func DoQuerySwap_pagefault() (res []client.Result, err error) {
+        res, err = influxdb.QueryDB(`select last("duration") from "swap_pagefault"`)
+        if err != nil {
+                zap.L().Error("ERROR in Doswap_pagefault():", zap.Error(err))
+                return nil, err
+        }
+        return
+}
+
 func DoQueryCpuUtilize() (res []client.Result, err error) {
 	res, err = influxdb.QueryDB(`select last("perce") from "cpuutilize"`)
 	if err != nil {
