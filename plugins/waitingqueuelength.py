@@ -29,7 +29,6 @@ from os import open, close, dup, unlink, O_WRONLY
 # for influxdb
 from init_db import influx_client
 from db_modules import write2db
-from const import DatabaseType
 
 # connect to influxdb
 
@@ -58,7 +57,7 @@ def print_event(cpu, data, size):
     global start
     event = b["result"].event(data)
     test_data = lmp_data('glob', event.len)
-    write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
+    write2db(data_struct, test_data, influx_client, 1)
     # print(event.len)
     # if start == 0:
     #         start = event.ts
