@@ -7,7 +7,6 @@ from time import sleep, strftime
 # for influxdb
 from init_db import influx_client
 from db_modules import write2db
-from const import DatabaseType
 
 from datetime import datetime
 
@@ -110,7 +109,7 @@ while (1):
             #print("%-6d%-16d%-16d%-6.4f%%" % (k.value, v.total, v.idle, 1.0 *(v.total - v.idle) / v.total * 100))
             test_data = lmp_data(
                 datetime.now().isoformat(), 'glob', cpu[k.value])
-            write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
+            write2db(data_struct, test_data, influx_client, 1)
         dist.clear()
 
     except KeyboardInterrupt:

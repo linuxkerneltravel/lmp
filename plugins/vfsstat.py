@@ -22,7 +22,6 @@ from sys import argv
 
 from init_db import influx_client
 from db_modules import write2db
-from const import DatabaseType
 
 def usage():
     print("USAGE: %s [interval [count]]" % argv[0])
@@ -122,6 +121,6 @@ while (1):
             times=0
     # print(vfs_list[1],vfs_list[2],vfs_list[3],vfs_list[4],vfs_list[5])
     data = test_data('glob', vfs_list[1],vfs_list[2],vfs_list[3],vfs_list[4],vfs_list[5])
-    write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
+    write2db(data_struct, data, influx_client, 1)
 
     b["stats"].clear()
