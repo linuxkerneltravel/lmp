@@ -10,6 +10,7 @@ import thread
 # for influxdb
 from init_db import influx_client
 from db_modules import write2db
+from const import DatabaseType
 
 from datetime import datetime
 
@@ -96,7 +97,7 @@ def zone_info(thread_name, delay):
         #print("%-9s%-9s%-9s" % (data[0], data[1], data[2]))
         test_data = lmp_data(datetime.now().isoformat(),
                              'glob', data[0], data[1], data[2])
-        write2db(data_struct, test_data, influx_client,1)
+        write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
         # print('------------')
         f.close()
 

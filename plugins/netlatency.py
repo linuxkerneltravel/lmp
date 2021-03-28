@@ -8,10 +8,7 @@ import argparse
 # for influxdb
 from init_db import influx_client
 from db_modules import write2db
-
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
+from const import DatabaseType
 
 examples = """examples:
     ./srtt           # default 1000us
@@ -163,7 +160,7 @@ def print_ipv6_event(cpu, data, size):
     event = b["ipv6_events"].event(data)
     if event.task.decode('utf-8', 'replace') != 'influxd' and event.task.decode('utf-8', 'replace') != 'docker-proxy':
         test_data = lmp_data('glob', 'ipv6', event.task.decode('utf-8', 'replace'), event.pid, event.srtt)
-        write2db(data_struct, test_data, influx_client,1)
+        write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
         print("%-6d %-12.12s %-2d %-20s > %-20s %d" % (
         event.pid, event.task.decode('utf-8', 'replace'), event.ip,
         "%s:%d" % (inet_ntop(AF_INET6, event.saddr), event.sport),
