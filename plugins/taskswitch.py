@@ -11,10 +11,6 @@ from db_modules import write2db
 from datetime import datetime
 
 
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
-
 
 bpf_text = """
 #include <uapi/linux/ptrace.h>
