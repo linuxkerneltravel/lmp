@@ -3,9 +3,8 @@ package influxdb
 import (
 	"fmt"
 
-	"lmp/settings"
-
 	client "github.com/influxdata/influxdb1-client/v2"
+	"github.com/linuxkerneltravel/lmp/settings"
 )
 
 // Gets a specified number of data

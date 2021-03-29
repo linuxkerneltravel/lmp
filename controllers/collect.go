@@ -6,11 +6,10 @@ import (
 	"strconv"
 	_ "time"
 
-	"lmp/logic"
-	"lmp/models"
-	"lmp/settings"
-
 	"github.com/gin-gonic/gin"
+	"github.com/linuxkerneltravel/lmp/logic"
+	"github.com/linuxkerneltravel/lmp/models"
+	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
@@ -28,7 +27,12 @@ func Collect(c *gin.Context) {
 
 func fillFrontMessage(c *gin.Context) models.ConfigMessage {
 	var m models.ConfigMessage
-
+	if v, ok := c.GetPostForm("swap_pagefault"); ok && v == "true" {
+                m.Swap_pagefault = true
+                m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"swap_pagefault.py")
+        } else {
+                m.Swap_pagefault = false
+        }
 	if v, ok := c.GetPostForm("cpuutilize"); ok && v == "true" {
 		m.Cpuutilize = true
 		m.BpfFilePath = append(m.BpfFilePath, settings.Conf.PluginConfig.Path+"cpuutilize.py")

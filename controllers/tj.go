@@ -1,11 +1,20 @@
 package controllers
 
 import (
-	"lmp/logic"
-
 	"github.com/gin-gonic/gin"
+	"github.com/linuxkerneltravel/lmp/logic"
 	"go.uber.org/zap"
 )
+func QuerySwap_pagefault(c *gin.Context) {
+        res, err := logic.DoQuerySwap_pagefault()
+        if err != nil {
+                zap.L().Error("ERROR in QuerySwap_pagefault():", zap.Error(err))
+                ResponseError(c, CodeServerBusy)
+                return
+        }
+
+        ResponseSuccess(c, res)
+}
 
 func QueryIRQ(c *gin.Context) {
 	res, err := logic.DoQueryIRQ()

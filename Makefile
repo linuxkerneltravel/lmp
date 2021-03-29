@@ -1,5 +1,5 @@
 VERSION = 0.1
-.PHONY: all clean modules
+.PHONY: all clean modules lint
 
 PREFIX    ?= /usr/libexec/lmp
 COLLECTDIR = $(PREFIX)/collector
@@ -22,7 +22,7 @@ clean:
 
 install:
 	@echo "BEGIN INSTALL LMP"
-	mkdir -p /etc/influxdb/influxdb.conf 
+	mkdir -p /etc/influxdb/influxdb.conf
 	mkdir -p /var/lib/influxdb/data
 	mkdir -p /var/lib/influxdb/meta
 	mkdir -p /var/lib/influxdb/wal influxdb
@@ -36,3 +36,8 @@ install:
 # 	install -m 644 test/prometheus/* $(PRODIR)
 # 	install -m 640 test/grafana/* $(DASHDIR)
 
+lint:
+	go fmt ./...
+	go vet ./...
+	gofmt -e -l .
+	# golint `go list ./... | grep -v /vendor/`
