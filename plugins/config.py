@@ -4,7 +4,7 @@
 import yaml
 import os
 
-current_path = os.path.abspath("../")
+current_path = os.path.abspath(".")
 yaml_path = os.path.join(current_path, "config.yaml")
 
 
