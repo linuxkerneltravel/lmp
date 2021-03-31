@@ -35,7 +35,7 @@ func execute(filepath string, collectTime int, exitChan chan bool) {
 		}
 	}()
 
-	cmd := exec.Command("sudo", "python", filepath)
+	cmd := exec.Command("sudo", "python3", filepath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
