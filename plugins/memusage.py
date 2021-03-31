@@ -5,14 +5,14 @@ from bcc import BPF
 import os
 import sys
 from time import sleep
-import thread
+import _thread
 
 # for influxdb
 from init_db import influx_client
 from db_modules import write2db
 
 from datetime import datetime
-
+from const import DatabaseType
 
 
 title = ['DMA', 'DMA32', 'Normal']
@@ -59,7 +59,7 @@ def zone_info(thread_name, delay):
     while 1:
         try:
             sleep(1)
-        except keyboardInterrupt:
+        except KeyboardInterrupt:
             exit()
         f = open(path)
         line = f.readline()
@@ -93,19 +93,19 @@ def zone_info(thread_name, delay):
 
             line = f.readline()
         # print(data)
-        #print("%-9s%-9s%-9s" % (data[0], data[1], data[2]))
+        print("%-9s%-9s%-9s" % (data[0], data[1], data[2]))
         test_data = lmp_data(datetime.now().isoformat(),
                              'glob', data[0], data[1], data[2])
-        write2db(data_struct, test_data, influx_client, 1)
+        write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
         # print('------------')
         f.close()
 
 
 try:
-    thread.start_new_thread(load_BPF, ("BPF progream", 0))
-    thread.start_new_thread(zone_info, ("zoneinfo", 10))
+    _thread.start_new_thread(load_BPF, ("BPF progream", 0))
+    _thread.start_new_thread(zone_info, ("zoneinfo", 10))
 except:
-    print"Error:unable to start thread"
+    print("Error:unable to start thread")
 
 while 1:
     try:
