@@ -95,7 +95,7 @@ while (1):
             #print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value))
             #test_data = lmp_data('glob', k.cpu, k.pid, v.value)
             test_data = lmp_data(datetime.now().isoformat(),'glob', k.cpu, k.pid, v.value)
-            write2db(data_struct, test_data, influx_client,1)
+            write2db(data_struct, test_data, influx_client,DatabaseType.INFLUXDB.value)
         dist.clear()
     except KeyboardInterrupt:
         exit()
