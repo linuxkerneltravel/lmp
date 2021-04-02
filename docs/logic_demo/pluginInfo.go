@@ -25,6 +25,7 @@ func (p *PluginInfo) EnterRun(runtime uint32) error {
 	} else if p.PluginState == PluginInvalid {
 		return errors.New("this Plugin Is Invalid")
 	}
+	//TODO:save and update the info to mysql
 	return nil
 }
 
@@ -36,4 +37,5 @@ func (p *PluginInfo) ExitRun(err error) {
 		p.PluginState = PluginSleeping
 	}
 	p.RunTime = 0
+	//TODO:save and update the info to mysql
 }
