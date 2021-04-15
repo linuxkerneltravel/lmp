@@ -5,15 +5,27 @@ import (
 	"github.com/linuxkerneltravel/lmp/logic"
 	"go.uber.org/zap"
 )
-func QuerySwap_pagefault(c *gin.Context) {
-        res, err := logic.DoQuerySwap_pagefault()
-        if err != nil {
-                zap.L().Error("ERROR in QuerySwap_pagefault():", zap.Error(err))
-                ResponseError(c, CodeServerBusy)
-                return
-        }
 
-        ResponseSuccess(c, res)
+func QueryExt4_latency(c *gin.Context) {
+	res, err := logic.DoQueryExt4_latency()
+	if err != nil {
+		zap.L().Error("ERROR in QuerySwap_pagefault():", zap.Error(err))
+		ResponseError(c, CodeServerBusy)
+		return
+	}
+
+	ResponseSuccess(c, res)
+}
+
+func QuerySwap_pagefault(c *gin.Context) {
+	res, err := logic.DoQuerySwap_pagefault()
+	if err != nil {
+		zap.L().Error("ERROR in QuerySwap_pagefault():", zap.Error(err))
+		ResponseError(c, CodeServerBusy)
+		return
+	}
+
+	ResponseSuccess(c, res)
 }
 
 func QueryIRQ(c *gin.Context) {

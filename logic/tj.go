@@ -15,14 +15,21 @@ func DoQueryIRQ() (res []client.Result, err error) {
 	}
 	return
 }
-
+func DoQueryExt4_latency() (res []client.Result, err error) {
+	res, err = influxdb.QueryDB(`select last("latency") from "ext4LatencyTable"`)
+	if err != nil {
+		zap.L().Error("ERROR in DoQueryExt4_latency():", zap.Error(err))
+		return nil, err
+	}
+	return
+}
 func DoQuerySwap_pagefault() (res []client.Result, err error) {
-        res, err = influxdb.QueryDB(`select last("duration") from "swap_pagefault"`)
-        if err != nil {
-                zap.L().Error("ERROR in Doswap_pagefault():", zap.Error(err))
-                return nil, err
-        }
-        return
+	res, err = influxdb.QueryDB(`select last("duration") from "swap_pagefault"`)
+	if err != nil {
+		zap.L().Error("ERROR in Doswap_pagefault():", zap.Error(err))
+		return nil, err
+	}
+	return
 }
 
 func DoQueryCpuUtilize() (res []client.Result, err error) {
