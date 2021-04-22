@@ -11,8 +11,7 @@ func DoCollect(frontPlugins *models.PluginMessage) (err error) {
 	size := len(frontPlugins.Plugins)
 	exitChan := make(chan bool, size)
 
-	plugins := new(PluginStorage)
-	plugins, err = plugins.CreatePluginStorage(frontPlugins)
+	plugins, err := CreatePluginStorage(frontPlugins)
 	if err != nil {
 		zap.L().Error("error in plugins.CreatePluginStorage(frontPlugins)", zap.Error(err))
 		return err

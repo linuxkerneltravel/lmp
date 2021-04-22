@@ -6,7 +6,7 @@ type PluginStorage struct {
 	pluginStorage map[string]Plugin
 }
 
-func (p *PluginStorage) CreatePluginStorage(message *models.PluginMessage) (*PluginStorage, error) {
+func CreatePluginStorage(message *models.PluginMessage) (*PluginStorage, error) {
 	return &PluginStorage{}, nil
 }
 
