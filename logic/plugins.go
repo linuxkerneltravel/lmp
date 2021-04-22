@@ -1,11 +1,19 @@
 package logic
 
 import (
-	"github.com/gin-gonic/gin"
+	"bufio"
+	"context"
+	"fmt"
+	"mime/multipart"
+	"os/exec"
+	"syscall"
+	"time"
+
 	"github.com/linuxkerneltravel/lmp/models"
 	"github.com/linuxkerneltravel/lmp/settings"
+
 	"go.uber.org/zap"
-	"mime/multipart"
+	"github.com/gin-gonic/gin"
 )
 
 type Plugin interface {
@@ -32,9 +40,67 @@ func (p *PluginBase) ExitRun() error {
 	return nil
 }
 
-func (p *PluginBase) Run(exitChan chan bool, runtime int) {
-	// todo:Run method
-	return
+func (p *PluginBase) Run(exitChan chan bool, collectTime int) {
+	defer func() {
+		if err := recover(); err != nil {
+			zap.L().Error("error in execute routine, err:", zap.Error(err.(error)))
+			fmt.Println("error in execute routine, err:", err)
+		}
+	}()
+
+	if err := p.EnterRun(); err != nil {
+		return
+	}
+
+	cmd := exec.Command("sudo", "python3", p.PluginExecPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	stdout, err := cmd.StdoutPipe()
+	defer stdout.Close()
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Println(line)
+		}
+	}()
+
+	stderr, err := cmd.StderrPipe()
+	defer stderr.Close()
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Println(line)
+		}
+	}()
+
+	err = cmd.Start()
+	if err != nil {
+		zap.L().Error("error in cmd.Start()", zap.Error(err))
+		return
+	}
+
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			zap.L().Error("error in cmd.Wait()", zap.Error(err))
+			return
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(collectTime)*time.Second)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			_ = p.ExitRun()
+			exitChan <- true
+			return
+		}
+	}
 }
 
 type CbpfPlugin struct {
