@@ -4,26 +4,10 @@ type PluginStorage struct {
 	pluginStorage map[string]Plugin
 }
 
-func (p * PluginStorage)Init() {
-
+func (p *PluginStorage) CreatePluginStorage() PluginStorage {
+	return PluginStorage{}
 }
 
-type AllPluginStorage struct {
-	* PluginStorage
-}
-
-func (p * AllPluginStorage)Watch() {
-
-}
-
-func (p * AllPluginStorage) Update() {
-
-}
-
-type TaskPluginStorage struct {
-	* PluginStorage
-}
-
-func (p * TaskPluginStorage)CollectData() {
+func (p *PluginStorage) CollectData() {
 
 }
