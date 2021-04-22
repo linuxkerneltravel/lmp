@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/contrib/static"
-	"github.com/gin-gonic/gin"
 	"github.com/linuxkerneltravel/lmp/controllers"
 	"github.com/linuxkerneltravel/lmp/logger"
+
+	"github.com/gin-gonic/contrib/static"
+	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(mode string) *gin.Engine {
@@ -25,16 +26,14 @@ func SetupRouter(mode string) *gin.Engine {
 		c.String(http.StatusOK, "pong")
 	})
 
-	r.GET("/allplugins", controllers.PrintAllplugins)
-	r.POST("/data/collect", controllers.Collect)
+	r.POST("/collectdata", controllers.Collect)
 
-	// for tianjin
-	//r.GET("/irq_delay", controllers.QueryIRQ)
-	//r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
-	//r.GET("/pick_next", controllers.QueryPickNext)
-	//r.GET("/task_switch", controllers.QueryTaskSwitch)
-	//r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
-	//r.GET("/water_mark", controllers.QueryWaterMark)
+	r.GET("/irq_delay", controllers.QueryIRQ)
+	r.GET("/cpu_utilize", controllers.QueryCpuUtilize)
+	r.GET("/pick_next", controllers.QueryPickNext)
+	r.GET("/task_switch", controllers.QueryTaskSwitch)
+	r.GET("/harddisk_readwritetime", controllers.QueryHardDiskReadWriteTime)
+	r.GET("/water_mark", controllers.QueryWaterMark)
 
 	r.NoRoute(func(c *gin.Context) {
 		c.Header("Content-Type", "text/html,charset=utf-8")
