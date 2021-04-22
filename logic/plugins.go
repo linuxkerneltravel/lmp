@@ -9,39 +9,40 @@ import (
 )
 
 type Plugin interface {
-	EnterRun()
-	ExitRun()
-	Run()
+	EnterRun() error
+	ExitRun() error
+	Run(chan bool, int)
 }
 
 type PluginBase struct {
-	PluginState bool
-	ExecPath    string
-	Runtime     uint32
+	PluginId          int
+	PluginName        string
+	PluginState       bool
+	PluginExecPath    string
+	PluginInstruction string
 }
 
-func (p *PluginBase) EnterRun() {
-
+func (p *PluginBase) EnterRun() error {
+	// todo:update Mysql
+	return nil
 }
 
-func (p *PluginBase) ExitRun() {
+func (p *PluginBase) ExitRun() error {
+	// todo:update Mysql
+	return nil
+}
 
+func (p *PluginBase) Run(exitChan chan bool, runtime int) {
+	// todo:Run method
+	return
 }
 
 type CbpfPlugin struct {
 	*PluginBase
 }
 
-func (p *CbpfPlugin) Run() {
-
-}
-
 type BccPlugin struct {
 	*PluginBase
-}
-
-func (p *BccPlugin) Run() {
-
 }
 
 type PluginFactory interface {
@@ -50,24 +51,28 @@ type PluginFactory interface {
 
 type BccPluginFactory struct{}
 
-func (BccPluginFactory) CreatePlugin(execPath string, runTime uint32) Plugin {
+func (BccPluginFactory) CreatePlugin(id int, name string, execPath string, instruction string) Plugin {
 	return &BccPlugin{
 		PluginBase: &PluginBase{
-			PluginState: false,
-			ExecPath:    execPath,
-			Runtime:     runTime,
+			PluginId:          id,
+			PluginName:        name,
+			PluginState:       false,
+			PluginExecPath:    execPath,
+			PluginInstruction: instruction,
 		},
 	}
 }
 
 type CbpfPluginFactory struct{}
 
-func (CbpfPluginFactory) CreatePlugin(execPath string, runTime uint32) Plugin {
+func (CbpfPluginFactory) CreatePlugin(id int, name string, execPath string, instruction string) Plugin {
 	return &CbpfPlugin{
 		PluginBase: &PluginBase{
-			PluginState: false,
-			ExecPath:    execPath,
-			Runtime:     runTime,
+			PluginId:          id,
+			PluginName:        name,
+			PluginState:       false,
+			PluginExecPath:    execPath,
+			PluginInstruction: instruction,
 		},
 	}
 }
