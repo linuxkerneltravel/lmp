@@ -27,25 +27,6 @@ func Collect(c *gin.Context) {
 	ResponseSuccess(c, fmt.Sprintf("completed"))
 }
 
-func UpLoadFiles(c *gin.Context) {
-	form, err := c.MultipartForm()
-	if err != nil {
-		ResponseError(c, CodeInvalidParam)
-	}
-
-	if err = logic.SavePlugins(form, c); err != nil {
-		ResponseError(c, CodeInvalidParam)
-	}
-
-	ResponseSuccess(c, fmt.Sprintf("plugin uploaded!"))
-}
-
-func PrintAllplugins(c *gin.Context) {
-	allPlugins := logic.GetAllplugins()
-
-	ResponseSuccess(c, allPlugins)
-}
-
 func QueryIRQ(c *gin.Context) {
 	res, err := logic.DoQueryIRQ()
 	if err != nil {
