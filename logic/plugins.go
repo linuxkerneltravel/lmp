@@ -123,28 +123,28 @@ type PluginFactory interface {
 
 type BccPluginFactory struct{}
 
-func (BccPluginFactory) CreatePlugin(id int, name string, execPath string, instruction string) Plugin {
+func (BccPluginFactory) CreatePlugin(name string) Plugin {
 	return &BccPlugin{
 		PluginBase: &PluginBase{
-			PluginId:          id,
-			PluginName:        name,
-			PluginState:       false,
-			PluginExecPath:    execPath,
-			PluginInstruction: instruction,
+			//PluginId:          id,
+			PluginName:  name,
+			PluginState: false,
+			//PluginExecPath:    execPath,
+			//PluginInstruction: instruction,
 		},
 	}
 }
 
 type CbpfPluginFactory struct{}
 
-func (CbpfPluginFactory) CreatePlugin(id int, name string, execPath string, instruction string) Plugin {
+func (CbpfPluginFactory) CreatePlugin(name string) Plugin {
 	return &CbpfPlugin{
 		PluginBase: &PluginBase{
-			PluginId:          id,
-			PluginName:        name,
-			PluginState:       false,
-			PluginExecPath:    execPath,
-			PluginInstruction: instruction,
+			//PluginId:          id,
+			PluginName:  name,
+			PluginState: false,
+			//PluginExecPath:    execPath,
+			//PluginInstruction: instruction,
 		},
 	}
 }
