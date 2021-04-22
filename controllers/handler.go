@@ -1,10 +1,50 @@
 package controllers
 
 import (
-	"github.com/gin-gonic/gin"
+	"fmt"
+
 	"github.com/linuxkerneltravel/lmp/logic"
+	"github.com/linuxkerneltravel/lmp/models"
+
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+func Collect(c *gin.Context) {
+	frontPlugins := new(models.PluginMessage)
+	if err := c.ShouldBindJSON(frontPlugins); err != nil {
+		zap.L().Error("error in c.ShouldBindJSON(frontPlugins)", zap.Error(err))
+		ResponseError(c, CodeInvalidParam)
+		return
+	}
+
+	if err := logic.DoCollect(frontPlugins); err != nil {
+		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
+		ResponseError(c, CodeInvalidParam)
+		return
+	}
+
+	ResponseSuccess(c, fmt.Sprintf("completed"))
+}
+
+func UpLoadFiles(c *gin.Context) {
+	form, err := c.MultipartForm()
+	if err != nil {
+		ResponseError(c, CodeInvalidParam)
+	}
+
+	if err = logic.SavePlugins(form, c); err != nil {
+		ResponseError(c, CodeInvalidParam)
+	}
+
+	ResponseSuccess(c, fmt.Sprintf("plugin uploaded!"))
+}
+
+func PrintAllplugins(c *gin.Context) {
+	allPlugins := logic.GetAllplugins()
+
+	ResponseSuccess(c, allPlugins)
+}
 
 func QueryIRQ(c *gin.Context) {
 	res, err := logic.DoQueryIRQ()
