@@ -12,14 +12,15 @@ import (
 	"github.com/linuxkerneltravel/lmp/models"
 	"github.com/linuxkerneltravel/lmp/settings"
 
-	"go.uber.org/zap"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type Plugin interface {
 	EnterRun() error
 	ExitRun() error
 	Run(chan bool, int)
+	GetPluginByName() Plugin
 }
 
 type PluginBase struct {
@@ -37,6 +38,11 @@ func (p *PluginBase) EnterRun() error {
 
 func (p *PluginBase) ExitRun() error {
 	// todo:update Mysql
+	return nil
+}
+
+func (p *PluginBase) GetPluginByName() Plugin {
+	// todo:GetPluginByName() method
 	return nil
 }
 
