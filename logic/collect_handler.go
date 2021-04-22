@@ -8,8 +8,6 @@ import (
 
 func DoCollect(frontPlugins *models.PluginMessage) (err error) {
 	//todo:save all pids
-	size := len(frontPlugins.Plugins)
-	exitChan := make(chan bool, size)
 
 	plugins, err := CreatePluginStorage(frontPlugins)
 	if err != nil {
@@ -17,12 +15,8 @@ func DoCollect(frontPlugins *models.PluginMessage) (err error) {
 		return err
 	}
 
-	if err = plugins.CollectData(exitChan); err != nil {
+	if err = plugins.CollectData(); err != nil {
 		return err
-	}
-
-	for i := 0; i < size; i++ {
-		<-exitChan
 	}
 
 	return nil
