@@ -1,6 +1,6 @@
 package models
 
 type PluginMessage struct {
-	Plugins     map[string]bool
+	Plugins     map[string]string
 	CollectTime int
 }
