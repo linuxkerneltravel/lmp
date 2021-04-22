@@ -18,15 +18,7 @@ func Collect(c *gin.Context) {
 		return
 	}
 
-	plugins := new(logic.PluginStorage)
-	plugins, err := plugins.CreatePluginStorage(frontPlugins)
-	if err != nil {
-		zap.L().Error("error in plugins.CreatePluginStorage(frontPlugins)", zap.Error(err))
-		ResponseError(c, CodeInvalidParam)
-		return
-	}
-
-	if err = logic.DoCollect(plugins); err != nil {
+	if err := logic.DoCollect(frontPlugins); err != nil {
 		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
 		ResponseError(c, CodeInvalidParam)
 		return
