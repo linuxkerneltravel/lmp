@@ -4,15 +4,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"mime/multipart"
 	"os/exec"
 	"syscall"
 	"time"
 
-	"github.com/linuxkerneltravel/lmp/models"
-	"github.com/linuxkerneltravel/lmp/settings"
-
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -147,25 +142,4 @@ func (CbpfPluginFactory) CreatePlugin(name string) Plugin {
 			//PluginInstruction: instruction,
 		},
 	}
-}
-
-func SavePlugins(form *multipart.Form, c *gin.Context) (err error) {
-	files := form.File["bpffile"]
-
-	for _, file := range files {
-		zap.L().Info(file.Filename)
-		c.SaveUploadedFile(file, settings.Conf.PluginConfig.Path+file.Filename)
-		// Put the name of the newly uploaded plug-in into the global pipeline Filename
-		models.FileChan <- file.Filename
-	}
-
-	return nil
-}
-
-func GetAllplugins() (pluginsName []string) {
-	for _, plugin := range models.PluginServices.Plugins {
-		pluginsName = append(pluginsName, plugin.Name)
-	}
-
-	return pluginsName
 }
