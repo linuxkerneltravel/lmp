@@ -2,6 +2,7 @@ package logic
 
 import (
 	"errors"
+
 	"github.com/linuxkerneltravel/lmp/models"
 )
 
@@ -41,6 +42,17 @@ func typeOfPlugin(pluginType string) string {
 	return BCCPLUGIN
 }
 
-func (p *PluginStorage) CollectData(exitChan chan bool) error {
+func (p *PluginStorage) CollectData() error {
+	size := len(p.PluginMap)
+	exitChan := make(chan bool, size)
+
+	for _, plugin := range p.PluginMap {
+		plugin.Run(exitChan, p.CollectTime)
+	}
+
+	for i := 0; i < size; i++ {
+		<-exitChan
+	}
+
 	return nil
 }
