@@ -2,6 +2,7 @@ package logic
 
 import (
 	"github.com/linuxkerneltravel/lmp/models"
+
 	"go.uber.org/zap"
 )
 
