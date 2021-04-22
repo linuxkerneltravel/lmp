@@ -26,8 +26,8 @@ func Collect(c *gin.Context) {
 		return
 	}
 
-	if err = plugins.CollectData(); err != nil {
-		zap.L().Error("error in plugins.CollectData()", zap.Error(err))
+	if err = logic.DoCollect(plugins); err != nil {
+		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
 		ResponseError(c, CodeInvalidParam)
 		return
 	}
