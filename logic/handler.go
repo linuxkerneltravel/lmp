@@ -1,10 +1,28 @@
 package logic
 
 import (
-	client "github.com/influxdata/influxdb1-client/v2"
 	"github.com/linuxkerneltravel/lmp/dao/influxdb"
+	"github.com/linuxkerneltravel/lmp/models"
+
+	client "github.com/influxdata/influxdb1-client/v2"
 	"go.uber.org/zap"
 )
+
+func DoCollect(frontPlugins *models.PluginMessage) (err error) {
+	//todo:save all pids
+
+	plugins, err := CreatePluginStorage(frontPlugins)
+	if err != nil {
+		zap.L().Error("error in plugins.CreatePluginStorage(frontPlugins)", zap.Error(err))
+		return err
+	}
+
+	if err = plugins.CollectData(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func DoQueryIRQ() (res []client.Result, err error) {
 	// 调用dao层influxdb API
