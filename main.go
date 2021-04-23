@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/linuxkerneltravel/lmp/logger"
-	"github.com/linuxkerneltravel/lmp/models"
 	"github.com/linuxkerneltravel/lmp/routes"
 	"github.com/linuxkerneltravel/lmp/settings"
 
@@ -45,13 +44,6 @@ func main() {
 			return
 		}
 	*/
-
-	bpfscan := &models.BpfScan{}
-	if err := bpfscan.Init(); err != nil {
-		fmt.Println("Init bpfscan failed, err:", err)
-	}
-	bpfscan.Run()
-	bpfscan.Watch()
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
 

@@ -29,7 +29,8 @@ func CreatePluginStorage(frontPlugins *models.PluginMessage) (pluginStorage *Plu
 			var bccPluginFactory BccPluginFactory
 			pluginStorage.PluginMap[pluginName] = bccPluginFactory.CreatePlugin(pluginName)
 		case CBPFPLUGIN:
-
+			var bccPluginFactory CbpfPluginFactory
+			pluginStorage.PluginMap[pluginName] = bccPluginFactory.CreatePlugin(pluginName)
 		default:
 			err = errors.New("Not a plugin!")
 		}
