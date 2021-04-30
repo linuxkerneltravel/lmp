@@ -10,28 +10,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/facebookgo/pidfile"
 	"github.com/linuxkerneltravel/lmp/logger"
-	"github.com/linuxkerneltravel/lmp/models"
 	"github.com/linuxkerneltravel/lmp/routes"
 	"github.com/linuxkerneltravel/lmp/settings"
+
+	"github.com/facebookgo/pidfile"
 	"go.uber.org/zap"
 )
-
-func showlogo() {
-	logo, err := ioutil.ReadFile("./misc/lmp.logo")
-	if err != nil {
-		fmt.Print(err)
-	}
-
-	fmt.Print(string(logo))
-}
 
 func main() {
 	showlogo()
 
 	pidfile.SetPidfilePath(os.Args[0] + ".pid")
-	pidfile.Write()
+	if err := pidfile.Write(); err != nil {
+		fmt.Println("Pidfile write failed, err:", err)
+		return
+	}
 
 	if err := settings.Init(); err != nil {
 		fmt.Println("Init settings failed, err:", err)
@@ -50,13 +44,6 @@ func main() {
 			return
 		}
 	*/
-
-	bpfscan := &models.BpfScan{}
-	if err := bpfscan.Init(); err != nil {
-		fmt.Println("Init bpfscan failed, err:", err)
-	}
-	bpfscan.Run()
-	bpfscan.Watch()
 
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
 
@@ -83,4 +70,13 @@ func main() {
 	}
 
 	zap.L().Info("Server exiting")
+}
+
+func showlogo() {
+	logo, err := ioutil.ReadFile("./misc/lmp.logo")
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	fmt.Print(string(logo))
 }
