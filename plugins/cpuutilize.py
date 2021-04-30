@@ -5,16 +5,12 @@ from bcc import BPF
 from time import sleep, strftime
 
 # for influxdb
-from influxdb import InfluxDBClient
-import lmp_influxdb as db
+from const import DatabaseType
+from init_db import influx_client
 from db_modules import write2db
 
 from datetime import datetime
 
-
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
 
 bpf_text = """
 #include <uapi/linux/ptrace.h>
@@ -83,40 +79,39 @@ int pick_start(struct pt_regs *ctx, struct task_struct *prev)
 """
 
 # data structure from template
-class lmp_data(object):
-    def __init__(self,a,b,c):
-            self.time = a
-            self.glob = b
-            self.perce = c
-                    
 
-data_struct = {"measurement":'cpuutilize',
-               "time":[],
-               "tags":['glob',],
-               "fields":['perce']}
+
+class lmp_data(object):
+    def __init__(self, a, b, c):
+        self.time = a
+        self.glob = b
+        self.perce = c
+
+
+data_struct = {"measurement": 'cpuutilize',
+               "time": [],
+               "tags": ['glob', ],
+               "fields": ['perce']}
 
 b = BPF(text=bpf_text)
 b.attach_kprobe(event="finish_task_switch", fn_name="pick_start")
 
 dist = b.get_table("dist")
 
-cpu = [0,0]
+cpu = [0, 0]
 # times = 0
 
 while (1):
     try:
         sleep(1)
         for k, v in dist.items():
-            cpu[k.value] = 1.0 *(v.total - v.idle) / v.total * 100
+            cpu[k.value] = 1.0 * (v.total - v.idle) / v.total * 100
             #times += 1
             #print("%-6d%-16d%-16d%-6.4f%%" % (k.value, v.total, v.idle, 1.0 *(v.total - v.idle) / v.total * 100))
-            test_data = lmp_data(datetime.now().isoformat(),'glob', cpu[k.value])
-            write2db(data_struct, test_data, client)
+            test_data = lmp_data(
+                datetime.now().isoformat(), 'glob', cpu[k.value])
+            write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
         dist.clear()
 
     except KeyboardInterrupt:
         exit()
-    
-
-
-

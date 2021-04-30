@@ -8,6 +8,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 ## 项目架构
 
 ![](./static/imgs/LMP-arch4.png)
+![](./static/imgs/LMP-arch5.png)
 
 ## 界面截图
 
