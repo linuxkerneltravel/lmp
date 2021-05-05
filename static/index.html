@@ -27,6 +27,7 @@
   </head>
   <script src="https://unpkg.com/vue/dist/vue.js"></script>
   <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
   <body>
     <div id="app">
       <el-row>
@@ -59,7 +60,7 @@
             <!-- <input type="text" name="collecttime" value="-1">CollectTime(min) -->
             <!-- <input id="sub" type="submit" value="submit"> -->
           </form>
-          <el-button style="margin-top: 10px" type="primary">submit</el-button>
+          <el-button style="margin-top: 10px" type="primary" @click="submit">submit</el-button>
 
         </div>
       </el-row>
@@ -83,6 +84,18 @@
           ],
           inputTime:"",
          }
+      },
+      methods:{
+        submit() {
+          axios
+          .get('http://192.168.132.166:8080/ping')
+          .then(function (response) {
+            console.dir(response);
+          })
+          .catch(function (error) { // 请求失败处理
+            console.log(error);
+          });          
+        }
       }
     })
   </script>
