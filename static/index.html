@@ -87,8 +87,10 @@
       },
       methods:{
         submit() {
+          var url = window.location.host
           axios
-          .get('http://192.168.132.166:8080/ping')
+          // .get('/ping')
+          .post('/collectdata', {"Plugins":{"runqlen":"bcc","cpuutilize":"bcc"},"CollectTime":5}, {emulateJSON:true})
           .then(function (response) {
             console.dir(response);
           })
