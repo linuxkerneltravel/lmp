@@ -40,25 +40,14 @@
         <div id="inner">
           <form action="/data/collect" method="post">
             <el-row>
-              <el-checkbox v-for="t in collectTypes" :label="t.label" :key="t.key">{{t.label}}</el-checkbox>
+              <el-checkbox-group v-model="checkList">
+                <el-checkbox v-for="t in collectTypes" :label="t.label" :key="t.key">{{t.label}}</el-checkbox>
+              </el-checkbox-group>
             </el-row>
             <el-row style="margin-top: 10px">
               <span>CollectTime</span>
               <el-input v-model="inputTime" style="width:180px" placeholder="请输入时间(min)"></el-input>
             </el-row>            
-            <!-- 
-            <input type="checkbox" name="cpuutilize" value="true">cpuutilize&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="irq" value="true">irq&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="memusage" value="true">memusage&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="picknexttask" value="true">picknexttask&nbsp;&nbsp;&nbsp;
-            <br>
-            <input type="checkbox" name="runqlen" value="true">runqlen&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="vfsstat" value="true">vfsstat&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="ContainerNet" value="true">ContainerNet&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="dcache" value="true">dcache&nbsp; -->
-            <!-- <label for="other"></label> -->
-            <!-- <input type="text" name="collecttime" value="-1">CollectTime(min) -->
-            <!-- <input id="sub" type="submit" value="submit"> -->
           </form>
           <el-button style="margin-top: 10px" type="primary" @click="submit">submit</el-button>
 
@@ -72,25 +61,34 @@
       el: '#app',
       data: function() {
         return { 
+          checkList:[],
           collectTypes:[
-            {label:"cpuutilize", key:"cpuutilize"},
-            {label:"irq", key:"irq"},
-            {label:"memusage", key:"memusage"},
-            {label:"picknexttask", key:"picknexttask"},
-            {label:"runqlen", key:"runqlen"},
-            {label:"vfsstat", key:"vfsstat"},
-            {label:"ContainerNet", key:"ContainerNet"},
-            {label:"dcache", key:"dcache"},
+            {label:"cpuutilize", key:"cpuutilize", type:"bcc"},
+            {label:"irq", key:"irq", type:"bcc"},
+            {label:"memusage", key:"memusage", type:"bcc"},
+            {label:"picknexttask", key:"picknexttask", type:"bcc"},
+            {label:"runqlen", key:"runqlen", type:"bcc"},
+            {label:"vfsstat", key:"vfsstat", type:"bcc"},
+            {label:"ContainerNet", key:"ContainerNet", type:"bcc"},
+            {label:"dcache", key:"dcache", type:"bcc"},
           ],
-          inputTime:"",
+          inputTime:"0",
          }
       },
       methods:{
         submit() {
-          var url = window.location.host
+          var plugins = {};
+          for (var i = 0; i < this.checkList.length; i++) {
+            var collect = this.checkList[i];
+            plugins[`${collect}`] = "bcc";
+          }
+          
+          var collectParam = {};
+          collectParam.plugins = plugins;
+          collectParam.pluginsruntime = parseInt(this.inputTime);
+          
           axios
-          // .get('/ping')
-          .post('/collectdata', {"Plugins":{"runqlen":"bcc","cpuutilize":"bcc"},"CollectTime":5}, {emulateJSON:true})
+          .post('/collectdata', collectParam, {emulateJSON:true})
           .then(function (response) {
             console.dir(response);
           })
