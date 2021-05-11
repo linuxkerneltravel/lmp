@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/linuxkerneltravel/lmp/dao/mysql"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -38,6 +39,11 @@ func main() {
 	}
 	defer zap.L().Sync()
 
+	if err := mysql.Init(settings.Conf.MySQLConfig); err != nil {
+		fmt.Println("Init mysql failed, err:", err)
+		return
+	}
+	defer mysql.Close()
 	/*
 		if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
 			fmt.Println("Init influxdb failed, err:", err)
