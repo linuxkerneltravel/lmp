@@ -6,3 +6,15 @@ CREATE TABLE if NOT EXISTS performance_index (
     instruction varchar(100) COMMENT '指标说明',
     state int NOT NULL COMMENT '状态'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("containerNet", "./plugins/ContainerNet.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("cpuUtilize", "./plugins/cpuutilize.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("hardDiskReadWriteTime", "./plugins/harddiskreadwritetime.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("irq", "./plugins/irq.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("memUsage", "./plugins/memusage.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("netLatency", "./plugins/netlatency.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("pickNext", "./plugins/picknext.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("taskSwitch", "./plugins/taskswitch.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("vfsStat", "./plugins/vfsstat.py", "empty", 0);
+INSERT INTO performance_index(name, exec_path, instruction, state) VALUES("waitingQueueLength", "./plugins/waitingqueuelength.py", "empty", 0);
+
