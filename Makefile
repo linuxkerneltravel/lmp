@@ -9,8 +9,10 @@ GRADIR = $(PRE)/grafana-storage
 DASHDIR = $(PRE)/grafana
 
 all:
-	mysql -u root -p lmp <./misc/init.sql
 	go build -mod=vendor -o lmp main.go
+
+db:
+	mysql -u root -p lmp <./misc/init.sql
 
 clean:
 	rm -rf lmp
