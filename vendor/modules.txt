@@ -21,6 +21,8 @@ github.com/go-playground/locales/currency
 github.com/go-playground/universal-translator
 # github.com/go-playground/validator/v10 v10.2.0
 github.com/go-playground/validator/v10
+# github.com/go-sql-driver/mysql v1.6.0
+github.com/go-sql-driver/mysql
 # github.com/golang/protobuf v1.3.3
 github.com/golang/protobuf/proto
 # github.com/hashicorp/hcl v1.0.0
@@ -38,6 +40,9 @@ github.com/hashicorp/hcl/json/token
 github.com/influxdata/influxdb1-client/models
 github.com/influxdata/influxdb1-client/pkg/escape
 github.com/influxdata/influxdb1-client/v2
+# github.com/jmoiron/sqlx v1.3.3
+github.com/jmoiron/sqlx
+github.com/jmoiron/sqlx/reflectx
 # github.com/json-iterator/go v1.1.9
 github.com/json-iterator/go
 # github.com/leodido/go-urn v1.2.0
