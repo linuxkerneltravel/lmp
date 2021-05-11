@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/linuxkerneltravel/lmp/dao/mysql"
+	"go.uber.org/zap"
 	"os/exec"
 	"syscall"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type Plugin interface {
@@ -21,9 +21,10 @@ type Plugin interface {
 type PluginBase struct {
 	PluginId          int
 	PluginName        string
-	PluginState       bool
+	PluginType        string
 	PluginExecPath    string
 	PluginInstruction string
+	PluginState       bool
 }
 
 func (p *PluginBase) EnterRun() error {
@@ -113,33 +114,33 @@ type BccPlugin struct {
 }
 
 type PluginFactory interface {
-	CreatePlugin(string, uint32) Plugin
+	CreatePlugin(string, string) Plugin
 }
 
 type BccPluginFactory struct{}
 
-func (BccPluginFactory) CreatePlugin(name string) Plugin {
-	return &BccPlugin{
-		PluginBase: &PluginBase{
-			//PluginId:          id,
-			PluginName:  name,
-			PluginState: false,
-			//PluginExecPath:    execPath,
-			//PluginInstruction: instruction,
-		},
+func (BccPluginFactory) CreatePlugin(pluginName string, pluginType string) Plugin {
+	bccPlugin := BccPlugin{}
+	bccPlugin.PluginBase = new(PluginBase)
+
+	bccPlugin.PluginName = pluginName
+	bccPlugin.PluginType = pluginType
+
+	if err := mysql.GetRestPluginMessageFromDB(pluginName, pluginType, &(bccPlugin.PluginId),
+		&(bccPlugin.PluginExecPath), &(bccPlugin.PluginInstruction), &(bccPlugin.PluginState)); err != nil {
+		fmt.Println("error in CreatePlugin", err)
 	}
+
+	return bccPlugin
 }
 
 type CbpfPluginFactory struct{}
 
-func (CbpfPluginFactory) CreatePlugin(name string) Plugin {
+func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) Plugin {
 	return &CbpfPlugin{
 		PluginBase: &PluginBase{
-			//PluginId:          id,
-			PluginName:  name,
+			PluginName:  pluginName,
 			PluginState: false,
-			//PluginExecPath:    execPath,
-			//PluginInstruction: instruction,
 		},
 	}
 }

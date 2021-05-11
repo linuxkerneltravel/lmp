@@ -2,7 +2,6 @@ package logic
 
 import (
 	"errors"
-
 	"github.com/linuxkerneltravel/lmp/models"
 )
 
@@ -27,10 +26,10 @@ func CreatePluginStorage(frontPlugins *models.PluginMessage) (pluginStorage *Plu
 		switch typeOfPlugin(pluginType) {
 		case BCCPLUGIN:
 			var bccPluginFactory BccPluginFactory
-			pluginStorage.PluginMap[pluginName] = bccPluginFactory.CreatePlugin(pluginName)
+			pluginStorage.PluginMap[pluginName] = bccPluginFactory.CreatePlugin(pluginName, pluginType)
 		case CBPFPLUGIN:
-			var bccPluginFactory CbpfPluginFactory
-			pluginStorage.PluginMap[pluginName] = bccPluginFactory.CreatePlugin(pluginName)
+			var cbpfPluginFactory CbpfPluginFactory
+			pluginStorage.PluginMap[pluginName] = cbpfPluginFactory.CreatePlugin(pluginName, pluginType)
 		default:
 			err = errors.New("Not a plugin!")
 		}
