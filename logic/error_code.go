@@ -3,5 +3,5 @@ package logic
 import "errors"
 
 var (
-	ErrorPluginNotExit = errors.New("插件不存在")
+	ErrorGetPluginFailed = errors.New("获取插件失败")
 )
