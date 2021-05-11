@@ -28,6 +28,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 - golang：go1.12及以上；
 - docker：influxdb、grafana；
 - bcc环境
+- mysql：5.7.29测试通过
 
 ###  安装依赖docker镜像
 
@@ -44,6 +45,8 @@ sudo docker pull influxdb
 ```
  git clone https://github.com/linuxkerneltravel/lmp
  cd lmp
+ make db
+ > 输入您的 mysql root用户密码
  make
 ```
 
