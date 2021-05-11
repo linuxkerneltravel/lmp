@@ -114,12 +114,12 @@ type BccPlugin struct {
 }
 
 type PluginFactory interface {
-	CreatePlugin(string, string) Plugin
+	CreatePlugin(string, string) (Plugin, error)
 }
 
 type BccPluginFactory struct{}
 
-func (BccPluginFactory) CreatePlugin(pluginName string, pluginType string) Plugin {
+func (BccPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plugin, error) {
 	bccPlugin := BccPlugin{}
 	bccPlugin.PluginBase = new(PluginBase)
 
@@ -128,19 +128,14 @@ func (BccPluginFactory) CreatePlugin(pluginName string, pluginType string) Plugi
 
 	if err := mysql.GetRestPluginMessageFromDB(pluginName, pluginType, &(bccPlugin.PluginId),
 		&(bccPlugin.PluginExecPath), &(bccPlugin.PluginInstruction), &(bccPlugin.PluginState)); err != nil {
-		fmt.Println("error in CreatePlugin", err)
+		return nil, ErrorGetPluginFailed
 	}
 
-	return bccPlugin
+	return bccPlugin, nil
 }
 
 type CbpfPluginFactory struct{}
 
-func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) Plugin {
-	return &CbpfPlugin{
-		PluginBase: &PluginBase{
-			PluginName:  pluginName,
-			PluginState: false,
-		},
-	}
+func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plugin, error) {
+	return nil, nil
 }

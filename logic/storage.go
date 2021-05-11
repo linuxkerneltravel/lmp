@@ -26,10 +26,16 @@ func CreatePluginStorage(frontPlugins *models.PluginMessage) (pluginStorage *Plu
 		switch typeOfPlugin(pluginType) {
 		case BCCPLUGIN:
 			var bccPluginFactory BccPluginFactory
-			pluginStorage.PluginMap[pluginName] = bccPluginFactory.CreatePlugin(pluginName, pluginType)
+			pluginStorage.PluginMap[pluginName], err = bccPluginFactory.CreatePlugin(pluginName, pluginType)
+			if err != nil {
+				return nil, ErrorGetPluginFailed
+			}
 		case CBPFPLUGIN:
 			var cbpfPluginFactory CbpfPluginFactory
-			pluginStorage.PluginMap[pluginName] = cbpfPluginFactory.CreatePlugin(pluginName, pluginType)
+			pluginStorage.PluginMap[pluginName], err = cbpfPluginFactory.CreatePlugin(pluginName, pluginType)
+			if err != nil {
+				return nil, ErrorGetPluginFailed
+			}
 		default:
 			err = errors.New("Not a plugin!")
 		}
