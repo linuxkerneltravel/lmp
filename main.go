@@ -74,6 +74,10 @@ func doBeforeJob(ctx *cli.Context) error {
 }
 
 func runlmp(ctx *cli.Context) error {
+	if err := checkValid(ctx); err != nil {
+		return err
+	}
+
 	r := routes.SetupRouter(settings.Conf.AppConfig.Mode)
 
 	srv := &http.Server{
