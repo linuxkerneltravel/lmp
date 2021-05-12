@@ -1,7 +1,5 @@
 app:
-  name: "lmp"
   mode: "release"
-  version: "v0.0.1"
   port: 8080
   machine_id: 1
   start_time: 2020-07-01
