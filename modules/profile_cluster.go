@@ -42,5 +42,8 @@ func clusterPeak(ctx *cli.Context) error {
 
 	dataPath := ctx.String("model")
 	fmt.Println("data path is: ", dataPath)
+
+	// start a process and run your model
+
 	return nil
 }
