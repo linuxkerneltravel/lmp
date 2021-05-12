@@ -1,8 +1,8 @@
 package main
 
 import (
+	"../mq"
 	"fmt"
-	"messageQueue/mq"
 	"time"
 )
 
