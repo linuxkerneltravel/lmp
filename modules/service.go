@@ -10,7 +10,3 @@ var OptModules = struct {
 	sync.RWMutex
 	Modules []*cli.Command
 }{}
-
-func init() {
-	OptModules.Modules = make([]*cli.Command, 0)
-}

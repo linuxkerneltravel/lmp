@@ -7,10 +7,10 @@ import (
 )
 
 func init() {
-	OptModules.Modules = append(OptModules.Modules, &profileAnalysisCommand)
+	OptModules.Modules = append(OptModules.Modules, &profileClusterCommand)
 }
 
-var profileAnalysisCommand = cli.Command{
+var profileClusterCommand = cli.Command{
 	Name:      "cluster",
 	Usage:     "Density peak clustering",
 	ArgsUsage: "[APP_NAME]",
@@ -40,7 +40,7 @@ func clusterPeak(ctx *cli.Context) error {
 		return fmt.Errorf("only one or zero argument required")
 	}
 
-	dataPath := ctx.String("model")
+	dataPath := ctx.String("data")
 	fmt.Println("data path is: ", dataPath)
 
 	// start a process and run your model
