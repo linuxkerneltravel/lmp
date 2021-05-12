@@ -27,8 +27,8 @@ var profileClusterCommand = cli.Command{
 	Description: func() string {
 		desc := `
 	 Density peak clustering, Can be used for anomaly detection.
-		example: ./lmp cluster --model /YOUR_PATH
-		example: ./lmp cluster -m /YOUR_PATH
+		example: ./lmp cluster --data /YOUR_PATH
+		example: ./lmp cluster -d /YOUR_PATH
 	`
 		return desc
 	}(),
