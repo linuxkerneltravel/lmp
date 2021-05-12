@@ -112,6 +112,11 @@ LMP目前支持BCC类型的插件程序，增加的方法见→[增加一个插�
 ### 如何调试项目
 推荐使用 `postman` 下发web请求，具体调试方法见→[调试项目](docs/调试项目.md)
 
+### 总结出的监控方案
+[基于 eBPF 的 prometheus 监控方案](docs/基于eBPF的prometheus监控方案/基于eBPF的prometheus监控方案.md)
+
+[快速实现Linux系统性能数据提取、存储和可视化展示](docs/快速实现Linux系统性能数据提取、存储和可视化展示/快速实现Linux系统性能数据提取、存储和可视化展示.md)
+
 #
 
 ![](./static/imgs/LMP-logo.png)
