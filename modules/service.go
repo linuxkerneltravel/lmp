@@ -8,9 +8,18 @@ import (
 
 var OptModules = struct {
 	sync.RWMutex
-	Modules []*cli.Command
+	modules []*cli.Command
 }{}
 
 func GetModules() []*cli.Command {
-	return OptModules.Modules
+	return OptModules.modules
+}
+
+func registerModules(module *cli.Command) error {
+	OptModules.Lock()
+	defer OptModules.Unlock()
+
+	OptModules.modules = append(OptModules.modules, module)
+
+	return nil
 }
