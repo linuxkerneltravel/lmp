@@ -7,7 +7,10 @@ import (
 )
 
 func init() {
-	OptModules.Modules = append(OptModules.Modules, &profileClusterCommand)
+	if err := registerModules(&profileClusterCommand); err != nil {
+		fmt.Printf("Failed to register module : %s\n", err)
+		return
+	}
 }
 
 var profileClusterCommand = cli.Command{
