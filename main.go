@@ -3,18 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-
-	"github.com/linuxkerneltravel/lmp/modules"
-
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
 	"github.com/linuxkerneltravel/lmp/dao/mysql"
 	"github.com/linuxkerneltravel/lmp/logger"
+	"github.com/linuxkerneltravel/lmp/modules"
 	"github.com/linuxkerneltravel/lmp/routes"
 	"github.com/linuxkerneltravel/lmp/settings"
 
@@ -120,6 +119,7 @@ func main() {
 	for _, v := range modules.GetModules() {
 		app.Commands = append(app.Commands, v)
 	}
+	sort.Sort(cli.CommandsByName(app.Commands))
 
 	app.Before = doBeforeJob
 	app.Action = runlmp
