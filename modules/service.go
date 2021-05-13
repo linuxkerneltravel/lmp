@@ -10,3 +10,7 @@ var OptModules = struct {
 	sync.RWMutex
 	Modules []*cli.Command
 }{}
+
+func GetModules() []*cli.Command {
+	return OptModules.Modules
+}
