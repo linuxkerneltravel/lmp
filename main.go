@@ -117,7 +117,7 @@ func main() {
 	app.Usage = settings.LmpUsage
 	app.Version = settings.Version
 
-	for _, v := range modules.OptModules.Modules {
+	for _, v := range modules.GetModules() {
 		app.Commands = append(app.Commands, v)
 	}
 
