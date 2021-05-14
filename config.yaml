@@ -1,7 +1,5 @@
 app:
-  name: "lmp"
   mode: "release"
-  version: "v0.0.1"
   port: 8080
   machine_id: 1
   start_time: 2020-07-01
@@ -12,6 +10,15 @@ log:
   max_size: 200
   max_backups: 7
   max_age: 67
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "123456"
+  dbname: "lmp"
+  max_open_conns: 200
+  max_idle_conns: 50
 
 influxdb:
   host: "127.0.0.1"
