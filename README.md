@@ -45,7 +45,7 @@ sudo docker pull influxdb
 ```
  git clone https://github.com/linuxkerneltravel/lmp
  cd lmp
- make db
+ sudo make db
  > 输入您的 mysql root用户密码
  make
 ```
