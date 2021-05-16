@@ -1,3 +1,5 @@
+CREATE DATABASE IF NOT EXISTS lmp;
+use lmp;
 drop table if exists performance_index;
 CREATE TABLE if NOT EXISTS performance_index (
     id int(11) AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
