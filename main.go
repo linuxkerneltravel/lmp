@@ -61,7 +61,6 @@ func doBeforeJob(ctx *cli.Context) error {
 		fmt.Println("Init mysql failed, err:", err)
 		return err
 	}
-	defer mysql.Close()
 
 	/*
 		if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
@@ -123,6 +122,11 @@ func main() {
 
 	app.Before = doBeforeJob
 	app.Action = runlmp
+
+	defer func() {
+		// close mysql connection
+		mysql.Close()
+	}()
 
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("%s\n", err)
