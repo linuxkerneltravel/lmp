@@ -1,3 +1,5 @@
+# github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d
+github.com/cpuguy83/go-md2man/v2/md2man
 # github.com/facebookgo/atomicfile v0.0.0-20151019160806-2de1f203e7d5
 github.com/facebookgo/atomicfile
 # github.com/facebookgo/pidfile v0.0.0-20150612191647-f242e2999868
@@ -21,6 +23,8 @@ github.com/go-playground/locales/currency
 github.com/go-playground/universal-translator
 # github.com/go-playground/validator/v10 v10.2.0
 github.com/go-playground/validator/v10
+# github.com/go-sql-driver/mysql v1.6.0
+github.com/go-sql-driver/mysql
 # github.com/golang/protobuf v1.3.3
 github.com/golang/protobuf/proto
 # github.com/hashicorp/hcl v1.0.0
@@ -38,6 +42,9 @@ github.com/hashicorp/hcl/json/token
 github.com/influxdata/influxdb1-client/models
 github.com/influxdata/influxdb1-client/pkg/escape
 github.com/influxdata/influxdb1-client/v2
+# github.com/jmoiron/sqlx v1.3.3
+github.com/jmoiron/sqlx
+github.com/jmoiron/sqlx/reflectx
 # github.com/json-iterator/go v1.1.9
 github.com/json-iterator/go
 # github.com/leodido/go-urn v1.2.0
@@ -56,6 +63,10 @@ github.com/modern-go/reflect2
 github.com/natefinch/lumberjack
 # github.com/pelletier/go-toml v1.2.0
 github.com/pelletier/go-toml
+# github.com/russross/blackfriday/v2 v2.0.1
+github.com/russross/blackfriday/v2
+# github.com/shurcooL/sanitized_anchor_name v1.0.0
+github.com/shurcooL/sanitized_anchor_name
 # github.com/spf13/afero v1.1.2
 github.com/spf13/afero
 github.com/spf13/afero/mem
@@ -71,6 +82,8 @@ github.com/spf13/viper
 github.com/subosito/gotenv
 # github.com/ugorji/go/codec v1.1.7
 github.com/ugorji/go/codec
+# github.com/urfave/cli/v2 v2.3.0
+github.com/urfave/cli/v2
 # go.uber.org/atomic v1.4.0
 go.uber.org/atomic
 # go.uber.org/multierr v1.1.0

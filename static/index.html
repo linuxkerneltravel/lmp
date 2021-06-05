@@ -1,63 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <title>LMP</title>
     <style>
-        *{
-            margin: 0 auto;
-            text-align: center;
-        }
-        #wrapper{
-            margin-top: 160px;
-        }
-        #wrapper p{
-            font-size: 70px;
-            font-weight: bold;
-        }
-        #wrapper>img{
-            height: 180px;
-        }
-        #sub{
-            width: 100px;
-            cursor: pointer;
-            height: 30px;
-            font-size: 20px;
-        }
-        #inner{
-
-        }
+      *{
+          margin: 0 auto;
+          text-align: center;
+      }
+      #app{
+          margin-top: 160px;
+      }
+      #app p{
+          font-size: 70px;
+          font-weight: bold;
+      }
+      #sub{
+          width: 100px;
+          cursor: pointer;
+          height: 30px;
+          font-size: 20px;
+      }
     </style>
-</head>
-<body>
-<div id="wrapper">
-    <p>Linux Microscope</p>
-    <br>
-    <img src="./imgs/Linux.jpg"/>
-    <br>
-    <br>
-    <div id="inner">
-        <form action="/data/collect" method="post">
-            <input type="checkbox" name="cpuutilize" value="true">cpuutilize&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="irq" value="true">irq&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="memusage" value="true">memusage&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="picknexttask" value="true">picknexttask&nbsp;&nbsp;&nbsp;
-            <br>
-            <input type="checkbox" name="runqlen" value="true">runqlen&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="vfsstat" value="true">vfsstat&nbsp;&nbsp;&nbsp;
-	    <input type="checkbox" name="ContainerNet" value="true">ContainerNet&nbsp;&nbsp;&nbsp;
-            <input type="checkbox" name="dcache" value="true">dcache&nbsp;
-            <label for="other"></label>
-	    <br>
-	    <br>
-            <input type="text" name="collecttime" value="-1">CollectTime(min)
-            <br>
-            <br>
-            <br>
-            <input id="sub" type="submit" value="submit">
-        </form>
-    </div>
-</div>
+      
+  </head>
+  <script src="https://unpkg.com/vue/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
+  <body>
+    <div id="app">
+      <el-row>
+        <el-col :span="24"><p>Linux Microscope</p></el-col>
+      </el-row>
+      <el-row>
+        <el-col :span="24"><img style="height:180px" src="./imgs/Linux.jpg"/></el-col>
+      </el-row>
+      <el-row>
+        <div id="inner">
+          <form action="/data/collect" method="post">
+            <el-row>
+              <el-checkbox-group v-model="checkList">
+                <el-checkbox v-for="t in collectTypes" :label="t.label" :key="t.key">{{t.label}}</el-checkbox>
+              </el-checkbox-group>
+            </el-row>
+            <el-row style="margin-top: 10px">
+              <span>CollectTime</span>
+              <el-input v-model="inputTime" style="width:180px" placeholder="请输入时间(min)"></el-input>
+            </el-row>            
+          </form>
+          <el-button style="margin-top: 10px" type="primary" @click="submit">submit</el-button>
 
-</body>
+        </div>
+      </el-row>
+    </div>
+
+  </body>
+  <script>
+    new Vue({
+      el: '#app',
+      data: function() {
+        return { 
+          checkList:[],
+          collectTypes:[
+            {label:"cpuutilize", key:"cpuutilize", type:"bcc"},
+            {label:"irq", key:"irq", type:"bcc"},
+            {label:"memusage", key:"memusage", type:"bcc"},
+            {label:"picknexttask", key:"picknexttask", type:"bcc"},
+            {label:"runqlen", key:"runqlen", type:"bcc"},
+            {label:"vfsstat", key:"vfsstat", type:"bcc"},
+            {label:"ContainerNet", key:"ContainerNet", type:"bcc"},
+            {label:"dcache", key:"dcache", type:"bcc"},
+          ],
+          inputTime:"0",
+         }
+      },
+      methods:{
+        submit() {
+          var plugins = {};
+          for (var i = 0; i < this.checkList.length; i++) {
+            var collect = this.checkList[i];
+            plugins[`${collect}`] = "bcc";
+          }
+          
+          var collectParam = {};
+          collectParam.plugins = plugins;
+          collectParam.pluginsruntime = parseInt(this.inputTime);
+          
+          axios
+          .post('/collectdata', collectParam, {emulateJSON:true})
+          .then(function (response) {
+            console.dir(response);
+          })
+          .catch(function (error) { // 请求失败处理
+            console.log(error);
+          });          
+        }
+      }
+    })
+  </script>
 </html>
