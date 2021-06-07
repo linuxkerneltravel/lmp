@@ -5,22 +5,9 @@
     <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
     <title>LMP</title>
     <style>
-      *{
-          margin: 0 auto;
-          text-align: center;
-      }
-      #app{
-          margin-top: 160px;
-      }
       #app p{
-          font-size: 70px;
-          font-weight: bold;
-      }
-      #sub{
-          width: 100px;
-          cursor: pointer;
-          height: 30px;
-          font-size: 20px;
+        font-size: 24px;
+        font-weight: bold;
       }
     </style>
       
@@ -31,13 +18,62 @@
   <body>
     <div id="app">
       <el-row>
-        <el-col :span="24"><p>Linux Microscope</p></el-col>
+        <el-col :span="4" :offset="8">
+          <div>
+            <el-row>
+              <p>Linux Microscope</p>
+            </el-row>
+            <el-row>
+              <img style="height:80px" src="./imgs/LMP-logo.png"/>
+            </el-row>            
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <img style="height:150px;margin-top: 20px;" src="./imgs/Linux.jpg"/>
+        </el-col>
       </el-row>
-      <el-row>
-        <el-col :span="24"><img style="height:180px" src="./imgs/Linux.jpg"/></el-col>
-      </el-row>
-      <el-row>
-        <div id="inner">
+      <el-row style="margin-top: 10px;">
+        <el-col :span="20" :offset="2">
+          <el-table
+            ref="multipleTable"
+            stripe
+            :data="collectTypes"
+            tooltip-effect="dark"
+            style="width: 100%"
+            :height="tableHeight"
+            @selection-change="handleSelectionChange">
+            <el-table-column
+              type="selection"
+              width="55">
+            </el-table-column>
+            <el-table-column
+              prop="name"
+              label="名称"
+              width="200">
+            </el-table-column>
+            <el-table-column
+              prop="type"
+              label="类型"
+              width="100">
+            </el-table-column>
+            <el-table-column
+              prop="state"
+              label="状态"
+              width="120">
+            </el-table-column>            
+            <el-table-column
+              prop="desc"
+              label="描述"
+              show-overflow-tooltip>
+            </el-table-column>
+          </el-table>
+          <div style="margin-left: 70%;">
+            <span>CollectTime</span>
+            <el-input v-model="inputTime" style="width:180px" placeholder="请输入时间(min)"></el-input>            
+            <el-button style="margin-top: 10px" type="primary" @click="submit">submit</el-button>
+          </div>
+        </el-col>
+        <!-- <div id="inner">
           <form action="/data/collect" method="post">
             <el-row>
               <el-checkbox-group v-model="checkList">
@@ -50,8 +86,7 @@
             </el-row>            
           </form>
           <el-button style="margin-top: 10px" type="primary" @click="submit">submit</el-button>
-
-        </div>
+        </div> -->
       </el-row>
     </div>
 
@@ -61,26 +96,39 @@
       el: '#app',
       data: function() {
         return { 
+          tableHeight:document.documentElement.clientHeight - 270,
           checkList:[],
+          selectedList:[],
           collectTypes:[
-            {label:"cpuutilize", key:"cpuutilize", type:"bcc"},
-            {label:"irq", key:"irq", type:"bcc"},
-            {label:"memusage", key:"memusage", type:"bcc"},
-            {label:"picknexttask", key:"picknexttask", type:"bcc"},
-            {label:"runqlen", key:"runqlen", type:"bcc"},
-            {label:"vfsstat", key:"vfsstat", type:"bcc"},
-            {label:"ContainerNet", key:"ContainerNet", type:"bcc"},
-            {label:"dcache", key:"dcache", type:"bcc"},
+            {name:"cpuutilize", type:"bcc"},
+            {name:"irq", type:"bcc"},
+            {name:"memusage", type:"bcc"},
+            {name:"picknexttask",  type:"bcc"},
+            {name:"runqlen", type:"bcc"},
+            {name:"vfsstat", type:"bcc"},
+            {name:"ContainerNet", type:"bcc"},
+            {name:"dcache", type:"bcc"},
           ],
           inputTime:"0",
          }
       },
       methods:{
+        handleSelectionChange(selections) {
+          this.selectedList = selections;
+        },
         submit() {
+          if (this.selectedList.length == 0) {
+            this.$message({
+              message: '请选择采集项',
+              type: 'warning'
+            });
+          }
+
           var plugins = {};
-          for (var i = 0; i < this.checkList.length; i++) {
-            var collect = this.checkList[i];
-            plugins[`${collect}`] = "bcc";
+          for (var i = 0; i < this.selectedList.length; i++) {
+            var collect = this.selectedList[i];
+            var name = collect.name
+            plugins[`${name}`] = collect.type;
           }
           
           var collectParam = {};
