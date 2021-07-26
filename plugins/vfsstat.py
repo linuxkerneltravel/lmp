@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # @lint-avoid-python-3-compatibility-imports
 #
 # vfsstat.py   Count some VFS calls.
@@ -17,66 +17,43 @@
 from __future__ import print_function
 from bcc import BPF
 from ctypes import c_int
-from time import sleep, strftime
+from time import sleep
 from sys import argv
 
-from const import DatabaseType
-from init_db import influx_client
+from settings.const import DatabaseType
+from settings.init_db import influx_client
 from db_modules import write2db
+
 
 def usage():
     print("USAGE: %s [interval [count]]" % argv[0])
     exit()
 
+
 interval = 1
 count = -1
 
 # load BPF program
-b = BPF(text="""
-#include <uapi/linux/ptrace.h>
-
-enum stat_types {
-    S_READ = 1,
-    S_WRITE,
-    S_FSYNC,
-    S_OPEN,
-    S_CREATE,
-    S_MAXSTAT
-};
-
-BPF_ARRAY(stats, u64, S_MAXSTAT);
-
-static void stats_increment(int key) {
-    u64 *leaf = stats.lookup(&key);
-    if (leaf) (*leaf)++;
-}
-
-void do_read(struct pt_regs *ctx) { stats_increment(S_READ); }
-void do_write(struct pt_regs *ctx) { stats_increment(S_WRITE); }
-void do_fsync(struct pt_regs *ctx) { stats_increment(S_FSYNC); }
-void do_open(struct pt_regs *ctx) { stats_increment(S_OPEN); }
-void do_create(struct pt_regs *ctx) { stats_increment(S_CREATE); }
-
-""")
+b = BPF(src_file=r'./c/vfsstat.c')
 b.attach_kprobe(event="vfs_read", fn_name="do_read")
 b.attach_kprobe(event="vfs_write", fn_name="do_write")
 b.attach_kprobe(event="vfs_fsync", fn_name="do_fsync")
 b.attach_kprobe(event="vfs_open", fn_name="do_open")
 b.attach_kprobe(event="vfs_create", fn_name="do_create")
 
+data_struct = {"measurement": 'vfsstatTable',
+               "tags": ['glob'],
+               "fields": ['total_read', 'total_write', 'total_create', 'total_open', 'total_fsync']}
 
-data_struct = {"measurement":'vfsstatTable',
-                "tags":['glob'],
-                "fields":['total_read','total_write','total_create','total_open','total_fsync']}
 
 class test_data(object):
-    def __init__(self,a,b,c,d,e,f):
-            self.glob = a
-            self.total_read = b
-            self.total_write = c
-            self.total_fsync = d
-            self.total_open = e
-            self.total_create = f
+    def __init__(self, a, b, c, d, e, f):
+        self.glob = a
+        self.total_read = b
+        self.total_write = c
+        self.total_fsync = d
+        self.total_open = e
+        self.total_create = f
 
 
 # stat column labels and indexes
@@ -101,12 +78,10 @@ while (1):
         pass
         exit()
 
-    
-
     # print("%-8s: " % strftime("%H:%M:%S"), end="")
     # print each statistic as a column
-    vfs_list = [0,0,0,0,0,0]
-    times=1
+    vfs_list = [0, 0, 0, 0, 0, 0]
+    times = 1
     for stype in stat_types.keys():
         idx = stat_types[stype]
         # print(idx)
@@ -117,9 +92,9 @@ while (1):
         vfs_list[times] = val
         times += 1
         if times == 5:
-            times=0
+            times = 0
     # print(vfs_list[1],vfs_list[2],vfs_list[3],vfs_list[4],vfs_list[5])
-    data = test_data('glob', vfs_list[1],vfs_list[2],vfs_list[3],vfs_list[4],vfs_list[5])
+    data = test_data('glob', vfs_list[1], vfs_list[2], vfs_list[3], vfs_list[4], vfs_list[5])
     write2db(data_struct, data, influx_client, DatabaseType.INFLUXDB.value)
 
     b["stats"].clear()

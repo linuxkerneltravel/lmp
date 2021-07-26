@@ -2,12 +2,11 @@
 # -*- coding:utf-8 -*-
 
 from db_modules import write2db
-from datetime import datetime
-from init_db import influx_client
+from settings.init_db import influx_client
 
 # 在lmp项目中连接influxdb数据库使用lmp_influxdb模块中的connect()
 # 除了数据库名称dbname是必选参数外，其余参数默认设置
-#数据地址:localhost; port:8086; user:'admin'; passwd:'admin';
+# 数据地址:localhost; port:8086; user:'admin'; passwd:'admin';
 
 # 下面语句等于InfluxDBClient('localhost',8086,'root','123456','lmp')
 
@@ -36,6 +35,8 @@ data_struct = {"measurement":'lmpdata',
                 "tags":['id','name'],
                 "fields":['data','tid','address']}
 '''
+
+
 # 测试用数据
 
 
@@ -62,5 +63,5 @@ write2db(data_struct, test_data, influx_client, 1)
 # 示例，删除时间戳大于1590223086102172994的数据
 # delete_db(client,'test',require='time>1590223086102172994')
 
-#result = client.query("select * from test;")
-#print("Result: {0}".format(result))
+# result = client.query("select * from test;")
+# print("Result: {0}".format(result))

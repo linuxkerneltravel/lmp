@@ -11,8 +11,6 @@ from settings.const import DatabaseType
 
 from datetime import datetime
 
-bpf_text = BPF(src_file=r'./c/irq.c')
-
 
 # data structure from template
 class lmp_data(object):
@@ -24,25 +22,27 @@ class lmp_data(object):
         self.duration = e
 
 
-data_struct = {"measurement": 'irq',
+data_struct = {"measurement": 'picknext',
                "time": [],
-               "tags": ['glob', 'cpu', 'pid'],
+               "tags": ['glob', 'cpu', 'pid', ],
                "fields": ['duration']}
 
-b = BPF(text=bpf_text)
-b.attach_kprobe(event="irq_enter", fn_name="handler_start")
-b.attach_kprobe(event="irq_exit", fn_name="handler_end")
+b = BPF(src_file=r'c/PickNext.c')
+b.attach_kprobe(event="pick_next_task_fair", fn_name="pick_start")
+b.attach_kretprobe(event="pick_next_task_fair", fn_name="pick_end")
 
-exitt = b.get_table("exitt")
+dist = b.get_table("dist")
 
-# print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(us)"))
+# print("%-6s%-6s%-6s%-6s" % ("CPU", "PID", "TGID", "TIME(ns)"))
+
 while (1):
     try:
         sleep(1)
-        for k, v in exitt.items():
-            # print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value / 1000))
-            test_data = lmp_data(datetime.now().isoformat(), 'glob', k.cpu, k.pid, v.value / 1000)
+        for k, v in dist.items():
+            # print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value))
+            # test_data = lmp_data('glob', k.cpu, k.pid, v.value)
+            test_data = lmp_data(datetime.now().isoformat(), 'glob', k.cpu, k.pid, v.value)
             write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
-        exitt.clear()
+        dist.clear()
     except KeyboardInterrupt:
         exit()

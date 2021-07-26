@@ -2,21 +2,20 @@
 # coding=utf-8
 
 from bcc import BPF
-import os
-import sys
 from time import sleep
 import _thread
 
 # for influxdb
-from init_db import influx_client
+from settings.init_db import influx_client
 from db_modules import write2db
 
 from datetime import datetime
-from const import DatabaseType
-
+from settings.const import DatabaseType
 
 title = ['DMA', 'DMA32', 'Normal']
-#print("%-9s%-9s%-9s" % (title[0], title[1], title[2]))
+
+
+# print("%-9s%-9s%-9s" % (title[0], title[1], title[2]))
 
 # data structure from template
 
@@ -37,18 +36,7 @@ data_struct = {"measurement": 'memusage',
 
 
 def load_BPF(thread_name, delay):
-    b = BPF(text='''
-            #include <uapi/linux/ptrace.h>
-
-            int kprobe_wakeup_kswapd(struct pt_regs *ctx)
-            {
-                    bpf_trace_printk("Tracing for function of wakeup_kswapd...\\n");
-                    bpf_trace_printk("WARNING:A zone is low on free memory!\\n");
-
-                    return 0;
-            }
-            ''')
-
+    b = BPF(src_file=r'./c/MemUsage.c')
     b.trace_print()
 
 
@@ -81,14 +69,14 @@ def zone_info(thread_name, delay):
                 managed = strline[1]
                 count = count + 1
             if pages_free != '0' and managed != '0' and count == 2:
-                result = float(pages_free)/float(managed)
+                result = float(pages_free) / float(managed)
                 if i == 0:
                     data[i] = "%.4f" % result
                 elif i == 1:
                     data[i] = "%.4f" % result
                 elif i == 2:
                     data[i] = "%.4f" % result
-                i = i+1
+                i = i + 1
                 count = 0
 
             line = f.readline()

@@ -23,12 +23,9 @@
 
 from __future__ import print_function
 from bcc import BPF, PerfType, PerfSWConfig
-from time import sleep, strftime
-from tempfile import NamedTemporaryFile
-from os import open, close, dup, unlink, O_WRONLY
 # for influxdb
-from const import DatabaseType
-from init_db import influx_client
+from settings.const import DatabaseType
+from settings.init_db import influx_client
 from db_modules import write2db
 
 # connect to influxdb
@@ -37,7 +34,7 @@ frequency = 20
 interval = 99999999
 
 # init BPF program
-b = BPF(src_file="runqlen.c")
+b = BPF(src_file=r"./c/runqlen.c")
 b.attach_perf_event(ev_type=PerfType.SOFTWARE,
     ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_perf_event",
     sample_period=0, sample_freq=frequency)

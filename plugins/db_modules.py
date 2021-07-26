@@ -1,7 +1,6 @@
 #! /usr/bin/python3
 # -*- coding:utf-8 -*-
-from const import DatabaseType
-from influxdb import InfluxDBClient
+from settings.const import DatabaseType
 
 
 def write2db(datatype, data, client, dbtype):

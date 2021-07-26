@@ -1,5 +1,5 @@
 from influxdb import InfluxDBClient
-from config import cfg
+from settings.config import cfg
 
 DBNAME = cfg["influxdb"]["dbname"]
 USER = cfg["influxdb"]["user"]
