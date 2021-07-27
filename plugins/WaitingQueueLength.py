@@ -34,22 +34,25 @@ frequency = 20
 interval = 99999999
 
 # init BPF program
-b = BPF(src_file=r"./c/runqlen.c")
+b = BPF(src_file=r"c/WaitingQueueLength.c")
 b.attach_perf_event(ev_type=PerfType.SOFTWARE,
-    ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_perf_event",
-    sample_period=0, sample_freq=frequency)
+                    ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_perf_event",
+                    sample_period=0, sample_freq=frequency)
+
 
 # dist = b.get_table("dist")
 
 # data structure from template
 class lmp_data(object):
-    def __init__(self,a,b):
-            self.glob = a
-            self.runqlen = b
+    def __init__(self, a, b):
+        self.glob = a
+        self.runqlen = b
 
-data_struct = {"measurement":'runqlenTable',
-                "tags":['glob'],
-                "fields":['runqlen']}
+
+data_struct = {"measurement": 'runqlenTable',
+               "tags": ['glob'],
+               "fields": ['runqlen']}
+
 
 def print_event(cpu, data, size):
     global start
@@ -62,6 +65,7 @@ def print_event(cpu, data, size):
     # time_s = (float(event.ts - start)) / 1000000000
     # print("%-18.9f %-16s %-6d %s" % (time_s, event.comm, event.pid,
     #     "Hello, perf_output!"))
+
 
 b["result"].open_perf_buffer(print_event)
 while 1:

@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 # @lint-avoid-python-3-compatibility-imports
 #
-# vfsstat.py   Count some VFS calls.
+# VfsStat.py   Count some VFS calls.
 #           For Linux, uses BCC, eBPF. See .c file.
 #
 # Written as a basic example of counting multiple events as a stat tool.
 #
-# USAGE: vfsstat.py [interval [count]]
+# USAGE: VfsStat.py [interval [count]]
 #
 # Copyright (c) 2015 Brendan Gregg.
 # Licensed under the Apache License, Version 2.0 (the "License")
@@ -34,7 +34,7 @@ interval = 1
 count = -1
 
 # load BPF program
-b = BPF(src_file=r'./c/vfsstat.c')
+b = BPF(src_file=r'c/VfsStat.c')
 b.attach_kprobe(event="vfs_read", fn_name="do_read")
 b.attach_kprobe(event="vfs_write", fn_name="do_write")
 b.attach_kprobe(event="vfs_fsync", fn_name="do_fsync")

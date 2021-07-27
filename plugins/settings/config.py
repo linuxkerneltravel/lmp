@@ -4,9 +4,11 @@
 import yaml
 import os
 
-current_path = os.path.abspath("..")
+current_path = os.path.abspath(".")
 yaml_path = os.path.join(current_path, "config.yaml")
 
+
+# yaml_path = os.path.abspath('config.yaml')
 
 def read_config():
     with open(yaml_path, 'r') as stream:

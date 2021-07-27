@@ -11,7 +11,7 @@ from settings.const import DatabaseType
 
 from datetime import datetime
 
-bpf_text = BPF(src_file=r'./c/irq.c')
+bpf_text = BPF(src_file=r'c/Irq.c')
 
 
 # data structure from template

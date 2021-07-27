@@ -1,26 +1,24 @@
-
+# specific
 version: '3'
-services:
+services: 
   influxdb:
     image: influxdb
     container_name: influxdb00
     volumes:
-      - /usr/local/influxdb/conf:/etc/influxdb
-      - /usr/local/influxdb/data:/var/lib/influxdb/data
-      - /usr/local/influxdb/meta:/var/lib/influxdb/meta
-      - /usr/local/influxdb/wal:/var/lib/influxdb/wal
+      - /home/leo/Workspace/KernelWs/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf
+      - /home/leo/Workspace/KernelWs/lmp/test/influxdb_config/data:/var/lib/influxdb/data
+      - /home/leo/Workspace/KernelWs/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta
+      - /home/leo/Workspace/KernelWs/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal
     ports:
       - "8083:8083"
       - "8086:8086"
-        #    restart: always
+    # restart: always
 
   grafana:
     image: "grafana/grafana"
     hostname: grafana
     container_name: grafana00
     ports:
-      - '3000:3000'
-    volumes:
-      - /usr/local/grafana/:/var/lib/grafana/
-        #    restart: always
+      - "3000:3000"
 
+    # restart: always
