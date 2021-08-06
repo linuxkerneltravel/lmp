@@ -122,6 +122,7 @@ make db
 
 make
 
+
 #echo export PATH=$PATH:$path >>/etc/profile
 #source /etc/profile
 echo "====环境配置完毕,请输入./lmp 开始运行"
