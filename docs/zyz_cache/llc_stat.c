@@ -38,13 +38,10 @@ int main(int argc, char **argv)
 		.freq = 0,
 		.sample_period = SAMPLE_PERIOD,
 		.inherit = 0,
-		.type = PERF_TYPE_HW_CACHE,
+		.type = PERF_TYPE_HARDWARE,
 		.read_format = 0,
 		.sample_type = 0,
-		//.config = PERF_COUNT_HW_CACHE_REFERENCES,
-		.config = (PERF_COUNT_HW_CACHE_LL) |
-				(PERF_COUNT_HW_CACHE_OP_READ << 8) |
-				(PERF_COUNT_HW_CACHE_RESULT_ACCESS),
+		.config = PERF_COUNT_HW_CACHE_REFERENCES,
 	};
 	
 	struct perf_event_attr attr_hw_cache_misses = {
@@ -56,28 +53,6 @@ int main(int argc, char **argv)
 		.sample_type = 0,
 		.config = PERF_COUNT_HW_CACHE_MISSES,
 	};
-	
-	struct perf_event_attr attr_hw_node = {
-		.freq = 0,
-		.sample_period = SAMPLE_PERIOD,
-		.inherit = 0,
-		.type = PERF_TYPE_HW_CACHE,
-		.read_format = 0,
-		.sample_type = 0,
-		.config = (PERF_COUNT_HW_CACHE_L1D)  |
-				(PERF_COUNT_HW_CACHE_OP_READ << 8) |
-				(PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16),
-	};
-	
-	int fd;
-	fd = perf_event_open(&attr_hw_node, -1, 0, -1, 0);
-	if (fd == -1) {
-		fprintf(stderr, "Error opening leader %s\n", "PERF_COUNT_CACHE");
-		exit(EXIT_FAILURE);
-	}
-	ioctl(fd, PERF_EVENT_IOC_RESET, 0);
-	ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
-	
 	
 	int fd_instructions[nr_cpus];
 	int fd_cache_references[nr_cpus];
