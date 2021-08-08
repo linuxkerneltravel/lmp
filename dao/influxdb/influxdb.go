@@ -2,9 +2,9 @@ package influxdb
 
 import (
 	"fmt"
+	"github.com/linuxkerneltravel/lmp/settings"
 
 	client "github.com/influxdata/influxdb1-client/v2"
-	"github.com/linuxkerneltravel/lmp/settings"
 	"go.uber.org/zap"
 )
 
