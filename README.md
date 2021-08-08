@@ -28,6 +28,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 - golang：go1.12及以上；
 - docker：influxdb、grafana；
 - bcc环境
+- mysql：5.7.29测试通过
 
 ###  安装依赖docker镜像
 
@@ -44,6 +45,8 @@ sudo docker pull influxdb
 ```
  git clone https://github.com/linuxkerneltravel/lmp
  cd lmp
+ sudo make db
+ > 输入您的 mysql root用户密码
  make
 ```
 
@@ -72,10 +75,12 @@ sudo docker pull influxdb
 #run lmp
  cd lmp/
  make
- sudo ./lmp
+ sudo ./lmp -h
 ```
 
 ### 观测-步骤
+
+在shell执行`sudo ./lmp`，即启动观测功能
 
 在单机节点上部署完成lmp并启动之后，通过浏览器访问8080端口即可。如果是本地查看，则访问localhost:8080，如果远程访问，则访问remoteip:8080即可。
 
@@ -103,7 +108,63 @@ grafana用于指标数据观测，进入grafana之后，首先需要登录进入
 
 统计时间到时后，lmp会自动关闭后台bcc插件，之后继续在8080端口页面下发指标即可。
 
+### 扩展功能：例如机器学习
+LMP通过命令行参数引入机器学习模型，你可以自己实现模型后对接到项目中，我们的想法是利用观测功能提取到数据后，利用这些数据来训练模型，目前仅可引入机器学习模型，使用示例如下：
+```shell
+⇒  ./lmp -h 
+NAME:
+   LMP - LMP is a web tool for real-time display of Linux system performance data based on BCC (BPF Compiler Collection). 
+To get more info of how to use lmp:
+  # lmp help
 
+
+USAGE:
+   lmp [global options] command [command options] [arguments...]
+
+VERSION:
+   v0.0.1
+
+COMMANDS:
+   cluster  Density peak clustering
+   help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --help, -h     show help (default: false)
+   --version, -v  print the version (default: false)
+```
+命令介绍中介绍了cluster命令，在命令行执行：
+```shell
+⇒  ./lmp cluster -h
+NAME:
+   lmp cluster - Density peak clustering
+
+USAGE:
+   lmp cluster [command options] [APP_NAME]
+
+DESCRIPTION:
+   Density peak clustering, Can be used for anomaly detection.
+       example: ./lmp cluster --data /YOUR_PATH
+       example: ./lmp cluster -d /YOUR_PATH
+
+OPTIONS:
+   --data value, -d value  specified the the dataset to run
+   --help, -h              show help (default: false)
+
+```
+即可看到使用方法，关于如何增加一个模型见→[增加一个模型](docs/增加一个模型.md)
+
+### 如何增加插件
+LMP目前支持BCC类型的插件程序，增加的方法见→[增加一个插件](docs/增加一个插件.md)
+
+### 如何调试项目
+推荐使用 `postman` 下发web请求，具体调试方法见→[调试项目](docs/调试项目.md)
+
+### 总结出的监控方案
+[基于 eBPF 的 prometheus 监控方案](docs/基于eBPF的prometheus监控方案/基于eBPF的prometheus监控方案.md)
+
+[快速实现Linux系统性能数据提取、存储和可视化展示](docs/快速实现Linux系统性能数据提取、存储和可视化展示/快速实现Linux系统性能数据提取、存储和可视化展示.md)
+
+#
 
 ![](./static/imgs/LMP-logo.png)
 

@@ -61,6 +61,7 @@ jobs:
       - name: Install bcc
         run: |
           sudo apt-get update
+          sudo apt-get -y remove llvm-9
           sudo apt-get -y install bison build-essential cmake flex git libedit-dev libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev libfl-dev
           git clone https://github.com/iovisor/bcc.git
           mkdir bcc/build; cd bcc/build

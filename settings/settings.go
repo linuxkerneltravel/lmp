@@ -7,6 +7,15 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	Name     = "LMP"
+	Version  = "v0.0.1"
+	LmpUsage = `LMP is a web tool for real-time display of Linux system performance data based on BCC (BPF Compiler Collection). 
+To get more info of how to use lmp:
+	# lmp help
+`
+)
+
 var Conf = new(Config)
 
 type Config struct {
@@ -20,9 +29,7 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Name      string `mapstructure:"name"`
 	Mode      string `mapstructure:"mode"`
-	Version   string `mapstructure:"version"`
 	Port      int    `mapstructure:"port"`
 	StartTime string `mapstructure:"start_time"`
 	MachineID int64  `mapstructure:"machine_id"`
