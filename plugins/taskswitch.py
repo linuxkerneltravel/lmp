@@ -5,16 +5,13 @@ from bcc import BPF
 from time import sleep, strftime
 
 # for influxdb
-from influxdb import InfluxDBClient
-import lmp_influxdb as db
+
+from init_db import influx_client
 from db_modules import write2db
+from const import DatabaseType
 
 from datetime import datetime
 
-
-DBNAME = 'lmp'
-
-client = db.connect(DBNAME,user='root',passwd=123456)
 
 
 bpf_text = """
@@ -103,7 +100,7 @@ while (1):
         for k, v in dist.items():
             #print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value))
             test_data = lmp_data(datetime.now().isoformat(),'glob', k.cpu, k.pid, v.value)
-            write2db(data_struct, test_data, client)
+            write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
         dist.items()
     except KeyboardInterrupt:
         exit()
