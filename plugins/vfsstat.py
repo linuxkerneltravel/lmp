@@ -20,9 +20,9 @@ from ctypes import c_int
 from time import sleep, strftime
 from sys import argv
 
-import lmp_influxdb as db
+from const import DatabaseType
+from init_db import influx_client
 from db_modules import write2db
-DBNAME = 'lmp'
 
 def usage():
     print("USAGE: %s [interval [count]]" % argv[0])
@@ -64,8 +64,6 @@ b.attach_kprobe(event="vfs_fsync", fn_name="do_fsync")
 b.attach_kprobe(event="vfs_open", fn_name="do_open")
 b.attach_kprobe(event="vfs_create", fn_name="do_create")
 
-# connect to influxdb
-client = db.connect(DBNAME,user='root',passwd=123456)
 
 data_struct = {"measurement":'vfsstatTable',
                 "tags":['glob'],
@@ -122,6 +120,6 @@ while (1):
             times=0
     # print(vfs_list[1],vfs_list[2],vfs_list[3],vfs_list[4],vfs_list[5])
     data = test_data('glob', vfs_list[1],vfs_list[2],vfs_list[3],vfs_list[4],vfs_list[5])
-    write2db(data_struct,data,client)
+    write2db(data_struct, data, influx_client, DatabaseType.INFLUXDB.value)
 
     b["stats"].clear()
