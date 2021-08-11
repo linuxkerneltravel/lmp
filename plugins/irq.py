@@ -9,6 +9,12 @@ from init_db import influx_client
 from db_modules import write2db
 from const import DatabaseType
 
+# for es
+from init_db import es_client
+from db_modules import write2db
+from const import DatabaseType
+
+
 from datetime import datetime
 
 
@@ -94,7 +100,7 @@ while (1):
         for k, v in exitt.items():
             #print("%-6d%-6d%-6d%-6d" % (k.cpu, k.pid, k.tgid, v.value / 1000))
             test_data = lmp_data(datetime.now().isoformat(),'glob', k.cpu, k.pid, v.value/1000)
-            write2db(data_struct, test_data, influx_client, DatabaseType.INFLUXDB.value)
+            write2db(data_struct, test_data, es_client, DatabaseType.ES.value)
         exitt.clear()
     except KeyboardInterrupt:
         exit()
