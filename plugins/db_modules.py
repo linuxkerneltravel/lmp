@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-
 from const import DatabaseType
 from influxdb import InfluxDBClient
+from elasticsearch import Elasticsearch
 
 
 def write2db(datatype, data, client, dbtype):
@@ -20,7 +21,14 @@ def write2db(datatype, data, client, dbtype):
             tmp[0]["fields"][y] = getattr(data, y)
         client.write_points(tmp)
     elif dbtype == DatabaseType.ES.value:
-        pass
+        tmp ={"index": None,  'date': {}, }
+        tmp["index"] = datatype["measurement"]
+        for x in datatype['tags']:
+            tmp["date"][x] = getattr(data, x)
+        for y in datatype['fields']:
+            tmp["date"][y] = getattr(data, y)
+        result= client.index(index='lmp', doc_type='performance',body=tmp)
+        print(result)
     elif dbtype == DatabaseType.MYSQL.value:
         pass
     elif dbtype == DatabaseType.PROMETHEUS.value:
