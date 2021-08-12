@@ -2,24 +2,24 @@ package controllers
 
 import (
 	"fmt"
+	"github.com/linuxkerneltravel/lmp/logger"
 
 	"github.com/linuxkerneltravel/lmp/logic"
 	"github.com/linuxkerneltravel/lmp/models"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 func Collect(c *gin.Context) {
 	frontPlugins := new(models.PluginMessage)
 	if err := c.ShouldBindJSON(frontPlugins); err != nil {
-		zap.L().Error("error in c.ShouldBindJSON(frontPlugins)", zap.Error(err))
+		logger.Error("error in c.ShouldBindJSON(frontPlugins)", err)
 		ResponseError(c, CodeInvalidParam)
 		return
 	}
 
 	if err := logic.DoCollect(frontPlugins); err != nil {
-		zap.L().Error("error in logic.DoCollect()", zap.Error(err))
+		logger.Error("error in logic.DoCollect()", err)
 		ResponseError(c, CodeInvalidParam)
 		return
 	}
@@ -30,7 +30,7 @@ func Collect(c *gin.Context) {
 func QueryIRQ(c *gin.Context) {
 	res, err := logic.DoQueryIRQ()
 	if err != nil {
-		zap.L().Error("ERROR in QueryIRQ():", zap.Error(err))
+		logger.Error("ERROR in QueryIRQ():", err)
 		ResponseError(c, CodeServerBusy)
 		return
 	}
@@ -41,7 +41,7 @@ func QueryIRQ(c *gin.Context) {
 func QueryCpuUtilize(c *gin.Context) {
 	res, err := logic.DoQueryCpuUtilize()
 	if err != nil {
-		zap.L().Error("ERROR in QueryCpuUtilize():", zap.Error(err))
+		logger.Error("ERROR in QueryCpuUtilize():", err)
 		ResponseError(c, CodeServerBusy)
 		return
 	}
@@ -52,7 +52,7 @@ func QueryCpuUtilize(c *gin.Context) {
 func QueryPickNext(c *gin.Context) {
 	res, err := logic.DoQueryPickNext()
 	if err != nil {
-		zap.L().Error("ERROR in QueryPickNext():", zap.Error(err))
+		logger.Error("ERROR in QueryPickNext():", err)
 		ResponseError(c, CodeServerBusy)
 		return
 	}
@@ -63,7 +63,7 @@ func QueryPickNext(c *gin.Context) {
 func QueryTaskSwitch(c *gin.Context) {
 	res, err := logic.DoQueryTaskSwitch()
 	if err != nil {
-		zap.L().Error("ERROR in QueryTaskSwitch():", zap.Error(err))
+		logger.Error("ERROR in QueryTaskSwitch():", err)
 		ResponseError(c, CodeServerBusy)
 		return
 	}
@@ -74,7 +74,7 @@ func QueryTaskSwitch(c *gin.Context) {
 func QueryHardDiskReadWriteTime(c *gin.Context) {
 	res, err := logic.DoQueryHardDiskReadWriteTime()
 	if err != nil {
-		zap.L().Error("ERROR in QueryHardDiskReadWriteTime():", zap.Error(err))
+		logger.Error("ERROR in QueryHardDiskReadWriteTime():", err)
 		ResponseError(c, CodeServerBusy)
 		return
 	}
@@ -85,7 +85,7 @@ func QueryHardDiskReadWriteTime(c *gin.Context) {
 func QueryWaterMark(c *gin.Context) {
 	res, err := logic.DoQueryWaterMark()
 	if err != nil {
-		zap.L().Error("ERROR in QueryWaterMark():", zap.Error(err))
+		logger.Error("ERROR in QueryWaterMark():", err)
 		ResponseError(c, CodeServerBusy)
 		return
 	}

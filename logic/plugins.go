@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/linuxkerneltravel/lmp/dao/mysql"
-	"go.uber.org/zap"
 	"os/exec"
 	"syscall"
 	"time"
+
+	"github.com/linuxkerneltravel/lmp/dao/mysql"
+	"github.com/linuxkerneltravel/lmp/logger"
 )
 
 type Plugin interface {
@@ -45,7 +46,7 @@ func (p *PluginBase) GetPluginByName() Plugin {
 func (p *PluginBase) Run(exitChan chan bool, collectTime int) {
 	defer func() {
 		if err := recover(); err != nil {
-			zap.L().Error("error in execute routine, err:", zap.Error(err.(error)))
+			logger.Error("error in execute routine, err:", err.(error))
 			fmt.Println("error in execute routine, err:", err)
 		}
 	}()
@@ -79,14 +80,14 @@ func (p *PluginBase) Run(exitChan chan bool, collectTime int) {
 
 	err = cmd.Start()
 	if err != nil {
-		zap.L().Error("error in cmd.Start()", zap.Error(err))
+		logger.Error("error in cmd.Start()", err)
 		return
 	}
 
 	go func() {
 		err = cmd.Wait()
 		if err != nil {
-			zap.L().Error("error in cmd.Wait()", zap.Error(err))
+			logger.Error("error in cmd.Wait()", err)
 			return
 		}
 	}()
