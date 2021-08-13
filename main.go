@@ -61,7 +61,6 @@ func doBeforeJob(ctx *cli.Context) error {
 		fmt.Println("Init mysql failed, err:", err)
 		return err
 	}
-	defer mysql.Close()
 
 	/*
 		if err := influxdb.Init(settings.Conf.InfluxdbConfig); err != nil {
@@ -89,22 +88,22 @@ func runlmp(ctx *cli.Context) error {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			zap.L().Error("listen failed :", zap.Error(err))
+			logger.Error("listen failed :", err)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	zap.L().Info("shutdown server ...")
+	logger.Info("shutdown server ...")
 	ctxx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctxx); err != nil {
-		zap.L().Error("Server shutdown", zap.Error(err))
+		logger.Error("Server shutdown", err)
 	}
 
-	zap.L().Info("Server exiting")
+	logger.Info("Server exiting")
 
 	return nil
 }
@@ -123,6 +122,11 @@ func main() {
 
 	app.Before = doBeforeJob
 	app.Action = runlmp
+
+	defer func() {
+		// close mysql connection
+		mysql.Close()
+	}()
 
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("%s\n", err)
