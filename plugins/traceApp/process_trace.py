@@ -1,37 +1,35 @@
 #!/usr/bin/env python
 # coding=utf-8
-# author: wingchiLeung
+# author: wingchi-Leung
 
 # process_trace.py  Trace process fork and exit via  wake_up_new_task and exit_signals syscalls
 
 
-# USAGE: process_trace.py  $appName
-# example: process_trace.py firefox
-
 from bcc import BPF
 import psutil
-import sys
+import argparse
 import buffer
+import os
 
+parser = argparse.ArgumentParser(
+    description="trace all process fork and exit of a given app")
+parser.add_argument("-p", "--pid", type=int, help="application's pid")
+parser.add_argument("--name", help="application's name")
 
-def get_pid_byName():
-    if len(sys.argv) > 1:
-        name = (sys.argv[1])
-    else:
-        print("please enter app's name..")
-        sys.exit()
+args = parser.parse_args()
+
+pid = 0
+if args.name:
     pids = psutil.process_iter()
+    for process_info in pids:
+        if process_info.name() == args.name:
 
-    for pid in pids:
-        if pid.name() == name:
-            print("you are tracing pid: %d" % pid.pid)
-            return pid.pid
+            pid = (process_info.pid)
+else:
+    pid = int(args.pid)
 
-    print("there is no name call %s! " % name)
-    sys.exit()
+print("you are tracing pid: %d" % pid)
 
-
-pid = get_pid_byName()
 
 # define BPF program
 bpf_text = """
@@ -40,14 +38,13 @@ bpf_text = """
     # include <linux/list.h>
     # include <linux/kernel.h>
 
-    
-    
+
+
     struct data_t {
         u32 pid;
         u32 tgid ;
-      
-        u32 bcc_pid;
-        u32 bcc_tgid;
+        u32 parent_pid[5];
+        u32 parent_tgid[5];
         char comm[TASK_COMM_LEN] ;
     };
 
@@ -61,13 +58,13 @@ bpf_text = """
         struct task_struct *pos=tsk->parent;
         int flag=0;
 
-         for(int i=0;i<3;i++){
+        for(int i=0;i<3;i++){
             if(pos->pid==1 ){
                 return 0;
             }
+            data.parent_pid[i] = pos->pid ;
+            data.parent_tgid[i]= pos->tgid;
             if(pos->pid==PID||pos->tgid==PID){
-                data.bcc_pid = pos->pid;
-                data.bcc_tgid= pos->tgid;
                 flag=1;
                 break;
             }
@@ -76,45 +73,37 @@ bpf_text = """
         if(flag==0) return 0 ;
         data.pid = tsk->pid ;
         data.tgid = tsk->tgid ;
-        
-        data.bcc_pid = PID;
-        
+
         bpf_get_current_comm(&data.comm, sizeof(data.comm)) ;
-    
+
         exits.perf_submit(ctx,&data,sizeof(data)) ;
 
         return 0;
     }
-
-    int do_trace(struct pt_regs *ctx){
+   
+    int do_trace(struct pt_regs *ctx,struct kernel_clone_args *args){
         struct data_t data = {} ;
-        
+        pid_t pid = PT_REGS_RC(ctx) ;
         UID_FILTER
-        struct task_struct *tsk = PT_REGS_RC(ctx);
-        struct task_struct *pos=tsk->parent ;
-        
         int flag=0;
-        
-        
-        for(int i=0;i<3;i++){
-            if(pos->pid==1 ){
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+
+        for(int i=0;i<5;i++){
+            if(task->pid==1 ){
                 return 0;
             }
-            if(pos->pid==PID||pos->tgid==PID){
-                data.bcc_pid = pos->pid;
-                data.bcc_tgid= pos->tgid;
+          
+            if(task->pid==PID||task->tgid==PID){
                 flag=1;
                 break;
             }
-            pos=pos->parent;
+            task=task->parent;
         }
         if(flag==0) return 0;
-        data.pid = tsk->pid ; 
-        data.tgid = tsk->tgid ;
+        data.pid = pid ;
+        data.tgid = bpf_get_current_pid_tgid()>>32 ;
 
         bpf_get_current_comm(&data.comm, sizeof(data.comm)) ;
-    
-    
         forks.perf_submit(ctx,&data,sizeof(data)) ;
         return 0;
     }
@@ -128,14 +117,13 @@ else:
 
 # initialize BPF
 b = BPF(text=bpf_text)
-b.attach_kretprobe(event="copy_process", fn_name="do_trace")
+b.attach_kretprobe(event="kernel_clone", fn_name="do_trace")
 b.attach_kprobe(event="exit_signals", fn_name="exiting")
 
 
-# print("%-18s %-16s %-6s %s %9s %13s" %
-#       ("COUNT", "COMM", "PID", "TGID", "B_PID", "B_TGID"))
-
 print("hit ctrl-C to print result ...\n")
+
+
 fork_count = 0
 exit_count = 0
 
@@ -149,8 +137,6 @@ def fork_event(cpu, data, size):
     with open('forks.txt', 'a') as f1:
         f1.writelines(str(event.pid))
         f1.write("\n")
-    # print("%-18.9f %-16s %-6d %s %9s %13s" % (fork_count, event.comm, event.pid,
-    #                                           event.tgid, event.bcc_pid, event.bcc_tgid))
 
 
 def exit_event(cpu, data, size):
@@ -158,12 +144,9 @@ def exit_event(cpu, data, size):
     exit_count += 1
     event = b["exits"].event(data)
     buffer.delete(event.pid)
-# debug: print the result to file
     with open('exits.txt', 'a') as f2:
         f2.writelines(str(event.pid))
         f2.write("\n")
-    # print("%-18.9f %-16s %-6d %s %9s %13s" % (exit_count, event.comm, event.pid,
-    #                                           event.tgid, event.bcc_pid, event.bcc_tgid))
 
 
 b["forks"].open_perf_buffer(fork_event)
@@ -176,4 +159,6 @@ while 1:
     except KeyboardInterrupt:
 
         buffer.travel()
+        id = str(pid)
+
         exit()
