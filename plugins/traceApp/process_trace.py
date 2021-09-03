@@ -52,10 +52,11 @@ bpf_text = """
     BPF_PERF_OUTPUT(forks);
     BPF_PERF_OUTPUT(exits);
 
-    int exiting(struct pt_regs *ctx,struct task_struct *tsk){
+    int exiting(struct pt_regs *ctx,long code){
         struct data_t data = {} ;
         UID_FILTER
-        struct task_struct *pos=tsk->parent;
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+        struct task_struct *pos =task;
         int flag=0;
 
         for(int i=0;i<3;i++){
@@ -71,8 +72,8 @@ bpf_text = """
             pos=pos->parent;
         }
         if(flag==0) return 0 ;
-        data.pid = tsk->pid ;
-        data.tgid = tsk->tgid ;
+        data.pid = task->pid ;
+        data.tgid = task->tgid ;
 
         bpf_get_current_comm(&data.comm, sizeof(data.comm)) ;
 
@@ -118,7 +119,7 @@ else:
 # initialize BPF
 b = BPF(text=bpf_text)
 b.attach_kretprobe(event="kernel_clone", fn_name="do_trace")
-b.attach_kprobe(event="exit_signals", fn_name="exiting")
+b.attach_kprobe(event="do_exit", fn_name="exiting")
 
 
 print("hit ctrl-C to print result ...\n")
