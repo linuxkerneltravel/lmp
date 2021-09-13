@@ -2,7 +2,7 @@
 # coding=utf-8
 # author: wingchi-Leung
 
-# process_trace.py  Trace process fork and exit via  wake_up_new_task and exit_signals syscalls
+# process_trace.py  Trace process fork and exit via  kernel_clone and do_exit syscalls
 
 
 from bcc import BPF
@@ -49,6 +49,7 @@ bpf_text = """
     struct data_t {
         u32 pid;
         u32 tgid ;
+        u32  uid;
         enum event_type type ;
         char comm[TASK_COMM_LEN] ;
     };
@@ -79,6 +80,7 @@ bpf_text = """
         data.pid = task->pid ;
         data.tgid = task->tgid ;
         data.type=EVENT_EXIT;
+        data.uid= bpf_get_current_uid_gid() & 0xffffffff;
         bpf_get_current_comm(&data.comm, sizeof(data.comm)) ;
 
         events.perf_submit(ctx,&data,sizeof(data)) ;
@@ -108,6 +110,7 @@ bpf_text = """
         data.pid = pid ;
         data.tgid = bpf_get_current_pid_tgid()>>32 ;
         data.type=EVENT_FORK;
+        data.uid= bpf_get_current_uid_gid() & 0xffffffff;
         bpf_get_current_comm(&data.comm, sizeof(data.comm)) ;
         events.perf_submit(ctx,&data,sizeof(data)) ;
         return 0;
