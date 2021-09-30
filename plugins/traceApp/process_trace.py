@@ -73,7 +73,6 @@ bpf_text = """
         value =  forked.lookup(&pid) ; 
         if( value!= NULL) {
             value->type=EVENT_EXIT;
-            //bpf_trace_printk("yes! value=%d",value->type);
             events.perf_submit(ctx,value,sizeof(data)) ;
             forked.delete(&pid);
             return 0 ;
@@ -121,7 +120,6 @@ bpf_text = """
         data.pid = pid ;
         data.tgid = bpf_get_current_pid_tgid()>>32 ;
         data.type=EVENT_FORK;
-        //bpf_trace_printk("shit!!   value=%d",data.type);
         data.uid= bpf_get_current_uid_gid() & 0xffffffff;
         bpf_get_current_comm(&data.comm, sizeof(data.comm)) ;
         forked.insert(&pid,&data) ;
