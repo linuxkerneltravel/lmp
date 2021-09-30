@@ -9,11 +9,12 @@ def add(pid, name):
     list[pid] = name
 
 
-def delete(pid):
+def delete(pid) -> int:
     if pid in list:
         del list[pid]
+        return 1
     else:
-        pass
+        return 0
 
 
 def travel():
