@@ -60,6 +60,26 @@ func Init(cfg *settings.LogConfig, mode string) (err error) {
 	return nil
 }
 
+func Info(msg string, args ...zap.Field) {
+	zap.L().Info(msg, args...)
+}
+
+func Debug(msg string, args ...zap.Field) {
+	zap.L().Debug(msg, args...)
+}
+
+func Warn(msg string, args ...zap.Field) {
+	zap.L().Warn(msg, args...)
+}
+
+func Error(msg string, err error) {
+	zap.L().Error(msg, zap.Error(err))
+}
+
+func Fatal(msg string, args ...zap.Field) {
+	zap.L().Fatal(msg, args...)
+}
+
 func getEncoder() zapcore.Encoder {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
