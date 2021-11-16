@@ -5,7 +5,6 @@
 lmp
 lmp.log
 lmp.pid
-vendor
 test/influxdb_config/*
 test/mysql_config/*
 
