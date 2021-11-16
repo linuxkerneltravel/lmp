@@ -2,7 +2,8 @@ package logic
 
 import (
 	"errors"
-	"github.com/linuxkerneltravel/lmp/models"
+
+	"github.com/linuxkerneltravel/lmp/pkg/models"
 )
 
 type PluginMap map[string]Plugin

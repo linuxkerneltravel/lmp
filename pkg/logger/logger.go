@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/linuxkerneltravel/lmp/settings"
+	"github.com/linuxkerneltravel/lmp/pkg/settings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/natefinch/lumberjack"

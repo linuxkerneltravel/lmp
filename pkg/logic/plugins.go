@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/linuxkerneltravel/lmp/dao/mysql"
-	"github.com/linuxkerneltravel/lmp/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/dao/mysql"
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
 )
 
 type Plugin interface {

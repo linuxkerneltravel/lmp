@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/linuxkerneltravel/lmp/controllers"
-	"github.com/linuxkerneltravel/lmp/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/controllers"
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
 
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"

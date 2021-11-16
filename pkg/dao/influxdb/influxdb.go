@@ -2,8 +2,9 @@ package influxdb
 
 import (
 	"fmt"
-	"github.com/linuxkerneltravel/lmp/logger"
-	"github.com/linuxkerneltravel/lmp/settings"
+
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/settings"
 
 	client "github.com/influxdata/influxdb1-client/v2"
 )

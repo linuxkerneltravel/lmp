@@ -1,9 +1,9 @@
 package logic
 
 import (
-	"github.com/linuxkerneltravel/lmp/dao/influxdb"
-	"github.com/linuxkerneltravel/lmp/logger"
-	"github.com/linuxkerneltravel/lmp/models"
+	"github.com/linuxkerneltravel/lmp/pkg/dao/influxdb"
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/models"
 
 	client "github.com/influxdata/influxdb1-client/v2"
 )
