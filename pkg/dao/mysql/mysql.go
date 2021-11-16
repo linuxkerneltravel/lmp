@@ -3,8 +3,8 @@ package mysql
 import (
 	"fmt"
 
-	"github.com/linuxkerneltravel/lmp/logger"
-	"github.com/linuxkerneltravel/lmp/settings"
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/settings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"

@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/linuxkerneltravel/lmp/logger"
 
-	"github.com/linuxkerneltravel/lmp/logic"
-	"github.com/linuxkerneltravel/lmp/models"
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/logic"
+	"github.com/linuxkerneltravel/lmp/pkg/models"
 
 	"github.com/gin-gonic/gin"
 )

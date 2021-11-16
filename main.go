@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/linuxkerneltravel/lmp/dao/mysql"
-	"github.com/linuxkerneltravel/lmp/logger"
-	"github.com/linuxkerneltravel/lmp/modules"
-	"github.com/linuxkerneltravel/lmp/routes"
-	"github.com/linuxkerneltravel/lmp/settings"
+	"github.com/linuxkerneltravel/lmp/pkg/dao/mysql"
+	"github.com/linuxkerneltravel/lmp/pkg/logger"
+	"github.com/linuxkerneltravel/lmp/pkg/modules"
+	"github.com/linuxkerneltravel/lmp/pkg/routes"
+	"github.com/linuxkerneltravel/lmp/pkg/settings"
 
 	"github.com/facebookgo/pidfile"
 	"github.com/urfave/cli/v2"
