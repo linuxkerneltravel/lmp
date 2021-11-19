@@ -27,7 +27,7 @@ func checkValid(ctx *cli.Context) error {
 }
 
 func showlogo() {
-	logo, err := ioutil.ReadFile("./misc/lmp.logo")
+	logo, err := ioutil.ReadFile("./pkg/misc/lmp.logo")
 	if err != nil {
 		fmt.Print(err)
 	}
