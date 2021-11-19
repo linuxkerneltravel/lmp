@@ -89,6 +89,7 @@ func runlmp(ctx *cli.Context) error {
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("listen failed :", err)
+			panic("listen failed")
 		}
 	}()
 

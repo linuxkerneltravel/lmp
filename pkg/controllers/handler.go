@@ -24,6 +24,7 @@ func Collect(c *gin.Context) {
 		return
 	}
 
+	logger.Info("Collect Success")
 	ResponseSuccess(c, fmt.Sprintf("completed"))
 }
 
@@ -35,6 +36,7 @@ func QueryIRQ(c *gin.Context) {
 		return
 	}
 
+	logger.Info("QueryIRQ Success")
 	ResponseSuccess(c, res)
 }
 
@@ -46,6 +48,7 @@ func QueryCpuUtilize(c *gin.Context) {
 		return
 	}
 
+	logger.Info("QueryCpuUtilize Success")
 	ResponseSuccess(c, res)
 }
 
@@ -57,6 +60,7 @@ func QueryPickNext(c *gin.Context) {
 		return
 	}
 
+	logger.Info("QueryPickNext Success")
 	ResponseSuccess(c, res)
 }
 
@@ -68,6 +72,7 @@ func QueryTaskSwitch(c *gin.Context) {
 		return
 	}
 
+	logger.Info("QueryPickNext Success")
 	ResponseSuccess(c, res)
 }
 
@@ -79,6 +84,7 @@ func QueryHardDiskReadWriteTime(c *gin.Context) {
 		return
 	}
 
+	logger.Info("QueryHardDiskReadWriteTime Success")
 	ResponseSuccess(c, res)
 }
 
@@ -90,5 +96,6 @@ func QueryWaterMark(c *gin.Context) {
 		return
 	}
 
+	logger.Info("QueryWaterMark Success")
 	ResponseSuccess(c, res)
 }
