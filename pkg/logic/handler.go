@@ -18,6 +18,7 @@ func DoCollect(frontPlugins *models.PluginMessage) (err error) {
 	}
 
 	if err = plugins.CollectData(); err != nil {
+		logger.Error("do collectData err：", err)
 		return err
 	}
 
