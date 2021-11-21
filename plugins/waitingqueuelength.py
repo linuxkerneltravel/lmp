@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 # @lint-avoid-python-3-compatibility-imports
 #
 # runqlen    Summarize scheduler run queue length as a histogram.

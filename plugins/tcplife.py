@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 # @lint-avoid-python-3-compatibility-imports
 #
 # tcplife   Trace the lifespan of TCP sessions and summarize.
