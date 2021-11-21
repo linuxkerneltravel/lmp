@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-# coding=utf-8
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 # author: wingchi-Leung
 
 # process_trace.py  Trace process fork and exit via  kernel_clone and do_exit syscalls
