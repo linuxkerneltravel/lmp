@@ -5,6 +5,15 @@
 
 LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
 
+## 代码结构
+```
+├── docs    # 文档
+├── pkg     # golang 服务代码
+├── plugins # python ebpf 代码
+├── static  # 网页代码
+├── test    # 测试数据
+└── vendor  # golang vendor 
+```
 ## 项目架构
 
 ![](./static/imgs/LMP-arch4.png)
