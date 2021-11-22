@@ -12,7 +12,7 @@ all:
 	go build -mod=vendor -o lmp main.go
 
 db:
-	mysql -u root -p <./misc/init.sql
+	mysql -u root -p <./pkg/misc/init.sql
 
 clean:
 	rm -rf lmp
