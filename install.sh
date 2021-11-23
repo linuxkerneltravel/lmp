@@ -74,13 +74,13 @@ function docker_pull_images()
         docker pull grafana/grafana
     fi
 
-    if [[ $existImages =~ influxdb:1.8 ]]
+    if [[ $existImages =~ influxdb:1.8.3 ]]
     then
         echo "====influxdb 已经安装"
     else
         echo "====influxdb 没有安装"
         echo "====开始安装 influxdb"
-        docker pull influxdb:1.8
+        docker pull influxdb:1.8.3
     fi
 
 }
@@ -97,8 +97,8 @@ function docker_start()
     	-v $path/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
     	-v $path/test/influxdb_config/data:/var/lib/influxdb/data \
     	-v $path/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    	-v $path/test/influxdb_config/wal:/var/lib/influxdb/wal \
-	influxdb:1.8
+    	#-v $path/test/influxdb_config/wal:/var/lib/influxdb/wal \
+	influxdb:1.8.3
 }
 
 
