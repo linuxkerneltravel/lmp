@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 #tcpwin: Trace TCP Congestion Control
 from __future__ import print_function
 from bcc import BPF

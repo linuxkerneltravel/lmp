@@ -1,4 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
+
 # @lint-avoid-python-3-compatibility-imports
 #
 # drsnoop  Trace direct reclaim and print details including issuing PID.
