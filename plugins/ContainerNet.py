@@ -1,4 +1,5 @@
-#!/bin/usr/python3
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 from __future__ import print_function
 from bcc import BPF
 from bcc.containers import filter_by_containers

@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 # @lint-avoid-python-3-compatibility-imports
 #
 # runqlat   Run queue (scheduler) latency as a histogram.

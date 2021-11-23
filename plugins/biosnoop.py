@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 # @lint-avoid-python-3-compatibility-imports
 #
 # biosnoop  Trace block device I/O and print details including issuing PID.
