@@ -4,12 +4,16 @@
 # @Time    : 2021/8/8 19:29
 # @Author  : StLeoX
 # @Email   : 1228354389@qq.com
+import sys
+path=sys.path[0]+"/db_writer"
+sys.path.append(path)
+
 import queue
 from multiprocessing import Process
 from db_writer_utils import Singleton, wlog
 from bufferImpl import Buffer
-from settings.const import DatabaseType
-
+from const import DatabaseType
+#from settings.const import DatabaseType
 __all__ = ['writer_factory']
 
 
