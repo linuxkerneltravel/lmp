@@ -24,7 +24,7 @@ class WriterLogger(logging.Logger):
     def __init__(self):
         super(WriterLogger, self).__init__(name='wlog')
         # self.setLevel(logging.DEBUG)
-        logging.basicConfig(filename=r"./log/wlog.log",
+        logging.basicConfig(filename=r"./wlog.log",
                             filemode='w',  # 允许覆盖
                             level=logging.DEBUG,  # 允许输出info
                             format="%(asctime)s - %(levelname)s - %(message)s"

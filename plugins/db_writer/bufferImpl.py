@@ -4,6 +4,9 @@
 # @Time    : 2021/8/8 19:37
 # @Author  : StLeoX
 # @Email   : 1228354389@qq.com
+import sys
+path=sys.path[0]+"/db_writer"
+sys.path.append(path)
 from queue import Queue
 from db_writer_utils import Singleton
 
