@@ -116,7 +116,13 @@ docker_install
 mysql_install
 docker_pull_images
 docker_start
-echo "====请输入数据库root账户密码"
+echo "===================="
+echo "==首次直接回车即可=="
+echo "===================="
+make mysqlpasswdinit
+echo "========================"
+echo "==当前密码默认为123456=="
+echo "========================"
 make db
 
 make
