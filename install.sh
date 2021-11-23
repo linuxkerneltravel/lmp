@@ -96,9 +96,8 @@ function docker_start()
     	--name influxdb \
     	-v $path/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
     	-v $path/test/influxdb_config/data:/var/lib/influxdb/data \
-    	-v $path/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    	#-v $path/test/influxdb_config/wal:/var/lib/influxdb/wal \
-	influxdb:1.8.3
+    	-v $path/test/influxdb_config/meta:/var/lib/influxdb/meta influxdb:1.8.3
+	
 }
 
 
@@ -117,7 +116,13 @@ docker_install
 mysql_install
 docker_pull_images
 docker_start
-echo "====请输入数据库root账户密码"
+echo "===================="
+echo "==首次直接回车即可=="
+echo "===================="
+make mysqlpasswdinit
+echo "========================"
+echo "==当前密码默认为123456=="
+echo "========================"
 make db
 
 make
