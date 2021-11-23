@@ -96,9 +96,8 @@ function docker_start()
     	--name influxdb \
     	-v $path/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
     	-v $path/test/influxdb_config/data:/var/lib/influxdb/data \
-    	-v $path/test/influxdb_config/meta:/var/lib/influxdb/meta \
-    	#-v $path/test/influxdb_config/wal:/var/lib/influxdb/wal \
-	influxdb:1.8.3
+    	-v $path/test/influxdb_config/meta:/var/lib/influxdb/meta influxdb:1.8.3
+	
 }
 
 
