@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 from __future__ import print_function
 from bcc import BPF
 from socket import inet_ntop, ntohs, AF_INET, AF_INET6

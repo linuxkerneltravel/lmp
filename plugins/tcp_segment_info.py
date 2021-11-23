@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
 #Tace detail about TCP packet segments
 #Author:XU Dong
 from __future__ import print_function
