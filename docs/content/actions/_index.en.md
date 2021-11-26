@@ -1,6 +1,6 @@
 ---
 date: 2016-04-09T16:50:16+02:00
-title: Shortcodes
+title: 内核配置扩展插件
 pre: "<b>3. </b>"
 weight: 15
 ---

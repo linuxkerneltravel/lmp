@@ -1,5 +1,5 @@
 ---
-title: Basics
+title: 什么是 LMP
 weight: 5
 pre: "<b>1. </b>"
 chapter: true

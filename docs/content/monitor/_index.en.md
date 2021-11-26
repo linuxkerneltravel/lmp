@@ -1,5 +1,5 @@
 ---
-title: Content
+title: 可观测性插件
 weight: 10
 chapter: true
 pre: "<b>2. </b>"
