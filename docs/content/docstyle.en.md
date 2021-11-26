@@ -1,0 +1,62 @@
+---
+title: 文档撰写规范
+disableToc: true
+---
+
+## 文档存储地址
+{{% notice warning %}}
+所有文档都在 `lmp/docs/content/` 下面。
+{{% /notice %}}
+
+## `lmp/docs/content/` 目前结构
+```
+├── actions    # 该目录下面都是内核控制 `eBPF` 程序的文档，以及相关说明文档
+├── monitor    # 该目录下面都是内核可观测 `eBPF` 程序的文档，以及相关说明文档
+├── start      # 该目录下面是关于 `LMP` 项目的介绍，上手说明文档。
+└── docstyle.en.md  # 文档规范说明
+```
+## 文档目录规范
+每个文档一个文件夹，内部包含一个 `images` 文件夹和 `_index.en.md` 文件。
+例如 `start` 目录下的所有文档，都是具有独立目录：
+```
+➜  content git:(master) ✗ tree start
+start
+├── _index.en.md
+├── architecture
+│   ├── _index.en.md
+│   └── images
+│       └── magic.gif
+├── configuration
+│   ├── _index.en.md
+│   └── images
+│       └── home_button_defaults.jpg
+├── installation
+│   ├── _index.en.md
+│   └── images
+│       └── chapter.png
+```
+
+## 文档内容规范
+以插件文档为例：
+
+```md
+## 插件功能说明（作为二级标题）
+### 插件功能1（作为三级标题）
+### 插件功能2（作为三级标题）
+
+## 插件代码解读（作为二级标题）
+### 插件功能代码1（作为三级标题）
+### 插件功能代码2（作为三级标题）
+
+## 插件使用 （作为二级标题）
+### 后台运行方式
+### web运行方式
+### 和Prometheus、Grafana 联动
+
+## 总结
+
+## 额外说明
+```
+
+## 其它规范
+暂无

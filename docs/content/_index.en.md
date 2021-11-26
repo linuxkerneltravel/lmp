@@ -28,7 +28,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 └── vendor  # golang vendor 
 ```
 ## 界面截图
-![Screenshot](https://raw.githubusercontent.com/linuxkerneltravel/lmp/master/static/imgs/homepage.png)
+![Screenshot](images/homepage.png)
 
 
 ## Contribute to this documentation
