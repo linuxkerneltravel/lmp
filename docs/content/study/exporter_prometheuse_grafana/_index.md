@@ -1,3 +1,9 @@
+---
+title: 快速实现Linux系统性能数据提取、存储和可视化展示
+weight: 6
+disableToc: true
+---
+
 ## 1. 前言
 本文将通过Node_exporter+Prometheus+Grafana三者结合，快速提取Linux内核数据，数据包括但不限于CPU、内存、磁盘、网络IO等，并进行可视化展示。当然，这一套对于分布式也同样适用。本文档可以用于传统工具测试参考。
 

@@ -1,3 +1,9 @@
+---
+title: 基于eBPF的prometheus监控方案
+weight: 5
+disableToc: true
+---
+
 ## 1. 前言
 Prometheus 是高扩展性的监控和报警系统。它采用拉取策略获取指标数据，并规定了获取数据的API，用户可以通过exporter收集系统数据。eBPF Exporter 是一个将自定义BPF跟踪数据导出到prometheus的工具，它实现了prometheus获取数据的API，prometheus可以通过这些API主动拉取到自定义的BPF跟踪数据。具体来说，我们只需要编写一个yaml的配置文件，在配置文件中嵌入BPF代码，运行ebpf_exporter就可以实现导出BPF跟踪数据，而这些数据是可以被prometheus主动拉取到的，进而实现BPF跟踪数据的存储、处理和可视化展示。本文档可用于lmp项目数据采集和实现分布式做参考。
 

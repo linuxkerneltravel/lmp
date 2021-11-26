@@ -1,7 +1,10 @@
-# 如何给LMP增加一个插件
+---
+date: 2016-04-09T16:50:16+02:00
+title: 如何给LMP增加一个插件
+weight: 25
+---
 
-
-### 插件的简介
+## 插件的简介
 LMP的所有插件都存放在 `lmp/plugins` 目录下，其中如下文件是LMP提供的API支持文件：
 
 - api.py
@@ -20,12 +23,12 @@ LMP的所有插件都存放在 `lmp/plugins` 目录下，其中如下文件是LM
 目前LMP默认插件都是BCC类型，项目采用了工厂模式，目前也只支持BCC插件的生产线，后续会不断支持不同的插件类型。
 
 
-### 关于插件的提交
-默认插件的信息全部存储在 `lmp/misc/init.sql` 目录下了，在项目 `make db` 阶段就将所有的默认插件信息全部存储在mysql数据库中了。
+## 关于插件的提交
+默认插件的信息全部存储在 `lmp/pkg/misc/init.sql` 目录下了，在项目 `make db` 阶段就将所有的默认插件信息全部存储在mysql数据库中了。
 
 目前还没有实现动态上传一个插件到LMP的功能，但相信我这个功能很快会实现，所以目前的方法是：
 
-1. 在 `lmp/misc/init.sql` 中增加一条SQL语句：
+1. 在 `lmp/pkg/misc/init.sql` 中增加一条SQL语句：
 ```sql
 INSERT INTO performance_index(plugin_name, plugin_type, exec_path, instruction, state) VALUES(" ", "bcc", "./plugins/xxxx.py", "empty", 0);
 ```
@@ -36,7 +39,7 @@ INSERT INTO performance_index(plugin_name, plugin_type, exec_path, instruction, 
 这样就完成了，不好的地方是每次增加完插件后都需要执行 `make db`，但是动态上传插件功能完成后就不需要这一步了，也不需要改动sql文件，只需要上传插件文件就可以了，先稍稍忍耐下。
 
 
-### 插件的校验
+## 插件的校验
 插件肯定是需要校验的，但是目前LMP并没有对插件的校验，目前考虑如下需要校验的点：
 
 - 是否填写了插件的基本信息
