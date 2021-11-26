@@ -1,5 +1,5 @@
 ---
-title: Installation
+title: 编译安装
 weight: 15
 ---
 
