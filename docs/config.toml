@@ -1,11 +1,12 @@
 baseURL = 'http://lmp.kerneltravel.net/'
-languageCode = 'en-us'
+languageCode = 'zh'
 title = 'lmp'
 
 theme = "hugo-theme-learn"
 
 metaDataFormat = "yaml"
 defaultContentLanguageInSubdir= true
+defaultContentLanguage = "zh"
 
 [params]
 #  editURL = "https://github.com/matcornic/hugo-theme-learn/edit/master/exampleSite/content/"
@@ -23,19 +24,19 @@ defaultContentLanguageInSubdir= true
 home = [ "HTML", "RSS", "JSON"]
 
 [Languages]
-[Languages.en]
+[Languages.zh]
 title = "LMP：Linux microscope"
 weight = 1
-languageName = "English"
-landingPageURL = "/en"
-landingPageName = "<i class='fas fa-home'></i> Home"
+languageName = "简体中文"
+landingPageURL = "/zh"
+landingPageName = "<i class='fas fa-home'></i> 主页"
 
-[[Languages.en.menu.shortcuts]]
+[[Languages.zh.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-camera'></i> 使用案例介绍"
 url = "showcase"
 weight = 11
 
-[[Languages.en.menu.shortcuts]]
+[[Languages.zh.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-bullhorn'></i> 文档撰写规范"
 url = "/docstyle"
 weight = 30
