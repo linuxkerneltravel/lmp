@@ -11,8 +11,9 @@ DASHDIR = $(PRE)/grafana
 all:
 	go build -mod=vendor -o lmp main.go
 
-docs:
-	git pull & cd docs & hugo
+doc:
+	git pull & cd docs 
+	hugo
 
 
 mysqlpasswdinit:
