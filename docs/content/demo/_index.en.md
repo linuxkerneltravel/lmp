@@ -1,8 +1,8 @@
 ---
 date: 2016-04-09T16:50:16+02:00
-title: 内核可观测性插件
-pre: "<b>2. </b>"
-weight: 10
+title: 文档样式示例
+pre: "<b>4. </b>"
+weight: 20
 ---
 
 Hugo uses Markdown for its simple content format. However, there are a lot of things that Markdown doesn’t support well. You could use pure HTML to expand possibilities.
