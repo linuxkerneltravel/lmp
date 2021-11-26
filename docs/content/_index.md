@@ -15,7 +15,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 * [Multilingual mode]({{%relref "monitor/i18n/_index.md" %}})
 * **Unlimited menu levels**
 * **Automatic next/prev buttons to navigate through menu entries**
-* [Attachments files]({{%relref "demo/attachments.en.md" %}})
+* [Attachments files]({{%relref "demo/attachments.md" %}})
 
 ## 代码结构
 ```

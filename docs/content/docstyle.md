@@ -17,24 +17,29 @@ disableToc: true
 └── docstyle.en.md  # 文档规范说明
 ```
 ## 文档目录规范
-{{% notice info %}}
-每个文档一个文件夹，内部包含一个 `images` 文件夹和 `_index.en.md` 文件。
+{{% notice info %}}必要说明：
 {{% /notice %}}
+
+1. 文件夹和文件名必须是英文字母，需要分割可使用下划线，不能使用中文和其它符号。
+2. 每个文档一个文件夹，内部包含一个 `images` 文件夹和 `_index.md` 文件。
+3. `_index.md` 文件中引用的图片必须是本文件夹中 `images` 文件夹下的图片文件，不可引用外部图片。
+
+
 例如 `start` 目录下的所有文档，都是具有独立目录：
 ```
 ➜  content git:(master) ✗ tree start
 start
-├── _index.en.md
+├── _index.md
 ├── architecture
-│   ├── _index.en.md
+│   ├── _index.md
 │   └── images
 │       └── magic.gif
 ├── configuration
-│   ├── _index.en.md
+│   ├── _index.md
 │   └── images
 │       └── home_button_defaults.jpg
 ├── installation
-│   ├── _index.en.md
+│   ├── _index.md
 │   └── images
 │       └── chapter.png
 ```
