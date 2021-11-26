@@ -1,12 +1,10 @@
 ---
-title: "Learn Theme for Hugo"
+title: "LMP 项目介绍"
 ---
 
-# Hugo learn theme
+# LMP 项目介绍
 
-[Hugo-theme-learn](http://github.com/matcornic/hugo-theme-learn) is a theme for [Hugo](https://gohugo.io/), a fast and modern static website engine written in Go. Where Hugo is often used for blogs, this multilingual-ready theme is **fully designed for documentation**.
-
-This theme is a partial porting of the [Learn theme](http://learn.getgrav.org/) of [Grav](https://getgrav.org/), a modern flat-file CMS written in PHP.
+LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
 
 {{% notice tip %}}Learn theme works with a _page tree structure_ to organize content : All contents are pages, which belong to other pages. [read more about this]({{%relref "monitor/pages/_index.md"%}}) 
 {{% /notice %}}
@@ -19,12 +17,19 @@ This theme is a partial porting of the [Learn theme](http://learn.getgrav.org/) 
 * **Automatic next/prev buttons to navigate through menu entries**
 * [Image resizing, shadow...]({{%relref "monitor/markdown.en.md#images" %}})
 * [Attachments files]({{%relref "actions/attachments.en.md" %}})
-* [List child pages]({{%relref "actions/children/_index.md" %}})
-* [Mermaid diagram]({{%relref "actions/mermaid.en.md" %}}) (flowchart, sequence, gantt)
-* [Customizable look and feel and themes variants]({{%relref "basics/style-customization/_index.md"%}})
-* [Buttons]({{%relref "actions/button.en.md" %}}), [Tip/Note/Info/Warning boxes]({{%relref "actions/notice.en.md" %}}), [Expand]({{%relref "actions/expand.en.md" %}})
 
-![Screenshot](https://github.com/matcornic/hugo-theme-learn/raw/master/images/screenshot.png?width=40pc&classes=shadow)
+## 代码结构
+```
+├── docs    # 文档
+├── pkg     # golang 服务代码
+├── plugins # python ebpf 代码
+├── static  # 网页代码
+├── test    # 测试数据
+└── vendor  # golang vendor 
+```
+## 界面截图
+![Screenshot](https://raw.githubusercontent.com/linuxkerneltravel/lmp/master/static/imgs/homepage.png)
+
 
 ## Contribute to this documentation
 Feel free to update this content, just click the **Edit this page** link displayed on top right of each page, and pullrequest it

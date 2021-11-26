@@ -9,8 +9,8 @@ defaultContentLanguageInSubdir= true
 
 [params]
 #  editURL = "https://github.com/matcornic/hugo-theme-learn/edit/master/exampleSite/content/"
-  description = "Documentation for Hugo Learn Theme"
-  author = "Mathieu Cornic"
+  description = "LMP：Linux microscope"
+  author = "LMP"
   showVisitedLinks = true
   disableBreadcrumb = false
   disableNextPrev = false
@@ -24,7 +24,7 @@ home = [ "HTML", "RSS", "JSON"]
 
 [Languages]
 [Languages.en]
-title = "Documentation for Hugo Learn Theme"
+title = "LMP：Linux microscope"
 weight = 1
 languageName = "English"
 landingPageURL = "/en"
