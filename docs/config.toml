@@ -36,6 +36,6 @@ url = "showcase"
 weight = 11
 
 [[Languages.en.menu.shortcuts]]
-name = "<i class='fas fa-fw fa-bullhorn'></i> 其它"
-url = "/credits"
+name = "<i class='fas fa-fw fa-bullhorn'></i>文档撰写规范"
+url = "/docstyle"
 weight = 30
