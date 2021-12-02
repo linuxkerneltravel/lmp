@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
@@ -68,8 +68,8 @@
             </el-table-column>
           </el-table>
           <div style="margin-left: 70%;">
-            <span>CollectTime</span>
-            <el-input v-model="inputTime" style="width:180px" placeholder="请输入时间(min)"></el-input>            
+            <span>CollectTime (s)</span>
+            <el-input v-model="inputTime" style="width:180px" placeholder="请输入时间(s)"></el-input>            
             <el-button style="margin-top: 10px" type="primary" @click="submit">submit</el-button>
           </div>
         </el-col>
@@ -162,12 +162,14 @@
               message: '请选择采集项',
               type: 'warning'
             });
-          }
-
+          }else{       
           var plugins = {};
+          var message_plugins=""
           for (var i = 0; i < this.selectedList.length; i++) {
             var collect = this.selectedList[i];
             var name = collect.name
+            var index= i+1
+            message_plugins=message_plugins+"  "+index+"."+name;
             plugins[`${name}`] = collect.type;
           }
           
@@ -175,14 +177,47 @@
           collectParam.plugins = plugins;
           collectParam.pluginsruntime = parseInt(this.inputTime);
           
-          axios
-          .post('/collectdata', collectParam, {emulateJSON:true})
-          .then(function (response) {
-            console.dir(response);
-          })
-          .catch(function (error) { // 请求失败处理
-            console.log(error);
-          });          
+          //弹窗
+          const h = this.$createElement;
+          this.$msgbox({
+            title: '提醒',
+            message: h('p', null, [
+              h('span', null, '是否下发插件?'),
+              h('i', { style: 'color: teal' }, message_plugins)
+            ]),
+            showCancelButton: true,
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            beforeClose: (action, instance, done) => {
+              if (action === 'confirm') {
+                axios.post('/collectdata', collectParam, {emulateJSON:true})
+
+                instance.confirmButtonLoading = true;
+                instance.confirmButtonText = '执行中...';
+                setTimeout(() => {
+                  done();
+                  setTimeout(() => {
+                    instance.confirmButtonLoading = false;
+                  }, 300);
+                }, collectParam.pluginsruntime*1000);//时间
+              } else {
+                done();
+              }
+            }
+          }).then(action => {
+            confirm_data();
+            this.$message({
+              type: 'success',
+              message: '数据收集完成!'
+            });
+          }); 
+          // axios.then(function (response) {
+          //   console.log("response");
+          // })
+          // axios.catch(function (error) { // 请求失败处理
+          //   console.log(error);
+          // }); 
+          }  
         }
       }
     })
