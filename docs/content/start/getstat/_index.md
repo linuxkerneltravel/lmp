@@ -1,7 +1,7 @@
 # 调试项目
 
 目前项目的前端页面可以下发指令：
-![homepage3](../static/imgs/homepage3.png)
+![homepage3](images/homepage3.png)
 可以利用该页面进行调试，但是缺点是不能增加别的指标字段，所以推荐使用postman来进行调试
 
 项目最终实现的逻辑应该是前端首先获取目前的所有插件信息，然后显示在页面上，之后再由用户下发指令，所有插件的更新、删除都是自动进行，目前后端尚不完善，所以前端页面还并不支持这些功能。
@@ -14,10 +14,10 @@ Postman的设置如下：
 - 访问URL为 `127.0.0.1:8080/collectdata`
 - Headers设置如下：
 
-  ![postman-headers](../static/imgs/postman-headers.png)
+  ![postman-headers](images/postman-headers.png)
 - Body设置如下：
 
-  ![postman-body](../static/imgs/postman-body.png)
+  ![postman-body](images/postman-body.png)
   
   Body部分需要采用如下的json格式:
   ```json
