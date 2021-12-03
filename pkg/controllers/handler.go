@@ -17,15 +17,14 @@ func Collect(c *gin.Context) {
 		ResponseError(c, CodeInvalidParam)
 		return
 	}
-
+	logger.Info(fmt.Sprintf("Start Collect data: %s ,CollectTime: %d Sec", frontPlugins.Plugins, frontPlugins.CollectTime))
 	if err := logic.DoCollect(frontPlugins); err != nil {
 		logger.Error("error in logic.DoCollect()", err)
 		ResponseError(c, CodeInvalidParam)
 		return
 	}
-
-	logger.Info("Collect Success")
-	ResponseSuccess(c, fmt.Sprintf("completed"))
+	logger.Info("Collect Completed")
+	ResponseSuccess(c, "completed")
 }
 
 func QueryIRQ(c *gin.Context) {
