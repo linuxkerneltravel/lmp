@@ -25,6 +25,7 @@ clean:
 	rm -rf lmp
 	rm -rf lmp.log
 	rm -rf lmp.pid
+	rm -rf wlog.log
 	rm -rf $(PREFIX)
 	rm -rf $(PRODIR)
 	rm -rf $(GRADIR)
