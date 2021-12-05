@@ -79,7 +79,7 @@ type GrafanaConfig struct {
 func Init() (err error) {
 	// 在目录下不要写同名字的配置文件，否则会混乱
 	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
+	viper.AddConfigPath("./config/")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {

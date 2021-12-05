@@ -7,6 +7,7 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 
 ## 代码结构
 ```
+├── config  # 配置
 ├── docs    # 文档
 ├── pkg     # golang 服务代码
 ├── plugins # python ebpf 代码
@@ -63,7 +64,7 @@ sudo docker pull influxdb
 
 ```
 # 项目的所有配置均位于config.yaml中，grafana的默认端口为3000端口，influxdb的默认端口为8086，修改配置信息的方式如下：
- vim lmp/config.yaml
+ vim lmp/config/config.yaml
 
 #run grafana
  sudo docker run -d \
@@ -202,24 +203,13 @@ LMP is a web tool for real-time display of Linux system performance data based o
 .
 ├── LICENSE
 ├── README.md
-├── bcctest            Hold all test codes, including bcc、influxdb, etc
-├── cmd                Store LMP pid number after startup
-├── config.yaml        Project profile
-├── controllers        Controller layer code stored in CLD layers
-├── dao                Dao layer code stored in CLD layers
-├── logger             Zap Log Library Initialization Related Code
-├── logic              Logic layer code stored in CLD layers
-├── main.go
-├── makefile
-├── middlewares        Holds middleware, such as JWT, used in the project
-├── models             Data structure, such as a user、BpfScan, used in a storage project
-├── pkg                A third-party library, such as JWT、snowflake, used in a project
-├── plugins            Storage bcc plugins
-├── routes             Store initialization routing code
-├── settings           Hold viper Initialize related code
-├── static             Hold static HTML files, pictures, etc
-├── test               Store influxdb initial configuration, files, etc
-└── vendor             Storage of project dependencies
+├── config  # 配置
+├── docs    # 文档
+├── pkg     # golang 服务代码
+├── plugins # python ebpf 代码
+├── static  # 网页代码
+├── test    # 测试数据
+└── vendor  # golang vendor 
 </code></pre>
 </details>
 
@@ -258,7 +248,7 @@ sudo docker pull influxdb
 
 ```
 # Modify configuration file
- vim lmp/config.yaml
+ vim lmp/config/config.yaml
 
 #run grafana
  sudo docker run -d \
