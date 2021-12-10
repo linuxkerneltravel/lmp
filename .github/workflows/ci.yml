@@ -2,11 +2,18 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - "*"
+    paths-ignore:
+      - "./static/**"
   pull_request:
-    branches: [ master ]
+    branches:
+      - "*"
+    paths-ignore:
+      - "./static/**"
   pull_request_review:
   workflow_dispatch:
+
 
 jobs:
   build:
@@ -19,63 +26,9 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v2.1.3
         with:
-          go-version: '1.14'
+          go-version: '1.16'
       
       - name: make lmp
         run: |
-          go build -mod=vendor -o lmp main.go
-          
-      # - name: run lmp
-      #   run: |
-      #     sudo ./lmp
-        
-      # docker 
-      - name: docker for influxdb & grafana
-        run: |
-            sudo docker pull grafana/grafana
-            sudo docker pull influxdb:1.8.3
-            
-             sudo docker run -d \
-             -p 8083:8083 \
-             -p 8086:8086 \
-             --name influxdb \
-             -v /home/runner/work/lmp/lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
-             -v /home/runner/work/lmp/lmp/test/influxdb_config/data:/var/lib/influxdb/data \
-             -v /home/runner/work/lmp/lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
-             -v /home/runner/work/lmp/lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb:1.8.3
+          go build -o lmp main.go
 
-      # python 
-      - name: Set up Python 3.6
-        uses: actions/setup-python@v1
-        with:
-          python-version: 3.6
-     
-      - name: Install dependencies
-        run: |
-          sudo /usr/bin/python3 -m pip install --upgrade pip
-          sudo /usr/bin/python3 -m pip install influxdb
-          sudo /usr/bin/python3 -m pip install --ignore-installed PyYAML
-          # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      
-      # bcc
-      - name: Install bcc
-        run: |
-          sudo apt-get update
-          sudo apt-get -y remove llvm-9
-          sudo apt-get -y install bison build-essential cmake flex git libedit-dev libllvm6.0 llvm-6.0-dev libclang-6.0-dev python zlib1g-dev libelf-dev libfl-dev
-          git clone https://github.com/iovisor/bcc.git
-          mkdir bcc/build; cd bcc/build
-          cmake ..
-          make
-          sudo make install
-          cmake -DPYTHON_CMD=python3 .. # build python3 binding
-          pushd src/python/
-          make
-          sudo make install
-          popd
-
-
-       #  test
-#       - name: Test plugins
-#         run: |
-#           sudo python3 plugins/cpuutilize.py
