@@ -15,8 +15,6 @@ resources
 lmp
 lmp.log
 lmp.pid
-test/influxdb_config/*
-test/mysql_config/*
 
 .DS_Store
 .gitkeep
