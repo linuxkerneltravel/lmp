@@ -16,6 +16,11 @@ lmp
 lmp.log
 lmp.pid
 
+# python ignore
+__pycache__/
+*.py[cod]
+*$py.class
+
 .DS_Store
 .gitkeep
 # Vim ignore
