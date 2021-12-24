@@ -12,6 +12,7 @@ description = "针对插件：plugins/cpu/cpuutilize.py 的分析"
 插件基本功能 1 介绍
 ### 插件功能2
 插件基本功能 2 介绍
+插件基本功能 2 介绍 helight 修改
 
 ## 插件代码解读
 xxxx
