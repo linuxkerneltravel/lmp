@@ -161,13 +161,13 @@ OPTIONS:
    --help, -h              show help (default: false)
 
 ```
-即可看到使用方法，关于如何增加一个模型见→[增加一个模型](docs/增加一个模型.md)
+即可看到使用方法，关于如何增加一个模型见→[增加一个模型](http://lmp.kerneltravel.net/start/addmodel/)
 
 ### 如何增加插件
-LMP目前支持BCC类型的插件程序，增加的方法见→[增加一个插件](docs/增加一个插件.md)
+LMP目前支持BCC类型的插件程序，增加的方法见→[增加一个插件](http://lmp.kerneltravel.net/start/addplugin/)
 
 ### 如何调试项目
-推荐使用 `postman` 下发web请求，具体调试方法见→[调试项目](docs/调试项目.md)
+推荐使用 `postman` 下发web请求，具体调试方法见→[调试项目](http://lmp.kerneltravel.net/start/getstat/)
 
 ### 总结出的监控方案
 [基于 eBPF 的 prometheus 监控方案](http://lmp.kerneltravel.net/study/ebpf_prometheus/)
