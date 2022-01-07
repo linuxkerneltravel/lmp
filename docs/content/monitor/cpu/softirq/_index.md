@@ -28,8 +28,10 @@ py程序组成部分：
 
 bpf程序会在softirq事件发生时挂载tracepoint点，获取softirq的索引号vec，vec是程序的核心数据结构，通过vec 能够得到softirq_entry，：
 
-softirq_entry是一个Tracing event ，有固定的格式能获取irq相关的数据：
+![image-20211231170451002](./images/image-20211231170451002.png)
 
+softirq_entry是一个Tracing event ，有固定的格式能获取irq相关的数据：
+![image-20211231170959766](./images/image-20211231170959766.png)
 插件中也需要按照这个格式获取相应的数据：
 
 ```
@@ -178,7 +180,7 @@ restart:
 ### 后台运行方式
 
 直接命令行运行 python 的方式来执行该 eBPF 程序。
-
+![image-20211229234544654](./images/image-20211229234544654.png)
 
 ## 插件运行版本
 
