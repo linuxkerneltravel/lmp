@@ -1,0 +1,6 @@
+# github.com/iovisor/gobpf v0.2.0
+## explicit; go 1.15
+github.com/iovisor/gobpf/bcc
+github.com/iovisor/gobpf/pkg/cpuonline
+github.com/iovisor/gobpf/pkg/cpupossible
+github.com/iovisor/gobpf/pkg/cpurange
