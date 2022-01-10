@@ -368,6 +368,11 @@ root@ubuntu:~# docker pull influxdb:1.8
 
 ### **8.** BCC
 
+BCC目前不再维护package：
+```
+https://github.com/iovisor/bcc/issues/3220
+```
+
 安装参考https://blog.csdn.net/weixin_44395686/article/details/106712543
 
 ```
