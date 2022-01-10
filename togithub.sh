@@ -11,3 +11,9 @@
 git pull gitee master
 git push github master
 
+# github to gitee
+#
+# git fetch github
+# git merge github/master
+# git push
+#
