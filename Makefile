@@ -12,9 +12,8 @@ all:
 	go build -mod=vendor -o lmp main.go
 
 doc:
-	git pull & cd docs 
+	git pull & cd docs
 	hugo
-
 
 mysqlpasswdinit:
 	mysql -u root -p <./pkg/misc/mysqlpasswdinit.sql
