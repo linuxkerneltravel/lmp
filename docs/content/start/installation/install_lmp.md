@@ -1,230 +1,178 @@
 ---
-title: LMP 安装部署
-description : "介绍 LMP 的基本安装和中间会出现的一些问题。"
+title: LMP 安装部署（非Docker环境）
+description : "LMP安装部署的流程"
 weight: 15
 ---
 
-## LMP 安装部署
+###   一、LMP安装部署
 
-### **1.** 拉取项目
-
-```
-#git clone https://github.com/linuxkerneltravel/lmp
-```
-
-总是有问题
-
-可以用git方式：
+#### 1.拉取项目
 
 ```
-#git clone git://github.com/linuxkerneltravel/lmp
+git clone https://gitee.com/linuxkerneltravel/lmp.git
 ```
 
-![image-20211210165555598](../images/6.1.png)
-
-上面是从 gitee 中拉下来的，下面是使用git方式拉下来的，都是94M
-
-(110M是因为make之后查看的)
+#### 2.修改配置文件（可选）
 
 ```
-root@ubuntu:~# service mysql.server start
+cd lmp #根据自己实际情况切换到lmp根目录
+vim config/config.yaml
+```
+可根据自己的实际需要修改一些参数（如MySQL密码、端口等）
+```
+app:
+  mode: "release"
+  port: 8080 #LMP web服务端口
+  machine_id: 1
+  start_time: 2020-07-01
 
-root@ubuntu:~# service mysql start
+log:
+  level: "debug"
+  filename: "./lmp.log"
+  max_size: 200
+  max_backups: 7
+  max_age: 67
 
-root@ubuntu:~# cd /lmp
+mysql:
+  host: "127.0.0.1" #MySQL服务器地址
+  port: 3306 #端口
+  user: "root" #用户名
+  password: "123" #密码
+  dbname: "lmp" #数据库名称
+  max_open_conns: 200
+  max_idle_conns: 50
 
-root@ubuntu:/lmp# make db
+influxdb:
+  host: "127.0.0.1" #Influxdb服务器地址
+  port: 8086 #端口
+  user: "root" #用户名
+  password: "123456" #密码
+  dbname: "lmp" #数据库名称
 
-mysql -u root -p <./misc/init.sql
+plugin:
+  path: "./plugins/"
+  collecttime: 5
 
-Enter password: 123456
-
-root@ubuntu:/lmp# make
+grafana:
+  ip: "localhost:3000"
 ```
 
-报错
-
-go build -mod=vendor -o lmp main.go
-
-vendor/github.com/go-playground/validator/v10/baked_in.go:20:2: cannot find package "." in:
-
-​	/lmp/vendor/golang.org/x/crypto/sha3
-
-Makefile:12: recipe for target 'all' failed
-
-make: *** [all] Error 1
-
-![image-20211210165606107](../images/6.2.png)
+####  3.编译LMP并安装
 
 ```
-root@ubuntu:/lmp# go mod tidy
-
-root@ubuntu:/lmp# go mod vendor
+cd lmp #根据自己实际情况切换到lmp根目录
+sudo make db #导入MySQL数据库（在Enter password后面输入密码）
+make #编译
 ```
 
-之后make就可以通过了
-
-### **2.** 运行grafana
+#### 4.配置InfluxDB
 
 ```
-\# docker run -d \ 
-
--p 3000:3000 \ 
-
---name=grafana \ 
-
-grafana/grafana
+#备份原配置文件和数据文件
+sudo cp /etc/influxdb/influxdb.conf /etc/influxdb/influxdb.conf.bak 
+sudo cp -r /var/lib/influxdb/data /var/lib/influxdb/data.bak
+sudo cp -r /var/lib/influxdb/meta /var/lib/influxdb/meta.bak
+sudo cp -r /var/lib/influxdb/wal /var/lib/influxdb/wal.bak
+#替换为lmp配置文件
+cd lmp #根据自己实际情况切换到lmp根目录
+sudo cp test/influxdb_config/default.conf /etc/influxdb/influxdb.conf 
+sudo cp -r test/influxdb_config/data /var/lib/influxdb
+sudo cp -r test/influxdb_config/meta /var/lib/influxdb
+#重新启动
+sudo systemctl restart influxdb
+----------------------------------
+#若上述方式无法启动，可使用以下方式
+sudo systemctl stop influxdb
+sudo ./bin/influxd
 ```
 
-![image-20211210165617125](../images/6.3.png)
-
-### **3.** 运行influxdb
+#### 5.测试
 
 ```
-\# docker run -d \
-
--p 8083:8083 \
-
--p 8086:8086 \
-
---name influxdb \
-
--v /lmp/test/influxdb_config/default.conf:/etc/influxdb/influxdb.conf \
-
--v /lmp/test/influxdb_config/data:/var/lib/influxdb/data \
-
--v /lmp/test/influxdb_config/meta:/var/lib/influxdb/meta \
-
--v /lmp/test/influxdb_config/wal:/var/lib/influxdb/wal influxdb:1.8
+cd lmp #根据自己实际情况切换到lmp根目录
+./lmp
 ```
 
-![image-20211210165641124](../images/6.4.png)
+<img src="images/202201161840734.png" alt="image-20220116184022702" style="zoom:50%;" />
 
-**查看是否正常启动：**
-
-root@ubuntu:/lmp# docker ps -a
-
-![image-20211210165648714](../images/7.png)
-
-### **4.** 运行LMP
+在浏览器内访问（localhost:8080需根据自己实际的网络环境替换）
 
 ```
-root@ubuntu:/lmp# make
-
-go build -mod=vendor -o lmp main.go
-
-root@ubuntu:/lmp# ./lmp 
+http://localhost:8080
 ```
 
-![image-20211210165704628](../images/8.png)
+<img src="images/202201161842914.png" alt="image-20220116184212866" style="zoom: 67%;" />
 
-### **5.** 防火墙
+### 二、Grafana安装配置
 
-```
-root@ubuntu:~# firewall-cmd --zone=public --add-port=8080/tcp --permanent
-
-success
-
-root@ubuntu:~# ufw allow 8080
-
-Rules updated
-
-Rules updated (v6)
-
-root@ubuntu:~# firewall-cmd --reload
-
-success
-
-root@ubuntu:~# firewall-cmd --list-ports
-
-3306/tcp 8080/tcp
-```
-
-### **6.** 数据库配置
-
-这里的配置必须在虚拟机中配：
-
-127.0.0.1:3000 用户:admin 密码:admin
-
--> skip-> DATA SOURCES-> 数据库influxdb
-
-![](../images/9.png)
-
-### **7.** 导入json并观测
-
-/lmp/test/grafana-JSON下的lmp.json文件：
-
-![image-20211210165724383](../images/10.png)
-
-![image-20211210165732011](../images/11.png)
-
-![image-20211210165744712](../images/11.1.png)
-
-完成！！！
-
-## 一些安装时的错误问题
-
-![image-20211210165756267](../images/12.png)
-
-### 报错：ModuleNotFoundError: No module named 'influxdb'
-
-使用：
+#### 1.安装
 
 ```
-root@ubuntu:/lmp# pip3 install influxdb
+#安装依赖
+sudo apt install -y apt-transport-https software-properties-common wget
+#添加grafana存储库
+sudo wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
+echo "deb https://packages.grafana.com/oss/deb stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list
+#更新缓存并安装
+sudo apt update
+sudo apt install grafana #此处会非常慢
+#启动服务
+sudo systemctl enable grafana-server
+sudo systemctl start grafana-server
 ```
 
-重新 submit
+#### 2.配置
 
-### 报错：AttributeError: module 'yaml' has no attribute 'FullLoader'
+##### 数据源配置
 
-原因：已存在pyyaml，且版本低于5.1
-
-![image-20211210165819604](../images/13.png)
-
-暴力忽视错误升级：
+在浏览器内访问（localhost:3000需根据自己实际的网络环境替换）
 
 ```
-\# pip3 install --ignore-installed PyYAML
+http://localhost:3000/login
 ```
 
-![](../images/14.png)
+<img src="images/202201171529131.jpeg" alt="WX20220117-152906@2x" style="zoom:67%;" />
 
-![image-20211210165833166](../images/15.png)
+默认的用户名和密码均为`admin`，登录后会提示修改密码，可以修改或选择skip跳过。（若搭建在公网环境建议修改为一定强度的密码）
 
+![image-20220117153711554](images/202201171537592.png)
 
-### 报错：ModuleNotFoundError: No module named 'elasticsearch'
+登录到控制台页面后，在左侧选择Configuration>Data sources，并点击Add data source。
 
-```
-root@ubuntu:/lmp# pip3 install elasticsearch
-```
+![image-20220117153836144](images/202201171538187.png)
 
-### 报错：ModuleNotFoundError: No module named 'db_writer_utils'
+数据源类型选择InfluxDB。
 
-```
-root@ubuntu:/lmp/plugins/db_writer# vim bufferImpl.py
-```
+![image-20220120172208868](images/202201201722927.png)
 
-![image-20211210165841378](../images/16.png)
+![image-20220120172420069](images/202201201724112.png)
 
-### 报错：FileNotFoundError: [Errno 2] No such file or directory: '/lmp/log/wlog.log'
+进行详细的配置：
 
-直接 touch 一个即可。
+- Query Language：InfluxQL
 
-### 报错：ModuleNotFoundError: No module named 'settings'
+- URL：http://localhost:8086 （需按自己实际的网络环境填写）
 
-打开writerImpl.py
+- Database：lmp
 
-const那句去掉settings：
+- User：root
 
-from const import DatabaseType
+- Password：123456 （默认为此）
 
-添加
+点击**Save&test**按钮，显示`Data source is working`既为配置成功。
 
-import sys
+##### 导入预设控制台
 
-sys.path.append('/lmp/plugins/db_writer')
+在左侧选择Create>Import
 
-成功！！！
+<img src="images/202201201729653.png" alt="image-20220120172941604" style="zoom:50%;" />
 
-![image-20211210165856361](../images/17.png)
+点击Upload JSON file按钮，选择`lmp/test/grafana-JSON/lmp.json`导入。
+
+![image-20220120173027678](images/202201201730723.png)
+
+![image-20220120173211326](images/202201201732372.png)
+
+出现下图所示控制台样式即为导入成功
+
+![image-20220120173338655](images/202201201733705.png)
