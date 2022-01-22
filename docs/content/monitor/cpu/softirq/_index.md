@@ -1,5 +1,5 @@
 +++
-title = "插件：cpu/softirqs.py"
+title = "cpu/softirqs.py"
 description = "针对插件：plugins/cpu/softirqs.py 的分析"
 +++
 
