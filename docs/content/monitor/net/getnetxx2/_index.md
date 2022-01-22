@@ -1,6 +1,6 @@
 +++
-title = "插件xxx2"
-description = ""
+title = "插件：demo"
+description = "插件：demo"
 weight = 10
 +++
 
