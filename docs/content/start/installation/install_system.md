@@ -69,7 +69,7 @@ from bcc import BPF
 BPF(text='int kprobe__sys_clone(void *ctx) { bpf_trace_printk("Hello, World!\\n"); return 0; }').trace_print()
 ```
 
-![image-20220114224845536](images/202201142248579.png)
+![image-20220114224845536](../images/202201142248579.png)
 
 ### 二、Golang安装与配置
 
@@ -111,7 +111,7 @@ source /etc/profile
 go version
 ```
 
-<img src="images/202201142245428.png" alt="image-20220114224539249" style="zoom:50%;" />
+<img src="../images/202201142245428.png" alt="image-20220114224539249" style="zoom:50%;" />
 
 ### 三、MySQL安装与配置
 
@@ -146,7 +146,7 @@ sudo apt-get install mysql-client-5.7
 sudo apt-get install mysql-server-5.7
 ```
 最后需要配置mysql密码（lmp配置文件config.yaml的默认密码为123）
-![image-20220116155303403](images/202201161553441.png)
+![image-20220116155303403](../images/202201161553441.png)
 再将apt源切换回去
 
 ```
@@ -162,7 +162,7 @@ mysql -u root -p
 
 提示Enter password，输入配置的密码
 
-![image-20220116170614026](images/202201161706077.png)
+![image-20220116170614026](../images/202201161706077.png)
 
 ### 四、InfluxDB安装与配置
 
@@ -189,4 +189,4 @@ sudo systemctl enable --now influxdb
 influx
 ```
 
-<img src="images/202201201719165.png" alt="image-20220120171928444" style="zoom:67%;" />
+<img src="../images/202201201719165.png" alt="image-20220120171928444" style="zoom:67%;" />
