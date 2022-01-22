@@ -1,7 +1,7 @@
 +++
 title = "插件：cpu/cpuutilize.py"
 description = "针对插件：plugins/cpu/cpuutilize.py 的分析"
-weight: 5
+weight = 5
 +++
 
 ## 插件说明
