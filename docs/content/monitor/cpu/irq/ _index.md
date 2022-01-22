@@ -1,6 +1,7 @@
 +++
 title = "插件：cpu/irqs.py"
 description = "针对插件：plugins/cpu/irqs.py 的分析"
+weight: 10
 +++
 
 ## 插件说明

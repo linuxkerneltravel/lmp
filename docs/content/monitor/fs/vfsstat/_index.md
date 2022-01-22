@@ -1,6 +1,7 @@
 +++
 title = "插件：fs/vfsstat.py"
 description = "针对插件：plugins/fs/vfsstat.py 的分析"
+weight: 10
 +++
 
 ## 插件说明
