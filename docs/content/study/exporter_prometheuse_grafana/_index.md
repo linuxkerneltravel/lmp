@@ -1,7 +1,7 @@
 ---
 title: 快速实现Linux系统性能数据提取、存储和可视化展示
+description: "快速实现Linux系统性能数据提取、存储和可视化展示"
 weight: 6
-disableToc: true
 ---
 
 ## 1. 前言

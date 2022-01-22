@@ -1,7 +1,7 @@
 ---
 title: 基于eBPF的prometheus监控方案
+description: "基于eBPF的prometheus监控方案"
 weight: 5
-disableToc: true
 ---
 
 ## 1. 前言
