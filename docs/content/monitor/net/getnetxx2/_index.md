@@ -1,6 +1,7 @@
 +++
 title = "插件xxx2"
 description = ""
+weight = 10
 +++
 
 Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod
