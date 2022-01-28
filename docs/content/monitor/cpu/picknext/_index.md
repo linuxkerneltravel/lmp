@@ -80,11 +80,11 @@ cd lmp
 sudo python3 plugins/cpu/picknext.py
 ```
 
-![image-20220128180136196](../image/image-20220128180136196.png)
+![image-20220128180136196](image/image-20220128180136196.png)
 
 ### web运行方式
 
-![image-20220128180701441](../image/image-20220128180701441.png)
+![image-20220128180701441](image/image-20220128180701441.png)
 
 ### 和Grafana联动
 
@@ -92,7 +92,7 @@ sudo python3 plugins/cpu/picknext.py
 SELECT "perce" FROM "cpuutilize" 
 ```
 
-![image_20220128180234](../image/image-20220128180234.png)
+![image_20220128180234](image/image-20220128180234.png)
 
 ## 插件运行版本
 ### 插件适用版本
