@@ -1,6 +1,7 @@
 +++
-title = "插件: plugins/fs/vfscont.py"
-description = ""
+title = "插件：fs/vfscont.py"
+description = "针对插件：fs/vfscont.py 的分析"
+weight = 5
 +++
 
 ## 插件说明

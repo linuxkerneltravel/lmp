@@ -1,6 +1,7 @@
 +++
 title = "插件：cpu/softirqs.py"
 description = "针对插件：plugins/cpu/softirqs.py 的分析"
+weight = 15
 +++
 
 ## 插件说明
