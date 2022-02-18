@@ -270,7 +270,7 @@ print("Tracing run queue latency... Hit Ctrl-C to end.")
 ### 后台运行方式
 
 
-
+![image-20220211135143099](./images/image-20220211135143099.png)
 
 
 ## 插件运行版本
