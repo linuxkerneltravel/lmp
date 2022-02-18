@@ -93,7 +93,7 @@ cd lmp #根据自己实际情况切换到lmp根目录
 ./lmp
 ```
 
-<img src="images/202201161840734.png" alt="image-20220116184022702" style="zoom:50%;" />
+<img src="../images/202201161840734.png" alt="image-20220116184022702" style="zoom:50%;" />
 
 在浏览器内访问（localhost:8080需根据自己实际的网络环境替换）
 
@@ -101,7 +101,7 @@ cd lmp #根据自己实际情况切换到lmp根目录
 http://localhost:8080
 ```
 
-<img src="images/202201161842914.png" alt="image-20220116184212866" style="zoom: 67%;" />
+<img src="../images/202201161842914.png" alt="image-20220116184212866" style="zoom: 67%;" />
 
 ### 二、Grafana安装配置
 
@@ -131,21 +131,21 @@ sudo systemctl start grafana-server
 http://localhost:3000/login
 ```
 
-<img src="images/202201171529131.jpeg" alt="WX20220117-152906@2x" style="zoom:67%;" />
+<img src="../images/202201171529131.jpeg" alt="WX20220117-152906@2x" style="zoom:67%;" />
 
 默认的用户名和密码均为`admin`，登录后会提示修改密码，可以修改或选择skip跳过。（若搭建在公网环境建议修改为一定强度的密码）
 
-![image-20220117153711554](images/202201171537592.png)
+![image-20220117153711554](../images/202201171537592.png)
 
 登录到控制台页面后，在左侧选择Configuration>Data sources，并点击Add data source。
 
-![image-20220117153836144](images/202201171538187.png)
+![image-20220117153836144](../images/202201171538187.png)
 
 数据源类型选择InfluxDB。
 
-![image-20220120172208868](images/202201201722927.png)
+![image-20220120172208868](../images/202201201722927.png)
 
-![image-20220120172420069](images/202201201724112.png)
+![image-20220120172420069](../images/202201201724112.png)
 
 进行详细的配置：
 
@@ -165,14 +165,14 @@ http://localhost:3000/login
 
 在左侧选择Create>Import
 
-<img src="images/202201201729653.png" alt="image-20220120172941604" style="zoom:50%;" />
+<img src="../images/202201201729653.png" alt="image-20220120172941604" style="zoom:50%;" />
 
 点击Upload JSON file按钮，选择`lmp/test/grafana-JSON/lmp.json`导入。
 
-![image-20220120173027678](images/202201201730723.png)
+![image-20220120173027678](../images/202201201730723.png)
 
-![image-20220120173211326](images/202201201732372.png)
+![image-20220120173211326](../images/202201201732372.png)
 
 出现下图所示控制台样式即为导入成功
 
-![image-20220120173338655](images/202201201733705.png)
+![image-20220120173338655](../images/202201201733705.png)
