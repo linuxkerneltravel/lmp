@@ -1,17 +1,27 @@
-desktop.ini
-Thumbs.db
-.DS_Store
-.dist
-.tmp
-.sass-cache
-npm-debug.log
-node_modules
-builds
-package-lock.json
-public
-resources
 .idea/
-.vscode/
+/web/node_modules
+/web/dist
+
+.DS_Store
+
+# local env files
+.env.local
+.env.*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
 lmp
 lmp.log
 lmp.pid
@@ -38,5 +48,12 @@ Session.vim
 *~
 # auto-generated tag files
 tags
+
+/server/log/
+/server/gva
+/server/server
+/server/latest_log
+
+*.iml
 
 nohup.out
