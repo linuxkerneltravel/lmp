@@ -13,8 +13,12 @@
         <el-table-column align="left" label="插件名称" prop="pluginName" width="160" />
         <el-table-column align="left" label="插件路径" prop="pluginPath" width="300" />
         <el-table-column align="left" label="插件类型" prop="pluginType" width="100" />
-        <el-table-column align="left" label="插件说明" prop="intro" width="200" />
-        <!--<el-table-column align="left" label="插件状态" prop="state" width="100" />-->
+
+        <el-table-column align="left" label="插件说明" width="120">
+          <template #default="scope">
+            <el-button type="text" size="mini" @click="openHelpDialog(scope.row)">查看</el-button>
+          </template>
+        </el-table-column>
         
         <el-table-column align="left" label="操作" min-width="160">
           <template #default="scope">
@@ -41,7 +45,6 @@
             </el-popover>            
           </template>
         </el-table-column>
-        <!---->
       </el-table>
       <div class="gva-pagination">
         <el-pagination
@@ -55,7 +58,7 @@
         />
       </div>
     </div>
-    <el-dialog v-model="dialogFormVisible" :before-close="closeDialog" title="客户">
+    <el-dialog v-model="dialogFormVisible" :before-close="closeDialog" title="增加插件">
       <el-form :inline="true" :model="form" label-width="80px">
         <el-form-item label="插件名称">
           <el-input v-model="form.pluginName" autocomplete="off" />
@@ -71,6 +74,9 @@
         </div>
       </template>
     </el-dialog>
+    <el-dialog v-model="dialogHelpVisible" :before-close="closeHelpDialog" width="80%">
+      <display-plugin-help :title="pluginContent" />
+    </el-dialog>
   </div>
 </template>
 
@@ -82,11 +88,12 @@ import {
   getExaEbpfPlugin,
   getExaEbpfPluginList,
   LoadEbpfPlugins,
-  UnloadEbpfPlugins
+  UnloadEbpfPlugins,
+  getExaEbpfPluginContent
 } from '@/api/ebpfplugins'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { formatDate } from '@/utils/format'
+import displayPluginHelp from '@/view/ebpf/listplugins/displayPluginHelp.vue'
 
 const form = ref({
   pluginName: '',
@@ -106,7 +113,6 @@ const handleSizeChange = (val) => {
   pageSize.value = val
   getTableData()
 }
-
 const handleCurrentChange = (val) => {
   page.value = val
   getTableData()
@@ -126,6 +132,21 @@ const getTableData = async() => {
 }
 
 getTableData()
+
+const dialogHelpVisible = ref(false)
+const pluginContent = ref('')
+
+const openHelpDialog = async(row) => {
+  row.visible = false
+  const res = await getExaEbpfPluginContent({ ID: row.ID })
+  if (res.code === 0) {
+    pluginContent.value = res.data.ebpfPlugins.content;
+    dialogHelpVisible.value = true;
+  }
+}
+const closeHelpDialog = () => {
+  dialogHelpVisible.value = false
+}
 
 const dialogFormVisible = ref(false)
 const type = ref('')
@@ -194,10 +215,10 @@ const handleExecPlugin = async(row) => {
   row.visible = false
   let res = {};
   if (row.state == 0) {
-    res = await LoadEbpfPlugins({ ID: row.ID })
+    res = await getExaEbpfPluginContent({ ID: row.ID })
     console.log("load");
   } else {
-    res = await UnloadEbpfPlugins({ ID: row.ID })
+    res = await getExaEbpfPluginContent({ ID: row.ID })
     console.log("unload")
   }
   if (res.code === 0) {

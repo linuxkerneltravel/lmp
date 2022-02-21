@@ -86,7 +86,7 @@ export const getExaEbpfPluginList = (params) => {
 // @Produce application/json
 // @Param data body modelInterface.PageInfo true "加载ebpf插件"
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
-// @Router /ebpf/loadebpf [get]
+// @Router /ebpf/loadebpf [post]
 export const LoadEbpfPlugins = (data) => {
   return service({
     url: '/ebpf/loadebpf',
@@ -96,16 +96,32 @@ export const LoadEbpfPlugins = (data) => {
 }
 
 // @Tags SysApi
-// @Summary 加载ebpf插件
+// @Summary 卸载ebpf插件
 // @Security ApiKeyAuth
 // @accept application/json
 // @Produce application/json
 // @Param data body modelInterface.PageInfo true "卸载ebpf插件"
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
-// @Router /ebpf/unloadebpf [get]
+// @Router /ebpf/unloadebpf [post]
 export const UnloadEbpfPlugins = (data) => {
   return service({
     url: '/ebpf/unloadebpf',
+    method: 'post',
+    data
+  })
+}
+
+// @Tags SysApi
+// @Summary 获取ebpf插件内容
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Param data body modelInterface.PageInfo true "获取ebpf插件内容"
+// @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
+// @Router /ebpf/ebpfContent [post]
+export const getExaEbpfPluginContent = (data) => {
+  return service({
+    url: '/ebpf/ebpfContent',
     method: 'post',
     data
   })
