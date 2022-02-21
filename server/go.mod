@@ -15,6 +15,7 @@ require (
 	github.com/go-openapi/swag v0.19.15 // indirect
 	github.com/go-redis/redis/v8 v8.11.0
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/golang-jwt/jwt/v4 v4.3.0
 	github.com/gookit/color v1.3.6
 	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
