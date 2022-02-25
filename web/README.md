@@ -1,6 +1,6 @@
-# qm-plus-vue-page
+# 前端页面运行
 
-## Project setup
+## web 工程开发测试
 ```
 npm install
 ```
@@ -8,11 +8,6 @@ npm install
 ### Compiles and hot-reloads for development
 ```
 npm run serve
-```
-
-### Compiles and minifies for production
-```
-npm run build
 ```
 
 ### Run your tests
@@ -28,7 +23,39 @@ npm run lint
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
 
-整理代码结构
+## web 编译部署
+### Compiles and minifies for production
+```
+npm run build
+```
+### 修改 nginx 配置文件
+1. 修改部署文件路径： 
+修改 nginx.conf 文件中的这个地方
+```
+root        /Users/helightxu/lmp/LMP/web/dist;
+```
+1. 拷贝 nginx.conf 文件到 nginx 的配置目录。
+``` sh
+cp nginx.conf /opt/homebrew/etc/nginx
+```
+1. 测试配置文件
+``` sh
+nginx -t
+nginx: the configuration file /opt/homebrew/etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /opt/homebrew/etc/nginx/nginx.conf test is successful
+```
+1. 重新加载配置文件
+``` sh
+nginx -s reload
+```
+1. 后端程序运行，后端运行在 8888 端口，看 nginx 的配置文件
+``` sh
+./server
+```
+1. 浏览器登录页面
+http://localhost:8080/
+   
+## 整理代码结构
 ``` lua
 web
 ├── public -- public
