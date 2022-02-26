@@ -9,7 +9,6 @@ defaultContentLanguageInSubdir= true
 defaultContentLanguage = "zh"
 
 [params]
-#  editURL = "https://github.com/matcornic/hugo-theme-learn/edit/master/exampleSite/content/"
   description = "LMP：Linux microscope"
   author = "LMP"
   showVisitedLinks = true
