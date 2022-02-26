@@ -1,4 +1,4 @@
-baseURL = 'http://lmp.kerneltravel.net/'
+baseURL = 'http://lmp.kerneltravel.net/docs/'
 languageCode = 'zh'
 title = 'lmp'
 
