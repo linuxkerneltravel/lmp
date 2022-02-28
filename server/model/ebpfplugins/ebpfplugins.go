@@ -23,6 +23,8 @@ type EbpfPlugins struct {
 	Intro      string `json:"intro" gorm:"comment:插件说明"`
 	Content    string `json:"content" gorm:"comment:插件内容"`
 	DocUrl     string `json:"docUrl" gorm:"comment:插件文档说明地址"`
+	GfConf     string `json:"gfConf" gorm:"comment:插件grafana报表内容"`
+	GfUrl      string `json:"gfUrl" gorm:"comment:插件grafana报表地址"`
 	State      uint   `json:"state" gorm:"comment:插件状态:0 未加载到内核中运行，1 成功加载内核中运行"` // 0 未加载到内核中运行，1 成功加载内核中运行
 	Enable     uint   `json:"enable" gorm:"comment:插件状态:0 未启用，1启用"`              // 0 未启用，1启用
 }
