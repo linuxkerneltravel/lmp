@@ -1,9 +1,11 @@
 <template>
   <div>
     <div class="gva-table-box">
+      <!--     
       <div class="gva-btn-list">
         <el-button size="mini" type="primary" icon="plus" @click="openDialog">新增</el-button>
       </div>
+      -->
       <el-table
         :data="tableData"
         style="width: 100%"
@@ -22,6 +24,7 @@
         
         <el-table-column align="left" label="操作" min-width="160">
           <template #default="scope">
+            <!-- 
             <el-popover v-model:visible="scope.row.visible" placement="top" width="200">
               <p>确定要删除吗？</p>
               <div style="text-align: right; margin-top: 8px;">
@@ -32,6 +35,7 @@
                 <el-button type="text" size="mini">删除</el-button>
               </template>
             </el-popover>
+            -->
             <el-popover v-model:visible="scope.row.visible" placement="top" width="200">
               <p>确定要操作吗？</p>
               <div style="text-align: right; margin-top: 8px;">
@@ -58,6 +62,7 @@
         />
       </div>
     </div>
+    <!--
     <el-dialog v-model="dialogFormVisible" :before-close="closeDialog" title="增加插件">
       <el-form :inline="true" :model="form" label-width="80px">
         <el-form-item label="插件名称">
@@ -74,6 +79,7 @@
         </div>
       </template>
     </el-dialog>
+    -->
     <el-dialog v-model="dialogHelpVisible" 
       :before-close="closeHelpDialog" 
       width="95%" height="60%">
@@ -139,6 +145,7 @@ const getTableData = async() => {
 
 getTableData()
 
+// 显示插件帮助文档以及源代码
 const dialogHelpVisible = ref(false)
 const pluginContent = ref('')
 const pluginDocURL = ref('docs/index.html')
@@ -155,6 +162,7 @@ const closeHelpDialog = () => {
   dialogHelpVisible.value = false
 }
 
+// 创建/更新/删除插件
 const dialogFormVisible = ref(false)
 const type = ref('')
 
@@ -162,7 +170,6 @@ const openDialog = () => {
   type.value = 'create'
   dialogFormVisible.value = true
 }
-
 const enterDialog = async() => {
   let res
   switch (type.value) {
@@ -176,13 +183,11 @@ const enterDialog = async() => {
       res = await createExaEbpfPlugin(form.value)
       break
   }
- 
   if (res.code === 0) {
     closeDialog()
     getTableData()
   }
 }
-
 const closeDialog = () => {
   dialogFormVisible.value = false
   form.value = {
@@ -218,6 +223,7 @@ const deleteEbpfPlugin = async(row) => {
   }
 }
 
+// 加载/卸载插件
 const handleExecPlugin = async(row) => {
   row.visible = false
   let res = {};
@@ -240,7 +246,6 @@ const handleExecPlugin = async(row) => {
 </script>
 
 <script>
-
 export default {
   name: 'listPlugins'
 }
