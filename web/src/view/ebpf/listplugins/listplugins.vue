@@ -74,8 +74,13 @@
         </div>
       </template>
     </el-dialog>
-    <el-dialog v-model="dialogHelpVisible" :before-close="closeHelpDialog" width="80%">
-      <display-plugin-help :title="pluginContent" />
+    <el-dialog v-model="dialogHelpVisible" 
+      :before-close="closeHelpDialog" 
+      width="95%" height="60%">
+      <el-row>
+        <el-col :span="12"><display-plugin-code :pluginCode="pluginContent" /></el-col>
+        <el-col :span="12"><display-plugin-doc :docURL="pluginDocURL" /></el-col>
+      </el-row>
     </el-dialog>
   </div>
 </template>
@@ -93,7 +98,8 @@ import {
 } from '@/api/ebpfplugins'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import displayPluginHelp from '@/view/ebpf/listplugins/displayPluginHelp.vue'
+import displayPluginCode from '@/view/ebpf/listplugins/displayPluginCode.vue'
+import displayPluginDoc from '@/view/ebpf/listplugins/displayPluginDoc.vue'
 
 const form = ref({
   pluginName: '',
@@ -135,6 +141,7 @@ getTableData()
 
 const dialogHelpVisible = ref(false)
 const pluginContent = ref('')
+const pluginDocURL = ref('docs/index.html')
 
 const openHelpDialog = async(row) => {
   row.visible = false

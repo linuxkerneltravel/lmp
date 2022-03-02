@@ -1,15 +1,16 @@
 <template>
-  <div style="height:400px;overflow-x:auto;overflow-y:auto;">
+  <div style="width:100%;height:500px;overflow-x:auto;overflow-y:auto;">
     <pre>
-        <code>
-        {{ title }}
-        </code>
+      <code>
+        {{ pluginCode }}
+      </code>
     </pre>
   </div>
 </template>
+
 <script setup>
 defineProps({
-  title: {
+  pluginCode: {
     type: String,
     default: ''
   },
