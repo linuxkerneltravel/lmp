@@ -11,11 +11,12 @@
     },
     "dependencies": {
         "@element-plus/icons": "0.0.11",
+        "@highlightjs/vue-plugin": "^2.1.0",
         "axios": "^0.19.2",
         "core-js": "^3.6.5",
         "echarts": "4.9.0",
         "element-plus": "1.2.0-beta.6",
-        "highlight.js": "^10.6.0",
+        "highlight.js": "^11.4.0",
         "marked": "^2.0.0",
         "mitt": "^3.0.0",
         "path": "^0.12.7",
