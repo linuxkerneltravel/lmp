@@ -84,7 +84,7 @@
       :before-close="closeHelpDialog" 
       width="95%" height="60%">
       <el-row>
-        <el-col :span="12"><display-plugin-code :pluginCode="pluginContent" /></el-col>
+        <el-col :span="12"><code-box codeType="python" :codeContent="pluginContent" /></el-col>
         <el-col :span="12"><display-plugin-doc :docURL="pluginDocURL" /></el-col>
       </el-row>
     </el-dialog>
@@ -104,8 +104,8 @@ import {
 } from '@/api/ebpfplugins'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import displayPluginCode from '@/view/ebpf/listplugins/displayPluginCode.vue'
 import displayPluginDoc from '@/view/ebpf/listplugins/displayPluginDoc.vue'
+import CodeBox from '@/components/CodeBox/index.vue'
 
 const form = ref({
   pluginName: '',

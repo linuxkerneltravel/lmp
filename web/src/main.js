@@ -12,6 +12,13 @@ import run from '@/core/gin-vue-admin.js'
 import auth from '@/directive/auth'
 import { store } from '@/pinia'
 import App from './App.vue'
+// 引入 Highlight.js
+import 'highlight.js/lib/common';
+// 引入 Highlight.js 的 Github 样式
+import 'highlight.js/styles/github.css';
+// 引入 Highlight.js 官方 Vue 插件
+import hljsVuePlugin from "@highlightjs/vue-plugin";
+
 const app = createApp(App)
 app.config.productionTip = false
 
@@ -21,6 +28,7 @@ app
   .use(auth)
   .use(router)
   .use(ElementPlus, { locale: zhCn })
+  .use(hljsVuePlugin)
   .mount('#app')
 
 export default app
