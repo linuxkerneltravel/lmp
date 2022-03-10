@@ -13,10 +13,10 @@
       >
         <el-table-column type="selection" width="55" />
         <el-table-column align="left" label="插件名称" prop="pluginName" width="160" />
-        <el-table-column align="left" label="插件路径" prop="pluginPath" width="300" />
-        <el-table-column align="left" label="插件类型" prop="pluginType" width="100" />
+        <el-table-column align="left" label="插件说明" prop="intro" width="300" />
+        <el-table-column align="left" label="插件类型" prop="typeText" width="100" />
 
-        <el-table-column align="left" label="插件说明" width="120">
+        <el-table-column align="left" label="插件源码" width="120">
           <template #default="scope">
             <el-button type="text" size="mini" @click="openHelpDialog(scope.row)">查看</el-button>
           </template>
@@ -134,6 +134,14 @@ const handleCurrentChange = (val) => {
 const getTableData = async() => {
   const table = await getExaEbpfPluginList({ page: page.value, pageSize: pageSize.value })
   if (table.code === 0) {
+    table.data.list.forEach(function(element) { 
+      switch(element.pluginType) {
+        case 0:
+          element.typeText = 'BCC'
+          break;
+
+      }
+    });
     tableData.value = table.data.list
     total.value = table.data.total
     page.value = table.data.page
@@ -228,10 +236,10 @@ const handleExecPlugin = async(row) => {
   row.visible = false
   let res = {};
   if (row.state == 0) {
-    res = await getExaEbpfPluginContent({ ID: row.ID })
+    res = await LoadEbpfPlugins({ ID: row.ID })
     console.log("load");
   } else {
-    res = await getExaEbpfPluginContent({ ID: row.ID })
+    res = await UnloadEbpfPlugins({ ID: row.ID })
     console.log("unload")
   }
   if (res.code === 0) {
