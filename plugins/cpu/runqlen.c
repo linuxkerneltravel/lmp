@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
 
