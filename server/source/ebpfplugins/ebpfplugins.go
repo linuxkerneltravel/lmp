@@ -20,11 +20,84 @@ func (e *eplugins) TableName() string {
 
 func (e *eplugins) Initialize() error {
 	entities := []ebpfplugins.EbpfPlugins{
-		{PluginName: "containerNet", PluginType: 0, PluginPath: "../plugins/net/ContainerNet.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		// cpu plugins
 		{PluginName: "cpudist", PluginType: 0, PluginPath: "../plugins/cpu/cpudist.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
 		{PluginName: "cpuidle", PluginType: 0, PluginPath: "../plugins/cpu/cpudile.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "cpuutilize", PluginType: 0, PluginPath: "../plugins/cpu/cpuutilize.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
 		{PluginName: "irq", PluginType: 0, PluginPath: "../plugins/cpu/irq.py", DocUrl: "http://lmp.kerneltravel.net/monitor/cpu/irq/", Intro: "empty", State: 0, Enable: 1},
-		{PluginName: "vfscount", PluginType: 0, PluginPath: "../plugins/fs/vfscount.py", DocUrl: "http://lmp.kerneltravel.net/monitor/fs/vfscont/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "picknext", PluginType: 0, PluginPath: "../plugins/cpu/picknext.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "runqlat", PluginType: 0, PluginPath: "../plugins/cpu/runqlat.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "runqslower", PluginType: 0, PluginPath: "../plugins/cpu/runqslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "softirqs", PluginType: 0, PluginPath: "../plugins/cpu/runqslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "taskswitch", PluginType: 0, PluginPath: "../plugins/cpu/taskswitch.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "waitingqueuelength", PluginType: 0, PluginPath: "../plugins/cpu/waitingqueuelength.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+
+		// fs plugins
+		{PluginName: "biosnoop", PluginType: 0, PluginPath: "../plugins/fs/biosnoop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "biotop", PluginType: 0, PluginPath: "../plugins/fs/biotop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "btrfsdist", PluginType: 0, PluginPath: "../plugins/fs/btrfsdist.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "btrfsslower", PluginType: 0, PluginPath: "../plugins/fs/btrfsslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "cachestat", PluginType: 0, PluginPath: "../plugins/fs/cachestat.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "cachetop", PluginType: 0, PluginPath: "../plugins/fs/cachetop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "dcsnoop", PluginType: 0, PluginPath: "../plugins/fs/dcsnoop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "dcstat", PluginType: 0, PluginPath: "../plugins/fs/dcstat.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "ext4dist", PluginType: 0, PluginPath: "../plugins/fs/ext4dist.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "ext4slower", PluginType: 0, PluginPath: "../plugins/fs/ext4slower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "filelife", PluginType: 0, PluginPath: "../plugins/fs/filelife.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "fileslower", PluginType: 0, PluginPath: "../plugins/fs/fileslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "filetop", PluginType: 0, PluginPath: "../plugins/fs/filetop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "harddiskreadwritetime", PluginType: 0, PluginPath: "../plugins/fs/harddiskreadwritetime.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "mdflush", PluginType: 0, PluginPath: "../plugins/fs/mdflush.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "mountsnoop", PluginType: 0, PluginPath: "../plugins/fs/mountsnoop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "nfsdist", PluginType: 0, PluginPath: "../plugins/fs/nfsdist.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "nfsslower", PluginType: 0, PluginPath: "../plugins/fs/nfsslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "vfscount", PluginType: 0, PluginPath: "../plugins/fs/vfscount.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "vfsstat", PluginType: 0, PluginPath: "../plugins/fs/vfsstat.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "xfsdist", PluginType: 0, PluginPath: "../plugins/fs/xfsdist.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "xfsslower", PluginType: 0, PluginPath: "../plugins/fs/xfsslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "zfsdist", PluginType: 0, PluginPath: "../plugins/fs/zfsdist.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "zfsslower", PluginType: 0, PluginPath: "../plugins/fs/zfsslower.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+
+		// mm plugins
+		{PluginName: "drsnoop", PluginType: 0, PluginPath: "../plugins/mm/drsnoop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "freememinfo", PluginType: 0, PluginPath: "../plugins/mm/freememinfo.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "huge", PluginType: 0, PluginPath: "../plugins/mm/huge.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "memleak", PluginType: 0, PluginPath: "../plugins/mm/memleak.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "memusage", PluginType: 0, PluginPath: "../plugins/mm/memusage.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "oomkill", PluginType: 0, PluginPath: "../plugins/mm/oomkill.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "proc_mem", PluginType: 0, PluginPath: "../plugins/mm/proc_mem.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "shmsnoop", PluginType: 0, PluginPath: "../plugins/mm/shmsnoop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "slabratetop", PluginType: 0, PluginPath: "../plugins/mm/slabratetop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "swap_in", PluginType: 0, PluginPath: "../plugins/mm/swap_in.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+
+		// net plugins
+		{PluginName: "containerNet", PluginType: 0, PluginPath: "../plugins/net/ContainerNet.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "DNS_Latency", PluginType: 0, PluginPath: "../plugins/net/DNS_Latency.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "DNS_Request", PluginType: 0, PluginPath: "../plugins/net/DNS_Request.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "DNS_Response", PluginType: 0, PluginPath: "../plugins/net/DNS_Response.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "netlatency", PluginType: 0, PluginPath: "../plugins/net/netlatency.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "sofdsnoop", PluginType: 0, PluginPath: "../plugins/net/sofdsnoop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcp_delay_aver", PluginType: 0, PluginPath: "../plugins/net/tcp_delay_aver.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcp_full_connect", PluginType: 0, PluginPath: "../plugins/net/tcp_full_connect.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcp_segment_info", PluginType: 0, PluginPath: "../plugins/net/tcp_segment_info.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcp_win", PluginType: 0, PluginPath: "../plugins/net/tcp_win.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpconnect", PluginType: 0, PluginPath: "../plugins/net/tcpconnect.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpconnlat", PluginType: 0, PluginPath: "../plugins/net/tcpconnlat.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpdrop", PluginType: 0, PluginPath: "../plugins/net/tcpdrop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpflow", PluginType: 0, PluginPath: "../plugins/net/tcpflow.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcplife", PluginType: 0, PluginPath: "../plugins/net/tcplife.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpretrans", PluginType: 0, PluginPath: "../plugins/net/tcpretrans.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpsubnet", PluginType: 0, PluginPath: "../plugins/net/tcpsubnet.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcpsynbl", PluginType: 0, PluginPath: "../plugins/net/tcpsynbl.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcptop", PluginType: 0, PluginPath: "../plugins/net/tcptop.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "tcptracer", PluginType: 0, PluginPath: "../plugins/net/tcptracer.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "test_retransmit", PluginType: 0, PluginPath: "../plugins/net/test_retransmit.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+		{PluginName: "udpflow", PluginType: 0, PluginPath: "../plugins/net/udpflow.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+
+		// app tracer
+		{PluginName: "process_trace", PluginType: 0, PluginPath: "../plugins/traceApp/process_trace.py", DocUrl: "http://lmp.kerneltravel.net/", Intro: "empty", State: 0, Enable: 1},
+
+		// for test only
 		{PluginName: "test", PluginType: 0, PluginPath: "../plugins/test.py", DocUrl: "", Intro: "empty", State: 0, Enable: 1},
 	}
 	if err := global.GVA_DB.Create(&entities).Error; err != nil { // 创建 model.ExaEbpfplugins 初始化数据
