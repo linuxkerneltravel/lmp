@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin python3
 # -*- coding:utf-8 -*-
+
 # @lint-avoid-python-3-compatibility-imports
 #
 # runqlen    Summarize scheduler run queue length as a histogram.
@@ -29,9 +30,11 @@ from os import open, close, dup, unlink, O_WRONLY
 # for influxdb
 import sys
 sys.path.append('./plugins/common/')
+# sys.path.append('./plugins/db_write')
 from const import DatabaseType
 from init_db import influx_client
 from db_modules import write2db
+
 
 # connect to influxdb
 
