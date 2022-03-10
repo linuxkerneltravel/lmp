@@ -14,5 +14,5 @@ influx_client = InfluxDBClient(database=DBNAME,host='localhost',username=USER,pa
 # TODO: 接入其他数据库
 # mysql_client
 # es_client
-es_client = Elasticsearch(['127.0.0.1:9200'])  # 连接本地9200端口
+# es_client = Elasticsearch(['127.0.0.1:9200'])  # 连接本地9200端口
 # prometheus_client
