@@ -1,6 +1,6 @@
 autocode:
   transfer-restart: true
-  root: /Users/helightxu/lmp/lmp_dev
+  root: /home/zcy/goproject/src/github.com/lmp
   server: /server
   server-api: /api/v1/autocode
   server-initialize: /initialize
@@ -61,7 +61,7 @@ jwt:
   buffer-time: 86400
   expires-time: 604800
   issuer: qmPlus
-  signing-key: e0322242-5899-4402-900b-385a68704364
+  signing-key: 433aa37d-7172-4da5-bc0d-ad76b3089bd9
 local:
   path: uploads/file
 mysql:
@@ -70,7 +70,7 @@ mysql:
   config: charset=utf8mb4&parseTime=True&loc=Local
   db-name: gva
   username: root
-  password: xu123456
+  password: "123456"
   max-idle-conns: 0
   max-open-conns: 0
   log-mode: ""
