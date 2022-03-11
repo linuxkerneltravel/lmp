@@ -18,7 +18,7 @@ CREATE TABLE if NOT EXISTS performance_index (
 type EbpfPlugins struct {
 	global.GVA_MODEL
 	PluginName string `json:"pluginName"  gorm:"comment:插件名"`
-	PluginType uint   `json:"pluginType"  gorm:"comment:插件类型: 0: demo，1: bcc, 2: c 3:golang"` // 0: demo，1: bcc, 2: c 3:golang
+	PluginType uint   `json:"pluginType"  gorm:"comment:插件类型: 0: shell，1: bcc, 2:c 3:golang"` // 0: shell，1: bcc, 2: c 3:golang
 	PluginPath string `json:"pluginPath" gorm:"comment:插件执行路径"`
 	Intro      string `json:"intro" gorm:"comment:插件说明"`
 	Content    string `json:"content" gorm:"comment:插件内容"`
