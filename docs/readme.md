@@ -1,4 +1,4 @@
-## 文档系统运行
+## 文档系统环境
 
 本文档系统使用 hugo 建设，可以在这里下载：https://github.com/gohugoio/hugo/releases。
 
@@ -9,10 +9,12 @@
 hugo_extended_0.89.4_Linux-64bit.tar.gz
 ```
 
-## 文档编译运行
+## 文档系统部署
+
+### 测试
 
 1. 在 `lmp/docs` 的目录中直接运行 `hugo server` 命令。
-2. 在浏览器中预览：http://localhost:1313/
+2. 在浏览器中预览：http://localhost:1313/。
    
 ``` sh
 ➜  lmp git:(master) ✗ cd docs/
@@ -42,5 +44,23 @@ Running in Fast Render Mode. For full rebuilds on change: hugo server --disableF
 Web Server is available at http://localhost:1313/ (bind address 127.0.0.1)
 Press Ctrl+C to stop
 ``` 
+
+### 部署在lmp系统
+1. 在 `lmp/docs` 的目录中直接运行 `hugo` 命令生成public目录。
+2. 编辑nginx配置文件nginx.conf,修改文档地址，例如:/home/chen/lmp/docs/public/。
+``` sh
+sudo vim /etc/nginx/nginx.conf
+server {
+        listen       8088;
+        server_name  localhost;
+        #access_log  logs/host.access.log  main;
+        root        /home/chen/lmp/docs/public/; #文档地址，是 hugo 编译之后的 public 目录
+
+        location / {
+            index  index.html index.htm;
+        }
+ }
+
+```
 ## 文档编写
 所有文档都在 `content` 中进行编写。
