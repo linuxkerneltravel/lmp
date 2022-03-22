@@ -1,5 +1,5 @@
 +++
-title = "插件：net/taskswitch.py"
+title = "插件：net/netlatency.py"
 description = "针对插件：plugins/net/netlatency.py 的分析。"
 author = "白宇宣（i@barryx.cn）"
 weight = 5
