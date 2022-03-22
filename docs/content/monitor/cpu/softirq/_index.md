@@ -6,7 +6,7 @@ weight = 15
 
 ## 插件说明
 
-插件地址： plugins/cpu/softirq.py
+插件地址： plugins/cpu/softirqs.py
 
 ## 插件功能说明
 
