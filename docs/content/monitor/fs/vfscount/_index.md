@@ -1,14 +1,14 @@
 +++
-title = "插件：fs/vfscont.py"
-description = "针对插件：fs/vfscont.py 的分析"
+title = "插件：fs/vfscount.py"
+description = "针对插件：fs/vfscount.py 的分析"
 weight = 5
 +++
 
 ## 插件说明
 说明插件的一些基本情况
-插件地址： plugins/fs/vfscont.py
+插件地址： plugins/fs/vfscount.py
 
-## vfscont.py插件分析
+## vfscount.py插件分析
 
 插件利用kprobe探针检测内核vfs_.事件。kprobe允许在执行任何内核指令之前插入BPF程序。在这之前，还需要知道插入点的名称。因为内核探针的API不是很稳定，这会导致在不同版本之间相同插件会失效的问题。不过bcc提供了获取系统调用名称的功能：get_syscall_fnname。所以无需记住正在允许的内核版本下该系统调用名。
 ```

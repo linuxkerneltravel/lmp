@@ -1,6 +1,6 @@
 +++
-title = "插件：cpu/cpuutilize.py"
-description = "针对插件：plugins/cpu/cpuutilize.py 的分析"
+title = "插件：cpu/runqlat.py"
+description = "针对插件：plugins/cpu/runqlat.py 的分析"
 weight = 5
 +++
 
