@@ -162,7 +162,13 @@ const openHelpDialog = async(row) => {
   row.visible = false
   const res = await getExaEbpfPluginContent({ ID: row.ID })
   if (res.code === 0) {
+    console.dir(res);
     pluginContent.value = res.data.ebpfPlugins.content;
+    if (res.data.ebpfPlugins.docUrl != "")
+      pluginDocURL.value = res.data.ebpfPlugins.docUrl;
+    else 
+      pluginDocURL.value = 'docs/index.html';
+    console.dir(pluginDocURL);
     dialogHelpVisible.value = true;
   }
 }
@@ -235,17 +241,18 @@ const deleteEbpfPlugin = async(row) => {
 const handleExecPlugin = async(row) => {
   row.visible = false
   let res = {};
+  let optText = "";
   if (row.state == 0) {
     res = await LoadEbpfPlugins({ ID: row.ID })
-    console.log("load");
+    optText = '加载'
   } else {
     res = await UnloadEbpfPlugins({ ID: row.ID })
-    console.log("unload")
+    optText = '卸载'
   }
   if (res.code === 0) {
     ElMessage({
       type: 'success',
-      message: '加载成功'
+      message: optText+'成功'
     })
     getTableData()
   }
