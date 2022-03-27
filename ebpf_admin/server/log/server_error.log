@@ -1,0 +1,25 @@
+[lmp/server]2022/03/10 - 17:10:15.749	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:34	自动创建数据库失败!	{"error": "dial tcp 127.0.0.1:3306: connect: connection refused"}
+[lmp/server]2022/03/10 - 17:11:45.720	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 14:57:47.719	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "exit status 120"}
+[lmp/server]2022/03/11 - 15:06:20.559	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "exit status 1"}
+[lmp/server]2022/03/11 - 15:32:13.844	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 15:32:43.973	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 15:43:17.400	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 15:49:18.035	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 15:53:19.876	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "signal: killed"}
+[lmp/server]2022/03/11 - 15:57:28.010	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 15:57:43.292	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "exit status 120"}
+[lmp/server]2022/03/11 - 15:58:43.901	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 16:02:49.194	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 16:03:31.879	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_user.go:35	登陆失败! 用户名不存在或者密码错误!	{"error": "db not init"}
+[lmp/server]2022/03/11 - 16:03:47.949	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_user.go:35	登陆失败! 用户名不存在或者密码错误!	{"error": "db not init"}
+[lmp/server]2022/03/11 - 16:03:59.689	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_user.go:35	登陆失败! 用户名不存在或者密码错误!	{"error": "db not init"}
+[lmp/server]2022/03/11 - 16:11:59.163	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 16:30:55.197	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "signal: killed"}
+[lmp/server]2022/03/11 - 16:31:42.262	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "signal: killed"}
+[lmp/server]2022/03/11 - 16:32:08.400	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 16:32:58.280	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "exit status 120"}
+[lmp/server]2022/03/11 - 16:33:31.175	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
+[lmp/server]2022/03/11 - 16:34:14.127	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "signal: killed"}
+[lmp/server]2022/03/11 - 16:34:37.641	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/service/ebpfplugins/plugins.go:177	error in cmd.Wait()	{"error": "signal: killed"}
+[lmp/server]2022/03/11 - 16:36:47.083	[31merror[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:41	accept tcp [::]:8888: use of closed network connection
