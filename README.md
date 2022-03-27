@@ -9,14 +9,14 @@
 
 一下是目前 LMP 开设的子项目，如果大家有更好的建议，也希望多提出来，大家一起规划建设。
 
-|子项目|项目介绍|备注|
-|-|-|-|
-|ebpf_admin|为 ebpf 程序管理而开发的 web 管理系统端||
-|ebpf_observability|积累开发基于 ebpf 的内核可观测性组件||
-|ebpf_analysis|基于 ebpf 开发的内核分析组件||
-|ebpf_function|基于 ebpf 的功能性组件，增强内核功能||
-|ebpf_mini_projects|基于 ebpf 的小工具，小系统或小项目||
-|ebpf_docs|收集梳理的针对 ebpf 的相关资料文档||
+||子项目|项目介绍|备注|
+|-|-|-|-|
+|子项目1|ebpf_admin|为 ebpf 程序管理而开发的 web 管理系统端||
+|子项目2|ebpf_observability|积累开发基于 ebpf 的内核可观测性组件||
+|子项目3|ebpf_analysis|基于 ebpf 开发的内核分析组件||
+|子项目4|ebpf_function|基于 ebpf 的功能性组件，增强内核功能||
+|子项目5|ebpf_mini_projects|基于 ebpf 的小工具，小系统或小项目||
+|子项目6|ebpf_docs|收集梳理的针对 ebpf 的相关资料文档||
 
 
 ### 子项目1：ebpf_admin
