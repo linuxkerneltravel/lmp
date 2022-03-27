@@ -18,6 +18,29 @@
 3. 同时提交程序和文档
 4. 修改本 README 添加插件介绍和填写负责人信息
 
+## 该部分程序研发规范
+1. 程序主要目标是通过 ebpf 程序采集内核的相关指标
+2. 指标数据采集之后输出方式：
+   1. 直接输出到标准输出
+   2. 采集数据写入 influxdb
+3. 代码中需要注明代码开发者
+BCC:
+```
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# @Time    : ${DATE} ${TIME}
+# @Author  : email地址，例如：helight@qq.com
+# @FileName: ${NAME}.py
+# @Software: LMP
+```
+GO:
+```
+# @Time    : ${DATE} ${TIME}
+# @Author  : email地址，例如：helight@qq.com
+# @FileName: ${NAME}.py
+# @Software: LMP
+```
+
 ## BCC ebpf 程序介绍
 ### cpu 相关程序
 |程序|介绍|负责人|
