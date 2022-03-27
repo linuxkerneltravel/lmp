@@ -1,0 +1,109 @@
+[lmp/server]2022/03/10 - 17:09:53.621	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/10 - 17:09:53.621	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/10 - 17:09:53.621	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/10 - 17:09:53.621	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/10 - 17:09:53.622	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/10 - 17:10:10.059	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/10 - 17:11:45.720	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/10 - 17:11:45.720	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/10 - 17:11:45.720	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/10 - 17:11:45.720	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/10 - 17:11:45.720	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/10 - 17:30:02.696	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/10 - 17:30:02.696	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/10 - 17:30:02.696	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/10 - 17:30:02.696	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/10 - 17:30:02.697	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/10 - 17:30:09.111	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/11 - 14:56:50.340	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 14:56:50.343	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 14:56:50.343	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 14:56:50.343	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 14:56:50.344	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 14:56:50.344	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:26:28.455	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 15:26:28.456	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:26:28.456	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:26:28.456	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:26:28.457	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:26:28.457	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:27:51.997	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 15:27:52.002	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:27:52.002	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:27:52.002	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:27:52.004	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:27:52.004	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:31:14.451	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:31:14.451	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:31:14.452	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:31:14.452	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:31:14.452	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:31:22.995	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/11 - 15:32:41.500	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 15:32:41.502	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:32:41.502	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:32:41.502	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:32:41.504	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:32:41.504	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:33:14.882	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:33:14.882	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:33:14.882	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:33:14.883	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:33:14.884	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:41:17.543	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/11 - 15:46:30.505	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:46:30.505	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:46:30.506	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:46:30.507	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:46:30.507	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:47:15.950	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/11 - 15:49:30.031	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 15:49:30.032	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:49:30.032	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:49:30.032	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:49:30.034	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:49:30.034	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:49:45.971	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:49	数据库无需初始化
+[lmp/server]2022/03/11 - 15:57:33.002	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 15:57:33.004	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:57:33.004	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:57:33.004	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:57:33.005	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:57:33.005	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 15:58:48.573	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 15:58:48.575	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 15:58:48.575	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 15:58:48.575	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 15:58:48.577	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 15:58:48.577	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 16:01:16.521	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 16:01:16.522	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 16:01:16.522	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 16:01:16.522	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 16:01:16.522	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 16:01:30.814	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/11 - 16:02:08.565	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:49	数据库无需初始化
+[lmp/server]2022/03/11 - 16:03:13.753	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 16:03:13.753	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 16:03:13.754	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 16:03:13.755	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 16:03:13.755	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 16:04:01.870	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/api/v1/system/sys_initdb.go:53	前往初始化数据库
+[lmp/server]2022/03/11 - 16:30:02.121	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 16:30:02.129	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 16:30:02.129	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 16:30:02.130	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 16:30:02.131	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 16:30:02.131	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 16:32:42.340	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 16:32:42.345	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 16:32:42.345	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 16:32:42.346	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 16:32:42.347	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 16:32:42.347	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
+[lmp/server]2022/03/11 - 16:33:47.322	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/gorm.go:54	register table success
+[lmp/server]2022/03/11 - 16:33:47.323	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:32	use middleware logger
+[lmp/server]2022/03/11 - 16:33:47.323	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:36	use middleware cors
+[lmp/server]2022/03/11 - 16:33:47.323	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:38	register swagger handler
+[lmp/server]2022/03/11 - 16:33:47.325	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/initialize/router.go:77	router register success
+[lmp/server]2022/03/11 - 16:33:47.325	[34minfo[0m	/home/zcy/goproject/src/github.com/lmp/server/core/server.go:38	server run success on 	{"address": ":8888"}
