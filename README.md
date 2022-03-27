@@ -51,6 +51,8 @@
 4. 体验同一内核事件的不同执行链路，例如不同用户态操作会使用相同的内核事件，但内核事件的执行方式不同
 5. 解决生产问题时，如已定位到某个内核事件，可快速使用仓库中的eBPF代码脚手架
 
+更多说明请查看 ebpf_scenario_analysis 仓库的 [README](ebpf_scenario_analysis/README.md)
+
 ### 子项目4：ebpf_function
 
 
