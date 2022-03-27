@@ -11,7 +11,7 @@
 
 ||子项目|项目介绍|备注|
 |-|-|-|-|
-|子项目1|ebpf_admin|为 ebpf 程序管理而开发的 web 管理系统端||
+|子项目1|ebpf_admin|为 ebpf 程序管理而开发的 web 管理系统，同时负责人对 ebpf 程序采集数据的可视化展示。||
 |子项目2|ebpf_observability|积累开发基于 ebpf 的内核可观测性组件||
 |子项目3|ebpf_analysis|基于 ebpf 开发的内核分析组件||
 |子项目4|ebpf_function|基于 ebpf 的功能性组件，增强内核功能||
