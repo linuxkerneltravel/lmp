@@ -37,6 +37,7 @@
 |GO|使用 GO 开发的 ebpf 可观测性程序||
 |RUST|使用 RUST 开发的 ebpf 可观测性程序||
 
+更多说明请查看 ebpf_observability 项目的 [README](ebpf_observability/README.md)
 
 ### 子项目3：ebpf_analysis
 
