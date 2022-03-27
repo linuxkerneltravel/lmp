@@ -13,9 +13,9 @@ from db_modules import write2db
 from const import DatabaseType
 
 # for es
-from init_db import es_client
-from db_modules import write2db
-from const import DatabaseType
+# from init_db import es_client
+# from db_modules import write2db
+# from const import DatabaseType
 
 
 from datetime import datetime
