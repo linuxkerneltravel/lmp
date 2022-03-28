@@ -11,7 +11,7 @@
 
 ||子项目|项目介绍|备注|
 |-|-|-|-|
-|子项目1|ebpf_admin|为 ebpf 程序管理而开发的 web 管理系统，同时负责人对 ebpf 程序采集数据的可视化展示。||
+|子项目1|ebpf_admin|为 ebpf 程序管理而开发的 web 管理系统，同时负责对 ebpf 程序采集数据的可视化展示。||
 |子项目2|ebpf_observability|积累开发基于 ebpf 的内核可观测性组件||
 |子项目3|ebpf_analysis|基于 ebpf 开发的内核分析组件||
 |子项目4|ebpf_function|基于 ebpf 的功能性组件，增强内核功能||
@@ -20,9 +20,30 @@
 
 
 ### 子项目1：ebpf_admin
-#### web
-#### server
 
+该项目旨在提供更加易用的 ebpf 组件管理系统，并对 ebpf 工作过程和数据变化进行可视化展示。项目目标如下：
+1. 提供对 ebpf 组件的管理
+2. 实时展示 Linux 系统性能数据
+3. 可视化展示**应用/进程**从用户态到内核态执行链路
+
+项目采用前后端分离开发方式，整体由 Web 应用和服务端应用组成。
+
+#### web 应用
+
+Web 应用目标如下：
+1. 用户信息管理
+2. ebpf 组件信息管理
+3. ebpf 数据可视化
+4. ebpf 场景化分析可视化
+
+#### server 应用
+
+服务端应用目标如下：
+1. 提供 `RESTful` 风格 `API` 和接口说明文档
+2. 基于 `JWT` 的用户校验
+3. 进行 ebpf 组件信息和用户信息的持久化存储
+
+更多说明请查看 ebpf_admin 仓库的 [README](ebpf_admin/README.md)
 
 ### 子项目2：ebpf_observability
 
