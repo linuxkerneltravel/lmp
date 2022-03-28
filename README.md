@@ -54,8 +54,12 @@
 更多说明请查看 ebpf_scenario_analysis 仓库的 [README](ebpf_scenario_analysis/README.md)
 
 ### 子项目4：ebpf_function
+本仓库下项目旨在利用 eBPF 实现具体 应用/内核态 功能，包括但不限于性能优化、安全、网络、eBPF编排等功能。目的如下：
 
+没有任何限制，充分发挥想象力，在该处展示自己的想法并获得他人的关注，迭代优化方案；
+可探索 eBPF 与其它技术的结合运用能力，例如引入机器学习模型实现预测等功能；
 
+更多说明请查看 ebpf_function 仓库的 [README](ebpf_function/README.md)
 
 ### 子项目5：ebpf_mini_projects
 
