@@ -63,7 +63,12 @@
 
 ### 子项目5：ebpf_mini_projects
 
+本仓库下项目旨在收集各种利用 eBPF 实现的小工具，小项目，功能不限。目的如下：
 
+1. 只要基于 eBPF 的项目都可以。
+2. 有相对完整的目标和功能，需要有负责人的维护者。
+
+更多说明请查看 ebpf_mini_projects 仓库的 [README](ebpf_mini_projects/README.md)
 
 ### 子项目6：ebpf_docs
 
