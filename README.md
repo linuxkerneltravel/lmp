@@ -78,4 +78,4 @@
 2. eBPF 相关的外文翻译，收集经典的国外文献，进行翻译，供大家参考；
 3. eBPF 的其他类文档。
 
-更多说明请查看 ebpf_docs 仓库的 [README](ebpf_docs/README.md)
+更多说明请查看 eBPF_docs 仓库的 [README](eBPF_docs/README.md)
