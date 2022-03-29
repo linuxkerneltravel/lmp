@@ -1,4 +1,4 @@
-## ebpf_mini_projects 仓库说明
+## eBPF_mini_projects 仓库说明
 
 本仓库下项目旨在收集各种利用 eBPF 实现的小工具，小项目，功能不限。目的如下：
 
