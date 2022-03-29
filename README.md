@@ -1,4 +1,4 @@
-![](eBPF_docs/static/imgs/LMP-logo.png)
+![](./eBPF_docs/static/imgs/LMP-logo.png)
 # Linux Microscope (LMP)
 
 ## LMP 项目目标：
