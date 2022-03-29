@@ -1,6 +1,6 @@
 # ZH
 
-![](./docs/static/imgs/LMP-logo.png)
+![](../eBPF_docs/static/imgs/LMP-logo.png)
 # Linux microscope
 
 LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。
@@ -17,16 +17,16 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 ```
 ## 项目架构
 
-![](./docs/static/imgs/LMP-arch4.png)
-![](./docs/static/imgs/LMP-arch5.png)
+![](../eBPF_docs/static/imgs/LMP-arch4.png)
+![](../eBPF_docs/static/imgs/LMP-arch5.png)
 
 ## 界面截图
 
-![homepage](./docs/static/imgs/homepage.png)
+![homepage](../eBPF_docs/static/imgs/homepage.png)
 
-![homepage](./docs/static/imgs/grafana1.png)
+![homepage](../eBPF_docs/static/imgs/grafana1.png)
 
-![grafana4](./docs/static/imgs/grafana4.png)
+![grafana4](../eBPF_docs/static/imgs/grafana4.png)
 
 
 ##  运行lmp
@@ -96,25 +96,25 @@ sudo docker pull influxdb
 
 8080端口返回页面如下，该页面仅用于观测指标下发，输入栏输入的是观测时间，单位是分钟。可一次下发多个指标，但是注意实际环境使用bcc的开销问题，建议单个指标下发对比开销之后，再组合多个指标观测。
 
-![homepage](./docs/static/imgs/homepage.png)
+![homepage](../eBPF_docs/static/imgs/homepage.png)
 
 另外开启grafana页面，通过浏览器访问3000端口即可。如果是本地查看，则访问localhost:3000，如果远程访问，则访问remoteip:3000即可。
 
 grafana用于指标数据观测，进入grafana之后，首先需要登录进入grafana，初始用户名和密码均为admin，之后需要配置grafana连接influxdb：
 
-![grafana1](./docs/static/imgs/grafana1.png)
+![grafana1](../eBPF_docs/static/imgs/grafana1.png)
 
 按照自己的ip地址配置完成以后，点击save&test按钮，测试influxdb是否连接成功，出现如下提示说明连接成功：
 
-![grafana2](./docs/static/imgs/grafana2.png)
+![grafana2](../eBPF_docs/static/imgs/grafana2.png)
 
 接下来导入/lmp/test/grafana-JSON下的lmp.json文件，即可自动创建grafana的dashboard：
 
-![grafana3](./docs/static/imgs/grafana3.png)
+![grafana3](../eBPF_docs/static/imgs/grafana3.png)
 
 在Dashboards中Manage中，点击Import，上传lmp.json文件即可观测：
 
-![grafana4](./docs/static/imgs/grafana4.png)
+![grafana4](../eBPF_docs/static/imgs/grafana4.png)
 
 统计时间到时后，lmp会自动关闭后台bcc插件，之后继续在8080端口页面下发指标即可。
 
@@ -176,7 +176,7 @@ LMP目前支持BCC类型的插件程序，增加的方法见→[增加一个插�
 
 #
 
-![](./docs/static/imgs/LMP-logo.png)
+![](../eBPF_docs/static/imgs/LMP-logo.png)
 
 # Linux microscope
 
@@ -184,15 +184,15 @@ LMP is a web tool for real-time display of Linux system performance data based o
 
 ## Project architecture
 
-![](./docs/static/imgs/LMP-arch4.png)
+![](../eBPF_docs/static/imgs/LMP-arch4.png)
 
 ## Interface screenshot
 
-![homepage2](./docs/static/imgs/homepage2.png)
+![homepage2](../eBPF_docs/static/imgs/homepage2.png)
 
-![homepage](./docs/static/imgs/grafana.png)
+![homepage](../eBPF_docs/static/imgs/grafana.png)
 
-![homepage](./docs/static/imgs/data.png)
+![homepage](../eBPF_docs/static/imgs/data.png)
 
 
 ## Project structure overview  
