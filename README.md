@@ -14,11 +14,11 @@
 ||子项目|项目介绍|备注|
 |-|-|-|-|
 |子项目1|eBPF_Bright_Projects|存放 eBPF 好点子，没有任何限制，可以是一篇文档，一段代码，也可以是一个工具，一个项目||
-|子项目2|eBPF_Admin|为 eBPF 程序管理而开发的 web 管理系统，同时可快速对 eBPF 采集的数据进行可视化展示。|方案重构阶段|
-|子项目3|eBPF_Observability|基于 eBPF 的应用/内核可观测性组件，可在 eBPF_admin 中进行可视化观测||
-|子项目4|eBPF_Scenario_Analysis|基于 eBPF 开发的场景化分析组件，关注具体的执行链路、关键应用/内核事件|正在开发中|
-|子项目5|eBPF_Function|基于 eBPF 开发的功能性组件，增强内核功能||
-|子项目6|eBPF_Docs|社区收集、梳理和原创的 eBPF 相关资料和文档||
+|子项目2|eBPF_admin|为 eBPF 程序管理而开发的 web 管理系统，同时可快速对 eBPF 采集的数据进行可视化展示。|方案重构阶段|
+|子项目3|eBPF_observability|基于 eBPF 的应用/内核可观测性组件，可在 eBPF_admin 中进行可视化观测||
+|子项目4|eBPF_scenario_analysis|基于 eBPF 开发的场景化分析组件，关注具体的执行链路、关键应用/内核事件|正在开发中|
+|子项目5|eBPF_function|基于 eBPF 开发的功能性组件，增强内核功能||
+|子项目6|eBPF_docs|社区收集、梳理和原创的 eBPF 相关资料和文档||
 
 
 
@@ -33,7 +33,7 @@
 
 
 
-### 子项目2：eBPF_Admin
+### 子项目2：eBPF_admin
 
 旨在提供更加易用的 eBPF 组件管理系统，并提供 eBPF组件 工作过程和数据的可视化展示。项目目标如下：
 1. 管理 eBPF 组件；
@@ -58,11 +58,11 @@ Web 应用目标如下：
 2. 基于 `JWT` 的用户校验；
 3. 进行 eBPF 组件信息和用户信息的持久化存储；
 
-更多说明请查看 eBPF_admin 仓库的 [README](eBPF_Admin/README.md)
+更多说明请查看 eBPF_admin 仓库的 [README](eBPF_admin/README.md)
 
 
 
-### 子项目3：eBPF_Observability
+### 子项目3：eBPF_observability
 
 旨在收集梳理基于 eBPF 的应用/内核可观测性组件，可选择任意可行的技术栈。
 
@@ -75,11 +75,11 @@ Web 应用目标如下：
 |GO|使用 GO 开发的 eBPF 可观测性组件，例如 cilium/ebpf，iovisor/gobpf 等||
 |RUST|使用 RUST 开发的 eBPF 可观测性组件||
 
-更多说明请查看 eBPF_Observability 项目的 [README](eBPF_Observability/README.md)
+更多说明请查看 eBPF_Observability 项目的 [README](eBPF_observability/README.md)
 
 
 
-### 子项目4：eBPF_Scenario_Analysis
+### 子项目4：eBPF_scenario_analysis
 
 旨在利用 eBPF 实现 应用/内核事件 的场景化分析，即实现某一 应用/进程 从用户态到内核态执行链路的关键事件分析和可视化：
 
@@ -89,21 +89,21 @@ Web 应用目标如下：
 4. 体验同一内核事件的不同执行链路，例如不同用户态操作会使用相同的内核事件，但内核事件的执行方式不同；
 5. 解决生产问题时，如已定位到某个内核事件，可快速使用仓库中的eBPF代码脚手架；
 
-更多说明请查看 eBPF_Scenario_Analysis 仓库的 [README](eBPF_Scenario_Analysis/README.md)
+更多说明请查看 eBPF_Scenario_Analysis 仓库的 [README](eBPF_scenario_analysis/README.md)
 
 
 
-### 子项目5：eBPF_Function
+### 子项目5：eBPF_function
 本仓库下项目旨在利用 eBPF 实现具体 应用/内核态 功能，包括但不限于性能优化、安全、网络、eBPF编排等功能。目的如下：
 
 1. 没有任何限制，充分发挥想象力，在该处展示自己的想法并获得他人的关注，迭代优化 方案；
 2. 可探索 eBPF 与其它技术的结合运用能力，例如引入机器学习模型实现预测等功能；
 
-更多说明请查看 eBPF_Function 仓库的 [README](eBPF_Function/README.md)
+更多说明请查看 eBPF_Function 仓库的 [README](eBPF_function/README.md)
 
 
 
-### 子项目6：eBPF_Docs
+### 子项目6：eBPF_docs
 
 本仓库存放 eBPF 和 LMP 相关文档，为大家提供学习指引，规划类别如下：
 
@@ -119,4 +119,4 @@ Web 应用目标如下：
 2. eBPF 相关的外文翻译，收集经典的国外文献，进行翻译，供大家参考；
 3. eBPF 的其他类文档；
 
-更多说明请查看 eBPF_Docs 仓库的 [README](eBPF_Docs/README.md)
+更多说明请查看 eBPF_Docs 仓库的 [README](eBPF_docs/README.md)
