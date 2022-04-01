@@ -7,9 +7,9 @@
 #include <fcntl.h>
 int main(void){
  
-   int fd=open("./nunjui.txt",O_WRONLY  | O_CREAT | O_DIRECT);
+   int fd=open("./nunjui.txt",O_WRONLY  | O_CREAT);
  
- 
+lseek(fd, 5, SEEK_SET);
    char buf[1024]={"0123456789"};
    pid_t pid = getpid();
    printf("当前进程ID：%d\n", pid);
