@@ -14,7 +14,9 @@
 - eBPF_observability：eBPF可视化组件部分，可脱离webAdmin单独执行
 - eBPF_scenario_analysis：eBPF场景化分析组件部分
 
+目前项目正在重构中，欢迎大家参与到方案重构[thought log](./thought_log.md)中^ ^
 
+TODO：将eBPF_observability和eBPF_scenario_analysis部分的README转移到这里来，避免README太多。
 
 #### eBPF插件数据可视化
 
