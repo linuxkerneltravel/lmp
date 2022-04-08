@@ -1,0 +1,4 @@
+/*! 
+ Build based on gin-vue-admin 
+ Time : 1646987814000 */
+System.register(["../gva/gin-vue-admin-index-legacy.1646987814000.js","./gin-vue-admin-vendor-legacy.1646987814000.js"],(function(e){"use strict";var t,n,r,u,o,i,a,c,f;return{setters:[function(e){t=e._},function(e){n=e.k,r=e.o,u=e.I,o=e.u,i=e.s,a=e.D,c=e.j,f=e.J}],execute:function(){var s={class:"gva-menu-item-title"},l={name:"MenuItem"};e("default",t(Object.assign(l,{props:{routerInfo:{default:function(){return null},type:Object}},setup:function(e){return function(t,l){var m=n("el-icon"),d=n("el-menu-item");return r(),u(d,{index:e.routerInfo.name,route:{parameters:e.routerInfo.parameters}},{title:o((function(){return[i("span",s,a(e.routerInfo.meta.title),1)]})),default:o((function(){return[c(m,null,{default:o((function(){return[(r(),u(f(e.routerInfo.meta.icon)))]})),_:1})]})),_:1},8,["index","route"])}}}),[["__scopeId","data-v-07f5e66e"]]))}}}));
