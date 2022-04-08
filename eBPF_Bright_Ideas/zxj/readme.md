@@ -2,20 +2,6 @@
 
 本文档用来介绍在云服务器上搭建DDos攻击检测和防御系统框架的流程。
 
-注意说明：
-
-* 本实验提供的环境只供验收使用。
-* 服务器到期时间：2021/12/26日
-
-## 服务器登入账号
-
-```
-ssh ubuntu@1.15.185.16
-密码：960123zxj.
-```
-
-
-
 ## 环境搭建
 
 ### 安装eBPF环境
@@ -53,7 +39,7 @@ docker rmi image_id
 
 ### 编译代码
 
-本实验的代码是在source/samples/bpf目下编写的，eBPF指标提取模块：zxj_data_kern.c文件、检测算法模块：zxj_test_user.c文件、和xdp防御模块：zxj_defense_kern.c文件。将相应的编译的操作添加到source/samples/bpf/Makefile里面。以上的操作在本环境已经全部配置好了。只需要在source目录执行```make M=sampes/bpf/```即可进行编译。
+本实验的代码是在source/samples/bpf目下编写的，eBPF指标提取模块：zxj_data_kern.c文件、检测算法模块：zxj_test_user.c文件、和xdp防御模块：zxj_defense_kern.c文件。将相应的编译的操作添加到source/samples/bpf/Makefile里面。只需要在source目录执行```make M=sampes/bpf/```即可进行编译。
 
 ### XDP程序安装和卸载
 
@@ -111,20 +97,6 @@ http://1.15.185.16:8080
 通过```sar -n```命令可以查看系统网卡的收发包情况，来判断服务器是否部署检测和防御系统的收发包情况，来验证框架是否有用。
 
 ```
-sar -n DEV 1 | grep eth0
-```
-
-### 利用其他的抓包工具
-
-使用tcpdump在服务器抓取数据包，然后通过scp将文件拷贝到本地通过wireshark对其进行分析
-
-```
-tcpdump -i eth0 -nn tcp port 8080 -w file.pcap
-```
-
-文件拷贝
-
-```
-scp ubuntu@1.15.185.16:~/file.pcap ./
+sar -n DEV 1
 ```
 
