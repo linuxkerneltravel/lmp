@@ -1,4 +1,4 @@
-![](./eBPF_docs/static/imgs/LMP-logo.png)
+![](./eBPF_Documentation/static/imgs/LMP-logo.png)
 # Linux Microscope (LMP)
 
 ## LMP 项目目标：
@@ -26,7 +26,7 @@
 1. 没有任何限制；
 2. 我们希望你的 pr 有相对完整的结构，如果是代码或项目形式，需要提供 README 以便于他人快速理解你的想法；
 
-更多说明请查看 eBPF_Bright_Projects 仓库的 [README](eBPF_Bright_Projects/README.md)
+更多说明请查看 eBPF_Bright_Projects 仓库的 [README](eBPF_Bright_Ideas/README.md)
 
 
 
@@ -42,7 +42,7 @@
 
 项目采用前后端分离开发方式，整体由 Web 应用和服务端应用组成。
 
-更多说明请查看 eBPF_admin 仓库的 [README](eBPF_admin/README.md)
+更多说明请查看 eBPF_admin 仓库的 [README](eBPF_Visualization/README.md)
 
 
 
@@ -62,4 +62,4 @@
 2. eBPF 相关的外文翻译，收集经典的国外文献，进行翻译，供大家参考；
 3. eBPF 的其他类文档；
 
-更多说明请查看 eBPF_Docs 仓库的 [README](eBPF_docs/README.md)
+更多说明请查看 eBPF_Docs 仓库的 [README](eBPF_Documentation/README.md)
