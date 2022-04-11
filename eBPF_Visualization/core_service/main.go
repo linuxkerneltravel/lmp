@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 
 	"github.com/lmp/eBPF_Visualization/core_service/services"
 
@@ -30,6 +31,8 @@ func main() {
 
 		return nil
 	})
+
+	sort.Sort(cli.CommandsByName(app.Commands))
 
 	err = app.Run(os.Args)
 	if err != nil {
