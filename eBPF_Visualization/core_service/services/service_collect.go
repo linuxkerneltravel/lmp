@@ -29,34 +29,7 @@ var collectCommand = cli.Command{
 	Name:      "collect",
 	Usage:     "collect system data by eBPF",
 	ArgsUsage: "[APP_NAME]",
-	//Flags: []cli.Flag{
-	//	cli.StringFlag{
-	//		Name:  "model, m",
-	//		Usage: "specified the self trained model to analysis",
-	//		Value: "",
-	//	},
-	//	cli.BoolFlag{
-	//		Name:  "characterization, c",
-	//		Usage: "only analysis the workload type",
-	//	},
-	//},
-	//Description: func() string {
-	//	desc := `
-	// analysis the system's workload type and optimization performance.
-	// you can specified the app name, but it's just for reference only.
-	//     example: atune-adm analysis mysql
-	// you can specify the self trained model to analysis, which only
-	// can be end with .m.
-	//     example: atune-adm analysis --model ./self_trained.m
-	// you can only analysis the workload type.
-	//     example: atune-adm analysis --characterization
-	//you can specify the collecting times.
-	//     example: atune-adm analysis -t 5
-	// you can specify the script to be executed.
-	//     example: atune-adm analysis -s script.sh`
-	//	return desc
-	//}(),
-	Action: serviceCollect,
+	Action:    serviceCollect,
 }
 
 func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
