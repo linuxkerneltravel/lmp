@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"syscall"
 
@@ -26,10 +25,9 @@ func init() {
 }
 
 var collectCommand = cli.Command{
-	Name:      "collect",
-	Usage:     "collect system data by eBPF",
-	ArgsUsage: "[APP_NAME]",
-	Action:    serviceCollect,
+	Name:   "collect",
+	Usage:  "collect system data by eBPF",
+	Action: serviceCollect,
 }
 
 func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
@@ -37,20 +35,30 @@ func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 }
 
 func serviceCollect(ctx *cli.Context) error {
-	// check file if not exist
-	return Run("sudo", "stdbuf", "-oL", "./vfsstat")
+	filePath, err := collectCheck(ctx)
+	if err != nil {
+		return err
+	}
+	return Run(filePath)
 }
 
-func Run(command string, path ...string) error {
-	cmd := exec.Command(command, path...)
+func Run(filePath string) error {
+	cmdSlice := make([]string, 0)
+	cmdSlice = append(cmdSlice, "sudo")
+	cmdSlice = append(cmdSlice, "stdbuf")
+	cmdSlice = append(cmdSlice, "-oL")
+	cmdSlice = append(cmdSlice, filePath)
+
+	cmdStr := strings.Join(cmdSlice, " ")
+	cmd := exec.Command("sh", "-c", cmdStr)
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stderr, _ := cmd.StderrPipe()
 	stdout, _ := cmd.StdoutPipe()
 
 	go listenToSystemSignals(cmd)
-	go logStdout(stdout)
-	go logStdout(stderr)
+	go rediectStdout(stdout)
+	go getStdout(stderr)
 
 	err := cmd.Start()
 	if err != nil {
@@ -67,20 +75,32 @@ func Run(command string, path ...string) error {
 	return nil
 }
 
-func listenToSystemSignals(cmd *exec.Cmd) {
-	signalChan := make(chan os.Signal, 1)
+func collectCheck(ctx *cli.Context) (string, error) {
+	if err := CheckArgs(ctx, 1, ConstExactArgs); err != nil {
+		return "", err
+	}
 
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	<-signalChan
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	os.Exit(100)
+	file := ctx.Args().Get(0)
+	if !IsInputStringValid(file) {
+		return "", fmt.Errorf("input:%s is invalid", file)
+	}
+
+	exist, err := PathExist(file)
+	if err != nil {
+		return "", err
+	}
+	if !exist {
+		return "", fmt.Errorf("file %s is not exist", file)
+	}
+	return file, nil
 }
 
-func logStdout(stdout io.ReadCloser) {
+func rediectStdout(stdout io.ReadCloser) {
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
 		parms := strings.Fields(line)
 		fmt.Println(parms)
+		// rediect data to db
 	}
 }
