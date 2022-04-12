@@ -14,5 +14,6 @@
 | NUMA节点的CPU UNCORE共享资源的争用感知与评估 | NUMA_Contention_Awareness                       | 检测NUMA架构中共享资源的争用情况变化          | 贺东升 |
 | SPV                           | SPV                                             | 集中于调度以及dvfs、cpuidle相关数据的收集与分析 | 张玉哲 |
 | trace application process     | trace application process                       | 追踪一个应用程序下所有进程/线程的动态变化         | 赵晨雨 |
+| eBPF数据收集器                     | eBPF_data_collector                             | eBPF数据收集器                     | 赵晨雨 |
 
 
