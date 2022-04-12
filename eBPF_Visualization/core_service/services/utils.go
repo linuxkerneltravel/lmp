@@ -1,30 +1,22 @@
 package services
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
-	"os/signal"
 	"regexp"
-	"syscall"
 
 	"github.com/urfave/cli"
 )
 
-// the number of args
 const (
 	ConstExactArgs = iota
 	ConstMinArgs
 )
 
-//file attribute
 const (
 	MaxFileSize int64 = 100 * 1024 * 1024
 )
 
-// CheckArgs method check command args num
 func CheckArgs(context *cli.Context, expected, checkType int) error {
 	var err error
 	cmdName := context.Command.Name
@@ -47,7 +39,6 @@ func CheckArgs(context *cli.Context, expected, checkType int) error {
 	return nil
 }
 
-// IsInputStringValid: common input string validator
 func IsInputStringValid(input string) bool {
 	if input != "" {
 		if isOk, _ := regexp.MatchString("^[a-zA-Z0-9/._-]*$", input); isOk {
@@ -57,7 +48,6 @@ func IsInputStringValid(input string) bool {
 	return false
 }
 
-// PathExist method check path if exist or not
 func PathExist(path string) (bool, error) {
 	fileInfo, err := os.Stat(path)
 	if err == nil {
@@ -71,21 +61,4 @@ func PathExist(path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
-}
-
-func getStdout(stdout io.ReadCloser) {
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Println(line)
-	}
-}
-
-func listenToSystemSignals(cmd *exec.Cmd) {
-	signalChan := make(chan os.Signal, 1)
-
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	<-signalChan
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	os.Exit(100)
 }

@@ -6,8 +6,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/lmp/eBPF_Visualization/core_service/dataprocess"
 
 	"github.com/urfave/cli"
 )
@@ -44,6 +47,7 @@ func serviceCollect(ctx *cli.Context) error {
 
 func Run(filePath string) error {
 	cmdSlice := make([]string, 0)
+	// todo: run as root
 	cmdSlice = append(cmdSlice, "sudo")
 	cmdSlice = append(cmdSlice, "stdbuf")
 	cmdSlice = append(cmdSlice, "-oL")
@@ -57,7 +61,7 @@ func Run(filePath string) error {
 	stdout, _ := cmd.StdoutPipe()
 
 	go listenToSystemSignals(cmd)
-	go rediectStdout(stdout)
+	go rediectStdout(stdout, filePath)
 	go getStdout(stderr)
 
 	err := cmd.Start()
@@ -95,12 +99,46 @@ func collectCheck(ctx *cli.Context) (string, error) {
 	return file, nil
 }
 
-func rediectStdout(stdout io.ReadCloser) {
+func getStdout(stdout io.ReadCloser) {
 	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Println(line)
+	}
+}
+
+func listenToSystemSignals(cmd *exec.Cmd) {
+	signalChan := make(chan os.Signal, 1)
+
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+	<-signalChan
+	// todo: generate csv file
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	os.Exit(100)
+}
+
+func rediectStdout(stdout io.ReadCloser, filePath string) {
+	scanner := bufio.NewScanner(stdout)
+	indexStruct := dataprocess.NewIndexStruct(filePath)
+
+	if scanner.Scan() {
+		indexes := scanner.Text()
+		err := indexStruct.IndexProcess(indexes)
+		if err != nil {
+			fmt.Errorf("indexes is wrong")
+			return
+		}
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		parms := strings.Fields(line)
 		fmt.Println(parms)
-		// rediect data to db
+		// todo: rediect data to db
+		// 1. parse the number of the index
+
+		// 2. save index
+		// 3. create table
+		// 4. save data to db
 	}
 }
