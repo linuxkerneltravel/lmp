@@ -1,7 +1,4 @@
 .idea/
-/web/node_modules
-/web/dist
-
 .DS_Store
 
 # local env files
@@ -21,10 +18,6 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
-
-lmp
-lmp.log
-lmp.pid
 
 # python ignore
 __pycache__/
@@ -49,10 +42,11 @@ Session.vim
 # auto-generated tag files
 tags
 
-/server/log/
-/server/gva
-/server/server
-/server/latest_log
+/eBPF_Visualization/eBPF_server/*.log
+/eBPF_Visualization/eBPF_server/server
+/eBPF_Visualization/eBPF_server/log
+/eBPF_Visualization/eBPF_web/node_modules
+/eBPF_Visualization/eBPF_web/dist
 
 *.iml
 
