@@ -228,6 +228,9 @@ github.com/ugorji/go/codec
 # github.com/unrolled/secure v1.0.7
 ## explicit
 github.com/unrolled/secure
+# github.com/urfave/cli v1.20.0
+## explicit
+github.com/urfave/cli
 # go.uber.org/atomic v1.6.0
 go.uber.org/atomic
 # go.uber.org/multierr v1.5.0
