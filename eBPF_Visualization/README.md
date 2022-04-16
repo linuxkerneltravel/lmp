@@ -10,13 +10,14 @@
 
 项目采用前后端分离开发方式，整体由 Web 应用和服务端应用组成，主要功能为eBPF插件数据可视化和内核场景化分析（TODO：场景化分析重新起名字）可视化。
 
-- eBPF_webAdmin：web端功能，包括前后端部分
-- eBPF_observability：eBPF可视化组件部分，可脱离webAdmin单独执行
-- eBPF_scenario_analysis：eBPF场景化分析组件部分
+- eBPF_web：web 端功能，使用 vue3 开发，源代码来自[gin-vue-admin](https://gitee.com/pixelmax/gin-vue-admin);
+- eBPB_server：golang 后端执行服务，和 web 端对应，但是同时支持 cli 和 web 执行两种方式，web golang 代码也来自 gin-vue-admin 项目。
+- eBPF_observability：eBPF 可视化组件部分，可脱离 web 单独执行
+- eBPF_scenario_analysis：eBPF 场景化分析组件部分
 
 目前项目正在重构中，欢迎大家参与到方案重构[thought log](./thought_log.md)中^ ^
 
-TODO：将eBPF_observability和eBPF_scenario_analysis部分的README转移到这里来，避免README太多。
+TODO：将 eBPF_observability 和 eBPF_scenario_analysis 部分的 README 转移到这里来，避免 README 太多。
 
 
 
