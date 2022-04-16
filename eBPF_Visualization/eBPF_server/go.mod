@@ -37,6 +37,7 @@ require (
 	github.com/swaggo/swag v1.7.0
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/unrolled/secure v1.0.7
+	github.com/urfave/cli v1.20.0
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/image v0.0.0-20210220032944-ac19c3e999fb // indirect
