@@ -1,4 +1,5 @@
 ![](./eBPF_Documentation/static/imgs/LMP-logo.png)
+
 # Linux Microscope (LMP)
 
 ## LMP 项目目标：
@@ -11,24 +12,20 @@
 
 ## LMP 子项目：
 
-|                  |                    | 一句话介绍                                                   |
-| ---------------- | ------------------ | ------------------------------------------------------------ |
-| eBPF想象力孵化池 | eBPF_Bright_Ideas  | 存放 eBPF 好点子，没有任何限制，可以是一篇文档，一段代码，也可以是一个工具，一个项目 |
-| eBPF可视化观测   | eBPF_Visualization | 为 eBPF 程序管理而开发的 web 管理系统，聚焦eBPF数据可视化和内核可视化。 |
-| eBPF学习资料     | eBPF_Documentation | 社区收集、梳理和原创的 eBPF 相关资料和文档                   |
+|            |                    | 一句话介绍                                         |
+| ---------- | ------------------ | --------------------------------------------- |
+| eBPF 超级市场  | eBPF_Supermarket   | 存放 eBPF 好点子，没有任何限制，可以是一篇文档，一段代码，也可以是一个工具，一个项目 |
+| eBPF 可视化观测 | eBPF_Visualization | 为 eBPF 程序管理而开发的 web 管理系统，聚焦eBPF数据可视化和内核可视化。   |
+| eBPF 学习资料  | eBPF_Documentation | 社区收集、梳理和原创的 eBPF 相关资料和文档                      |
 
-
-
-### eBPF_Bright_Ideas：eBPF想象力孵化池
+### eBPF_Supermarket：eBPF超级市场
 
 旨在收集各种 eBPF 的好点子，一个想法、一篇文章、一段代码、一个工具、一个项目，都可以是你开始 eBPF 之旅的起点：
 
 1. 没有任何限制；
 2. 我们希望你的 pr 有相对完整的结构，如果是代码或项目形式，需要提供 README 以便于他人快速理解你的想法；
 
-更多说明请查看 eBPF_Bright_Projects 仓库的 [README](eBPF_Bright_Ideas/README.md)
-
-
+更多说明请查看 eBPF_Supermarket 仓库的 [README](eBPF_Supermarket/README.md)
 
 ### eBPF_Visualization：eBPF可视化观测
 
@@ -43,8 +40,6 @@
 项目采用前后端分离开发方式，整体由 Web 应用和服务端应用组成。
 
 更多说明请查看 eBPF_admin 仓库的 [README](eBPF_Visualization/README.md)
-
-
 
 ### eBPF_Documentation：eBPF学习资料
 
