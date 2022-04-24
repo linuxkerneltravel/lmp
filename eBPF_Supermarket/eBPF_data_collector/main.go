@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/user"
 	"sort"
 
 	"github.com/lmp/eBPF_Visualization/core_service/dao"
@@ -52,15 +51,5 @@ func doBeforeJob(ctx *cli.Context) (err error) {
 	globalver.DB, err = sqlite.Open(dao.DBNAME)
 	utils.CheckNormalError(err)
 
-	//u, _ := user.Current()
-	u, _ := user.Lookup("zcy")
-
-	fmt.Println("当前用户")
-	fmt.Printf("Gid %s\n", u.Gid)
-	fmt.Printf("Uid %s\n", u.Uid)
-	fmt.Printf("Username %s\n", u.Username)
-	fmt.Printf("Name %s\n", u.Name)
-	fmt.Printf("HomeDir %s\n", u.HomeDir)
-	fmt.Println("")
 	return nil
 }

@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/user"
-	"strconv"
 	"strings"
 
 	"github.com/lmp/eBPF_Visualization/core_service/common"
@@ -64,7 +62,6 @@ func SaveData(tableInfo *common.TableInfo, line string) error {
 		`, tableInfo.TableName, columns, questionMarkString)
 
 	parms := strings.Fields(line)
-	fmt.Println(sql, "\n", parms)
 	//globalver.DB.Begin()
 	//for i := 0; i < 1000; i++ {
 	newParms := make([]interface{}, len(parms))
@@ -93,10 +90,10 @@ func GenerateCsvFile(tableInfo *common.TableInfo) {
 		fmt.Println("Open file err =", err)
 		return
 	}
-	u, _ := user.Lookup("zcy")
-	uid, _ := strconv.Atoi(u.Uid)
-	gid, _ := strconv.Atoi(u.Gid)
-	file.Chown(uid, gid)
+	//u, _ := user.Lookup("zcy")
+	//uid, _ := strconv.Atoi(u.Uid)
+	//gid, _ := strconv.Atoi(u.Gid)
+	//file.Chown(uid, gid)
 	writer := bufio.NewWriter(file)
 	writer.Write(b.Bytes())
 	writer.Flush()
