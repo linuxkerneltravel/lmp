@@ -1,11 +1,11 @@
-package services
+package utils
 
 import (
 	"fmt"
+	"github.com/urfave/cli"
+	"log"
 	"os"
 	"regexp"
-
-	"github.com/urfave/cli"
 )
 
 const (
@@ -16,6 +16,26 @@ const (
 const (
 	MaxFileSize int64 = 100 * 1024 * 1024
 )
+
+func CollectCheck(ctx *cli.Context) (string, error) {
+	if err := CheckArgs(ctx, 1, ConstExactArgs); err != nil {
+		return "", err
+	}
+
+	file := ctx.Args().Get(0)
+	if !IsInputStringValid(file) {
+		return "", fmt.Errorf("input:%s is invalid", file)
+	}
+
+	exist, err := PathExist(file)
+	if err != nil {
+		return "", err
+	}
+	if !exist {
+		return "", fmt.Errorf("file %s is not exist", file)
+	}
+	return file, nil
+}
 
 func CheckArgs(context *cli.Context, expected, checkType int) error {
 	var err error
@@ -61,4 +81,10 @@ func PathExist(path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+func CheckNormalError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }

@@ -1,2 +1,2 @@
 build:
-	go build -mod=vendor -o lmp-cli main.go
+	go build -mod=vendor -o lmp main.go

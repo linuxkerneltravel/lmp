@@ -3,6 +3,7 @@ package services
 import (
 	"bufio"
 	"fmt"
+	"github.com/lmp/eBPF_Visualization/core_service/globalver"
 	"io"
 	"os"
 	"os/exec"
@@ -10,7 +11,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/lmp/eBPF_Visualization/core_service/dataprocess"
+	"github.com/lmp/eBPF_Visualization/core_service/common"
+	"github.com/lmp/eBPF_Visualization/core_service/dao"
+	"github.com/lmp/eBPF_Visualization/core_service/utils"
 
 	"github.com/urfave/cli"
 )
@@ -38,7 +41,7 @@ func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 }
 
 func serviceCollect(ctx *cli.Context) error {
-	filePath, err := collectCheck(ctx)
+	filePath, err := utils.CollectCheck(ctx)
 	if err != nil {
 		return err
 	}
@@ -60,8 +63,11 @@ func Run(filePath string) error {
 	stderr, _ := cmd.StderrPipe()
 	stdout, _ := cmd.StdoutPipe()
 
-	go listenToSystemSignals(cmd)
-	go rediectStdout(stdout, filePath)
+	indexStruct := common.NewTableInfoByFilename(filePath)
+	dao.CreateTableByTableInfo(indexStruct)
+
+	go listenToSystemSignals(cmd, indexStruct)
+	go rediectStdout(stdout, indexStruct)
 	go getStdout(stderr)
 
 	err := cmd.Start()
@@ -79,26 +85,6 @@ func Run(filePath string) error {
 	return nil
 }
 
-func collectCheck(ctx *cli.Context) (string, error) {
-	if err := CheckArgs(ctx, 1, ConstExactArgs); err != nil {
-		return "", err
-	}
-
-	file := ctx.Args().Get(0)
-	if !IsInputStringValid(file) {
-		return "", fmt.Errorf("input:%s is invalid", file)
-	}
-
-	exist, err := PathExist(file)
-	if err != nil {
-		return "", err
-	}
-	if !exist {
-		return "", fmt.Errorf("file %s is not exist", file)
-	}
-	return file, nil
-}
-
 func getStdout(stdout io.ReadCloser) {
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -107,38 +93,42 @@ func getStdout(stdout io.ReadCloser) {
 	}
 }
 
-func listenToSystemSignals(cmd *exec.Cmd) {
+func listenToSystemSignals(cmd *exec.Cmd, tableInfo *common.TableInfo) {
 	signalChan := make(chan os.Signal, 1)
-
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	<-signalChan
-	// todo: generate csv file
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	os.Exit(100)
+	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+	for {
+		select {
+		case sig := <-signalChan:
+			// todo: generate csv file
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			fmt.Println("接受到来自系统的信号：", sig)
+			dao.GenerateCsvFile(tableInfo)
+			globalver.DB.Close()
+			os.Exit(1) //如果ctrl+c 关不掉程序，使用os.Exit强行关掉
+		}
+	}
 }
 
-func rediectStdout(stdout io.ReadCloser, filePath string) {
+func rediectStdout(stdout io.ReadCloser, tableInfo *common.TableInfo) {
 	scanner := bufio.NewScanner(stdout)
-	indexStruct := dataprocess.NewIndexStruct(filePath)
 
 	if scanner.Scan() {
 		indexes := scanner.Text()
-		err := indexStruct.IndexProcess(indexes)
+		err := tableInfo.IndexProcess(indexes)
 		if err != nil {
 			fmt.Errorf("indexes is wrong")
 			return
 		}
 	}
 
+	err := dao.AddIndex2Table(tableInfo)
+	if err != nil {
+		return
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
-		parms := strings.Fields(line)
-		fmt.Println(parms)
-		// todo: rediect data to db
-		// 1. parse the number of the index
-
-		// 2. save index
-		// 3. create table
-		// 4. save data to db
+		dao.SaveData(tableInfo, line)
+		fmt.Println(line)
 	}
 }
