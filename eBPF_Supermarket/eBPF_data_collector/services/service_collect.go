@@ -98,10 +98,10 @@ func listenToSystemSignals(cmd *exec.Cmd, tableInfo *common.TableInfo) {
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 	for {
 		select {
-		case sig := <-signalChan:
+		case <-signalChan:
 			// todo: generate csv file
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			fmt.Println("接受到来自系统的信号：", sig)
+			//fmt.Println("接受到来自系统的信号：", sig)
 			dao.GenerateCsvFile(tableInfo)
 			globalver.DB.Close()
 			os.Exit(1) //如果ctrl+c 关不掉程序，使用os.Exit强行关掉
@@ -114,6 +114,7 @@ func rediectStdout(stdout io.ReadCloser, tableInfo *common.TableInfo) {
 
 	if scanner.Scan() {
 		indexes := scanner.Text()
+		fmt.Println(indexes)
 		err := tableInfo.IndexProcess(indexes)
 		if err != nil {
 			fmt.Errorf("indexes is wrong")
