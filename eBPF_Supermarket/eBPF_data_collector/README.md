@@ -4,7 +4,7 @@
 - 环境部署简单，没有复杂依赖
 - 使用简单，`one-line` 工具
 - 对提取的指标个数没有限制
-- 自动导出成 csv 格式文件。
+- 可导出成 csv 格式文件。
 - 唯一的要求是按照简单的格式规范从标准输出输出即可
 
 不止 BPF，只要按照此格式输出，都可以正常对数据收集、导出。
@@ -40,8 +40,7 @@ TIME|TEXT   READ_s|INTEGER  WRITE_s|INTEGER  CREATE_s|INTEGER  OPEN_s|INTEGER  F
 ## 使用方法:
 ```bash
 $ make
-$ sudo ./lmp -h    # 列出帮助信息
-$ sudo ./lmp collect {YOUR_EBPF_PROGRAM_PATH}   # 收集 {YOUR_EBPF_PROGRAM_PATH} 程序提取出的数据
+$ sudo ./lmp collect {YOUR_EBPF_PROGRAM_PATH} --export csv # 收集 {YOUR_EBPF_PROGRAM_PATH} 程序提取出的数据，并导出成 csv 格式文件        
 ```
 程序会自动将输出的数据保存至 sqlite3 数据库，表名采用的是你的 `BPF文件名称` 并在 `ctrl c` 之后生成以 `表名+时间.csv` 命名的文件,可以直接使用。
 
