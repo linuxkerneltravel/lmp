@@ -18,7 +18,11 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "lmp-cli"
-	app.Usage = "a core service in LMP"
+	app.Usage = `
+	a core service in LMP
+	example: 
+		sudo ./lmp collect ./vfsstat --export csv
+`
 
 	err := services.WalkServices(func(nm string, svc *services.Service) error {
 		ins, err := svc.NewInst(nil)

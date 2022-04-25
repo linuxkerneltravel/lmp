@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/lmp/eBPF_Visualization/core_service/globalver"
+	"github.com/lmp/eBPF_Visualization/core_service/utils"
 	"io"
 	"os"
 	"os/exec"
@@ -13,8 +14,6 @@ import (
 
 	"github.com/lmp/eBPF_Visualization/core_service/common"
 	"github.com/lmp/eBPF_Visualization/core_service/dao"
-	"github.com/lmp/eBPF_Visualization/core_service/utils"
-
 	"github.com/urfave/cli"
 )
 
@@ -31,9 +30,17 @@ func init() {
 }
 
 var collectCommand = cli.Command{
-	Name:   "collect",
-	Usage:  "collect system data by eBPF",
-	Action: serviceCollect,
+	Name:    "collect",
+	Aliases: []string{"c"},
+	Usage:   "collect system data by eBPF",
+	Action:  serviceCollect,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "export",
+			Value: "csv",
+			Usage: "Export to the csv format",
+		},
+	},
 }
 
 func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
@@ -45,10 +52,10 @@ func serviceCollect(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	return Run(filePath)
+	return Run(filePath, ctx.String("export"))
 }
 
-func Run(filePath string) error {
+func Run(filePath string, exportFileType string) error {
 	cmdSlice := make([]string, 0)
 	// todo: run as root
 	cmdSlice = append(cmdSlice, "sudo")
@@ -66,7 +73,7 @@ func Run(filePath string) error {
 	indexStruct := common.NewTableInfoByFilename(filePath)
 	dao.CreateTableByTableInfo(indexStruct)
 
-	go listenToSystemSignals(cmd, indexStruct)
+	go listenToSystemSignals(cmd, indexStruct, exportFileType)
 	go rediectStdout(stdout, indexStruct)
 	go getStdout(stderr)
 
@@ -93,18 +100,23 @@ func getStdout(stdout io.ReadCloser) {
 	}
 }
 
-func listenToSystemSignals(cmd *exec.Cmd, tableInfo *common.TableInfo) {
+func listenToSystemSignals(cmd *exec.Cmd, tableInfo *common.TableInfo, exportFileType string) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 	for {
 		select {
 		case <-signalChan:
-			// todo: generate csv file
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			//fmt.Println("接受到来自系统的信号：", sig)
-			dao.GenerateCsvFile(tableInfo)
+			switch exportFileType {
+			case "csv":
+				fmt.Println("\ngenerating csv file, file name is : ", tableInfo.TableName+".csv")
+				dao.GenerateCsvFile(tableInfo)
+			default:
+				fmt.Println("collect finished")
+			}
+
 			globalver.DB.Close()
-			os.Exit(1) //如果ctrl+c 关不掉程序，使用os.Exit强行关掉
+			os.Exit(1)
 		}
 	}
 }
@@ -114,7 +126,7 @@ func rediectStdout(stdout io.ReadCloser, tableInfo *common.TableInfo) {
 
 	if scanner.Scan() {
 		indexes := scanner.Text()
-		fmt.Println(indexes)
+		//fmt.Println(indexes)
 		err := tableInfo.IndexProcess(indexes)
 		if err != nil {
 			fmt.Errorf("indexes is wrong")
@@ -127,9 +139,10 @@ func rediectStdout(stdout io.ReadCloser, tableInfo *common.TableInfo) {
 		return
 	}
 
+	fmt.Println("collecting...")
 	for scanner.Scan() {
 		line := scanner.Text()
 		dao.SaveData(tableInfo, line)
-		fmt.Println(line)
+		//fmt.Println(line)
 	}
 }

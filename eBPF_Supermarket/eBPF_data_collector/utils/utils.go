@@ -18,9 +18,9 @@ const (
 )
 
 func CollectCheck(ctx *cli.Context) (string, error) {
-	if err := CheckArgs(ctx, 1, ConstExactArgs); err != nil {
-		return "", err
-	}
+	//if err := CheckArgs(ctx, 1, ConstExactArgs); err != nil {
+	//	return "", err
+	//}
 
 	file := ctx.Args().Get(0)
 	if !IsInputStringValid(file) {
