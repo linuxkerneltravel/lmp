@@ -1,6 +1,6 @@
 ## 文档系统环境
 
-本文档系统使用 hugo 建设，可以在这里下载：https://github.com/gohugoio/hugo/releases。
+本文档系统使用 hugo 建设，可以在这里下载：[https://github.com/gohugoio/hugo/releases](https://github.com/gohugoio/hugo/releases)。
 
 >我们使用 `exrended` 的版本，请直接下载使用这个版本。
 
@@ -14,7 +14,7 @@ hugo_extended_0.89.4_Linux-64bit.tar.gz
 ### 测试
 
 1. 在 `lmp/docs` 的目录中直接运行 `hugo server` 命令。
-2. 在浏览器中预览：http://localhost:1313/。
+2. 在浏览器中预览：[http://localhost:1313/](http://localhost:1313/)。
    
 ``` sh
 ➜  lmp git:(master) ✗ cd docs/
