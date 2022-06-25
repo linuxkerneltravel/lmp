@@ -17,3 +17,4 @@
 | eBPF数据收集器                               | eBPF_data_collector                                          | eBPF数据收集器                                               | 赵晨雨 |
 | 基于eBPF的网络拥塞观测与排查                 | Network congestion observation and troubleshooting based on eBPF | 通过监控内核中的网络延迟抖动、网络拥塞状态机的切换帮忙网络问题排查 | 董旭   |
 | eBPF初学者体验环境                           | tryebpf                                                      | 提供bpftrace、BCC等适合初学者上手使用的线上环境              | 白宇宣 |
+| 基于 eBPF 的云原生场景下 Pod 性能监测                           | cilium_ebpf_probe                                                     | 针对云原生领域下的Pod提供进程级别的细粒度检测              | 汪雨薇 |
