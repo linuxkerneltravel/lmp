@@ -16,7 +16,7 @@ on:
 
 
 jobs:
-  build:
+  lmp-build:
     runs-on: ubuntu-18.04
 
     steps:
@@ -32,3 +32,22 @@ jobs:
         run: |
           cd eBPF_Visualization/eBPF_server
           make all
+  
+  sidecar-build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build
+        run: |
+          cd eBPF_Supermarket/sidecar/
+          go build -v ./...
+      - name: Test
+        run: |
+          cd eBPF_Supermarket/sidecar/
+          go test -v ./...
