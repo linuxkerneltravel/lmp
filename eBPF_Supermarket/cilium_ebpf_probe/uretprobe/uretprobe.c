@@ -22,8 +22,8 @@ struct {
 	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 } events SEC(".maps");
 const struct event *unused __attribute__((unused));
-SEC("uprobe/http_main")
-int uprobe_ahttp_main(struct pt_regs *ctx) {
+SEC("uretprobe/http_main")
+int uretprobe_http_main(struct pt_regs *ctx) {
     struct event event = {};
     // Positions within stack frame:
     u64 struct_response_pos = 5;
