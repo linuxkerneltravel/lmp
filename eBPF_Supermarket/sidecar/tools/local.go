@@ -9,6 +9,11 @@ import (
 
 // GetNodeName gets local machine's hostname, aka node name
 func GetNodeName() (string, error) {
+	// adaptation for minikube
+	if IsInMinikubeMode() {
+		return "minikube", nil
+	}
+
 	nodeName, err := os.Hostname()
 	if err != nil {
 		return "", fmt.Errorf("cannot get hostname from local machine: %s", err)

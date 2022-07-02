@@ -55,7 +55,7 @@ func getContainersFromPod(kubeconfig string, nodeName string, namespace string, 
 	if err != nil {
 		return nil, fmt.Errorf("locating target pod failed: %s", err)
 	}
-	fmt.Printf("[INFO] Get target pod '%s' in namesapce '%s' on node '%s'", podName, namespace, targetPod.Spec.NodeName)
+	fmt.Printf("[INFO] Get target pod '%s' in namesapce '%s' on node '%s'\n", podName, namespace, targetPod.Spec.NodeName)
 	if targetPod.Spec.NodeName != nodeName {
 		return nil, fmt.Errorf("the pod '%s' is not on local machine, but %s", podName, targetPod.Spec.NodeName)
 	}
@@ -110,7 +110,7 @@ func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace s
 		return nil, nil, fmt.Errorf("sidecar finding failed: %s", err)
 	}
 	serviceContainerStatuses := append(containerStatuses[:sidecarContainerIndex], containerStatuses[sidecarContainerIndex+1:]...)
-	fmt.Printf("[INFO] Got sidecat container '%s' with image '%s'\n", sidecarContainerStatus.Name, sidecarContainerStatus.Image)
+	fmt.Printf("[INFO] Got sidecar container '%s' with image '%s'\n", sidecarContainerStatus.Name, sidecarContainerStatus.Image)
 	fmt.Printf("[INFO] Got %d service container(s) in this pod\n", len(serviceContainerStatuses))
 	if len(serviceContainerStatuses) != 1 {
 		return nil, nil, fmt.Errorf("unsupported service container number, perhaps supported in the future")
@@ -120,7 +120,13 @@ func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace s
 	// 3. Get sidecar process and service process
 	nodeContainerRuntime, _, err := tools.GetNodeContainerRuntime(kubeconfig, nodeName)
 	sidecarProcesses, err := tools.GetAllProcessFromContainer(sidecarContainerStatus, nodeContainerRuntime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("got sidecar processes failed: %s", err)
+	}
 	serviceProcesses, err := tools.GetAllProcessFromContainer(serviceContainerStatus, nodeContainerRuntime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("got service processes failed: %s", err)
+	}
 
 	if len(sidecarProcesses) == 0 || len(serviceProcesses) == 0 {
 		return nil, nil, fmt.Errorf("unsupported process number '%d' or '%d'", len(sidecarProcesses), len(serviceProcesses))
