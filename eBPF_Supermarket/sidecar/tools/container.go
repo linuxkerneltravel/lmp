@@ -23,6 +23,8 @@ func findInitPid(containerID string, runtime string) (int, error) {
 			return -1, err
 		}
 
+		// FIXME: get real PID for minikube docker container
+		// ref: cgroups golang library (https://github.com/containerd/cgroups), systemd-cgls(1) and IsInMinikubeMode()
 		return containerInfo.State.Pid, nil
 	}
 

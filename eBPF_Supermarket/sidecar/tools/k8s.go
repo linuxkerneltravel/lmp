@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -27,7 +28,8 @@ func GetDefaultKubeConfig() string {
 	// get kubeconfig path in this order: env, path ~/.kube/, path /etc/
 	DefaultConfigPaths := [...]string{
 		os.Getenv("kubeconfig"),
-		"$HOME/.kube/config",
+		os.Getenv("KUBECONFIG"),
+		path.Join(os.Getenv("HOME"), ".kube/config"),
 		"/etc/kubernetes/admin.conf",
 	}
 
@@ -125,4 +127,12 @@ func GetContainerStatuses(targetPod v1.Pod) ([]v1.ContainerStatus, error) {
 	}
 
 	return targetPod.Status.ContainerStatuses, nil
+}
+
+// IsInMinikubeMode returns ture if running on minikube
+func IsInMinikubeMode() bool {
+	if os.Getenv("MINIKUBE_STARTED") == "TRUE" {
+		return true
+	}
+	return false
 }
