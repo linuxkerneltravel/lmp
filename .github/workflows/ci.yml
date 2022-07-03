@@ -14,7 +14,6 @@ on:
   pull_request_review:
   workflow_dispatch:
 
-
 jobs:
   lmp-build:
     runs-on: ubuntu-18.04
@@ -32,7 +31,7 @@ jobs:
         run: |
           cd eBPF_Visualization/eBPF_server
           make all
-  
+
   sidecar-build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -51,3 +50,57 @@ jobs:
         run: |
           cd eBPF_Supermarket/sidecar/
           go test -v ./...
+
+  sidecar-integration-test-with-minikube-and-istio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Start minikube
+        id: minikube
+        uses: medyagh/setup-minikube@master
+
+      - name: Set Up istio
+        run : |
+          # https://istio.io/latest/docs/setup/getting-started/
+          curl -L https://istio.io/downloadIstio | sh -
+          cd istio-1.14.1
+          export PATH=$PWD/bin:$PATH
+          istioctl install --set profile=demo -y
+          kubectl label namespace default istio-injection=enabled
+          kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
+
+      - name: Wait for istio
+        run: |
+          kubectl get nodes
+          kubectl get pods -owide -A
+          kubectl get services
+          test_pod() {
+            while [[ $(kubectl get pods -l $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]
+              do 
+                echo "waiting for pod"
+                sleep 5
+                kubectl get pods -owide -A; 
+              done
+            return 0
+          }
+          test_pod app=ratings
+          echo "ratings is done"
+          test_pod app=productpage
+          echo "productpage is done"
+          kubectl exec "$(kubectl get pod -l app=ratings -o jsonpath='{.items[0].metadata.name}')" -c ratings -- curl -sS productpage:9080/productpage | grep -o "<title>.*</title>"
+
+      - name: Run
+        run: |
+          export MINIKUBE_STARTED=TRUE
+          eval $(minikube -p minikube docker-env)
+          env
+          docker ps -a
+          ps axjf
+          cd eBPF_Supermarket/sidecar/
+          go run main.go
