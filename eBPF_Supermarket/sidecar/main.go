@@ -11,14 +11,15 @@ import (
 
 func main() {
 	kubeconfig := flag.String("kubeconfig", "", "path to the kubeconfig file")
-	podName := flag.String("pod", "productpage-v1-bla-bla", "name of the pod to inspect")
+	podName := flag.String("pod", "", "name of the pod to inspect")
 	namespace := flag.String("namespace", "default", "namespace for this pod")
 	flag.Parse()
 
 	{
 		// TODO: testing code, delete it after the test
 		// https://istio.io/latest/docs/setup/getting-started/
-		tmpKubeconfig := "/etc/kubernetes/admin.conf"
+		tmpKubeconfig := tools.GetDefaultKubeConfig()
+		fmt.Printf("[DEV] Get kubeconfig: %s\n", tmpKubeconfig)
 		tmpNamespace := "default"
 		tmpNodeName, _ := tools.GetNodeName()
 		tmpLabel := "app=ratings,version=v1"
@@ -40,6 +41,10 @@ func main() {
 	}
 
 	sidecarProcessBPF, serviceProcessBPF, err := k8s.GetSidecarAndServiceProcess(checkedKubeconfig, nodeName, *namespace, *podName)
+	// FIXME: see function `findInitPid()` in file `/tools/container.go`
+	if err != nil && tools.IsInMinikubeMode() == false && sidecarProcessBPF == nil {
+		fmt.Printf("[ERROR] Got err: %s\n", err)
+	}
 	fmt.Printf("[FINISHED] Get sidecar process '%s'\n", sidecarProcessBPF)
 	fmt.Printf("[FINISHED] Get service process '%s'\n", serviceProcessBPF)
 
