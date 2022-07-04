@@ -1,5 +1,6 @@
 //go:build linux
 // +build linux
+
 package main
 
 import (
@@ -10,7 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/aquasecurity/libbpfgo/helpers"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -69,7 +69,7 @@ func main() {
 			panic(err2)
 		}
 		
-		m,err := helpers.NewKernelSymbolsMap()
+		m,err := NewKernelSymbolsMap()
 		if err != nil {
 		 	fmt.Fprintln(os.Stderr, err)
 		 	os.Exit(-1)
@@ -95,3 +95,4 @@ func main() {
 	}
 	return
 }
+
