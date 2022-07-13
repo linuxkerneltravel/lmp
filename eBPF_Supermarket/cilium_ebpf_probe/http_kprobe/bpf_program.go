@@ -41,7 +41,7 @@ BPF_HASH(active_sock_addr, u64, struct addr_info_t);
 int syscall__probe_entry_accept4(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, size_t *addrlen, int flags) {
   u64 id = bpf_get_current_pid_tgid();
   u32 pid = id >> 32;
-  // $PID is substituted with PID before probe is inserted.
+
   if (pid != $PID) {
       return 0;
   }
