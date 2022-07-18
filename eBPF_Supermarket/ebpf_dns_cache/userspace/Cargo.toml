@@ -1,0 +1,30 @@
+[package]
+name = "bpf-dns"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+redbpf = { version = "2.3.0", features = ["load"] }
+tokio = { version = "1.0", features = ["rt-multi-thread", "io-util", "net", "time"] }
+tracing-subscriber = "0.3"
+tracing = "0.1"
+tokio-fd = "0.3.0"
+simple-dns = "0.4.6"
+libc = "0.2"
+packet-builder = "*"
+pnet = "0.26.0"
+pnet_base = "0.26.0"
+lazy_static = "1.4.0"
+tracing-unwrap = "0.9.2"
+anyhow = "*"
+static_init = "*"
+dashmap = "5.3.4"
+futures-util = "*"
+probe = {path = "../probe"}
+dns-parser = "0.8.0"
+bollard = "0.12"
+
+[build-dependencies]
+cargo-bpf = { version="2.3.0",default-features = false, features = ["build","llvm13"] }
