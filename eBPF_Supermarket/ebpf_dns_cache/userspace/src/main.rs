@@ -1,9 +1,8 @@
 use bollard::Docker;
 use dashmap::DashMap;
 use dns_parser::{RData, ResponseCode};
-use packet_builder::payload::PayloadData;
-use packet_builder::*;
 use pnet::datalink::MacAddr;
+use pnet::packet::ipv4::MutableIpv4Packet;
 use redbpf::load::Loader;
 use static_init::dynamic;
 use std::collections::hash_map::DefaultHasher;
@@ -195,7 +194,7 @@ async fn main() {
 
             info!(
                 "{:?} {id} {} <--> {}\t{} -> {:?}",
-                get_container_nane_by_ip(addr.daddr.ip()).await,
+                get_container_name_by_ip(addr.daddr.ip()).await,
                 addr.daddr,
                 addr.saddr,
                 domains[0],
@@ -226,10 +225,10 @@ async fn main() {
                 info!("hit chahe and inject {id} {domain} -> {ips:?}");
                 let payload = skip_fail!(build_dns_reply(id, domain, ips));
 
-                let mut addr = addr.clone();
+                let mut addr = addr;
 
                 mem::swap(&mut addr.saddr, &mut addr.daddr);
-                //mem::swap(&mut addr.smac, &mut addr.dmac);
+                mem::swap(&mut addr.smac, &mut addr.dmac);
 
                 send_raw_udp_packet(&mut tx, &addr, &payload).await;
             }
@@ -278,7 +277,7 @@ fn calc_loss() -> f64 {
     (unmatched as f64) / (total as f64)
 }
 
-async fn get_container_nane_by_ip(addr: IpAddr) -> Option<(String, Vec<String>)> {
+async fn get_container_name_by_ip(addr: IpAddr) -> Option<(String, Vec<String>)> {
     let docker = Docker::connect_with_local_defaults().unwrap();
     let v = docker.list_containers::<&str>(None).await.unwrap();
 
@@ -312,7 +311,7 @@ async fn get_container_nane_by_ip(addr: IpAddr) -> Option<(String, Vec<String>)>
 
     result
         .get(&addr)
-        .and_then(|(id, names)| Some((id.clone(), names.clone())))
+        .map(|(id, names)| (id.clone(), names.clone()))
 }
 
 fn parse_raw_packet(buf: &[u8]) -> Option<(Addr, &[u8])> {
@@ -356,16 +355,82 @@ async fn send_raw_udp_packet<W: AsyncWriteExt + Unpin>(
     payload: &[u8],
 ) -> Option<()> {
     use pnet::packet::Packet;
-    let mut pkt_buf = [0u8; 1024];
+
+    let mut pkt_buf = vec![0u8; 2048];
 
     let pkt = match (addr.saddr, addr.daddr) {
-        (SocketAddr::V4(saddr), SocketAddr::V4(daddr)) => packet_builder!(
-             pkt_buf,
-             ether({set_destination => addr.smac, set_source => addr.dmac }) /
-             ipv4({set_source =>  *saddr.ip() , set_destination => *daddr.ip() }) /
-             udp({set_source => saddr.port(), set_destination =>daddr.port() }) /
-             payload(payload)
-        ),
+        (SocketAddr::V4(saddr), SocketAddr::V4(daddr)) => {
+            let (pkt, _proto) = {
+                let (payload_pkt, _payload_proto) = {
+                    let (payload_pkt, _payload_proto) = {
+                        let (payload_pkt, _payload_proto) = {
+                            {
+                                let buf_len = pkt_buf.len();
+                                let pdata = &mut pkt_buf[buf_len - payload.len()..];
+                                pdata[..payload.len()].clone_from_slice(payload);
+                                (pdata, None as Option<&u16>)
+                            }
+                        };
+                        let (pkt, proto) = {
+                            const UDP_HEADER_LEN: usize = 8;
+                            let total_len = UDP_HEADER_LEN + payload_pkt.len();
+                            let buf_len = pkt_buf.len();
+                            let mut pkt = pnet::packet::udp::MutableUdpPacket::new(
+                                &mut pkt_buf[buf_len - total_len..],
+                            )
+                            .unwrap();
+                            pkt.set_length(total_len as u16);
+                            pkt.set_source(saddr.port());
+                            pkt.set_destination(daddr.port());
+                            (pkt, pnet::packet::ip::IpNextHeaderProtocols::Udp)
+                        };
+                        (pkt, proto)
+                    };
+                    let (pkt, proto) = {
+                        const IPV4_HEADER_LEN: usize = 20;
+                        let total_len = IPV4_HEADER_LEN + payload_pkt.packet().len();
+
+                        let buf_len = pkt_buf.len();
+                        let mut pkt = pnet::packet::ipv4::MutableIpv4Packet::new(
+                            &mut pkt_buf[buf_len - total_len..],
+                        )
+                        .unwrap();
+                        pkt.set_next_level_protocol(_payload_proto);
+                        fn init_ipv4_pkt(pkt: &mut MutableIpv4Packet, len: u16) {
+                            pkt.set_version(4);
+                            pkt.set_header_length(5);
+                            pkt.set_total_length(len);
+                            pkt.set_ttl(128);
+                            // TODO make the ID a random value
+                            pkt.set_identification(256);
+                            pkt.set_fragment_offset(0);
+                            pkt.set_flags(pnet::packet::ipv4::Ipv4Flags::DontFragment);
+                        }
+                        init_ipv4_pkt(&mut pkt, total_len as u16);
+                        pkt.set_source(*saddr.ip());
+                        pkt.set_destination(*daddr.ip());
+                        pkt.set_checksum(pnet::packet::ipv4::checksum(&pkt.to_immutable()));
+                        (pkt, pnet::packet::ethernet::EtherTypes::Ipv4)
+                    };
+                    (pkt, proto)
+                };
+                let (pkt, proto) = {
+                    const ETHERNET_HEADER_LEN: usize = 14;
+                    let total_len = ETHERNET_HEADER_LEN + payload_pkt.packet().len();
+                    let buf_len = pkt_buf.len();
+                    let mut pkt = pnet::packet::ethernet::MutableEthernetPacket::new(
+                        &mut pkt_buf[buf_len - total_len..],
+                    )
+                    .unwrap();
+                    pkt.set_ethertype(_payload_proto);
+                    pkt.set_destination(addr.dmac);
+                    pkt.set_source(addr.smac);
+                    (pkt, None as Option<&u16>)
+                };
+                (pkt, proto)
+            };
+            pkt
+        }
         (SocketAddr::V6(_saddr), SocketAddr::V6(_daddr)) => panic!("we don't support IPv6 yet"),
         _ => unreachable!(),
     };
