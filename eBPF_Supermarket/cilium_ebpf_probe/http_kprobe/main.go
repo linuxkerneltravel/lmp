@@ -1,4 +1,4 @@
-package main
+package http_kprobe
 
 import (
 	"bufio"
@@ -20,12 +20,13 @@ import (
 var (
 	tracePID     int
 	printEnabled bool
+	podname      string
 )
 
-func init() {
-	flag.IntVar(&tracePID, "pid", -1, "The pid to trace")
-	flag.BoolVar(&printEnabled, "print", true, "Print output")
-}
+//func init() {
+//	flag.IntVar(&tracePID, "pid", -1, "The pid to trace")
+//	flag.BoolVar(&printEnabled, "print", true, "Print output")
+//}
 
 type EventType int32
 
@@ -78,7 +79,6 @@ type requestHandler struct {
 
 func (r *requestHandler) HandleBPFEvent(v []byte) {
 	var ev SyscallWriteEvent
-
 	if err := binary.Read(bytes.NewBuffer(v), bcc.GetHostByteOrder(), &ev.Attr); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to decode struct: %+v\n", err)
 		return
@@ -111,26 +111,28 @@ func (r *requestHandler) HandleBPFEvent(v []byte) {
 }
 
 func parseAndPrintMessage(msgInfo *MessageInfo) {
+
 	resp, err := http.ReadResponse(bufio.NewReader(&msgInfo.Buf), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to parse request\n")
 		return
 	}
 
-	if printEnabled {
-		body := resp.Body
-		b, _ := ioutil.ReadAll(body)
-		body.Close()
-		fmt.Printf("StatusCode: %s, Len: %s, ContentType: %s, Body: %s\n",
-			color.GreenString("%d", resp.StatusCode),
-			color.GreenString("%d", resp.ContentLength),
-			color.GreenString("%s", resp.Header["Content-Type"]),
-			color.GreenString("%s", string(b)))
-	}
+	body := resp.Body
+	b, _ := ioutil.ReadAll(body)
+	body.Close()
+	fmt.Println("\ndata from ", podname)
+	fmt.Printf("StatusCode: %s, Len: %s, ContentType: %s, Body: %s\n",
+		color.GreenString("%d", resp.StatusCode),
+		color.GreenString("%d", resp.ContentLength),
+		color.GreenString("%s", resp.Header["Content-Type"]),
+		color.GreenString("%s", string(b)))
+
 }
 
-func main() {
+func GetHttpViaKprobe(tracePID int, p string) {
 	flag.Parse()
+	podname = p
 	if tracePID < 0 {
 		panic("Argument --pid needs to be specified")
 	}
@@ -158,7 +160,7 @@ func main() {
 	requestHander := &requestHandler{
 		FdMap: make(map[int32]*MessageInfo, 0),
 	}
-
+	fmt.Println("kprobe for http begins...")
 	for {
 		select {
 		case <-intCh:
