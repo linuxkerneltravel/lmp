@@ -1,13 +1,13 @@
-package main
+package http2_tracing
 
 import (
 	"bytes"
 	"encoding/binary"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 
+	"github.com/fatih/color"
 	"github.com/iovisor/gobpf/bcc"
 )
 
@@ -30,7 +30,8 @@ func formatHeaderField(field headerField) string {
 }
 
 func formatHeaderEvent(event http2HeaderEvent) string {
-	return fmt.Sprintf("[name='%s' value='%s']", formatHeaderField(event.Name), formatHeaderField(event.Value))
+
+	return fmt.Sprintf("'%s':'%s'", formatHeaderField(event.Name), color.GreenString("%s", formatHeaderField(event.Value)))
 }
 
 func mustAttachUprobe(bccMod *bcc.Module, binaryProg, symbol, probeFn string) {
@@ -50,16 +51,17 @@ var (
 	probeFn    string
 )
 
-func init() {
-	flag.StringVar(&binaryProg, "binary", "", "The binary to probe")
-}
+//
+//func init() {
+//	flag.StringVar(&binaryProg, "binary", "", "The binary to probe")
+//}
 
-func main() {
-	flag.Parse()
+func GetHttp2ViaUprobe(binaryProg string, podname string) {
+	//flag.Parse()
 	if len(binaryProg) == 0 {
 		panic("Argument --binary needs to be specified")
 	}
-
+	fmt.Println("Attach 1 uprobe on ", binaryProg)
 	bccMod := bcc.NewModule(bpfProgram, []string{})
 	const loopWriterWriteHeaderSymbol = "google.golang.org/grpc/internal/transport.(*loopyWriter).writeHeader"
 	const loopWriterWriteHeaderProbeFn = "probe_loopy_writer_write_header"
@@ -68,7 +70,7 @@ func main() {
 	const http2ServerOperateHeadersSymbol = "google.golang.org/grpc/internal/transport.(*http2Server).operateHeaders"
 	const http2ServerOperateHeadersProbeFn = "probe_http2_server_operate_headers"
 	mustAttachUprobe(bccMod, binaryProg, http2ServerOperateHeadersSymbol, http2ServerOperateHeadersProbeFn)
-	fmt.Println("begin...")
+	fmt.Println("uprobe for http2 grpc begin...")
 	defer func() {
 		bccMod.Close()
 	}()

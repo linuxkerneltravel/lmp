@@ -1,4 +1,4 @@
-package main
+package http_kprobe
 
 const bpfProgram = `
 #include <linux/sched.h>

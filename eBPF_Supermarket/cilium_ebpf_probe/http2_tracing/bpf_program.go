@@ -1,4 +1,4 @@
-package main
+package http2_tracing
 
 const bpfProgram = `
 #include <uapi/linux/ptrace.h>

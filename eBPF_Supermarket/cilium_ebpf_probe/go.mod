@@ -1,4 +1,4 @@
-module github.com/WYuei/cilium_ebpf_probe
+module cilium_ebpf_probe
 
 go 1.18
 
@@ -14,7 +14,6 @@ require (
 	k8s.io/apimachinery v0.24.2
 	k8s.io/client-go v0.24.2
 )
-
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
