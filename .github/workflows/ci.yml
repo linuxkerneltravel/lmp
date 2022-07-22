@@ -49,7 +49,7 @@ jobs:
       - name: Test
         run: |
           cd eBPF_Supermarket/sidecar/
-          go test -v ./...
+          go test `go list ./... | grep -v github.com/eswzy/podstat/tools`
 
   sidecar-integration-test-with-minikube-and-istio:
     runs-on: ubuntu-latest

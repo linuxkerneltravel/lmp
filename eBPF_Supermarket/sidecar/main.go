@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/eswzy/podstat/k8s"
+	"github.com/eswzy/podstat/test"
 	"github.com/eswzy/podstat/tools"
 )
 
@@ -20,9 +21,9 @@ func main() {
 		// https://istio.io/latest/docs/setup/getting-started/
 		tmpKubeconfig := tools.GetDefaultKubeConfig()
 		fmt.Printf("[DEV] Get kubeconfig: %s\n", tmpKubeconfig)
-		tmpNamespace := "default"
+		tmpNamespace := test.Namespace
 		tmpNodeName, _ := tools.GetNodeName()
-		tmpLabel := "app=ratings,version=v1"
+		tmpLabel := test.Label
 		tmpPodName, err := tools.GetPodNameFromNodeAndLabel(tmpKubeconfig, tmpNamespace, tmpNodeName, tmpLabel)
 		if err != nil {
 			fmt.Printf("[DEV ERROR] Get test pod failed: %s\n", err)
