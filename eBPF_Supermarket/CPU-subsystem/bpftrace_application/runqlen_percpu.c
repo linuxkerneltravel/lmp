@@ -1,15 +1,4 @@
 #!/usr/bin/env bpftrace
-/*
- * runqlen.bt   CPU scheduler run queue length as a histogram.
- *              For Linux, uses bpftrace, eBPF.
- *
- * This is a bpftrace version of the bcc tool of the same name.
- *
- * Copyright 2018 Netflix, Inc.
- * Licensed under the Apache License, Version 2.0 (the "License")
- *
- * 07-Oct-2018  Brendan Gregg   Created this.
- */
 
 #include <linux/sched.h>
 
@@ -58,16 +47,17 @@ struct cfs_rq_partial {
 
 BEGIN
 {
-        printf("Sampling run queue length at 99 Hertz... Hit Ctrl-C to end.\n");
+        printf("Sampling run queue length... Hit Ctrl-C to end.\n");
 }
 
-// 逐CPU显示运行队列长度
-// 运行队列长度是指为RUNNABLE的进程的数目，与负载略有不同
 kprobe:update_rq_clock
 {
-        $task = (struct task_struct *)curtask;
-        $cpu = $task->on_cpu;
         $rq = (struct rq *)arg0;
         @q[cpu] = lhist($rq->nr_running, 0, 100, 1);
-        // printf("now = %d\n", nsecs);
+        
+        $task = (struct task_struct *)curtask;
+        $my_q = (struct cfs_rq_partial *)$task->se.cfs_rq;
+        $len = $my_q->nr_running;
+        // $len = $len > 0 ? $len - 1 : 0;
+        @runqlen = lhist($len, 0, 100, 1);
 }
