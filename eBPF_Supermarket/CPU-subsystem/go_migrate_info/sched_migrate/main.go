@@ -16,9 +16,17 @@ import (
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf tracepoint.c -- -I../headers
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf tracepoint.c -- -I../headers -I../..
 
 const mapKey uint32 = 0
+
+type migrate_value struct {
+	time     uint64
+	pid      int
+	prio     int
+	orig_cpu int
+	dest_cpu int
+}
 
 func main() {
 	// Allow the current process to lock memory for eBPF resources.
@@ -39,7 +47,7 @@ func main() {
 	// second.
 	// The first two arguments are taken from the following pathname:
 	// /sys/kernel/debug/tracing/events/kmem/mm_page_alloc
-	kp, err := link.Tracepoint("sched", "sched_switch", objs.SchedSwitch, nil)
+	kp, err := link.Tracepoint("sched", "sched_migrate_task", objs.SchedSwitch, nil)
 	if err != nil {
 		log.Fatalf("opening tracepoint: %s", err)
 	}
@@ -50,14 +58,40 @@ func main() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	// objs.KprobeMap.Pin("/sys/fs/bpf/migrate");
 	log.Println("Waiting for events..")
-	for range ticker.C {
-		var key uint32
-		var value uint64
-		iterate := objs.KprobeMap.Iterate()
 
-		for iterate.Next(&key, &value) {
-			log.Printf("pid: %v, switched: %v\n", key, value);
+	var pos uint64 = 1
+	for range ticker.C {
+		var key uint32 = 0
+		var value uint64
+		var delList []uint32
+
+		objs.KprobeMap.Lookup(&key, &value)
+		log.Printf("--------total migration: %v-------\n", value)
+
+		for i := pos; i <= value; i++ {
+			var info [6]int32
+			var time uint64
+			// var val migrate_value
+			key = uint32(i)
+
+			err := objs.Queue.Lookup(key, &info)
+			objs.Queue.Lookup(key, &time)
+			if err != nil {
+				log.Printf("Failed to read key(%v) %v\n", key, err)
+				return
+			}
+			// 输出migrate的时间戳
+			log.Printf("timestamp(%v) #%v: pid %v, prio %v, core%v -> core%v\n",
+				time, key, info[2], info[3], info[4], info[5])
+
+			delList = append(delList, key)
+		}
+		pos = value + 1
+
+		for _, key := range delList {
+			objs.Queue.Delete(key)
 		}
 	}
 }
