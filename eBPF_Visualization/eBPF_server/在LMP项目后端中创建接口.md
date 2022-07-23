@@ -368,6 +368,7 @@ sudo ./lmp-server  #启动后端服务
 
 ***API测试***
 
-![](C:\Users\17294\Desktop\Screenshot_1.png)
+![Screenshot_1](https://user-images.githubusercontent.com/78520005/180611482-0459ce6f-4a31-4a69-b405-dac438ab2771.png)
+
 
 接口测试通过！
