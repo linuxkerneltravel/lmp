@@ -144,6 +144,9 @@ func runSinglePlugin(path string) (err error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
 	defer stdout.Close()
 	go func() {
 		scanner := bufio.NewScanner(stdout)
@@ -171,15 +174,12 @@ func runSinglePlugin(path string) (err error) {
 
 	pluginPid[path] = cmd.Process.Pid
 
-	go func() {
-		err = cmd.Wait()
-		if err != nil {
-			global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
-			fmt.Println("error in cmd.Wait(): ", err)
-			return
-		}
-	}()
-
+	err = cmd.Wait()
+	if err != nil {
+		global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
+		fmt.Println("error in cmd.Wait(): ", err)
+		return
+	}
 	return nil
 }
 
