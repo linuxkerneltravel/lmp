@@ -10,14 +10,17 @@ import (
 
 var sidecarContainerNames = []string{
 	"istio-proxy",
+	"eswzy-proxy",
 }
 
 var sidecarImagesNames = []string{
 	"istio/proxyv2",
+	"eswzy/sidecar-proxy",
 }
 
 var binaryPaths = []string{
 	"usr/local/bin/envoy",
+	"go/bin/sidecar",
 }
 
 // containerNameSidecarPolicy includes sidecar container name filter policy for sidecar discovering
