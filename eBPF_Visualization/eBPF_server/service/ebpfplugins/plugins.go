@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"os/exec"
 	"syscall"
 	"time"
@@ -139,11 +140,14 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
-func runSinglePlugin(path string) (err error) {
+func RunSinglePlugin(path string) (err error) {
 	cmd := exec.Command("sudo", "python3", path)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Println(err)
+	}
 	defer stdout.Close()
 	go func() {
 		scanner := bufio.NewScanner(stdout)
@@ -154,6 +158,9 @@ func runSinglePlugin(path string) (err error) {
 	}()
 
 	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Println(err)
+	}
 	defer stderr.Close()
 	go func() {
 		scanner := bufio.NewScanner(stderr)
@@ -171,14 +178,12 @@ func runSinglePlugin(path string) (err error) {
 
 	pluginPid[path] = cmd.Process.Pid
 
-	go func() {
-		err = cmd.Wait()
-		if err != nil {
-			global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
-			fmt.Println("error in cmd.Wait(): ", err)
-			return
-		}
-	}()
+	err = cmd.Wait()
+	if err != nil {
+		global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
+		fmt.Println("error in cmd.Wait(): ", err)
+		return
+	}
 
 	return nil
 }
