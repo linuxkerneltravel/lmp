@@ -87,7 +87,7 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	err = runSinglePlugin(plugin.PluginPath)
+	err = RunSinglePlugin(plugin.PluginPath)
 	if err != nil {
 		return err
 	}
