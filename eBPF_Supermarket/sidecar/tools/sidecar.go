@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/eswzy/podstat/policy"
 	"path"
+	"strings"
 )
 
 func GetSidecarBinaryPath(containerID string, runtime string) (string, error) {
@@ -12,13 +13,20 @@ func GetSidecarBinaryPath(containerID string, runtime string) (string, error) {
 		return "", fmt.Errorf("got container file system root failed: %s", err)
 	}
 
-	//containerInfo, err := GetDockerContainerInfo(containerID)
-	//if err != nil {
-	//	return "", err
-	//}
+	containerInfo, err := GetDockerContainerInfo(containerID)
+	if err != nil {
+		return "", err
+	}
 
-	// TODO: fix the container name
-	binaryPath, err := policy.GetSidecarBinaryRelativePath("istio-proxy", "")
+	// fix the container name, as same as sidecarContainerNames in policy pkg
+	containerName := ""
+	if strings.Contains(containerInfo.Name, "istio-proxy") {
+		containerName = "istio-proxy"
+	} else if strings.Contains(containerInfo.Name, "eswzy-proxy") {
+		containerName = "eswzy-proxy"
+	}
+
+	binaryPath, err := policy.GetSidecarBinaryRelativePath(containerName, "")
 	if err != nil {
 		return "", err
 	}
