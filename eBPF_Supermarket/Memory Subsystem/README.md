@@ -77,6 +77,41 @@
 
 3.挂载点及挂载原因
 
+挂载点：get_page_from_freelist
+
+原因：
+
+首先，内存状态数据的提取需要获取到内存节点pglist_data数据结构，这个结构是对内存的总体抽象。pglist_data数据结构末尾有个vm_stat的数组，里面包含了当前内存节点所有的状态信息。所有只需要获取到pglist_data结构就能拿到当前的内存状态信息。但是物理内存分配在选择内存节点是通过mempolicy结构获取，无法获得具体的节点结构。选择内存节点的函数处理流程如下：
+
+```c
+struct mempolicy *get_task_policy(struct task_struct *p)
+{
+        struct mempolicy *pol = p->mempolicy;//根据当前task_struct取得
+        int node;
+
+        if (pol)
+                return pol; 
+
+        node = numa_node_id();
+        if (node != NUMA_NO_NODE) {//存在其他节点
+                pol = &preferred_node_policy[node];
+                /* preferred_node_policy is not initialised early in boot */
+                if (pol->mode)
+                        return pol; 
+        }    
+
+        return &default_policy;//不存在其他节点返回本地节点
+}
+```
+
+经过对内存申请的内部结构alloc_context分析(这是内存申请过程中临时保存相关参数的结构)，当前内存节点是可以通过：alloc_context——>zoneref——>zone——>pglist_data的路径访问到。
+
+其次，因为函数执行申请内存的过程对获取内存节点数据的影响不大，所以只要可以获得alloc_context数据结构，在整个申请路径上挂载函数都是可以的。sysstat工具选择的挂载点是get_page_from_freelist函数。这个函数是快速物理内存分配的入口函数。因为内核在进行物理内存分配时，都会进入快速路径分配，只有当失败时才会进入慢速路径，所以get_page_from_freelist函数是必经函数。整个处理过程以及函数关系如下：
+
+![](./image/1.png)
+
+但是，经过对proc文件系统的打印函数meminfo_proc_show函数的分析得知，影响内存性能的参数在vm_stat中无法全部获得。一部分数据需要遍历当前内存节点包含的所有内存管理区zone结构中vm_stat数组获得，一部分需要读取全局变量vm_node_stat获得。但是内核的全局变量不会作为函数参数参与数据处理，目前还没具体方法获得这部分数据。
+
 
 
 ------
