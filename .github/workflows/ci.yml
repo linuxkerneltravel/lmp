@@ -49,7 +49,7 @@ jobs:
       - name: Test
         run: |
           cd eBPF_Supermarket/sidecar/
-          go test `go list ./... | grep -v github.com/eswzy/podstat/tools`
+          go test `go list ./... | grep -v github.com/eswzy/podstat/tools ｜ grep -v github.com/eswzy/podstat/bpf`
 
   sidecar-integration-test-with-minikube-and-istio:
     runs-on: ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
         run : |
           # https://istio.io/latest/docs/setup/getting-started/
           curl -L https://istio.io/downloadIstio | sh -
-          cd istio-1.14.1
+          cd istio-*
           export PATH=$PWD/bin:$PATH
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
