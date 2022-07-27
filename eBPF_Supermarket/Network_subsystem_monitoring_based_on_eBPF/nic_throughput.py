@@ -12,7 +12,6 @@ ROOT_PATH = "/sys/class/net"
 IFNAMSIZ = 16
 COL_WIDTH = 10
 MAX_QUEUE_NUM = 1024
-EBPF_FILE = "netqtop.c"
 
 # structure for network interface name array
 class Devname(Structure):
@@ -39,11 +38,10 @@ def print_table(table, qnum):
     # ---- print headers ----------------
     headers = [
 		"QueueID", 
-		"avg_size"
+		"avg_size",
+        "BPS",
+        "PPS"
 	]
-    if args.throughput:
-        headers.append("BPS")
-        headers.append("PPS")
 
     print(" ", end="")
     for hd in headers:
@@ -86,28 +84,23 @@ def print_table(table, qnum):
             data[0],
             to_str(avg)
         ), end="")
-        if args.throughput:
-            BPS = data[1] / print_interval
-            PPS = data[2] / print_interval
-            print("%-11s%-11s" % (
-                to_str(BPS),
-                to_str(PPS)
-            ))
-        else:
-            print()
+        BPS = data[1] / print_interval
+        PPS = data[2] / print_interval
+        print("%-11s%-11s" % (
+            to_str(BPS),
+            to_str(PPS)
+        ))
     
     # ------- print total --------------
     print(" Total      %-11s" % (
         to_str(tAVG)
     ), end="")
 
-    if args.throughput:
-        print("%-11s%-11s" % (
-            to_str(tBPS),
-            to_str(tPPS)
-        ))
-    else:
-        print()
+
+    print("%-11s%-11s" % (
+        to_str(tBPS),
+        to_str(tPPS)
+    ))
 
 
 def print_result(b):
@@ -124,16 +117,12 @@ def print_result(b):
     table = b['rx_q']
     print_table(table, rx_num)
     b['rx_q'].clear()
-    if args.throughput:
-        print("-"*95)
-    else:
-        print("-"*77)
+    print("-"*60)
 
 ############## specify network interface #################
 parser = argparse.ArgumentParser(description="")
 parser.add_argument("--name", "-n", type=str, default="")
 parser.add_argument("--interval", "-i", type=float, default=1)
-parser.add_argument("--throughput", "-t", action="store_true")
 args = parser.parse_args()
 
 if args.name == "":
@@ -171,7 +160,7 @@ if tx_num > MAX_QUEUE_NUM or rx_num > MAX_QUEUE_NUM:
     exit()
 
 ################## start tracing ##################
-b = BPF(src_file = EBPF_FILE)
+b = BPF(src_file = "nic_throughput.c")
 devname_map = b['name_map']
 _name = Devname()
 _name.name = dev_name.encode()
