@@ -16,7 +16,7 @@ func main() {
 	namespace := flag.String("namespace", "default", "namespace for this pod")
 	flag.Parse()
 
-	if podName == nil {
+	if *podName == "" {
 		// TODO: testing code, delete it after the test
 		// https://istio.io/latest/docs/setup/getting-started/
 		tmpKubeconfig := tools.GetDefaultKubeConfig()
