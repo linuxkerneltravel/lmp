@@ -48,7 +48,6 @@ func GetSidecarFromContainerStatuses(containerStatuses []v1.ContainerStatus) (v1
 	for i, containerStatus := range containerStatuses {
 		isSidecar, path := containerNameSidecarPolicy(containerStatus.Name)
 		if isSidecar {
-			fmt.Println(containerStatus.Name)
 			return containerStatus, i, path, nil
 		}
 	}

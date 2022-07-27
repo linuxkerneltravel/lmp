@@ -16,6 +16,9 @@ func TestGetSidecarBinaryPath(t *testing.T) {
 	label := test.Label
 	podName, err := GetPodNameFromNodeAndLabel(kubeconfig, namespace, nodeName, label)
 
+	// podName = "sidecar-demo"
+	// namespace = "sidecar"
+
 	targetPod, err := LocateTargetPod(kubeconfig, podName, namespace)
 	if err != nil {
 		t.Errorf("locating target pod failed: %s", err)
