@@ -75,6 +75,7 @@ func (ebpf *EbpfpluginsService) GetEbpfPluginsInfoList(sysUserAuthorityID string
 //@description: 加载插件到内核
 //@param: e model.EbpfPlugins
 //@return: err error
+
 func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error) {
 	// todo
 	// 1.状态判断，看是否已经加载到内核，判断State即可，避免重复下发
@@ -87,15 +88,13 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	go RunSinglePlugin(plugin.PluginPath)
-	if err != nil {
-		return err
-	}
-
-	// 3.执行之后结果执行，成功还是失败
+	go runSinglePlugin(e, 1000)
+	// 3.执行之后结果，成功还是失败
 	plugin.State = 1 // 表示已经成功加载内核中运行
-	err = global.GVA_DB.Save(plugin).Error
+	go func() {
 
+	}()
+	err = global.GVA_DB.Save(plugin).Error
 	return err
 }
 
