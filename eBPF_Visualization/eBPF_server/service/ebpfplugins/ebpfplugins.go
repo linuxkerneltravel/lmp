@@ -87,7 +87,7 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	err = RunSinglePlugin(plugin.PluginPath)
+	go RunSinglePlugin(plugin.PluginPath)
 	if err != nil {
 		return err
 	}
@@ -115,11 +115,15 @@ func (ebpf *EbpfpluginsService) UnloadEbpfPlugins(e request.PluginInfo) (err err
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
 	if plugin.State == 1 {
-		plugin.State = 0
-		killProcess(plugin.PluginPath)
-		err = global.GVA_DB.Save(plugin).Error
+		if pluginPid[plugin.PluginPath] == 0 {
+			plugin.State = 0
+			err = global.GVA_DB.Save(plugin).Error
+		} else {
+			plugin.State = 0
+			killProcess(plugin.PluginPath)
+			err = global.GVA_DB.Save(plugin).Error
+		}
 	}
-
 	return err
 }
 

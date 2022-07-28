@@ -61,6 +61,8 @@ func Run(filePath string, exportFileType string) error {
 	cmdSlice = append(cmdSlice, "sudo")
 	cmdSlice = append(cmdSlice, "stdbuf")
 	cmdSlice = append(cmdSlice, "-oL")
+	cmdSlice = append(cmdSlice, "python3")
+	cmdSlice = append(cmdSlice, "-u")
 	cmdSlice = append(cmdSlice, filePath)
 
 	cmdStr := strings.Join(cmdSlice, " ")
