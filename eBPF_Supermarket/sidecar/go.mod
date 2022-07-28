@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/docker/docker v20.10.17+incompatible
+	github.com/iovisor/gobpf v0.2.0
 	github.com/shirou/gopsutil/v3 v3.22.5
 	k8s.io/api v0.24.2
 	k8s.io/apimachinery v0.24.2
