@@ -160,10 +160,10 @@ func runSinglePlugin(e request.PluginInfo, timeout int) {
 		after := time.After(time.Duration(timeout) * time.Millisecond)
 		for scanner.Scan() {
 			linechan <- scanner.Text()
-
 			select {
 			case line := <-linechan:
 				fmt.Println(line)
+				after = time.After(time.Duration(timeout) * time.Millisecond)
 			case <-after:
 				global.GVA_LOG.Error("Time out!")
 			}
