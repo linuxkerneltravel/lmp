@@ -112,6 +112,71 @@ struct mempolicy *get_task_policy(struct task_struct *p)
 
 但是，经过对proc文件系统的打印函数meminfo_proc_show函数的分析得知，影响内存性能的参数在vm_stat中无法全部获得。一部分数据需要遍历当前内存节点包含的所有内存管理区zone结构中vm_stat数组获得，一部分需要读取全局变量vm_node_stat获得。但是内核的全局变量不会作为函数参数参与数据处理，目前还没具体方法获得这部分数据。
 
+### paf
+
+1.采集信息
+
+| 参数    | 含义                                 |
+| ------- | ------------------------------------ |
+| min     | 内存管理区处于最低警戒水位的页面数量 |
+| low     | 内存管理区处于低水位的页面数量       |
+| high    | 内存管理区处于高水位的页面数量       |
+| present | 内存管理区实际管理的页面数量         |
+| flag    | 申请页面时的权限（标志）             |
+
+内存申请失败一般集中在申请权限不够或者是权限冲突导致，申请权限不够是当内核申请优先级较低的页面时，虽然内存管理区有足够的页面满足这次申请数量，但是当前剩余空闲页面少于最低警戒水位，因此导致内核无法成功分配页面的情况。权限冲突，例如内核在开启CMA机制下导致的页面页面申请失败的情况，这种情况下管理区空闲页面需要减去CMA机制占用内存才是当前可分配内存。相关权限判断代码如下：
+
+添加CMA权限代码路径mm/page_alloc.c
+
+```c
+static inline unsigned int
+gfp_to_alloc_flags(gfp_t gfp_mask)
+{
+	unsigned int alloc_flags = ALLOC_WMARK_MIN | ALLOC_CPUSET;
+    ...
+	alloc_flags |= (__force int) (gfp_mask & __GFP_HIGH);
+    ...
+	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
+			alloc_flags |= ALLOC_KSWAPD;
+    
+#ifdef CONFIG_CMA
+	if (gfpflags_to_migratetype(gfp_mask) == MIGRATE_MOVABLE)
+			alloc_flags |= ALLOC_CMA;
+#endif
+	return alloc_flags;
+}
+```
+
+CMA机制内存处理代码:
+
+```c
+bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
+                         int classzone_idx, unsigned int alloc_flags, long free_pages)
+{
+   ...
+#ifdef CONFIG_CMA
+        if (!(alloc_flags & ALLOC_CMA))
+                free_pages -= zone_page_state(z, NR_FREE_CMA_PAGES);
+#endif  
+  
+        if (free_pages <= min + z->lowmem_reserve[classzone_idx])
+                return false;
+	...
+#ifdef CONFIG_CMA
+       if ((alloc_flags & ALLOC_CMA) &&
+                !list_empty(&area->free_list[MIGRATE_CMA])) {
+                        return true;
+                }
+#endif
+}  
+```
+
+2.存在问题
+
+
+
+3.挂载点及原因
+
 
 
 ------
