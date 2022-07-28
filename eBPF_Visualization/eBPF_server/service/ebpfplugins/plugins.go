@@ -141,7 +141,7 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 var pluginPid = make(map[string]int, 10)
 
 func RunSinglePlugin(path string) (err error) {
-	cmd := exec.Command("sudo", "python3", path)
+	cmd := exec.Command("sudo", "python3", "-u", path)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
@@ -169,22 +169,19 @@ func RunSinglePlugin(path string) (err error) {
 			fmt.Println(line)
 		}
 	}()
-
 	err = cmd.Start()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.Start()", zap.Error(err))
 		return
 	}
-
 	pluginPid[path] = cmd.Process.Pid
-
 	err = cmd.Wait()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
 		fmt.Println("error in cmd.Wait(): ", err)
 		return
 	}
-
+	defer fmt.Printf("Process finished!")
 	return nil
 }
 
