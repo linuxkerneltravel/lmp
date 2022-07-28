@@ -33,6 +33,29 @@ struct bpf_elf_map {
   __u32 pinning;
 };
 
+struct record {
+  __u32 count;
+  __u32 fail_count;
+  // any request count
+  __u32 any_count;
+  __u32 padding;
+};
+
+struct dns_hdr {
+  __u16 id;
+  __u16 flags;
+  __u16 qdcount;
+  __u16 ancount;
+  __u16 nscount;
+  __u16 arcount;
+};
+
+struct dns_question {
+  __u32 qname;
+  __u16 qtype;
+  __u16 qclass;
+};
+
 static __u64 (*bpf_get_current_pid_tgid)() = (void *)
     BPF_FUNC_get_current_pid_tgid;
 static __u64 (*bpf_get_current_uid_gid)() = (void *)
@@ -76,8 +99,16 @@ static long (*bpf_skb_store_bytes)(struct __sk_buff *skb, __u32 offset,
                                    const void *from, __u32 len, __u64 flags) =
     (void *)BPF_FUNC_skb_store_bytes;
 
+#ifdef PRINTNL
+#define PRINT_SUFFIX "\n"
+#else
+#define PRINT_SUFFIX ""
+#endif
+
+#ifndef printk
 #define printk(fmt, ...)                                                       \
   ({                                                                           \
-    char ____fmt[] = fmt;                                                      \
+    char ____fmt[] = fmt PRINT_SUFFIX;                                         \
     bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__);                 \
   })
+#endif
