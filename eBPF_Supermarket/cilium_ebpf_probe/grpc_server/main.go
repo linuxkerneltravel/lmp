@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "github.com/WYuei/cilium_ebpf_probe/proto/greetpb"
+	pb "cilium_ebpf_probe/proto/greetpb"
 )
 
 type server struct{}
@@ -24,7 +24,7 @@ func (t *test) aestfunc(a int, b int) int {
 	return a + b
 }
 func main() {
-	port := flag.Int("port", 50051, "The port to listen.")
+	port := flag.Int("port", 50052, "The port to listen.")
 	flag.Parse()
 
 	log.Printf("Starting http server on port: %d", *port)
