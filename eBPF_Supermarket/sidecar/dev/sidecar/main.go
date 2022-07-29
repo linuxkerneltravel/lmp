@@ -54,6 +54,9 @@ func (p *Proxy) forwardRequest(req *http.Request) (*http.Response, time.Duration
 	res, err := httpClient.Do(proxyReq)
 	duration := time.Since(start)
 
+	// Close idle to avoid keep alive connection
+	httpClient.CloseIdleConnections()
+
 	// Return the response, the request duration, and the error.
 	return res, duration, err
 }

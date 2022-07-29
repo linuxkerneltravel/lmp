@@ -9,6 +9,7 @@ import (
 type IntFilterGenerator struct {
 	Name    string
 	List    []int
+	Action  string
 	Reverse bool // skip event if `Reverse` is true
 }
 
@@ -31,7 +32,7 @@ func (fg IntFilterGenerator) Generate() string {
 		}
 	}
 
-	filter = fmt.Sprintf("if (%s) { return 0; }", filter)
+	filter = fmt.Sprintf("if (%s) { %s }", filter, fg.Action)
 	return filter
 }
 
