@@ -140,6 +140,9 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 }
 `
 
+// FIXME: change to more intuitive names
+// DAddr:DPort -> SAddr:LPort
+
 type ipv4EventData struct {
 	TsUs  uint64
 	Pid   uint32
@@ -181,7 +184,7 @@ func getTcpAcceptEventFromIpv4EventData(bpfEvent ipv4EventData) Event {
 		Time:  time.UnixMicro(int64(bpfEvent.TsUs)),
 		Comm:  strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:   int(bpfEvent.Pid),
-		Tid:   int(bpfEvent.Tid),
+		Tid:   0, // int(bpfEvent.Tid),
 		SAddr: bpfEvent.SAddr.ToString(),
 		DAddr: bpfEvent.DAddr.ToString(),
 		LPort: int(bpfEvent.LPort),
@@ -195,7 +198,7 @@ func getTcpAcceptEventFromIpv6EventData(bpfEvent ipv6EventData) Event {
 		Time:  time.UnixMicro(int64(bpfEvent.TsUs)),
 		Comm:  strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:   int(bpfEvent.Pid),
-		Tid:   int(bpfEvent.Tid),
+		Tid:   0, // int(bpfEvent.Tid),
 		SAddr: bpfEvent.SAddr.ToString(),
 		DAddr: bpfEvent.DAddr.ToString(),
 		LPort: int(bpfEvent.LPort),
@@ -204,11 +207,10 @@ func getTcpAcceptEventFromIpv6EventData(bpfEvent ipv6EventData) Event {
 	}
 }
 
-// TcpAccept probes TCP accept event and pushes it out
-func TcpAccept(pidList []int, portList []int, protocolList []string, ch chan<- Event) {
-	fmt.Println("TcpAccept started!")
-	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Reverse: false}
-	portFg := bpf.IntFilterGenerator{Name: "lport", List: portList, Reverse: false}
+// Probe probes TCP accept event and pushes it out
+func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event) {
+	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Action: "return 0;", Reverse: false}
+	portFg := bpf.IntFilterGenerator{Name: "lport", List: portList, Action: "return 0;", Reverse: false}
 	familyFg := bpf.FamilyFilterGenerator{List: protocolList}
 
 	sourceBpf := source
@@ -240,6 +242,7 @@ func TcpAccept(pidList []int, portList []int, protocolList []string, ch chan<- E
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
+	fmt.Println("TCP Accept started!")
 	go func() {
 		for {
 			data := <-channelv4
@@ -282,7 +285,7 @@ func Sample() {
 	var protocolList []string
 	ch := make(chan Event, 10000)
 
-	go TcpAccept(pidList, portList, protocolList, ch)
+	go Probe(pidList, portList, protocolList, ch)
 
 	for {
 		event := <-ch
