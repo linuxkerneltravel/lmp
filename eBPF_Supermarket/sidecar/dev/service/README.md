@@ -1,3 +1,3 @@
 # Service container
 
-Use [kennethreitz/httpbin](https://github.com/postmanlabs/httpbin) directly.
+Service container written in C. However, there are some problems during benchmark testing. Use it when passing test.
