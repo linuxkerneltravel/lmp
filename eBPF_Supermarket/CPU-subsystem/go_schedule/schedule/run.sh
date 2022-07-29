@@ -1,5 +1,4 @@
 #!/bin/bash
-
 cp ../headers/kprobe.c .
 echo go generate
 go generate
