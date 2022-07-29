@@ -2,9 +2,10 @@ package tools
 
 import (
 	"fmt"
-	"github.com/eswzy/podstat/policy"
 	"path"
 	"strings"
+
+	"github.com/eswzy/podstat/policy"
 )
 
 func GetSidecarBinaryPath(containerID string, runtime string) (string, error) {
@@ -19,11 +20,12 @@ func GetSidecarBinaryPath(containerID string, runtime string) (string, error) {
 	}
 
 	// fix the container name, as same as sidecarContainerNames in policy pkg
+	// FIXME: make this enumerable or configurable
 	containerName := ""
 	if strings.Contains(containerInfo.Name, "istio-proxy") {
 		containerName = "istio-proxy"
-	} else if strings.Contains(containerInfo.Name, "eswzy-proxy") {
-		containerName = "eswzy-proxy"
+	} else if strings.Contains(containerInfo.Name, "sidecar-proxy") {
+		containerName = "sidecar-proxy"
 	}
 
 	binaryPath, err := policy.GetSidecarBinaryRelativePath(containerName, "")
