@@ -88,7 +88,7 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	go runSinglePlugin(e, 1000)
+	go runSinglePlugin(e, 1500)
 	// 3.执行之后结果，成功还是失败
 	plugin.State = 1 // 表示已经成功加载内核中运行
 	err = global.GVA_DB.Save(plugin).Error
