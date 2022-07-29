@@ -27,6 +27,8 @@ runqlen_percpu.c: 打印每个CPU的runqlen分布情况。使用了kprobe，挂�
 
 runqlen_se.c: 打印每个CPU的 CFS 调度的队列长度分布情况。使用了kprobe，挂载点是update_rq_clock.
 
+挂载点说明：update_rq_clock() 函数在内核中的作用是用来更新rq主运行队列的运行时间的，不涉及到具体的某种调度策略（如CFS），因而能够得到通用的调度数据。执行栈是内核的时钟中断函数->update_process_time()->scheduler_tick()->update_rq_clock()，使用update_rq_clock()的优势在于该函数的参数内携带了rq结构体，可直接查阅运行队列rq的数据。执行频率为800~1000Hz，较低，不会影响到内核的运行性能。
+
 使用方法：
 
 ```shell
