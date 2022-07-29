@@ -1,2 +1,2 @@
 make:
-	docker build -t eswzy/sidecar-network:latest -f Dockerfile .
+	docker build -t eswzy/sidecar-init:latest -f Dockerfile .

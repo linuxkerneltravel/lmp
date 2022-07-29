@@ -54,6 +54,9 @@ func (p *Proxy) forwardRequest(req *http.Request) (*http.Response, time.Duration
 	res, err := httpClient.Do(proxyReq)
 	duration := time.Since(start)
 
+	// Close idle to avoid keep alive connection
+	httpClient.CloseIdleConnections()
+
 	// Return the response, the request duration, and the error.
 	return res, duration, err
 }
@@ -65,7 +68,7 @@ func (p *Proxy) writeResponse(w http.ResponseWriter, res *http.Response) {
 	}
 
 	// Set a special header to notify that the proxy actually serviced the request.
-	w.Header().Set("Server", "amazing-proxy")
+	w.Header().Set("Server", "sidecar-proxy")
 
 	// Set the status code returned by the destination service.
 	w.WriteHeader(res.StatusCode)

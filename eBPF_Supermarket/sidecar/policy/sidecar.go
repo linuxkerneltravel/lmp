@@ -10,7 +10,7 @@ import (
 
 var sidecarContainerNames = []string{
 	"istio-proxy",
-	"eswzy-proxy",
+	"sidecar-proxy",
 }
 
 var sidecarImagesNames = []string{

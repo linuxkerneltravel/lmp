@@ -15,11 +15,22 @@ struct dns_hdr_t {
   uint16_t arcount;
 } BPF_PACKET_HEADER;
 
-BPF_TABLE_PINNED("lru_hash", u32, u32, fail_counter, 65535,
-                 "/sys/fs/bpf/xdp/globals/fail_counter");
+struct record {
+  uint32_t count;
+  uint32_t fail_count;
+  // any request count
+  uint32_t any_count;
+  uint32_t padding;
+};
+
+BPF_TABLE_PINNED("hash", u8, u32, configuration, 255,
+                 "/sys/fs/bpf/xdp/globals/configuration");
+
+BPF_TABLE_PINNED("lru_hash", u32, struct record, counter, 65535,
+                 "/sys/fs/bpf/xdp/globals/counter");
 
 #define DROP 0
-#define PASS -1.
+#define PASS -1
 
 int catch_dns(struct __sk_buff *skb) {
   u8 *cursor = 0;
@@ -42,28 +53,21 @@ int catch_dns(struct __sk_buff *skb) {
   struct dns_hdr_t *dns_hdr = cursor_advance(cursor, sizeof(*dns_hdr));
 
   __u32 src_ip = bpf_htonl(ip->dst);
-  __u32 *cnt = fail_counter.lookup(&src_ip);
+  struct record *r = counter.lookup(&src_ip);
+  if (!r) {
+    return PASS;
+  }
 
   __u16 flags = dns_hdr->flags;
   flags &= 15;
   if (flags == 0) {
     // correct, cnt--
     // bpf_trace_printk("dwq rcode 0");
-    if (cnt && *cnt > 0) {
-      __sync_fetch_and_add(cnt, -1);
-      // bpf_trace_printk("dwq cnt--");
+    if (r->fail_count > 0) {
+      __sync_fetch_and_add(&r->fail_count, -1);
     }
   } else {
-    // error, cnt++
-    // bpf_trace_printk("dwq rcode %d", flags);
-    if (cnt) {
-      __sync_fetch_and_add(cnt, 1);
-      // bpf_trace_printk("dwq cnt++");
-    } else {
-      __u32 one = 1;
-      fail_counter.update(&src_ip, &one);
-      // bpf_trace_printk("dwq cnt=1");
-    }
+    __sync_fetch_and_add(&r->fail_count, 1);
   }
   return PASS;
 }
