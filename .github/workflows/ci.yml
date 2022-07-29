@@ -4,13 +4,17 @@ on:
   push:
     branches:
       - "*"
-    paths-ignore:
-      - "./static/**"
+    paths: 
+      - 'eBPF_Visualization/eBPF_server/**'
+      - 'eBPF_Supermarket/sidecar/**'
+      - '!./static/**'
   pull_request:
     branches:
       - "*"
-    paths-ignore:
-      - "./static/**"
+    paths: 
+      - 'eBPF_Visualization/eBPF_server/**'
+      - 'eBPF_Supermarket/sidecar/**'
+      - '!./static/**'
   pull_request_review:
   workflow_dispatch:
 
