@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grpcserver
+  namespace: wyw
+spec:
+  containers:
+    - image: wyuei/grpc_server
+      name: grpcserver
+      command: ["/go/src/grpc_server/main"]
