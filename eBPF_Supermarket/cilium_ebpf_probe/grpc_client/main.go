@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "github.com/WYuei/cilium_ebpf_probe/proto/greetpb"
+	pb "cilium_ebpf_probe/proto/greetpb"
 )
 
 func mustCreateGrpcClientConn(address string) *grpc.ClientConn {
@@ -26,7 +26,7 @@ func connectAndGreet(address, name string, count, sleep_millis int) {
 	c := pb.NewGreeterClient(conn)
 
 	for i := 0; i < count; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 		r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
 		if err != nil {
@@ -38,7 +38,7 @@ func connectAndGreet(address, name string, count, sleep_millis int) {
 }
 
 func main() {
-	address := flag.String("address", "localhost:50051", "Server end point.")
+	address := flag.String("address", "10.0.0.87:50051", "Server end point.")
 	name := flag.String("name", "world", "The name to greet.")
 	count := flag.Int("count", 1, "The number of RPC calls to make.")
 	sleep_millis := flag.Int("sleep-millis", 500, "The number of milliseconds to sleep between RPC calls.")

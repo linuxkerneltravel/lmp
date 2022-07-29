@@ -8,7 +8,6 @@ const bpfProgram = `
 #include <linux/fs.h>
 #include <linux/stat.h>
 #include <linux/socket.h>
-
 struct addr_info_t {
   struct sockaddr *addr;
   size_t *addrlen;
@@ -20,11 +19,13 @@ struct syscall_write_event_t {
 
   struct attr_t {
     int event_type;
-    int fd;
+    int fd; 
     int bytes;
     // Care needs to be taken as only msg_size bytes of msg are guaranteed
     // to be valid.
     int msg_size;
+	u64 start_ns;
+	u64 end_ns;
   } attr;
   char msg[MAX_MSG_SIZE];
 };
@@ -82,6 +83,8 @@ int syscall__probe_ret_accept4(struct pt_regs *ctx, int sockfd, struct sockaddr 
   event->attr.fd = fd;
   event->attr.msg_size = buf_size;
   event->attr.bytes = buf_size;
+  event->attr.start_ns = bpf_ktime_get_ns();
+  event->attr.end_ns = 0;
   unsigned int size_to_submit = sizeof(event->attr) + buf_size;
   syscall_write_events.perf_submit(ctx, event, size_to_submit);
  done:
@@ -89,6 +92,9 @@ int syscall__probe_ret_accept4(struct pt_regs *ctx, int sockfd, struct sockaddr 
   return 0;
 }
 int syscall__probe_write(struct pt_regs *ctx, int fd, const void* buf, size_t count) {
+
+  __u64 ts = bpf_ktime_get_ns();
+
   int zero = 0;
   struct syscall_write_event_t *event = write_buffer_heap.lookup(&zero);
   if (event == NULL) {
@@ -112,6 +118,7 @@ int syscall__probe_write(struct pt_regs *ctx, int fd, const void* buf, size_t co
   unsigned int size_to_submit = sizeof(event->attr) + buf_size;
   event->attr.event_type = kEventTypeSyscallWriteEvent;
 
+
   syscall_write_events.perf_submit(ctx, event, size_to_submit);
   return 0;
 }
@@ -132,6 +139,8 @@ int syscall__probe_close(struct pt_regs *ctx, int fd) {
   event->attr.fd = fd;
   event->attr.bytes = 0;
   event->attr.msg_size = 0;
+  event->attr.start_ns=0;
+  event->attr.end_ns = bpf_ktime_get_ns();
   syscall_write_events.perf_submit(ctx, event, sizeof(event->attr));
   active_fds.delete(&fd);
   return 0;
