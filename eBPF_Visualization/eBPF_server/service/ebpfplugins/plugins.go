@@ -141,6 +141,7 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
+
 func runSinglePlugin(e request.PluginInfo, timeout int) {
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
 	var plugin ebpfplugins.EbpfPlugins
@@ -199,9 +200,9 @@ func runSinglePlugin(e request.PluginInfo, timeout int) {
 		return
 	}
 	defer fmt.Printf("Process finished!")
+
 }
 func killProcess(path string) {
-
 	if err := syscall.Kill(-pluginPid[path], syscall.SIGKILL); err != nil {
 		return
 	}
