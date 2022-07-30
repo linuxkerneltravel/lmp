@@ -141,7 +141,7 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
-func runSinglePlugin(e request.PluginInfo, timeout int, out *chan bool, errch *chan error) {
+func runSinglePlugin(e request.PluginInfo, timeout int, out *chan int, errch *chan error) {
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
@@ -163,7 +163,10 @@ func runSinglePlugin(e request.PluginInfo, timeout int, out *chan bool, errch *c
 			select {
 			case line := <-linechan:
 				fmt.Println(line)
-				*out <- true
+				*out <- 1
+				if len(*out) >= 1 {
+					<-*out
+				}
 				after = time.After(time.Duration(timeout) * time.Millisecond)
 			case <-after:
 				global.GVA_LOG.Error("Time out!")
