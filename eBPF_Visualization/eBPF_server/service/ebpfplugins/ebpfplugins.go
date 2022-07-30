@@ -6,6 +6,8 @@ import (
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/ebpfplugins"
+	"log"
+	"sync"
 )
 
 type EbpfpluginsService struct{}
@@ -88,7 +90,28 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	go runSinglePlugin(e, 1500)
+	var wg sync.WaitGroup
+	outch := make(chan int, 2)
+	errch := make(chan error, 1)
+	wg.Add(1)
+	go func() {
+		runSinglePlugin(e, 1500, &outch, &errch)
+	}()
+	go func() {
+		select {
+		case out := <-outch:
+			global.GVA_LOG.Info("Start run plugin!")
+			log.Println(out)
+			wg.Done()
+		case err = <-errch:
+			global.GVA_LOG.Error("error in runSinglePlugin!")
+			wg.Done()
+		}
+	}()
+	wg.Wait()
+	if err != nil {
+		return err
+	}
 	// 3.执行之后结果，成功还是失败
 	plugin.State = 1 // 表示已经成功加载内核中运行
 	err = global.GVA_DB.Save(plugin).Error
