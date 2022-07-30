@@ -141,8 +141,7 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
-
-func runSinglePlugin(e request.PluginInfo, timeout int) {
+func runSinglePlugin(e request.PluginInfo, timeout int, out *chan bool, errch *chan error) {
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
@@ -152,7 +151,7 @@ func runSinglePlugin(e request.PluginInfo, timeout int) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.StdoutPipe", zap.Error(err))
-		return
+		*errch <- err
 	}
 	defer stdout.Close()
 	go func() {
@@ -164,6 +163,7 @@ func runSinglePlugin(e request.PluginInfo, timeout int) {
 			select {
 			case line := <-linechan:
 				fmt.Println(line)
+				*out <- true
 				after = time.After(time.Duration(timeout) * time.Millisecond)
 			case <-after:
 				global.GVA_LOG.Error("Time out!")
@@ -174,7 +174,7 @@ func runSinglePlugin(e request.PluginInfo, timeout int) {
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.StderrPipe", zap.Error(err))
-		return
+		*errch <- err
 	}
 	defer stderr.Close()
 	go func() {
@@ -187,20 +187,15 @@ func runSinglePlugin(e request.PluginInfo, timeout int) {
 	err = cmd.Start()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.Start()", zap.Error(err))
-		return
+		*errch <- err
 	}
 	pluginPid[plugin.PluginPath] = cmd.Process.Pid
 	err = cmd.Wait()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
-		{
-			plugin.State = 0
-			err = global.GVA_DB.Save(plugin).Error
-		}
-		return
+		*errch <- err
 	}
 	defer fmt.Printf("Process finished!")
-
 }
 func killProcess(path string) {
 	if err := syscall.Kill(-pluginPid[path], syscall.SIGKILL); err != nil {
