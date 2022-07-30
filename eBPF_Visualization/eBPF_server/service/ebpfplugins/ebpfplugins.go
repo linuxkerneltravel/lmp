@@ -6,6 +6,7 @@ import (
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/ebpfplugins"
+	"log"
 	"sync"
 )
 
@@ -90,7 +91,7 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 
 	// 2.加载执行
 	var wg sync.WaitGroup
-	outch := make(chan bool, 2)
+	outch := make(chan int, 2)
 	errch := make(chan error, 1)
 	wg.Add(1)
 	go func() {
@@ -98,10 +99,12 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}()
 	go func() {
 		select {
-		case <-outch:
-			<-outch
+		case out := <-outch:
+			global.GVA_LOG.Info("Start run plugin!")
+			log.Println(out)
 			wg.Done()
 		case err = <-errch:
+			global.GVA_LOG.Error("error in runSinglePlugin!")
 			wg.Done()
 		}
 	}()
