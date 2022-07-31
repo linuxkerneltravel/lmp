@@ -3,11 +3,12 @@ package ebpfplugins
 import (
 	"errors"
 	"io/ioutil"
+	"log"
+	"sync"
+
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/ebpfplugins"
-	"log"
-	"sync"
 )
 
 type EbpfpluginsService struct{}
@@ -91,19 +92,19 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 
 	// 2.加载执行
 	var wg sync.WaitGroup
-	outch := make(chan int, 2)
-	errch := make(chan error, 1)
+	outputChannel := make(chan int, 2)  // alter name; magic number
+	errorChannel := make(chan error, 1) // alter name
 	wg.Add(1)
 	go func() {
-		runSinglePlugin(e, 1500, &outch, &errch)
+		runSinglePlugin(e, 1500, &outputChannel, &errorChannel)
 	}()
 	go func() {
 		select {
-		case out := <-outch:
+		case out := <-outputChannel:
 			global.GVA_LOG.Info("Start run plugin!")
 			log.Println(out)
 			wg.Done()
-		case err = <-errch:
+		case err = <-errorChannel:
 			global.GVA_LOG.Error("error in runSinglePlugin!")
 			wg.Done()
 		}
