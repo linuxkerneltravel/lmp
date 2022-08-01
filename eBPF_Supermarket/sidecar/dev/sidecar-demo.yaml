@@ -8,8 +8,8 @@ spec:
   nodeSelector:
     sidecar-demo-node: dev  # kubectl label nodes node2 sidecar-demo-node=dev
   initContainers:
-    - name: sidecar-network
-      image: eswzy/sidecar-network
+    - name: sidecar-init
+      image: eswzy/sidecar-init
       imagePullPolicy: IfNotPresent
       securityContext:
         capabilities:
@@ -17,11 +17,12 @@ spec:
             - NET_ADMIN
         privileged: true
   containers:
-    - name: eswzy-service
-      image: kennethreitz/httpbin
+    - name: sidecar-service
+      image: nginx  # TODO: use self-made service image instead
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 80
-    - name: eswzy-proxy
+    - name: sidecar-proxy
       image: eswzy/sidecar-proxy
       imagePullPolicy: IfNotPresent
       ports:
