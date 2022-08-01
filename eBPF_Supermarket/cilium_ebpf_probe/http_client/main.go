@@ -8,10 +8,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"time"
+	//"time"
 )
 
-const url = "http://10.0.0.231:8099/api/hello"
+const url = "http://localhost:8099/api/hello"
 
 func main() {
 	count := flag.Int("count", 5, "The number of calls to make.")
@@ -28,9 +28,9 @@ func main() {
 
 		res, err := ioutil.ReadAll(resp.Body)
 		ErrPrint(err)
-		fmt.Printf("%s\n", res)
+		fmt.Println("response statuscode is", resp.StatusCode, " and res body is ", string(res))
 		resp.Body.Close()
-		time.Sleep(time.Duration(100) * time.Millisecond)
+		//time.Sleep(time.Duration(100) * time.Millisecond)
 	}
 
 }

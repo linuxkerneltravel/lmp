@@ -14,6 +14,8 @@ func test_hello(w http.ResponseWriter, req *http.Request) {
 	url, _ := json.Marshal(req.URL)
 	println("A Request URL:", string(url))
 	fmt.Printf(" and User Agent: %s\n", req.Header.Get("User-Agent"))
+
+	w.WriteHeader(500)
 	fmt.Fprintf(w, "Resonse:")
 	w.Write([]byte("hello"))
 }
