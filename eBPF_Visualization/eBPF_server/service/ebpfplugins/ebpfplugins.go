@@ -13,6 +13,11 @@ import (
 
 type EbpfpluginsService struct{}
 
+const (
+	outputBufferCapacity = 2
+	errorBufferCapacity  = 1
+)
+
 //@author: [helight](https://github.com/hellight)
 //@function: CreateEbpfPlugins
 //@description: 创建插件
@@ -92,11 +97,11 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 
 	// 2.加载执行
 	var wg sync.WaitGroup
-	outputChannel := make(chan int, 2)  // alter name; magic number
-	errorChannel := make(chan error, 1) // alter name
+	outputChannel := make(chan bool, outputBufferCapacity)
+	errorChannel := make(chan error, errorBufferCapacity)
 	wg.Add(1)
 	go func() {
-		runSinglePlugin(e, 1500, &outputChannel, &errorChannel)
+		runSinglePlugin(e, &outputChannel, &errorChannel)
 	}()
 	go func() {
 		select {
