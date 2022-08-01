@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"google.golang.org/grpc"
 	"log"
 	"time"
-
-	"google.golang.org/grpc"
 
 	pb "cilium_ebpf_probe/proto/greetpb"
 )
@@ -38,9 +37,9 @@ func connectAndGreet(address, name string, count, sleep_millis int) {
 }
 
 func main() {
-	address := flag.String("address", "10.0.0.87:50051", "Server end point.")
+	address := flag.String("address", "10.244.0.6:50051", "Server end point.")
 	name := flag.String("name", "world", "The name to greet.")
-	count := flag.Int("count", 1, "The number of RPC calls to make.")
+	count := flag.Int("count", 5, "The number of RPC calls to make.")
 	sleep_millis := flag.Int("sleep-millis", 500, "The number of milliseconds to sleep between RPC calls.")
 	flag.Parse()
 	connectAndGreet(*address, *name, *count, *sleep_millis)

@@ -8,3 +8,6 @@ spec:
     - image: wyuei/grpc_server
       name: grpcserver
       command: ["/go/src/grpc_server/main"]
+      env:
+        - name: TZ
+          value: Asia/Shanghai

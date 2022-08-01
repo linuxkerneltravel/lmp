@@ -7,3 +7,6 @@ spec:
   containers:
     - image: wyuei/http_server
       name: httpserver
+      env:
+        - name: TZ
+          value: Asia/Shanghai
