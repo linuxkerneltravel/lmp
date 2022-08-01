@@ -3,7 +3,6 @@ package tcpconnect
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -19,13 +18,14 @@ import (
 import "C"
 
 const source string = `
+// ver: 1e510db2fe3a134c476f582defc3c68e71e68b1b
 #include <uapi/linux/ptrace.h>
 #include <net/sock.h>
 #include <bcc/proto.h>
 BPF_HASH(currsock, u32, struct sock *);
 // separate data structs for ipv4 and ipv6
 struct ipv4_data_t {
-    u64 ts_us;
+    u64 ts_ns;
     u32 pid;
     u32 tid;
     u32 saddr;
@@ -33,11 +33,12 @@ struct ipv4_data_t {
     u64 ip;
     u16 lport;
     u16 dport;
+	u32 pad;
     char task[TASK_COMM_LEN];
 };
 BPF_PERF_OUTPUT(ipv4_events);
 struct ipv6_data_t {
-    u64 ts_us;
+    u64 ts_ns;
     u32 pid;
     u32 tid;
     unsigned __int128 saddr;
@@ -45,6 +46,7 @@ struct ipv6_data_t {
     u64 ip;
     u16 lport;
     u16 dport;
+	u32 pad;
     char task[TASK_COMM_LEN];
 };
 BPF_PERF_OUTPUT(ipv6_events);
@@ -91,7 +93,7 @@ static int trace_connect_return(struct pt_regs *ctx, short family)
     if (family == 4) {
         struct ipv4_data_t data4 = {.pid = pid, .ip = family};
         data4.tid = tid;
-	    data4.ts_us = bpf_ktime_get_ns() / 1000;
+	    data4.ts_ns = bpf_ktime_get_ns();
 	    data4.saddr = skp->__sk_common.skc_rcv_saddr;
 	    data4.daddr = skp->__sk_common.skc_daddr;
 	    data4.lport = lport;
@@ -101,7 +103,7 @@ static int trace_connect_return(struct pt_regs *ctx, short family)
     } else /* 6 */ {
 	    struct ipv6_data_t data6 = {.pid = pid, .ip = family};
         data6.tid = tid;
-	    data6.ts_us = bpf_ktime_get_ns() / 1000;
+	    data6.ts_ns = bpf_ktime_get_ns();
 	    bpf_probe_read_kernel(&data6.saddr, sizeof(data6.saddr), skp->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
 	    bpf_probe_read_kernel(&data6.daddr, sizeof(data6.daddr), skp->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
 	    data6.lport = lport;
@@ -123,7 +125,7 @@ int trace_connect_v6_return(struct pt_regs *ctx)
 `
 
 type ipv4EventData struct {
-	TsUs  uint64
+	TsNs  uint64
 	Pid   uint32
 	Tid   uint32
 	SAddr tools.Ipv4Address
@@ -131,11 +133,12 @@ type ipv4EventData struct {
 	Ip    uint64
 	LPort uint16
 	DPort uint16
+	Pad   uint32
 	Comm  [16]byte
 }
 
 type ipv6EventData struct {
-	TsUs  uint64
+	TsNs  uint64
 	Pid   uint32
 	Tid   uint32
 	SAddr tools.Ipv6Address
@@ -143,24 +146,39 @@ type ipv6EventData struct {
 	Ip    uint64
 	LPort uint16
 	DPort uint16
+	Pad   uint32
 	Comm  [16]byte
 }
 
 type Event struct {
-	Time  time.Time `json:"time,omitempty"`
-	Comm  string    `json:"comm"`
-	Pid   int       `json:"pid"`
-	Tid   int       `json:"Tid"`
-	SAddr string    `json:"SAddr"`
-	DAddr string    `json:"DAddr"`
-	LPort int       `json:"LPort"`
-	DPort int       `json:"DPort"`
-	Ip    int       `json:"Ip"`
+	Time  time.Duration `json:"Time,omitempty"`
+	Comm  string        `json:"Comm"`
+	Pid   int           `json:"Pid"`
+	Tid   int           `json:"Tid"`
+	SAddr string        `json:"SAddr"`
+	DAddr string        `json:"DAddr"`
+	LPort int           `json:"LPort"`
+	DPort int           `json:"DPort"`
+	Ip    int           `json:"Ip"`
+}
+
+func (e Event) Print() {
+	fmt.Println("╔======TCP connect begin====╗")
+	fmt.Println("Time :", e.Time.String())
+	fmt.Println("Comm :", e.Comm)
+	fmt.Println("Pid  :", e.Pid)
+	fmt.Println("Tid  :", e.Tid)
+	fmt.Println("SAddr:", e.SAddr)
+	fmt.Println("DAddr:", e.DAddr)
+	fmt.Println("LPort:", e.LPort)
+	fmt.Println("DPort:", e.DPort)
+	fmt.Println("Ip   :", e.Ip)
+	fmt.Println("╚======TCP connect end======╝")
 }
 
 func getEventFromIpv4EventData(bpfEvent ipv4EventData) Event {
 	return Event{
-		Time:  time.UnixMicro(int64(bpfEvent.TsUs)),
+		Time:  time.Duration(int64(bpfEvent.TsNs)),
 		Comm:  strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:   int(bpfEvent.Pid),
 		Tid:   0, // int(bpfEvent.Tid),
@@ -174,7 +192,7 @@ func getEventFromIpv4EventData(bpfEvent ipv4EventData) Event {
 
 func getTcpEventFromIpv6EventData(bpfEvent ipv6EventData) Event {
 	return Event{
-		Time:  time.UnixMicro(int64(bpfEvent.TsUs)),
+		Time:  time.Duration(int64(bpfEvent.TsNs)),
 		Comm:  strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:   int(bpfEvent.Pid),
 		Tid:   0, // int(bpfEvent.Tid),
@@ -275,7 +293,6 @@ func Sample() {
 
 	for {
 		event := <-ch
-		jsonEvent, _ := json.MarshalIndent(event, "", "  ")
-		fmt.Println(string(jsonEvent))
+		event.Print()
 	}
 }
