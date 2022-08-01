@@ -42,11 +42,13 @@ func main() {
 	// /sys/kernel/debug/tracing/events/kmem/mm_page_alloc
 	kp1, err := link.Tracepoint("sched", "sched_switch", objs.SchedSwitch, nil)
 	kp2, err := link.Tracepoint("sched", "sched_process_fork", objs.SchedProcessFork, nil)
+	kp3, err := link.Kprobe("update_rq_clock", objs.UpdateRqClock, nil)
 	if err != nil {
 		log.Fatalf("opening tracepoint: %s", err)
 	}
 	defer kp1.Close()
 	defer kp2.Close()
+	defer kp3.Close()
 
 	// Read loop reporting the total amount of times the kernel
 	// function was entered, once per second.
@@ -57,10 +59,11 @@ func main() {
 	var cswch uint64 = 0
 
 	timeStr := time.Now().Format("15:04:05")
-	fmt.Printf("%s proc/s  cswch/s\n", timeStr)
+	fmt.Printf("%s proc/s  cswch/s  runqlen\n", timeStr)
 	for range ticker.C {
 		var key uint32
-		var proc_s, cswch_s uint64
+		var proc_s, cswch_s, runqlen uint64
+		var all_cpu_value []uint64
 
 		key = 0
 		objs.CountMap.Lookup(key, &cswch_s)
@@ -73,7 +76,15 @@ func main() {
 		}
 		proc_s, proc = proc_s-proc, proc_s
 
+		key = 0
+		objs.Runqlen.Lookup(key, &all_cpu_value)
+
+		runqlen = 0
+		for cpuid := 0; cpuid < 128; cpuid++ {
+			runqlen += all_cpu_value[cpuid]
+		}
+
 		timeStr := time.Now().Format("15:04:05")
-		fmt.Printf("%s %6d  %7d\n", timeStr, proc_s, cswch_s)
+		fmt.Printf("%s %6d  %7d  %7d\n", timeStr, proc_s, cswch_s, runqlen)
 	}
 }
