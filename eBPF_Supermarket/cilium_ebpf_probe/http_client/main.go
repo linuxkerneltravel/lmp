@@ -11,7 +11,7 @@ import (
 	//"time"
 )
 
-const url = "http://localhost:8099/api/hello"
+const url = "http://10.244.0.7:8099/api/hello"
 
 func main() {
 	count := flag.Int("count", 5, "The number of calls to make.")
