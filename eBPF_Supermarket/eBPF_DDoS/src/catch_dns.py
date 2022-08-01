@@ -1,42 +1,47 @@
 from bcc import BPF
 from threading import Thread
 import time
+import ctypes
+import constants
 
-def clean_map(m):
+
+def clean_map(config, counter):
     while 1:
-        seconds=10
-        try:
-            seconds = m[m.Key(4294967295)].value
-        except KeyError:
-            pass
-
-        if seconds==0:
-            seconds=10
+        seconds = config.get(
+            config.Key(constants.INTERVAL_KEY), default=ctypes.c_uint32(60)
+        ).value
         time.sleep(seconds)
-        
-        threshold = 0
-        try:
-            threshold = m[m.Key(0)]
-        except KeyError:
-            pass
-        
-        if threshold==0:
-            m.clear()
 
-        ips_to_delete = []
-        for ip, count in m.items():
-            if count.value < threshold.value and ip.value != 0 and ip.value != 4294967295:
-               del m[ip]
+        fail_threshold = config.get(
+            config.Key(constants.FAILURE_THRESHOLD_KEY), default=ctypes.c_uint32(65535)
+        ).value
+        count_threshold = config.get(
+            config.Key(constants.COUNT_THRESHOLD_KEY), default=ctypes.c_uint32(65535)
+        ).value
+        any_threshold = config.get(
+            config.Key(constants.ANY_THRESHOLD_KEY), default=ctypes.c_uint32(65535)
+        ).value
+
+        for ip, record in counter.items():
+            if (
+                record.fail_count < fail_threshold
+                and record.count < count_threshold
+                and record.any_count < any_threshold
+            ):
+                del counter[ip]
+
 
 b = BPF(src_file="catch_dns.c")
 sk_filter = b.load_func("catch_dns", BPF.SOCKET_FILTER)
 
 # TODO: make it configurable
-interface="eth0"
+interface = "eth0"
 BPF.attach_raw_socket(sk_filter, interface)
 
-fail_counter = b.get_table("fail_counter")
-cleaner = Thread(target=clean_map, kwargs={'m': fail_counter})
+# start cleaner
+configuration = b.get_table("configuration")
+counter = b.get_table("counter")
+cleaner = Thread(target=clean_map, kwargs={"config": configuration, "counter": counter})
 cleaner.start()
 
 while 1:

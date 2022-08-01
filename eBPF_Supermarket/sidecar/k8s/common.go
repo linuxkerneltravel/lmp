@@ -97,7 +97,7 @@ func GetAllPodProcess(kubeconfig string, nodeName string, namespace string, podN
 }
 
 // GetSidecarAndServiceProcess get single sidecar process and single service process
-func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace string, podName string) (*process.Process, *process.Process, error) {
+func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace string, podName string) ([]*process.Process, []*process.Process, error) {
 	// 1. Get all containers
 	containerStatuses, err := GetContainersFromPod(kubeconfig, nodeName, namespace, podName)
 	if err != nil {
@@ -132,11 +132,8 @@ func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace s
 		return nil, nil, fmt.Errorf("unsupported process number '%d' or '%d'", len(sidecarProcesses), len(serviceProcesses))
 	}
 
-	sidecarProcessBPF := sidecarProcesses[len(sidecarProcesses)-1]
-	serviceProcessBPF := serviceProcesses[len(serviceProcesses)-1]
+	fmt.Println("[INFO] Sidecar processes for BPF:", sidecarProcesses)
+	fmt.Println("[INFO] Service processes for BPF:", serviceProcesses)
 
-	fmt.Println("[INFO] Sidecar process for BPF:", sidecarProcessBPF)
-	fmt.Println("[INFO] Service process for BPF:", serviceProcessBPF)
-
-	return sidecarProcessBPF, serviceProcessBPF, nil
+	return sidecarProcesses, serviceProcesses, nil
 }
