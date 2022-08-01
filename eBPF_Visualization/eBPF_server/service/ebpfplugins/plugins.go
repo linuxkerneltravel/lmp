@@ -15,6 +15,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const linecache = 1
+
 type Plugin interface {
 	EnterRun() error
 	ExitRun() error
@@ -141,7 +143,7 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
-func runSinglePlugin(e request.PluginInfo, timeout int, out *chan int, errch *chan error) {
+func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 	// TODO
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
 	var plugin ebpfplugins.EbpfPlugins
@@ -156,24 +158,18 @@ func runSinglePlugin(e request.PluginInfo, timeout int, out *chan int, errch *ch
 		*errch <- err
 	}
 	defer stdout.Close()
-	// TODO: delete timeout
 	go func() {
 		scanner := bufio.NewScanner(stdout)
-		linechan := make(chan string, 1)
-		after := time.After(time.Duration(timeout) * time.Millisecond)
+		linechan := make(chan string, linecache)
 		for scanner.Scan() {
 			linechan <- scanner.Text()
 			select {
 			case line := <-linechan:
-				// TODO: delete
-				fmt.Println(line)
-				*out <- 1
+				fmt.Println(line) //仅用于测试环境
+				*out <- true
 				if len(*out) >= 1 {
 					<-*out
 				}
-				after = time.After(time.Duration(timeout) * time.Millisecond)
-			case <-after:
-				global.GVA_LOG.Error("Time out!")
 			}
 		}
 	}()
