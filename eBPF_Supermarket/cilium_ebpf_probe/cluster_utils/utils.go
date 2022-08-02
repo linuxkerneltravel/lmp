@@ -73,7 +73,6 @@ func findELFPath(containerID string, runtime string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-
 		containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
 		if err != nil {
 			return "", err
@@ -153,8 +152,8 @@ func GetPodELFPath(clientset *kubernetes.Clientset, nodeName string, namespace s
 	if err != nil {
 		return nil, err
 	}
-
 	res := make(map[v1.ContainerStatus]string)
+
 	// 2. traverse containerStatuses and get processes
 	for _, containerStatus := range containerStatuses {
 		containerID := containerStatus.ContainerID
