@@ -74,37 +74,91 @@ LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时�
 ![grafana4](../eBPF_docs/static/imgs/grafana4.png)
 
 
-##  运行lmp
+# LMP web项目详细部署步骤
 
-###  Ubuntu-source
-
-#### 从源码构建lmp，需要的基本环境：
+## 从源码构建lmp，需要的基本环境：
 
 - golang：go1.12及以上；
-- docker：influxdb、grafana；
+
+- docker
+
+  安装命令:
+
+  ```bash
+  curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
+  ```
+
+
+
+- docker:influxdb&grafana&influxdb；
+
+  依赖安装命令:
+
+  ```bash
+  sudo docker pull grafana/grafana
+  sudo docker pull influxdb
+  ```
+
+
+
 - bcc环境
+
 - mysql：5.7.29测试通过
 
-###  安装依赖docker镜像
+## 编译并安装
 
-```
-# For grafana
-sudo docker pull grafana/grafana
-# For Influxdb
-sudo docker pull influxdb
-```
+​	 下载项目源码，并进入后端文件夹:
 
-
-### 编译并安装
-
-```
- git clone https://github.com/linuxkerneltravel/lmp
- cd lmp
- sudo make db
- > 输入您的 mysql root用户密码
- make
+```bash
+git clone https://github.com/linuxkerneltravel/lmp.git   
+cd ~/lmp/eBPF_Visualization/eBPF_server
 ```
 
+​	打开当前目录下的config.yaml文件，可按需要修改mysql的用户和密码以及相关配置:
+
+```bash
+vim config.yaml
+```
+
+```yaml
+mysql:
+  path: 127.0.0.1
+  port: "3306"
+  config: charset=utf8mb4&parseTime=True&loc=Local
+  db-name: gva
+  username: root
+  password: "123456"
+  max-idle-conns: 0
+  max-open-conns: 0
+  log-mode: ""
+  log-zap: false
+```
+
+自动安装go依赖库并编译安装：
+
+```bash
+go mod tidy
+make
+```
+
+编译安装完成之后，在当前目录下会多出两个文件，一个是lmp-cli,另一个是lmp-server。lmp-cli是以命令行运行的方式收集ebpf程序的输出信息。lmp-server用于启动web项目的后端程序。
+
+## 启动单机节点，运行后端程序
+
+```bash
+sudo ./lmp-server
+```
+
+能正常启动后端程序之后，安装nodejs,进入前端文件夹并安装前端运行的依赖，运行前端程序:
+
+```bash
+sudo apt-get install npm
+cd ~/lmp/eBPF_Visualization/eBPF_web
+npm install
+npm run serve
+```
+
+正常启动后，可用浏览器访问http://localhost:8080/，实现本地部署。
 ## 单机节点，本地运行
 
 ```

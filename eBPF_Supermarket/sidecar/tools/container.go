@@ -5,20 +5,29 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/shirou/gopsutil/v3/process"
 	v1 "k8s.io/api/core/v1"
 )
 
+func GetDockerContainerInfo(containerID string) (types.ContainerJSON, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return types.ContainerJSON{}, err
+	}
+
+	containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
+	if err != nil {
+		return types.ContainerJSON{}, err
+	}
+	return containerInfo, nil
+}
+
 // findInitPid gets myProcess ID of the initial myProcess
 func findInitPid(containerID string, runtime string) (int, error) {
 	if runtime == "docker" {
-		cli, err := client.NewClientWithOpts(client.FromEnv)
-		if err != nil {
-			return 0, err
-		}
-
-		containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
+		containerInfo, err := GetDockerContainerInfo(containerID)
 		if err != nil {
 			return -1, err
 		}
@@ -63,12 +72,7 @@ func GetAllProcessFromContainer(containerStatus v1.ContainerStatus, nodeContaine
 // GetContainerFileSystemRoot get root path on the local machine file system
 func GetContainerFileSystemRoot(containerID string, runtime string) (string, error) {
 	if runtime == "docker" {
-		cli, err := client.NewClientWithOpts(client.FromEnv)
-		if err != nil {
-			return "", err
-		}
-
-		containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
+		containerInfo, err := GetDockerContainerInfo(containerID)
 		if err != nil {
 			return "", err
 		}

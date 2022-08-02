@@ -1,0 +1,59 @@
+package tools
+
+import (
+	"encoding/binary"
+	"fmt"
+	"net"
+)
+
+type uint128 struct {
+	Hi uint64
+	Lo uint64
+}
+
+type Ipv4Address uint32
+
+type Ipv6Address uint128
+
+func (ip Ipv4Address) ToString() string {
+	return fmt.Sprintf("%d.%d.%d.%d", byte(ip), byte(ip>>8), byte(ip>>16), byte(ip>>24))
+}
+
+func (ip Ipv6Address) ToString() string {
+	a := make([]byte, 8)
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(a, ip.Hi)
+	binary.LittleEndian.PutUint64(b, ip.Lo)
+
+	b = append(b, a...)
+	v := net.IP(b)
+	return v.String()
+}
+
+// NetToHostShort converts a 16-bit integer from network to host byte order, aka "ntohs"
+func NetToHostShort(i uint16) uint16 {
+	data := make([]byte, 2)
+	binary.BigEndian.PutUint16(data, i)
+	return binary.LittleEndian.Uint16(data)
+}
+
+// NetToHostLong converts a 32-bit integer from network to host byte order, aka "ntohl"
+func NetToHostLong(i uint32) uint32 {
+	data := make([]byte, 4)
+	binary.BigEndian.PutUint32(data, i)
+	return binary.LittleEndian.Uint32(data)
+}
+
+// HostToNetShort converts a 16-bit integer from host to network byte order, aka "htons"
+func HostToNetShort(i uint16) uint16 {
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b, i)
+	return binary.BigEndian.Uint16(b)
+}
+
+// HostToNetLong converts a 32-bit integer from host to network byte order, aka "htonl"
+func HostToNetLong(i uint32) uint32 {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, i)
+	return binary.BigEndian.Uint32(b)
+}
