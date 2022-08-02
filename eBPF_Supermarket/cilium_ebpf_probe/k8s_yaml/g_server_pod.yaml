@@ -11,3 +11,4 @@ spec:
       env:
         - name: TZ
           value: Asia/Shanghai
+  nodeName: k8s-node2

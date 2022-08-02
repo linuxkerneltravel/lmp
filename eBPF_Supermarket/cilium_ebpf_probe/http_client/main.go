@@ -11,10 +11,10 @@ import (
 	//"time"
 )
 
-const url = "http://10.244.0.7:8099/api/hello"
+const url = "http://10.0.3.186:8099/api/hello"
 
 func main() {
-	count := flag.Int("count", 5, "The number of calls to make.")
+	count := flag.Int("count", 30, "The number of calls to make.")
 	flag.Parse()
 	for i := 0; i < *count; i++ {
 		client := &http.Client{
