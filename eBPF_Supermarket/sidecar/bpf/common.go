@@ -33,3 +33,16 @@ func AttachKretprobe(m *bcc.Module, name string, fnName string) {
 		os.Exit(1)
 	}
 }
+
+func AttachTracepoint(m *bcc.Module, name string, fnName string) {
+	tracepoint, err := m.LoadTracepoint(name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load '%s': %s\n", name, err)
+		os.Exit(1)
+	}
+
+	if err := m.AttachTracepoint(fnName, tracepoint); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to attach '%s': %s\n", fnName, err)
+		os.Exit(1)
+	}
+}

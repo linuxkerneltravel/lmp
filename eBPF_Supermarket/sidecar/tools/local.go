@@ -7,6 +7,15 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
+// FileExists checks if a file exists
+func FileExists(filePath string) bool {
+	fileInfo, err := os.Stat(filePath)
+	if err == nil && fileInfo.IsDir() == false {
+		return true
+	}
+	return false
+}
+
 // GetNodeName gets local machine's hostname, aka node name
 func GetNodeName() (string, error) {
 	// adaptation for minikube
