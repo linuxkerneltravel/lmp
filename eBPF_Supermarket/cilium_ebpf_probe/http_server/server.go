@@ -1,17 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"runtime"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 func test_hello(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(w, "hello\n")
+	url, _ := json.Marshal(req.URL)
+	println("A Request URL:", string(url))
+	fmt.Printf(" and User Agent: %s\n", req.Header.Get("User-Agent"))
+	fmt.Fprintf(w, "Resonse:")
 	w.Write([]byte("hello"))
 }
 
@@ -36,7 +39,7 @@ func startHttpServer() {
 
 func main() {
 	// 使用内置函数打印
-	println("Hello", "菜鸟实战")
+	println("Listning on 8099...")
 
 	startHttpServer()
 

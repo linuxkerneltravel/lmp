@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"lmp/server/model/common/request"
+	"lmp/server/model/ebpfplugins"
 	"os/exec"
 	"syscall"
 	"time"
@@ -139,21 +141,48 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
-func runSinglePlugin(path string) (err error) {
-	cmd := exec.Command("sudo", "python3", path)
+func runSinglePlugin(e request.PluginInfo, timeout int, out *chan int, errch *chan error) {
+	// TODO
+	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
+	var plugin ebpfplugins.EbpfPlugins
+	db.Where("id = ?", e.PluginId).First(&plugin)
+
+	cmd := exec.Command("sudo", "python3", "-u", plugin.PluginPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		global.GVA_LOG.Error("error in cmd.StdoutPipe", zap.Error(err))
+		*errch <- err
+	}
 	defer stdout.Close()
+	// TODO: delete timeout
 	go func() {
 		scanner := bufio.NewScanner(stdout)
+		linechan := make(chan string, 1)
+		after := time.After(time.Duration(timeout) * time.Millisecond)
 		for scanner.Scan() {
-			line := scanner.Text()
-			fmt.Println(line)
+			linechan <- scanner.Text()
+			select {
+			case line := <-linechan:
+				// TODO: delete
+				fmt.Println(line)
+				*out <- 1
+				if len(*out) >= 1 {
+					<-*out
+				}
+				after = time.After(time.Duration(timeout) * time.Millisecond)
+			case <-after:
+				global.GVA_LOG.Error("Time out!")
+			}
 		}
 	}()
 
 	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		global.GVA_LOG.Error("error in cmd.StderrPipe", zap.Error(err))
+		*errch <- err
+	}
 	defer stderr.Close()
 	go func() {
 		scanner := bufio.NewScanner(stderr)
@@ -162,29 +191,21 @@ func runSinglePlugin(path string) (err error) {
 			fmt.Println(line)
 		}
 	}()
-
 	err = cmd.Start()
 	if err != nil {
 		global.GVA_LOG.Error("error in cmd.Start()", zap.Error(err))
-		return
+		*errch <- err
 	}
-
-	pluginPid[path] = cmd.Process.Pid
-
-	go func() {
-		err = cmd.Wait()
-		if err != nil {
-			global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
-			fmt.Println("error in cmd.Wait(): ", err)
-			return
-		}
-	}()
-
-	return nil
+	pluginPid[plugin.PluginPath] = cmd.Process.Pid
+	err = cmd.Wait()
+	if err != nil {
+		global.GVA_LOG.Error("error in cmd.Wait()", zap.Error(err))
+		*errch <- err
+	}
+	defer fmt.Printf("Process finished!")
 }
 
 func killProcess(path string) {
-
 	if err := syscall.Kill(-pluginPid[path], syscall.SIGKILL); err != nil {
 		return
 	}

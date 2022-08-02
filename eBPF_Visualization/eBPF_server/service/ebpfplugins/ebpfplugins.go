@@ -3,6 +3,9 @@ package ebpfplugins
 import (
 	"errors"
 	"io/ioutil"
+	"log"
+	"sync"
+
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/ebpfplugins"
@@ -75,6 +78,7 @@ func (ebpf *EbpfpluginsService) GetEbpfPluginsInfoList(sysUserAuthorityID string
 //@description: 加载插件到内核
 //@param: e model.EbpfPlugins
 //@return: err error
+
 func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error) {
 	// todo
 	// 1.状态判断，看是否已经加载到内核，判断State即可，避免重复下发
@@ -87,15 +91,31 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	err = runSinglePlugin(plugin.PluginPath)
+	var wg sync.WaitGroup
+	outputChannel := make(chan int, 2)  // alter name; magic number
+	errorChannel := make(chan error, 1) // alter name
+	wg.Add(1)
+	go func() {
+		runSinglePlugin(e, 1500, &outputChannel, &errorChannel)
+	}()
+	go func() {
+		select {
+		case out := <-outputChannel:
+			global.GVA_LOG.Info("Start run plugin!")
+			log.Println(out)
+			wg.Done()
+		case err = <-errorChannel:
+			global.GVA_LOG.Error("error in runSinglePlugin!")
+			wg.Done()
+		}
+	}()
+	wg.Wait()
 	if err != nil {
 		return err
 	}
-
-	// 3.执行之后结果执行，成功还是失败
+	// 3.执行之后结果，成功还是失败
 	plugin.State = 1 // 表示已经成功加载内核中运行
 	err = global.GVA_DB.Save(plugin).Error
-
 	return err
 }
 
@@ -115,11 +135,15 @@ func (ebpf *EbpfpluginsService) UnloadEbpfPlugins(e request.PluginInfo) (err err
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
 	if plugin.State == 1 {
-		plugin.State = 0
-		killProcess(plugin.PluginPath)
-		err = global.GVA_DB.Save(plugin).Error
+		if pluginPid[plugin.PluginPath] == 0 {
+			plugin.State = 0
+			err = global.GVA_DB.Save(plugin).Error
+		} else {
+			plugin.State = 0
+			killProcess(plugin.PluginPath)
+			err = global.GVA_DB.Save(plugin).Error
+		}
 	}
-
 	return err
 }
 
