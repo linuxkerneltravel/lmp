@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"lmp/server/model/common/request"
+	"lmp/server/model/data_collector/logic"
 	"lmp/server/model/ebpfplugins"
 	"os/exec"
 	"syscall"
@@ -161,16 +162,29 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		linechan := make(chan string, linecache)
+		var counter int
+		counter = 1
 		for scanner.Scan() {
 			linechan <- scanner.Text()
 			select {
 			case line := <-linechan:
-				fmt.Println(line) //仅用于测试环境
-				*out <- true
+				if counter == 1 {
+					fmt.Printf("%s-index-%d", line, counter) //todo 仅用于测试环境
+					if err := logic.DataCollectorIndex(plugin.PluginName, line); err != nil {
+						*errch <- err
+					}
+					*out <- true
+				} else {
+					fmt.Printf("%s-rows-%d", line, counter) //todo 仅用于测试环境
+					if err := logic.DataCollectorRow(line); err != nil {
+						*errch <- err
+					}
+				}
 				if len(*out) >= 1 {
 					<-*out
 				}
 			}
+			counter += 1
 		}
 	}()
 

@@ -1,9 +1,7 @@
-package data_collector
+package logic
 
 import (
-	"io"
 	"lmp/server/model/data_collector/dao"
-	"lmp/server/model/data_collector/logic"
 )
 
 var Tableinfo dao.TableInfo
@@ -15,12 +13,19 @@ func InitCollectSqlite() error {
 	return nil
 }
 
-func DataCollectorEnter(pluginname string, stout io.ReadCloser) error {
+func DataCollectorIndex(pluginname string, index string) error {
 	Tableinfo.TableName = pluginname
 	if err := Tableinfo.CreateTable(); err != nil {
 		return err
 	}
-	if err := logic.RediectStdout(stout, &Tableinfo); err != nil {
+	if err := Tableinfo.AppendTable(index); err != nil {
+		return err
+	}
+	return nil
+}
+
+func DataCollectorRow(line string) error {
+	if err := Tableinfo.InsertRow(line); err != nil {
 		return err
 	}
 	return nil
