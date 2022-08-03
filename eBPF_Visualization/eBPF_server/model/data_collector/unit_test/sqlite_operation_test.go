@@ -2,10 +2,7 @@ package unit_test
 
 import (
 	"fmt"
-	"lmp/server/model/data_collector"
 	"lmp/server/model/data_collector/dao"
-	"os/exec"
-	"syscall"
 	"testing"
 )
 
@@ -67,26 +64,5 @@ func TestInsertRow(t *testing.T) {
 	line := "21:52:36:      1300       16        0       13        0"
 	if err := ti.InsertRow(line); err != nil {
 		t.Error("InsertRow failed:", err)
-	}
-}
-func TestDataCollectorEnter(t *testing.T) {
-	path := "/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/testplugin/helloword.py"
-	cmd := exec.Command("python3", "-u", path)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	stout, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Error("stoutpipe error:", err)
-	}
-	err = cmd.Start()
-	if err != nil {
-		t.Error("python process start failed:", err)
-	}
-	err = cmd.Wait()
-	if err != nil {
-		t.Error("python process run failed:", err)
-	}
-	go data_collector.DataCollectorEnter("testout", stout)
-	if err != nil {
-		t.Error("DataCollector Failed:", err)
 	}
 }

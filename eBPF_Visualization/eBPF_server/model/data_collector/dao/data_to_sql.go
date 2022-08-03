@@ -6,6 +6,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+	"lmp/server/model/data_collector/check"
 	"strings"
 )
 
@@ -22,6 +23,7 @@ type BasicPluginInfo struct {
 }
 
 func (ti *TableInfo) CreateTable() error {
+	//TODO 路径问题，将绝对路径改为相对路径
 	createdb := sqlite.Open("/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db")
 	db, err := gorm.Open(createdb, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
@@ -59,6 +61,9 @@ func (ti *TableInfo) AppendTable(index string) error {
 	ti.IndexName = make([]string, len(parms))
 	ti.IndexType = make([]string, len(parms))
 	for i, value := range parms {
+		if err := check.VerifyIndexFormat(value); err != nil {
+			return err
+		}
 		info := strings.Split(value, SpliteCharacter)
 		ti.IndexName[i] = info[0]
 		ti.IndexType[i] = info[1]
