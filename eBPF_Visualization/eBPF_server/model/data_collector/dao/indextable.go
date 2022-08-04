@@ -16,7 +16,7 @@ type Indextable struct {
 	PluginName string `gorm:"not null;unique;column:pluginname"`
 }
 
-func InitSqlite() error {
+func ConnectSqlite() error {
 	//TODO 路径问题，将绝对路径改为相对路径
 	createdb := sqlite.Open("/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db")
 	db, err := gorm.Open(createdb, &gorm.Config{
@@ -24,23 +24,27 @@ func InitSqlite() error {
 			SingularTable: true,
 		},
 	})
-	if err != nil {
+	GLOBALDB = db
+	return err
+}
+
+func InitSqlite() error {
+	if err := ConnectSqlite(); err != nil {
 		return err
 	}
-	if db.Migrator().HasTable(&Indextable{}) {
+	if GLOBALDB.Migrator().HasTable(&Indextable{}) {
 		var plugins = []Indextable{}
-		db.Model(&Indextable{}).Find(&plugins)
+		GLOBALDB.Model(&Indextable{}).Find(&plugins)
 		for _, v := range plugins {
-			if db.Migrator().HasTable(v.PluginName) {
+			if GLOBALDB.Migrator().HasTable(v.PluginName) {
 				delsql := fmt.Sprintf("drop table %s", v.PluginName)
-				if err := db.Exec(delsql).Error; err != nil {
+				if err := GLOBALDB.Exec(delsql).Error; err != nil {
 					return err
 				}
 			}
 		}
-		db.Exec("drop table indextable")
+		GLOBALDB.Exec("drop table indextable")
 	}
-	GLOBALDB = db
 	if err := GLOBALDB.AutoMigrate(&Indextable{}); err != nil {
 		return err
 	}

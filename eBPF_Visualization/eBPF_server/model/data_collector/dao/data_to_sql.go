@@ -6,10 +6,6 @@ import (
 	"strings"
 
 	"lmp/server/model/data_collector/check"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
 )
 
 const SpliteCharacter = "|"
@@ -25,24 +21,16 @@ type BasicPluginInfo struct {
 }
 
 func (ti *TableInfo) CreateTable() error {
-	//TODO 路径问题，将绝对路径改为相对路径
-	createdb := sqlite.Open("/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db")
-	db, err := gorm.Open(createdb, &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{
-			SingularTable: true,
-		},
-	})
-	if err != nil {
+	if err := ConnectSqlite(); err != nil {
 		return err
 	}
-	GLOBALDB = db
 	if PluginRecordExist(ti.TableName) {
 		if err := DeletePluginRecord(ti.TableName); err != nil {
 			return err
 		}
 	}
 	deletetablesql := fmt.Sprintf("drop table if exists %s;", ti.TableName)
-	if err := db.Exec(deletetablesql).Error; err != nil {
+	if err := GLOBALDB.Exec(deletetablesql).Error; err != nil {
 		return err
 	}
 	if err := GLOBALDB.Table(ti.TableName).AutoMigrate(&BasicPluginInfo{}); err != nil {
