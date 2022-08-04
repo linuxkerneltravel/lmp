@@ -29,13 +29,13 @@ parser = argparse.ArgumentParser(description="Trace TCP connections",
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("-p", "--pid", help="trace this PID only")
 parser.add_argument("-P", "--port", help="comma-separated list of local ports to trace")
+parser.add_argument("-r", "--direction", help="trace this direction only") # 'accept' or 'connect'
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family only")
 group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
-group.add_argument("-r", "--direction", action="store_true", help="trace this direction only")
 args = parser.parse_args()
 
-bpf_text = open('tcpconnection.c').read()
+bpf_text = open('tcp_connection.c').read()
 
 # code substitutions
 if args.pid:
@@ -90,7 +90,6 @@ def print_ipv4_event(cpu, data, size):
 def print_ipv6_event(cpu, data, size):
     event = b["ipv6_events"].event(data)
     printb(b"%-9s %-7d %-12.12s %-2d %-16s %-5d %-16s %-5d %10s" % (
-    # print(    
         strftime("%H:%M:%S").encode('ascii'),
         event.pid, event.task, event.ip,
         inet_ntop(AF_INET6, event.daddr).encode(),
