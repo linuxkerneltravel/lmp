@@ -3,10 +3,11 @@ package check
 import (
 	"errors"
 	"regexp"
+	"text/template"
 )
 
 func VerifyIndexFormat(line string) error {
-	matched, err := regexp.MatchString("[a-zA-Z0-9_-]+\\|[a-zA-Z0-9_-]+", line)
+	matched, err := regexp.MatchString(".+\\|.+", line)
 	if err != nil {
 		return err
 	}
@@ -15,4 +16,8 @@ func VerifyIndexFormat(line string) error {
 		return err
 	}
 	return nil
+}
+
+func EscapeData(line string) string {
+	return template.HTMLEscapeString(line)
 }

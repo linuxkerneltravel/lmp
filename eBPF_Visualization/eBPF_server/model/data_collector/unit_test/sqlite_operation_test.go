@@ -30,7 +30,7 @@ func TestDeletePluginRecord(t *testing.T) {
 	_ = dao.CreatePluginRecord("test")
 	err := dao.DeletePluginRecord("test")
 	if err != nil {
-		t.Error("Delete column failed:", err)
+		t.Error("Delete record failed:", err)
 	} else {
 		dao.GLOBALDB.Find(&column)
 		fmt.Println(column)

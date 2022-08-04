@@ -3,11 +3,13 @@ package dao
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"lmp/server/model/data_collector/check"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"lmp/server/model/data_collector/check"
-	"strings"
 )
 
 const SpliteCharacter = "|"
@@ -65,11 +67,11 @@ func (ti *TableInfo) AppendTable(index string) error {
 			return err
 		}
 		info := strings.Split(value, SpliteCharacter)
-		ti.IndexName[i] = info[0]
-		ti.IndexType[i] = info[1]
+		ti.IndexName[i] = check.EscapeData(info[0])
+		ti.IndexType[i] = check.EscapeData(info[1])
 	}
 	for i, _ := range ti.IndexName {
-		addcollumnsql := fmt.Sprintf("alter table %s add column %s %s", ti.TableName, ti.IndexName[i], ti.IndexType[i])
+		addcollumnsql := fmt.Sprintf("alter table %s add column \"%s\" %s", ti.TableName, ti.IndexName[i], ti.IndexType[i])
 		if err := GLOBALDB.Exec(addcollumnsql).Error; err != nil {
 			return err
 		}
@@ -86,6 +88,7 @@ func (ti *TableInfo) InsertRow(line string) error {
 
 	var columns string
 	for _, v := range ti.IndexName {
+		v = "\"" + check.EscapeData(v) + "\""
 		columns += v + ", "
 	}
 	columns = columns[:len(columns)-2]
