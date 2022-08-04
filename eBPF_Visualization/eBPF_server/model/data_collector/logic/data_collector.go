@@ -1,6 +1,7 @@
 package logic
 
 import (
+	"fmt"
 	"lmp/server/model/data_collector/dao"
 )
 
@@ -13,19 +14,22 @@ func InitCollectSqlite() error {
 	return nil
 }
 
-func DataCollectorIndex(pluginname string, index string) error {
-	Tableinfo.TableName = pluginname
-	if err := Tableinfo.CreateTable(); err != nil {
-		return err
+func DataCollectorIndex(pluginname string, index string) (error, dao.TableInfo) {
+	var tableinfo dao.TableInfo
+	tableinfo.TableName = pluginname
+	var err error
+	if err = tableinfo.CreateTable(); err != nil {
+		return err, tableinfo
 	}
-	if err := Tableinfo.AppendTable(index); err != nil {
-		return err
+	if err, tableinfo = tableinfo.AppendTable(index); err != nil {
+		return err, Tableinfo
 	}
-	return nil
+	fmt.Println(tableinfo)
+	return nil, tableinfo
 }
 
-func DataCollectorRow(line string) error {
-	if err := Tableinfo.InsertRow(line); err != nil {
+func DataCollectorRow(tableinfo dao.TableInfo, line string) error {
+	if err := tableinfo.InsertRow(line); err != nil {
 		return err
 	}
 	return nil

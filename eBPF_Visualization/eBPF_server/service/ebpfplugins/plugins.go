@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"lmp/server/model/data_collector/dao"
 	"os/exec"
 	"syscall"
 	"time"
@@ -163,6 +164,7 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 		scanner := bufio.NewScanner(stdout)
 		linechan := make(chan string, linecache)
 		var counter int
+		var collector dao.TableInfo
 		counter = 1
 		for scanner.Scan() {
 			linechan <- scanner.Text()
@@ -170,13 +172,13 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 			case line := <-linechan:
 				if counter == 1 {
 					fmt.Printf("%s-index-%d", line, counter) //todo 仅用于测试环境
-					if err := logic.DataCollectorIndex(plugin.PluginName, line); err != nil {
+					if err, collector = logic.DataCollectorIndex(plugin.PluginName, line); err != nil {
 						*errch <- err
 					}
 					*out <- true
 				} else {
 					fmt.Printf("%s-rows-%d", line, counter) //todo 仅用于测试环境
-					if err := logic.DataCollectorRow(line); err != nil {
+					if err := logic.DataCollectorRow(collector, line); err != nil {
 						*errch <- err
 					}
 				}

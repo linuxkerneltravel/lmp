@@ -20,7 +20,7 @@ type BasicPluginInfo struct {
 	ID int `gorm:"primaryKey;unique;column:ID"`
 }
 
-func (ti *TableInfo) CreateTable() error {
+func (ti TableInfo) CreateTable() error {
 	if err := ConnectSqlite(); err != nil {
 		return err
 	}
@@ -46,13 +46,13 @@ func (ti *TableInfo) CreateTable() error {
 	return nil
 }
 
-func (ti *TableInfo) AppendTable(index string) error {
+func (ti TableInfo) AppendTable(index string) (error, TableInfo) {
 	parms := strings.Fields(index)
 	ti.IndexName = make([]string, len(parms))
 	ti.IndexType = make([]string, len(parms))
 	for i, value := range parms {
 		if err := check.VerifyIndexFormat(value); err != nil {
-			return err
+			return err, ti
 		}
 		info := strings.Split(value, SpliteCharacter)
 		ti.IndexName[i] = check.EscapeData(info[0])
@@ -61,13 +61,13 @@ func (ti *TableInfo) AppendTable(index string) error {
 	for i, _ := range ti.IndexName {
 		addcollumnsql := fmt.Sprintf("alter table %s add column \"%s\" %s", ti.TableName, ti.IndexName[i], ti.IndexType[i])
 		if err := GLOBALDB.Exec(addcollumnsql).Error; err != nil {
-			return err
+			return err, ti
 		}
 	}
-	return nil
+	return nil, ti
 }
 
-func (ti *TableInfo) InsertRow(line string) error {
+func (ti TableInfo) InsertRow(line string) error {
 	SingleLineDate := strings.Fields(line)
 	values := make([]interface{}, len(SingleLineDate))
 	for i, v := range SingleLineDate {
