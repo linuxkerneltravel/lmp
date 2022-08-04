@@ -51,15 +51,21 @@ int catch_dns(struct __sk_buff *skb) {
   }
 
   struct dns_hdr_t *dns_hdr = cursor_advance(cursor, sizeof(*dns_hdr));
+  __u16 flags = dns_hdr->flags;
+  flags &= 15;
+
+  __u32 global_ip = 0;
+  struct record *r = counter.lookup(&global_ip);
+  if (flags != 0 && r) {
+    __sync_fetch_and_add(&r->fail_count, 1);
+  }
 
   __u32 src_ip = bpf_htonl(ip->dst);
-  struct record *r = counter.lookup(&src_ip);
+  r = counter.lookup(&src_ip);
   if (!r) {
     return PASS;
   }
 
-  __u16 flags = dns_hdr->flags;
-  flags &= 15;
   if (flags == 0) {
     // correct, cnt--
     // bpf_trace_printk("dwq rcode 0");
