@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 )
 
 const headerFieldStrSize = 128
@@ -74,11 +77,23 @@ func mustAttachUprobe(bccMod *bcc.Module, binaryProg, symbol, probeFn string) {
 }
 
 var (
-	binaryProg string
-	symbol     string
-	probeFn    string
-	beginch    chan beginTimeEvent
-	endch      chan endTimeEvent
+	binaryProg          string
+	symbol              string
+	probeFn             string
+	beginch             chan beginTimeEvent
+	endch               chan endTimeEvent
+	podname             string
+	histogramRegistered = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "grpc_spend",
+			Help:    "A histogram of normally distributed gprc spend time(us).",
+			Buckets: prometheus.LinearBuckets(0, 800, 20),
+		},
+	)
+	Gauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "grpc_status",
+		Help: "grpc status code count.",
+	})
 )
 
 //
@@ -94,6 +109,22 @@ func parseToSturctFromChannel(m *PerStatusWithLock) {
 			ev := <-endch
 			m.addPerMap(time.Unix(bv.T, 0),
 				perTimeStatus{Statuscode: ev.StatusCode, SpendTime: (ev.Ns - bv.Ns) / 1000})
+			//to histogram
+			histogramRegistered.Observe(float64((ev.Ns - bv.Ns) / 1000 / 1000))
+			if err := push.New("http://10.10.103.122:9091", "GRPCSpend"). // push.New("pushgateway地址", "job名称")
+											Collector(histogramRegistered).                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+											Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
+											Push(); err != nil {
+				fmt.Println("Could not push completion time to Pushgateway:", err)
+			}
+			// to gauge
+			Gauge.Add(1)
+			if err := push.New("http://10.10.103.122:9091", "GRPCStatus"). // push.New("pushgateway地址", "job名称")
+											Collector(Gauge).                                                                                //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+											Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("gRpcStatusCode", "0"). // 给指标添加标签，可以添加多个
+											Push(); err != nil {
+				fmt.Println("Could not push completion time to Pushgateway:", err)
+			}
 		}
 	}
 }
@@ -131,6 +162,9 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 	if len(binaryProg) == 0 {
 		panic("Argument --binary needs to be specified")
 	}
+
+	prometheus.Register(histogramRegistered)
+
 	fmt.Println("Attach 1 uprobe on ", binaryProg)
 	bccMod := bcc.NewModule(bpfProgram, []string{})
 	const loopWriterWriteHeaderSymbol = "google.golang.org/grpc/internal/transport.(*loopyWriter).writeHeader"
