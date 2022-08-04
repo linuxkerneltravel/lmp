@@ -102,27 +102,10 @@ def print_table(table, qnum):
         to_str(tPPS)
     ))
 
-
-def print_result(b):
-    # --------- print tx queues ---------------
-    print(asctime(localtime(time())))
-    print("TX")
-    table = b['tx_q']
-    print_table(table, tx_num)
-    b['tx_q'].clear()
-
-    # --------- print rx queues ---------------
-    print("")
-    print("RX")
-    table = b['rx_q']
-    print_table(table, rx_num)
-    b['rx_q'].clear()
-    print("-"*60)
-
 ############## specify network interface #################
 parser = argparse.ArgumentParser(description="")
-parser.add_argument("--name", "-n", type=str, default="")
-parser.add_argument("--interval", "-i", type=float, default=1)
+parser.add_argument("-n", "--name", type=str, default="")
+parser.add_argument("-i", "--interval", type=float, default=1)
 args = parser.parse_args()
 
 if args.name == "":
@@ -136,8 +119,8 @@ if len(dev_name) > IFNAMSIZ-1:
     exit()
 
 print_interval = args.interval + 0.0
-if print_interval == 0:
-    print ("print interval must be non-zero")
+if print_interval <= 0:
+    print ("print interval must stricly positive")
     exit()
 
 ################ get number of queues #####################
@@ -169,6 +152,20 @@ devname_map[0] = _name
 while 1:
     try:
         sleep(print_interval)
-        print_result(b)
     except KeyboardInterrupt:
         exit()
+
+    # --------- print tx queues ---------------
+    print(asctime(localtime(time())))
+    print("TX")
+    table = b['tx_q']
+    print_table(table, tx_num)
+    b['tx_q'].clear()
+
+    # --------- print rx queues ---------------
+    print("")
+    print("RX")
+    table = b['rx_q']
+    print_table(table, rx_num)
+    b['rx_q'].clear()
+    print("-"*60)
