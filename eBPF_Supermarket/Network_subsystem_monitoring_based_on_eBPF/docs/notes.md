@@ -38,3 +38,25 @@ struct ipv6_data_t {
     char task[TASK_COMM_LEN];
 };
 ```
+
+2. 程序运行出现Exception: Failed to load BPF program b'xxx': Permission denied
+
+[相关issue](https://github.com/iovisor/bcc/issues/3190)
+
+```
+This is a btf issue. Currently the rewriter is not intelligent enough to understand PT_REGS_PARM2, so it won't transform how->flags to proper bpf_probe_read. 
+```
+原本的程序为
+```C
+u16 sport = skp->__sk_common.skc_num;
+u16 dport = skp->__sk_common.skc_dport;
+// ...
+```
+由于bcc没有那么聪明，不能总能够自动生成bpf_probe_read_kernel，让用户直接读结构体的成员，因此程序应改成如下：
+```C
+bpf_probe_read_kernel(&data4.saddr, sizeof(data4.saddr),
+    &skp->__sk_common.skc_rcv_saddr);
+bpf_probe_read_kernel(&data4.daddr, sizeof(data4.daddr),
+    &skp->__sk_common.skc_daddr);
+// ...
+```
