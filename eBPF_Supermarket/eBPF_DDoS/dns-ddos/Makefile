@@ -1,4 +1,4 @@
-.PHONY: builder xdp_dns test threshold clean-test
+.PHONY: builder xdp_dns test clean-test
 
 all: builder xdp_dns
 
@@ -17,7 +17,7 @@ test:
 	-v /sys/fs/bpf:/sys/fs/bpf -v $(shell pwd):/ddos bpf-builder \
 	sh -c "mount -t bpf bpf /sys/fs/bpf && cd /ddos/src && make xdp_dns_kern && \
 	ip link set dev eth0 xdp obj xdp_dns_kern.o sec xdp && \
-	python3 catch_dns.py"
+	python3 -u catch_dns.py"
 
 fail-threshold:
 	docker exec dwq-ddos-test sh -c "bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 0 value $(value) 0 0 0"
@@ -27,6 +27,9 @@ count-threshold:
 
 any-threshold:
 	docker exec dwq-ddos-test sh -c "bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 2 value $(value) 0 0 0"
+
+global-any-threshold:
+	docker exec dwq-ddos-test sh -c "bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 3 value $(value) 0 0 0"
 
 interval:
 	docker exec dwq-ddos-test sh -c "bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 200 value $(value) 0 0 0"

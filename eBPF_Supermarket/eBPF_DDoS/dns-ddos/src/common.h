@@ -50,25 +50,12 @@ struct dns_hdr {
   __u16 arcount;
 };
 
-struct dns_question {
-  __u32 qname;
-  __u16 qtype;
-  __u16 qclass;
-};
-
 static __u64 (*bpf_get_current_pid_tgid)() = (void *)
     BPF_FUNC_get_current_pid_tgid;
 static __u64 (*bpf_get_current_uid_gid)() = (void *)
     BPF_FUNC_get_current_uid_gid;
 static void (*bpf_trace_printk)(const char *fmt, int fmt_size,
                                 ...) = (void *)BPF_FUNC_trace_printk;
-static __u64 (*bpf_get_current_comm)(void *buf, __u32 size_of_buf) = (void *)
-    BPF_FUNC_get_current_comm;
-
-static __u64 (*bpf_get_socket_cookie_ops)(struct bpf_sock_ops *skops) = (void *)
-    BPF_FUNC_get_socket_cookie;
-static __u64 (*bpf_get_socket_cookie_addr)(struct bpf_sock_addr *ctx) = (void *)
-    BPF_FUNC_get_socket_cookie;
 static void *(*bpf_map_lookup_elem)(struct bpf_elf_map *map, const void *key) =
     (void *)BPF_FUNC_map_lookup_elem;
 static __u64 (*bpf_map_update_elem)(struct bpf_elf_map *map, const void *key,
@@ -76,28 +63,9 @@ static __u64 (*bpf_map_update_elem)(struct bpf_elf_map *map, const void *key,
     BPF_FUNC_map_update_elem;
 static __u64 (*bpf_map_delete_elem)(struct bpf_elf_map *map, const void *key) =
     (void *)BPF_FUNC_map_delete_elem;
-static struct bpf_sock *(*bpf_sk_lookup_tcp)(
-    void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns,
-    __u64 flags) = (void *)BPF_FUNC_sk_lookup_tcp;
-static struct bpf_sock *(*bpf_sk_lookup_udp)(
-    void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns,
-    __u64 flags) = (void *)BPF_FUNC_sk_lookup_udp;
-static long (*bpf_sk_release)(struct bpf_sock *sock) = (void *)
-    BPF_FUNC_sk_release;
-static long (*bpf_sock_hash_update)(
-    struct bpf_sock_ops *skops, struct bpf_elf_map *map, void *key,
-    __u64 flags) = (void *)BPF_FUNC_sock_hash_update;
-static long (*bpf_msg_redirect_hash)(
-    struct sk_msg_md *md, struct bpf_elf_map *map, void *key,
-    __u64 flags) = (void *)BPF_FUNC_msg_redirect_hash;
-static long (*bpf_bind)(struct bpf_sock_addr *ctx, struct sockaddr_in *addr,
-                        int addr_len) = (void *)BPF_FUNC_bind;
-static long (*bpf_l4_csum_replace)(struct __sk_buff *skb, __u32 offset,
-                                   __u64 from, __u64 to, __u64 flags) = (void *)
-    BPF_FUNC_l4_csum_replace;
-static long (*bpf_skb_store_bytes)(struct __sk_buff *skb, __u32 offset,
-                                   const void *from, __u32 len, __u64 flags) =
-    (void *)BPF_FUNC_skb_store_bytes;
+static __u64 (*bpf_perf_event_output)(void *ctx, struct bpf_elf_map *map,
+                                      __u64 flags, void *data, __u64 size) =
+    (void *)BPF_FUNC_perf_event_output;
 
 #ifdef PRINTNL
 #define PRINT_SUFFIX "\n"

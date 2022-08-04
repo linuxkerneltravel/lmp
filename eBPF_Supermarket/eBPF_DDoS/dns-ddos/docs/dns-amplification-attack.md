@@ -31,10 +31,12 @@ DNS报文的格式如下：
 如果在一段时间内ANY查询的次数超过了阈值，则判定当前正受到DNS放大攻击。
 
 #### 实现
-维护一个ebpf map<ip, any_count>，key为请求源ip，any_count为该ip发出ANY查询的次数。在XDP程序中，每收到一个请求，如果该请求的查询类型为ANY（QTYPE=255），则该ip对应的any_count+1
+维护一个ebpf map<ip, any_count>，key为请求源ip，any_count为该ip发出ANY查询的次数。在XDP程序中，每收到一个请求，如果该请求的查询类型为ANY（QTYPE=255），则该ip对应的any_count+1，同时全局的any_count+1
 
 ### 防御DNS放大攻击
-在XDP程序中，对于每个请求，从ebpf map中获取到请求源ip对应的ANY查询次数，如果次数超过阈值，则直接返回XDP_DROP，达到防御的效果。
+在XDP程序中，对于每个ANY查询：
+1. 从ebpf map中获取请求源ip对应的ANY查询次数，如果次数超过阈值，则直接返回XDP_DROP
+2. 从ebpf map中获取全局的ANY查询次数，如果次数超过阈值，则直接返回XDP_DROP
 
 ## 实践
 
@@ -61,7 +63,7 @@ make test
 dig @localhost gateway.example.com +retry=0
 ```
 
-3. 配置ANY查询次数阈值
+3. 配置每个源ip的ANY查询次数阈值
 ```sh
 make any-threshold value=3
 ```
@@ -94,7 +96,14 @@ make clean-test
 ```sh
 make interval value=100
 ```
-这意味着每过100s，会刷新所有ip的计数值
+这意味着每过100s，会刷新所有计数值
+
+#### 配置全局ANY查询阈值
+例：将全局ANY查询阈值设置为100
+```sh
+make global-any-threshold value=100
+```
+这意味着在刷新间隔时间内，DNS服务器最多相应100个ANY查询，更多的查询将被丢弃
 
 #### 配置请求阈值
 例：将请求阈值设置为200
