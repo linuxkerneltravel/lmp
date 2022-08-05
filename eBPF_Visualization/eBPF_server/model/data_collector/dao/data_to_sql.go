@@ -8,8 +8,6 @@ import (
 	"lmp/server/model/data_collector/check"
 )
 
-const SpliteCharacter = "|"
-
 type TableInfo struct {
 	TableName string
 	IndexName []string
@@ -46,17 +44,18 @@ func (ti TableInfo) CreateTable() error {
 	return nil
 }
 
-func (ti TableInfo) AppendTable(index string) (error, TableInfo) {
-	parms := strings.Fields(index)
-	ti.IndexName = make([]string, len(parms))
-	ti.IndexType = make([]string, len(parms))
-	for i, value := range parms {
-		if err := check.VerifyIndexFormat(value); err != nil {
-			return err, ti
-		}
-		info := strings.Split(value, SpliteCharacter)
-		ti.IndexName[i] = check.EscapeData(info[0])
-		ti.IndexType[i] = check.EscapeData(info[1])
+func (ti TableInfo) AppendTable(index string, line string) (error, TableInfo) {
+	index_parms := strings.Fields(index)
+	elements := strings.Fields(line)
+	type_parms := make([]string, len(index_parms))
+	for i, element := range elements {
+		type_parms[i] = check.GetTypeFromData(element)
+	}
+	ti.IndexName = make([]string, len(index_parms))
+	ti.IndexType = make([]string, len(index_parms))
+	for i, _ := range index_parms {
+		ti.IndexName[i] = check.EscapeData(index_parms[i])
+		ti.IndexType[i] = check.EscapeData(type_parms[i])
 	}
 	for i, _ := range ti.IndexName {
 		addcollumnsql := fmt.Sprintf("alter table %s add column \"%s\" %s", ti.TableName, ti.IndexName[i], ti.IndexType[i])

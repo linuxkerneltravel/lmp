@@ -5,13 +5,13 @@ import (
 	"context"
 	"fmt"
 	"lmp/server/model/data_collector/dao"
+	"lmp/server/model/data_collector/logic"
 	"os/exec"
 	"syscall"
 	"time"
 
 	"lmp/server/global"
 	"lmp/server/model/common/request"
-	"lmp/server/model/data_collector/logic"
 	"lmp/server/model/ebpfplugins"
 
 	"go.uber.org/zap"
@@ -163,8 +163,9 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		linechan := make(chan string, linecache)
+		var tableinfo dao.TableInfo
+		var indexname string
 		var counter int
-		var collector dao.TableInfo
 		counter = 1
 		for scanner.Scan() {
 			linechan <- scanner.Text()
@@ -172,15 +173,22 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 			case line := <-linechan:
 				if counter == 1 {
 					fmt.Printf("%s-index-%d", line, counter) //todo 仅用于测试环境
-					if err, collector = logic.DataCollectorIndex(plugin.PluginName, line); err != nil {
-						*errch <- err
-					}
+					indexname = line
 					*out <- true
 				} else {
-					fmt.Printf("%s-rows-%d", line, counter) //todo 仅用于测试环境
-					if err := logic.DataCollectorRow(collector, line); err != nil {
-						*errch <- err
-					}
+					if counter == 2 {
+						err, tableinfo = logic.DataCollectorIndexType(plugin.PluginName, indexname, line)
+						err = logic.DataCollectorRow(tableinfo, line)
+						if err != nil {
+							*errch <- err
+						}
+					} else {
+						err = logic.DataCollectorRow(tableinfo, line)
+						if err != nil {
+							*errch <- err
+						}
+						fmt.Printf("%s-rows-%d", line, counter)
+					} //todo 仅用于测试环境
 				}
 				if len(*out) >= 1 {
 					<-*out
