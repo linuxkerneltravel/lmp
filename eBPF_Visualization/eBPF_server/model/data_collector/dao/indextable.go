@@ -3,6 +3,7 @@ package dao
 import (
 	"errors"
 	"fmt"
+	"lmp/server/global"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -17,8 +18,8 @@ type Indextable struct {
 }
 
 func ConnectSqlite() error {
-	//TODO 路径问题，将绝对路径改为相对路径
-	createdb := sqlite.Open("/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db")
+	m := global.GVA_CONFIG.Sqlite
+	createdb := sqlite.Open(m.Dsn())
 	db, err := gorm.Open(createdb, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
