@@ -44,11 +44,8 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     __u32 *threshold =
         bpf_map_lookup_elem(&configuration, &failure_threshold_key);
     if (threshold && r->fail_count >= *threshold) {
-      // printk("dwq xdp dropped, threshold: %d, cnt %d", *threshold,
-      // r->fail_count);
       return XDP_DROP;
     }
-    // printk("dwq cnt: %d", r->fail_count);
 
     // drop packets by total count
     __u32 count_threshold_key = 1;
@@ -107,18 +104,40 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     return XDP_DROP;
   }
 
-  //   printk("dwq passed %d %d", *(__u8 *)cursor, *(__u16 *)(cursor + 1));
-  //   printk("dwq passed2 %d", *(__u16 *)(cursor + 3));
-
   __u32 any = 0;
   if (*(__u16 *)(cursor + 1) == bpf_htons(255)) {
     any = 1;
   }
 
+  __u32 global_ip = 0;
+  struct record *global = bpf_map_lookup_elem(&counter, &global_ip);
+  if (global) {
+    if (any) {
+      // drop packets by global any request count
+      __u32 global_any_threshold_key = 3;
+      __u32 *threshold =
+          bpf_map_lookup_elem(&configuration, &global_any_threshold_key);
+      if (threshold && global->any_count >= *threshold) {
+        return XDP_DROP;
+      }
+      __sync_fetch_and_add(&global->any_count, 1);
+    }
+    // update global count
+    __sync_fetch_and_add(&global->count, 1);
+  } else {
+    struct record rec = {
+        .count = 1,
+        .fail_count = 0,
+        .any_count = any,
+    };
+    bpf_map_update_elem(&counter, &global_ip, &rec, BPF_ANY);
+  }
+
+  // update count per ip
   if (r) {
     __sync_fetch_and_add(&r->count, 1);
     if (any) {
-      __sync_fetch_and_add(&r->any_count, any);
+      __sync_fetch_and_add(&r->any_count, 1);
     }
   } else {
     struct record rec = {
@@ -128,6 +147,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     };
     bpf_map_update_elem(&counter, &src_ip, &rec, BPF_ANY);
   }
+
   return XDP_PASS;
 }
 
