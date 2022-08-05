@@ -4,14 +4,14 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"lmp/server/model/data_collector/dao"
-	"lmp/server/model/data_collector/logic"
 	"os/exec"
 	"syscall"
 	"time"
 
 	"lmp/server/global"
 	"lmp/server/model/common/request"
+	"lmp/server/model/data_collector/dao"
+	"lmp/server/model/data_collector/logic"
 	"lmp/server/model/ebpfplugins"
 
 	"go.uber.org/zap"

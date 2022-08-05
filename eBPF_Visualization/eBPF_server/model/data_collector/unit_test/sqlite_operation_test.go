@@ -2,10 +2,11 @@ package unit_test
 
 import (
 	"fmt"
+	"testing"
+
 	"lmp/server/model/data_collector/check"
 	"lmp/server/model/data_collector/dao"
 	"lmp/server/model/data_collector/logic"
-	"testing"
 )
 
 func TestConnectSqlite(t *testing.T) {
