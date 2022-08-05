@@ -40,15 +40,22 @@ func main() {
 	// second.
 	// The first two arguments are taken from the following pathname:
 	// /sys/kernel/debug/tracing/events/kmem/mm_page_alloc
-	kp1, err := link.Tracepoint("sched", "sched_switch", objs.SchedSwitch, nil)
-	kp2, err := link.Tracepoint("sched", "sched_process_fork", objs.SchedProcessFork, nil)
-	kp3, err := link.Kprobe("update_rq_clock", objs.UpdateRqClock, nil)
-	if err != nil {
-		log.Fatalf("opening tracepoint: %s", err)
-	}
+	kp1, _ := link.Tracepoint("sched", "sched_switch", objs.SchedSwitch, nil)
+	kp2, _ := link.Tracepoint("sched", "sched_process_fork", objs.SchedProcessFork, nil)
+	kp3, _ := link.Kprobe("update_rq_clock", objs.UpdateRqClock, nil)
+	kp4, _ := link.Tracepoint("irq", "irq_handler_entry", objs.IrqHandlerEntry, nil)
+	kp5, _ := link.Tracepoint("irq", "irq_handler_exit", objs.IrqHandlerExit, nil)
+	kp6, _ := link.Tracepoint("irq", "softirq_entry", objs.SoftirqEntry, nil)
+	kp7, _ := link.Tracepoint("irq", "softirq_exit", objs.SoftirqExit, nil)
 	defer kp1.Close()
 	defer kp2.Close()
 	defer kp3.Close()
+	defer kp4.Close()
+	defer kp5.Close()
+	defer kp6.Close()
+	defer kp7.Close()
+	// defer kp8.Close()
+	// defer kp9.Close()
 
 	// Read loop reporting the total amount of times the kernel
 	// function was entered, once per second.
@@ -57,18 +64,24 @@ func main() {
 
 	var proc uint64 = 0
 	var cswch uint64 = 0
+	var irqTime uint64 = 0
+	var softTime uint64 = 0
+	var idleTime uint64 = 0
+	var actualTime uint64 = 0
 
 	timeStr := time.Now().Format("15:04:05")
-	fmt.Printf("%s proc/s  cswch/s  runqlen\n", timeStr)
+	fmt.Printf("%s proc/s  cswch/s  runqlen  irqTime/us  softirq/us\n", timeStr)
 	for range ticker.C {
 		var key uint32
 		var proc_s, cswch_s, runqlen uint64
 		var all_cpu_value []uint64
 
+		// 上下文切换数
 		key = 0
 		objs.CountMap.Lookup(key, &cswch_s)
 		cswch_s, cswch = cswch_s-cswch, cswch_s
 
+		// 每秒新建进程数
 		key = 1
 		err := objs.CountMap.Lookup(key, &proc_s)
 		if err != nil {
@@ -76,15 +89,34 @@ func main() {
 		}
 		proc_s, proc = proc_s-proc, proc_s
 
+		// 计算队列长度
 		key = 0
 		objs.Runqlen.Lookup(key, &all_cpu_value)
-
 		runqlen = 0
 		for cpuid := 0; cpuid < 128; cpuid++ {
 			runqlen += all_cpu_value[cpuid]
 		}
 
+		// irq所占的时间ns
+		key = 0
+		_irqTime := irqTime
+		objs.IrqLastTime.Lookup(key, &irqTime)
+		dtaIrq := (irqTime - _irqTime) / 1000 // 每秒的irq数/us
+
+		key = 0
+		_softTime := softTime
+		objs.SoftirqLastTime.Lookup(key, &softTime)
+		dtaSoft := (softTime - _softTime) / 1000
+
+		key = 0
+		_idleTime := idleTime
+		objs.ProcLastTime.Lookup(key, &idleTime)
+		dtaIdle := idleTime - _idleTime
+
 		timeStr := time.Now().Format("15:04:05")
-		fmt.Printf("%s %6d  %7d  %7d\n", timeStr, proc_s, cswch_s, runqlen)
+		fmt.Printf("%s %6d  %7d  %7d  %10d  %10d %d\n", timeStr, proc_s, cswch_s, runqlen,
+			dtaIrq, dtaSoft, dtaIdle/1000000)
+
+		actualTime += 1
 	}
 }
