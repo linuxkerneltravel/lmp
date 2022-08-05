@@ -3,6 +3,9 @@ package ebpfplugins
 import (
 	"errors"
 	"io/ioutil"
+	"log"
+	"sync"
+
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/ebpfplugins"
@@ -88,7 +91,28 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	go runSinglePlugin(e, 1500)
+	var wg sync.WaitGroup
+	outputChannel := make(chan int, 2)  // alter name; magic number
+	errorChannel := make(chan error, 1) // alter name
+	wg.Add(1)
+	go func() {
+		runSinglePlugin(e, 1500, &outputChannel, &errorChannel)
+	}()
+	go func() {
+		select {
+		case out := <-outputChannel:
+			global.GVA_LOG.Info("Start run plugin!")
+			log.Println(out)
+			wg.Done()
+		case err = <-errorChannel:
+			global.GVA_LOG.Error("error in runSinglePlugin!")
+			wg.Done()
+		}
+	}()
+	wg.Wait()
+	if err != nil {
+		return err
+	}
 	// 3.执行之后结果，成功还是失败
 	plugin.State = 1 // 表示已经成功加载内核中运行
 	err = global.GVA_DB.Save(plugin).Error
