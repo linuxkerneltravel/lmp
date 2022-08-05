@@ -82,11 +82,11 @@ var (
 	probeFn             string
 	beginch             chan beginTimeEvent
 	endch               chan endTimeEvent
-	podname             string
+	pn                  string
 	histogramRegistered = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "grpc_spend",
-			Help:    "A histogram of normally distributed gprc spend time(us).",
+			Help:    "A histogram of normally distributed gprc spend time(ns).",
 			Buckets: prometheus.LinearBuckets(0, 800, 20),
 		},
 	)
@@ -108,20 +108,21 @@ func parseToSturctFromChannel(m *PerStatusWithLock) {
 		case bv := <-beginch:
 			ev := <-endch
 			m.addPerMap(time.Unix(bv.T, 0),
-				perTimeStatus{Statuscode: ev.StatusCode, SpendTime: (ev.Ns - bv.Ns) / 1000})
+				perTimeStatus{Statuscode: ev.StatusCode, SpendTime: (ev.Ns - bv.Ns) / 1000}) // /1000 is ns
 			//to histogram
-			histogramRegistered.Observe(float64((ev.Ns - bv.Ns) / 1000 / 1000))
+			histogramRegistered.Observe(float64((ev.Ns - bv.Ns) / 1000))
+			fmt.Println("push ", float64((ev.Ns-bv.Ns)/1000))
 			if err := push.New("http://10.10.103.122:9091", "GRPCSpend"). // push.New("pushgateway地址", "job名称")
-											Collector(histogramRegistered).                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
-											Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
+											Collector(histogramRegistered).                            //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+											Grouping("podname", pn).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
 											Push(); err != nil {
 				fmt.Println("Could not push completion time to Pushgateway:", err)
 			}
 			// to gauge
 			Gauge.Add(1)
 			if err := push.New("http://10.10.103.122:9091", "GRPCStatus"). // push.New("pushgateway地址", "job名称")
-											Collector(Gauge).                                                                                //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
-											Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("gRpcStatusCode", "0"). // 给指标添加标签，可以添加多个
+											Collector(Gauge).                                                                           //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+											Grouping("podname", pn).Grouping("instance", "statuscode").Grouping("gRpcStatusCode", "0"). // 给指标添加标签，可以添加多个
 											Push(); err != nil {
 				fmt.Println("Could not push completion time to Pushgateway:", err)
 			}
@@ -140,7 +141,7 @@ func (m *PerStatusWithLock) readPerMap() map[time.Time][]perTimeStatus {
 	return rmap
 }
 func PrintStaticsNumber(m *PerStatusWithLock) {
-	timeTickerChan := time.Tick(time.Second * 60)
+	timeTickerChan := time.Tick(time.Second * 20)
 	for {
 		rmap := m.readPerMap()
 		if len(rmap) != 0 {
@@ -162,7 +163,7 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 	if len(binaryProg) == 0 {
 		panic("Argument --binary needs to be specified")
 	}
-
+	pn = podname
 	prometheus.Register(histogramRegistered)
 
 	fmt.Println("Attach 1 uprobe on ", binaryProg)
@@ -212,13 +213,13 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 	pm2.Start()
 	defer pm2.Stop()
 
-	beginch = make(chan beginTimeEvent)
-	endch = make(chan endTimeEvent)
+	beginch = make(chan beginTimeEvent, 1000)
+	endch = make(chan endTimeEvent, 1000)
 
 	perstatusmap := &PerStatusWithLock{perStatus: make(map[time.Time][]perTimeStatus)}
 	tmp := endTimeEvent{}
 	go parseToSturctFromChannel(perstatusmap)
-	go PrintStaticsNumber(perstatusmap)
+	//go PrintStaticsNumber(perstatusmap)
 	for {
 		select {
 		case <-intCh:
