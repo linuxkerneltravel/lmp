@@ -23,9 +23,9 @@ bpftrace_application 是一些 Bpftrace 构建的例程，需要预装 bpftrace�
 
 ### 2. bpftrace应用
 
-runqlen_percpu.c: 打印每个CPU的runqlen分布情况。使用了kprobe，挂载点是update_rq_clock.
+**runqlen_percpu.c**: 打印每个CPU的runqlen分布情况。使用了kprobe，挂载点是update_rq_clock.
 
-runqlen_se.c: 打印每个CPU的 CFS 调度的队列长度分布情况。使用了kprobe，挂载点是update_rq_clock.
+**runqlen_se.c**: 打印每个CPU的 CFS 调度的队列长度分布情况。使用了kprobe，挂载点是update_rq_clock.
 
 挂载点说明：update_rq_clock() 函数在内核中的作用是用来更新rq主运行队列的运行时间的，不涉及到具体的某种调度策略（如CFS），因而能够得到通用的调度数据。执行栈是内核的时钟中断函数->update_process_time()->scheduler_tick()->update_rq_clock()，使用update_rq_clock()的优势在于该函数的参数内携带了rq结构体，可直接查阅运行队列rq的数据。执行频率为800~1000Hz，较低，不会影响到内核的运行性能。
 
@@ -46,6 +46,8 @@ sudo ./runqlen_percpu.c
 
 **go_switch_info**：每1s打印现有所有进程的进程切换数。
 
+**go_sar**：模仿sar工具，使用eBPF实现其功能。（未完成）
+
 使用方法：
 
 ```shell
@@ -54,5 +56,17 @@ cd schedule
 ./run.sh
 ```
 
+如果没有run.sh脚本，那么，需要手动编译执行以下命令：
+
+```shell
+cd go_migrate_info
+cd sched_migrate
+go generate
+sudo go run .
+```
+
 ### 4. 调研及实现过程的文档
 位于docs目录下，由于编码兼容性原因，文件名为英文，但文件内容是中文。
+
+### 5. 联系方式
+如对此项目有所建议，或想要参与到此项目的开发当中，欢迎联系邮箱2110459069@qq.com！希望与更多志同道合的人一道探究CPU子系统的指标检测相关问题！
