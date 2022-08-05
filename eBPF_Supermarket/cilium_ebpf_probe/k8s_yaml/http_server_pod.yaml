@@ -5,5 +5,9 @@ metadata:
   namespace: wyw
 spec:
   containers:
-    - image: wyuei/http_server
+    - image: wyuei/http_server:v2.0
       name: httpserver
+      env:
+        - name: TZ
+          value: Asia/Shanghai
+  nodeName: k8s-node2
