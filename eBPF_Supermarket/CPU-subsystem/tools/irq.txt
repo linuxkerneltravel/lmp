@@ -1,0 +1,5 @@
+irq:irq_handler_entry
+irq:irq_handler_exit 
+irq:softirq_entry    
+irq:softirq_exit     
+irq:softirq_raise    
