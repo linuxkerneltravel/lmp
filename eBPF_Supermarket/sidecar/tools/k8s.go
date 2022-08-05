@@ -14,15 +14,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// FileExists checks if a file exists
-func FileExists(filePath string) bool {
-	fileInfo, err := os.Stat(filePath)
-	if err == nil && fileInfo.IsDir() == false {
-		return true
-	}
-	return false
-}
-
 // GetDefaultKubeConfig gets default kubeconfig file path
 func GetDefaultKubeConfig() string {
 	// get kubeconfig path in this order: env, path ~/.kube/, path /etc/

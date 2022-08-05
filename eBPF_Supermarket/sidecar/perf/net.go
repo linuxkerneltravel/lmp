@@ -109,7 +109,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					pair.Ok = true
 					sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v1.Pid, Tid: v1.Tid}] = pair
 					fmt.Println("pair1", pair)
-					fmt.Println("[DELTA sidecar]", pair.SidecarConnect.Time.Sub(pair.SidecarAccept.Time))
+					fmt.Println("[DELTA sidecar]", (pair.SidecarConnect.Time - pair.SidecarAccept.Time).String())
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, &pair, nil)
 				}
 				// fmt.Println("SidecarAcceptEvent done.")
@@ -123,7 +123,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					pair.Ok = true
 					sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v1.DAddr, SidecarPort: v1.DPort}] = pair
 					fmt.Println("pair2", pair)
-					fmt.Println("[DELTA service]", pair.ServiceAccept.Time.Sub(pair.SidecarConnect.Time))
+					fmt.Println("[DELTA service]", (pair.ServiceAccept.Time - pair.SidecarConnect.Time).String())
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, nil, &pair)
 				}
 				// fmt.Println("ServiceAcceptEvent done")
@@ -142,7 +142,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					pair1.Ok = true
 					sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v2.Pid, Tid: v2.Tid}] = pair1
 					fmt.Println("pair1: ", pair1)
-					fmt.Println("[DELTA sidecar]", pair1.SidecarConnect.Time.Sub(pair1.SidecarAccept.Time))
+					fmt.Println("[DELTA sidecar]", (pair1.SidecarConnect.Time - pair1.SidecarAccept.Time).String())
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, &pair1, nil)
 				}
 				// process sidecar connect and service accept
@@ -154,7 +154,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					pair2.Ok = true
 					sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v2.SAddr, SidecarPort: v2.LPort}] = pair2
 					fmt.Println("pair2: ", pair2)
-					fmt.Println("[DELTA service]", pair2.ServiceAccept.Time.Sub(pair2.SidecarConnect.Time))
+					fmt.Println("[DELTA service]", (pair2.ServiceAccept.Time - pair2.SidecarConnect.Time).String())
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, nil, &pair2)
 				}
 				// fmt.Println("SidecarConnectEvent done")
