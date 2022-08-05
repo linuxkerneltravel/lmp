@@ -19,7 +19,12 @@ type Indextable struct {
 
 func ConnectSqlite() error {
 	m := global.GVA_CONFIG.Sqlite
-	createdb := sqlite.Open(m.Dsn())
+	var createdb gorm.Dialector
+	if m.Dsn() != "" {
+		createdb = sqlite.Open(m.Dsn())
+	} else {
+		createdb = sqlite.Open("/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db")
+	}
 	db, err := gorm.Open(createdb, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,

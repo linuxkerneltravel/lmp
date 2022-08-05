@@ -14,14 +14,14 @@ func InitCollectSqlite() error {
 	return nil
 }
 
-func DataCollectorIndex(pluginname string, index string) (error, dao.TableInfo) {
+func DataCollectorIndexType(pluginname string, index string, line string) (error, dao.TableInfo) {
 	var tableinfo dao.TableInfo
 	tableinfo.TableName = pluginname
 	var err error
 	if err = tableinfo.CreateTable(); err != nil {
 		return err, tableinfo
 	}
-	if err, tableinfo = tableinfo.AppendTable(index); err != nil {
+	if err, tableinfo = tableinfo.AppendTable(index, line); err != nil {
 		return err, Tableinfo
 	}
 	fmt.Println(tableinfo)

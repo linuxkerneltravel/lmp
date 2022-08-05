@@ -2,10 +2,17 @@ package unit_test
 
 import (
 	"fmt"
+	"lmp/server/model/data_collector/check"
 	"lmp/server/model/data_collector/dao"
 	"lmp/server/model/data_collector/logic"
 	"testing"
 )
+
+func TestConnectSqlite(t *testing.T) {
+	if err := dao.ConnectSqlite(); err != nil {
+		t.Error("Connect failed:", err)
+	}
+}
 
 func TestInitSqlite(t *testing.T) {
 	if err := dao.InitSqlite(); err != nil {
@@ -50,7 +57,7 @@ func TestAppendTable(t *testing.T) {
 		TableName: "plugin_test",
 	}
 	_ = ti.CreateTable()
-	if err, _ := ti.AppendTable("TIME|TEXT   READ_s|INTEGER WRITE_s|INTEGER FSYNC_s|INTEGER OPEN_s|INTEGER CREATE_s|INTEGER"); err != nil {
+	if err, _ := ti.AppendTable("TIME|TEXT   READ_s|INTEGER WRITE_s|INTEGER FSYNC_s|INTEGER OPEN_s|INTEGER CREATE_s|INTEGER", "21:52:36:      1300       16        0       13        0"); err != nil {
 		t.Error("Append plugin table failed:", err)
 	}
 }
@@ -61,7 +68,7 @@ func TestInsertRow(t *testing.T) {
 		TableName: "plugin_test",
 	}
 	_ = ti.CreateTable()
-	_, _ = ti.AppendTable("TIME|TEXT   READ_s|INTEGER WRITE_s|INTEGER FSYNC_s|INTEGER OPEN_s|INTEGER CREATE_s|INTEGER")
+	_, _ = ti.AppendTable("TIME  READ_s WRITE_s FSYNC_s OPEN_s CREATE_s", "21:52:36:      1300       16        0       13        0")
 	line := "21:52:36:      1300       16        0       13        0"
 	if err := ti.InsertRow(line); err != nil {
 		t.Error("InsertRow failed:", err)
@@ -69,14 +76,19 @@ func TestInsertRow(t *testing.T) {
 }
 
 func TestDataCollectorIndex(t *testing.T) {
-	if err, _ := logic.DataCollectorIndex("test_data_index", "TIME|TEXT   READ_s|INTEGER WRITE_s|INTEGER FSYNC_s|INTEGER OPEN_s|INTEGER CREATE_s|INTEGER"); err != nil {
+	if err, _ := logic.DataCollectorIndexType("test_data_index", "TIME   READ_s WRITE_s FSYNC_s OPEN_s CREATE_s", "21:52:36:      1300       16        0       13        0"); err != nil {
 		t.Error("DataCollectorIndex failed:", err)
 	}
 }
 
 func TestDataCollectorRow(t *testing.T) {
-	_, tableinfo := logic.DataCollectorIndex("test_data_index", "TIME|TEXT   READ_s|INTEGER WRITE_s|INTEGER FSYNC_s|INTEGER OPEN_s|INTEGER CREATE_s|INTEGER")
+	_, tableinfo := logic.DataCollectorIndexType("test_data_index", "TIME  READ_s WRITE_s FSYNC_s OPEN_s CREATE_s", "21:52:36:      1300       16        0       13        0")
 	if err := logic.DataCollectorRow(tableinfo, "21:52:36:      1300       16        0       13        0"); err != nil {
 		t.Error("Insert row failed:", err)
 	}
+}
+
+func TestGetTypeFromData(t *testing.T) {
+	typeresult := check.GetTypeFromData("0.85")
+	fmt.Println(typeresult)
 }
