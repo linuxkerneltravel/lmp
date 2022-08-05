@@ -5,34 +5,42 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"time"
+
+	//"time"
 )
 
-const url = "http://10.0.0.231:8099/api/hello"
+const url = "http://10.0.3.186:8099/api/hello"
 
 func main() {
-	count := flag.Int("count", 5, "The number of calls to make.")
+	count := flag.Int("count", 30, "The number of calls to make.")
 	flag.Parse()
-	for i := 0; i < *count; i++ {
-		client := &http.Client{
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					KeepAlive: 0, // 修改为 0 可以生效
-				}).DialContext,
-			}}
-		resp, err := client.Get(url)
-		ErrPrint(err)
+	timeTickerChan := time.Tick(time.Second * 1) //每1秒进行一次展示输出
+	rand.Seed(time.Now().UnixNano())
+	for {
+		*count = rand.Intn(200)
+		for i := 0; i < *count; i++ {
+			client := &http.Client{
+				Transport: &http.Transport{
+					DialContext: (&net.Dialer{
+						KeepAlive: 0, // 修改为 0 可以生效
+					}).DialContext,
+				}}
+			resp, err := client.Get(url)
+			ErrPrint(err)
 
-		res, err := ioutil.ReadAll(resp.Body)
-		ErrPrint(err)
-		fmt.Printf("%s\n", res)
-		resp.Body.Close()
-		time.Sleep(time.Duration(100) * time.Millisecond)
+			res, err := ioutil.ReadAll(resp.Body)
+			ErrPrint(err)
+			fmt.Println("response statuscode is", resp.StatusCode, " and res body is ", string(res))
+			resp.Body.Close()
+			//time.Sleep(time.Duration(100) * time.Millisecond)
+		}
+		<-timeTickerChan
 	}
-
 }
 func ErrPrint(err error) {
 	if err != nil {

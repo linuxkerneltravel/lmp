@@ -1,9 +1,6 @@
 package main
 
 import (
-	"cilium_ebpf_probe/cluster_utils"
-	"cilium_ebpf_probe/http2_tracing"
-	"cilium_ebpf_probe/http_kprobe"
 	"context"
 	"flag"
 	"fmt"
@@ -11,8 +8,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
-	"path/filepath"
+	"lmp/eBPF_Supermarket/cilium_ebpf_probe/cluster_utils"
+	"lmp/eBPF_Supermarket/cilium_ebpf_probe/http2_tracing"
+	"lmp/eBPF_Supermarket/cilium_ebpf_probe/http_kprobe"
 	//
 	// Uncomment to load all auth plugins
 	// _ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -27,11 +25,7 @@ import (
 func main() {
 	var kubeconfig *string
 	//$KUBECONFIG=/etc/kubernetes/admin.conf
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join("config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "/etc/kubernetes/admin.conf", "absolute path to the kubeconfig file")
-	}
+	kubeconfig = flag.String("kubeconfig", "/etc/kubernetes/admin.conf", "absolute path to the kubeconfig file")
 	flag.Parse()
 
 	// use the current context in kubeconfig
@@ -61,7 +55,6 @@ func main() {
 	/*******kprobe on pod************/
 	pod := "httpserver"
 	p, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), pod, metav1.GetOptions{})
-
 	if errors.IsNotFound(err) {
 		fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
 	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
@@ -71,7 +64,7 @@ func main() {
 		panic(err.Error())
 	} else {
 		fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
-		res, _ := cluster_utils.GetAllPodProcess(clientset, "node2", namespace, pod, p.Status.ContainerStatuses)
+		res, _ := cluster_utils.GetAllPodProcess(clientset, "k8s-node2", namespace, pod, p.Status.ContainerStatuses)
 		for k, v := range res {
 			fmt.Printf("get pod %s Pid and Attach Kprobe\n", k.Name)
 			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), pod)
@@ -91,10 +84,9 @@ func main() {
 		panic(err.Error())
 	} else {
 		fmt.Printf("Found pod %s in namespace %s\n", poduprobe, namespace)
-		res, _ := cluster_utils.GetPodELFPath(clientset, "node2", namespace, poduprobe, p2.Status.ContainerStatuses)
+		res, _ := cluster_utils.GetPodELFPath(clientset, "k8s-node2", namespace, poduprobe, p2.Status.ContainerStatuses)
 		for k, v := range res {
 			fmt.Printf("get pod %s Merge Path and Attach Uprobe\n", k.Name)
-			fmt.Println(v)
 			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, poduprobe)
 		}
 	}

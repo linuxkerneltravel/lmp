@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/iovisor/gobpf/bcc"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 )
 
 type EventType int32
@@ -49,9 +52,19 @@ type MessageInfo struct {
 }
 
 var (
-	tracePID     int
-	printEnabled bool
-	podname      string
+	tracePID            int
+	printEnabled        bool
+	podname             string
+	count               int
+	prome               bool
+	histogramRegistered = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "http_spend",
+			Help:    "A histogram of normally distributed http spend time(us).",
+			Buckets: prometheus.LinearBuckets(0, 800, 20),
+		},
+	)
+	statusMap map[int]prometheus.Gauge
 )
 
 //为Map上锁
@@ -64,6 +77,31 @@ type RequestMap struct {
 	Request map[time.Time][]*http.Response
 }
 
+func Histogram_Push(podname string, spendtime int64, gotime int64) {
+	//completionTime := prometheus.NewGauge(prometheus.GaugeOpts{
+	//	Name: "HTTPSpendTime",
+	//	Help: "The timestamp of the last successful completion of a DB backup.",
+	//})
+	histogramRegistered.Observe(float64(spendtime / 1000 / 1000))
+	if err := push.New("http://10.10.103.122:9091", "HTTPSpend"). // push.New("pushgateway地址", "job名称")
+									Collector(histogramRegistered).                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+									Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
+									Push(); err != nil {
+		fmt.Println("Could not push completion time to Pushgateway:", err)
+	}
+
+}
+
+func Gauge_Push(podname string, statuscode int, gotime int64) {
+	statusMap[statuscode].Add(1)
+	if err := push.New("http://10.10.103.122:9091", "HTTPStatus"). // push.New("pushgateway地址", "job名称")
+									Collector(statusMap[statuscode]).                                                                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+									Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("StatusCode", strconv.Itoa(statuscode)). // 给指标添加标签，可以添加多个
+									Push(); err != nil {
+		fmt.Println("Could not push completion time to Pushgateway:", err)
+	}
+
+}
 func mustAttachKprobeToSyscall(m *bcc.Module, probeType int, syscallName string, probeName string) {
 	fnName := bcc.GetSyscallFnName(syscallName)
 	kprobe, err := m.LoadKprobe(probeName)
@@ -144,6 +182,10 @@ func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtim
 	requestMap.addRequestMap(time.Unix(msgInfo.GoTime, 0), resp) //each timestamp add the resp(including statusCode\len)
 	spendtimeMap.addSependTimeMap(time.Unix(msgInfo.GoTime, 0), msgInfo.Time_ns)
 
+	if prome {
+		Histogram_Push(podname, msgInfo.Time_ns, msgInfo.GoTime)
+		Gauge_Push(podname, resp.StatusCode, msgInfo.GoTime)
+	}
 	body := resp.Body
 	b, _ := ioutil.ReadAll(body)
 	body.Close()
@@ -169,7 +211,7 @@ func (m *SpendTimeMap) readSpendTimeMap() map[time.Time][]int64 {
 }
 
 func PrintStatisticsNumber(requestMap *RequestMap, spendtimeMap *SpendTimeMap) {
-	timeTickerChan := time.Tick(time.Second * 60) //每10秒进行一次展示输出
+	timeTickerChan := time.Tick(time.Second * 10) //每10秒进行一次展示输出
 	for {
 		rmap := requestMap.readRequestMap()
 		smap := spendtimeMap.readSpendTimeMap()
@@ -196,6 +238,35 @@ func PrintStatisticsNumber(requestMap *RequestMap, spendtimeMap *SpendTimeMap) {
 func GetHttpViaKprobe(tracePID int, p string) {
 	flag.Parse()
 	podname = p
+	count = 0
+	prome = true
+	prometheus.Register(histogramRegistered)
+
+	statusMap = make(map[int]prometheus.Gauge)
+	statusMap[200] = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "http_status_code_200",
+		Help: "Current status of the http protocol.",
+	})
+	statusMap[400] = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "http_status_code_4oo",
+		Help: "Current status of the http protocol.",
+	})
+	statusMap[401] = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "http_status_code_401",
+		Help: "Current status of the http protocol.",
+	})
+	statusMap[404] = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "http_status_code_404",
+		Help: "Current status of the http protocol.",
+	})
+	statusMap[502] = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "http_status_code_502",
+		Help: "Current status of the http protocol.",
+	})
+	statusMap[504] = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "http_status_code_504",
+		Help: "Current status of the http protocol.",
+	})
 
 	requestMap := &RequestMap{
 		Request: make(map[time.Time][]*http.Response),
@@ -234,7 +305,7 @@ func GetHttpViaKprobe(tracePID int, p string) {
 
 	fmt.Println("kprobe for http begins...")
 
-	go PrintStatisticsNumber(requestMap, spendMap)
+	//go PrintStatisticsNumber(requestMap, spendMap)
 	for {
 		select {
 		case <-intCh:
