@@ -86,6 +86,8 @@ pgsql:
   max-open-conns: 100
   log-mode: ""
   log-zap: false
+sqlite:
+  path: "./model/data_collector/dao/tables/ebpfplugin.db"
 redis:
   db: 0
   addr: 127.0.0.1:6379
