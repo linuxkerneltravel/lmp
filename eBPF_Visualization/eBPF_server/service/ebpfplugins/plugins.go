@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"lmp/server/model/common/request"
-	"lmp/server/model/ebpfplugins"
 	"os/exec"
 	"syscall"
 	"time"
 
 	"lmp/server/global"
+	"lmp/server/model/common/request"
+	"lmp/server/model/data_collector/dao"
+	"lmp/server/model/data_collector/logic"
+	"lmp/server/model/ebpfplugins"
 
 	"go.uber.org/zap"
 )
@@ -161,16 +163,38 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		linechan := make(chan string, linecache)
+		var tableinfo dao.TableInfo
+		var indexname string
+		var counter int
+		counter = 1
 		for scanner.Scan() {
 			linechan <- scanner.Text()
 			select {
 			case line := <-linechan:
-				fmt.Println(line) //仅用于测试环境
-				*out <- true
+				if counter == 1 {
+					fmt.Printf("%s-index-%d", line, counter) //todo 仅用于测试环境
+					indexname = line
+					*out <- true
+				} else {
+					if counter == 2 {
+						err, tableinfo = logic.DataCollectorIndexType(plugin.PluginName, indexname, line)
+						err = logic.DataCollectorRow(tableinfo, line)
+						if err != nil {
+							*errch <- err
+						}
+					} else {
+						err = logic.DataCollectorRow(tableinfo, line)
+						if err != nil {
+							*errch <- err
+						}
+						fmt.Printf("%s-rows-%d", line, counter)
+					} //todo 仅用于测试环境
+				}
 				if len(*out) >= 1 {
 					<-*out
 				}
 			}
+			counter += 1
 		}
 	}()
 
