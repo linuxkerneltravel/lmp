@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"lmp/server/model/data_collector/check"
 	"lmp/server/model/data_collector/dao"
 	"os/exec"
 	"syscall"
@@ -163,8 +164,9 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		linechan := make(chan string, linecache)
+		var tableinfo dao.TableInfo
+		var indexname string
 		var counter int
-		var collector dao.TableInfo
 		counter = 1
 		for scanner.Scan() {
 			linechan <- scanner.Text()
@@ -172,15 +174,44 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 			case line := <-linechan:
 				if counter == 1 {
 					fmt.Printf("%s-index-%d", line, counter) //todo 仅用于测试环境
-					if err, collector = logic.DataCollectorIndex(plugin.PluginName, line); err != nil {
-						*errch <- err
+					if check.VerifyCompleteIndexFormat(line) {
+						err, tableinfo = logic.DataCollectorIndexFromIndex(plugin.PluginName, line)
+						fmt.Println("指定制表")
+						if err != nil {
+							global.GVA_LOG.Error("error in DataCollectorIndexFromIndex:", zap.Error(err))
+							*errch <- err
+							return
+						}
+					} else {
+						indexname = line
 					}
 					*out <- true
 				} else {
-					fmt.Printf("%s-rows-%d", line, counter) //todo 仅用于测试环境
-					if err := logic.DataCollectorRow(collector, line); err != nil {
-						*errch <- err
-					}
+					if counter == 2 {
+						if indexname != "" {
+							fmt.Printf("默认制表")
+							err, tableinfo = logic.DataCollectorIndexFromData(plugin.PluginName, indexname, line)
+							if err != nil {
+								global.GVA_LOG.Error("error in DataCollectorIndexFromData:", zap.Error(err))
+								*errch <- err
+								return
+							}
+						}
+						err = logic.DataCollectorRow(tableinfo, line)
+						if err != nil {
+							global.GVA_LOG.Error("error in DataCollectorRow:", zap.Error(err))
+							*errch <- err
+							return
+						}
+					} else {
+						err = logic.DataCollectorRow(tableinfo, line)
+						if err != nil {
+							global.GVA_LOG.Error("error in DataCollectorRow:", zap.Error(err))
+							*errch <- err
+							return
+						}
+						fmt.Printf("%s-rows-%d", line, counter)
+					} //todo 仅用于测试环境
 				}
 				if len(*out) >= 1 {
 					<-*out
