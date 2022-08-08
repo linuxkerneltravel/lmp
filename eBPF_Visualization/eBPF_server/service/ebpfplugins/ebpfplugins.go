@@ -3,7 +3,6 @@ package ebpfplugins
 import (
 	"errors"
 	"io/ioutil"
-	"log"
 	"sync"
 
 	"lmp/server/global"
@@ -105,9 +104,8 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}()
 	go func() {
 		select {
-		case out := <-outputChannel:
+		case <-outputChannel:
 			global.GVA_LOG.Info("Start run plugin!")
-			log.Println(out)
 			wg.Done()
 		case err = <-errorChannel:
 			global.GVA_LOG.Error("error in runSinglePlugin!")
