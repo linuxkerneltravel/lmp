@@ -42,3 +42,13 @@ func GetTypeFromData(element string) string {
 	}
 	return ElementType
 }
+
+func VerifyMultipleDataMatched(line string, index_parms []string) bool {
+	line_parms := strings.Fields(line)
+	for i, v := range line_parms {
+		if GetTypeFromData(v) != index_parms[i] {
+			return false
+		}
+	}
+	return true
+}
