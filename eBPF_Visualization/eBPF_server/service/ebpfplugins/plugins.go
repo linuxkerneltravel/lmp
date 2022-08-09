@@ -3,6 +3,7 @@ package ebpfplugins
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"lmp/server/model/data_collector/check"
 	"lmp/server/model/data_collector/dao"
@@ -167,51 +168,59 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 		var tableinfo dao.TableInfo
 		var indexname string
 		var counter int
+		default_create_table := true
 		counter = 1
 		for scanner.Scan() {
 			linechan <- scanner.Text()
 			select {
 			case line := <-linechan:
 				if counter == 1 {
-					fmt.Printf("%s-index-%d", line, counter) //todo 仅用于测试环境
 					if check.VerifyCompleteIndexFormat(line) {
 						err, tableinfo = logic.DataCollectorIndexFromIndex(plugin.PluginName, line)
-						fmt.Println("指定制表")
 						if err != nil {
 							global.GVA_LOG.Error("error in DataCollectorIndexFromIndex:", zap.Error(err))
 							*errch <- err
 							return
 						}
+						default_create_table = false
+						global.GVA_LOG.Info("使用用户指定的数据类型建表！")
 					} else {
+						global.GVA_LOG.Info("使用正则的方式自动建表！")
 						indexname = line
 					}
 					*out <- true
-				} else {
-					if counter == 2 {
-						if indexname != "" {
-							fmt.Printf("默认制表")
+				}
+				if counter > 1 {
+					if !default_create_table {
+						if err := logic.DataCollectorRow(tableinfo, line); err != nil {
+							global.GVA_LOG.Error("error in DataCollectorRow:", zap.Error(err))
+						}
+					}
+					if default_create_table {
+						if counter == 2 {
 							err, tableinfo = logic.DataCollectorIndexFromData(plugin.PluginName, indexname, line)
 							if err != nil {
 								global.GVA_LOG.Error("error in DataCollectorIndexFromData:", zap.Error(err))
-								*errch <- err
+								return
+							}
+							if err := logic.DataCollectorRow(tableinfo, line); err != nil {
+								global.GVA_LOG.Error("error in DataCollectorIndexFromData:", zap.Error(err))
+								return
+							}
+						} else {
+							if check.VerifyMultipleDataMatched(line, tableinfo.IndexType) {
+								if err := logic.DataCollectorRow(tableinfo, line); err != nil {
+									global.GVA_LOG.Error("error in DataCollectorIndexFromData:", zap.Error(err))
+									return
+								}
+							} else {
+								mismatcheerr := fmt.Sprintf("第%d行数据无法自动匹配，请使用指定类型的ebpf程序！", counter)
+								err = errors.New(mismatcheerr)
+								global.GVA_LOG.Error("error:\n", zap.Error(err))
 								return
 							}
 						}
-						err = logic.DataCollectorRow(tableinfo, line)
-						if err != nil {
-							global.GVA_LOG.Error("error in DataCollectorRow:", zap.Error(err))
-							*errch <- err
-							return
-						}
-					} else {
-						err = logic.DataCollectorRow(tableinfo, line)
-						if err != nil {
-							global.GVA_LOG.Error("error in DataCollectorRow:", zap.Error(err))
-							*errch <- err
-							return
-						}
-						fmt.Printf("%s-rows-%d", line, counter)
-					} //todo 仅用于测试环境
+					}
 				}
 				if len(*out) >= 1 {
 					<-*out
