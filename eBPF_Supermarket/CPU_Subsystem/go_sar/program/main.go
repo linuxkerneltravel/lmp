@@ -54,8 +54,6 @@ func main() {
 	defer kp5.Close()
 	defer kp6.Close()
 	defer kp7.Close()
-	// defer kp8.Close()
-	// defer kp9.Close()
 
 	// Read loop reporting the total amount of times the kernel
 	// function was entered, once per second.
@@ -70,7 +68,7 @@ func main() {
 	var actualTime uint64 = 0
 
 	timeStr := time.Now().Format("15:04:05")
-	fmt.Printf("%s proc/s  cswch/s  runqlen  irqTime/us  softirq/us\n", timeStr)
+	fmt.Printf("%s proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms\n", timeStr)
 	for range ticker.C {
 		var key uint32
 		var proc_s, cswch_s, runqlen uint64
@@ -101,7 +99,7 @@ func main() {
 		key = 0
 		_irqTime := irqTime
 		objs.IrqLastTime.Lookup(key, &irqTime)
-		dtaIrq := (irqTime - _irqTime) / 1000 // 每秒的irq数/us
+		dtaIrq := (irqTime - _irqTime) / 1000 // 每秒的irq时间/us(两个CPU)
 
 		key = 0
 		_softTime := softTime
@@ -114,7 +112,7 @@ func main() {
 		dtaIdle := idleTime - _idleTime
 
 		timeStr := time.Now().Format("15:04:05")
-		fmt.Printf("%s %6d  %7d  %7d  %10d  %10d %d\n", timeStr, proc_s, cswch_s, runqlen,
+		fmt.Printf("%s %6d  %7d  %7d  %10d  %10d  %7d\n", timeStr, proc_s, cswch_s, runqlen,
 			dtaIrq, dtaSoft, dtaIdle/1000000)
 
 		actualTime += 1
