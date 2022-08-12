@@ -1,3 +1,7 @@
+# Impedance matching for BPF and LSM
+
+原文地址: https://lwn.net/Articles/813261/
+
 The "kernel runtime security instrumentation" (KRSI) patch set has been making the rounds over the past few months; the idea is to use the Linux security module (LSM) hooks as a way to detect, and potentially deflect, active attacks against a running system. It does so by allowing BPF programs to be attached to the LSM hooks. That has caused [some concern](https://lwn.net/Articles/808048/) in the past about exposing the security hooks as external kernel APIs, which makes them potentially subject to the "don't break user space" edict. But there has been no real objection to the goals of KRSI. The fourth version of the patch set was [posted](https://lwn.net/ml/linux-kernel/20200220175250.10795-1-kpsingh@chromium.org/) by KP Singh on February 20; the concerns raised this time are about its impact on the LSM infrastructure.
 
 “内核运行时安全工具”(KRSI)补丁集在过去的几个月里一直在进行;其思想是使用Linux安全模块(LSM)钩子作为一种方法来检测并潜在地转移针对正在运行的系统的主动攻击。它通过允许BPF程序附加到LSM挂钩来实现这一点。这在过去引起了[一些关注](https://lwn.net/Articles/808048/)，关于将安全钩子暴露为外部内核api，这使得它们可能受制于“不要破坏用户空间”的命令。但是对KRSI的目标并没有真正的反对意见。该补丁集的第四个版本是由KP Singh于2月20日发布的(https://lwn.net/ml/linux-kernel/20200220175250.10795-1-kpsingh@chromium.org/);这次提出的担忧是它对LSM基础设施的影响。
