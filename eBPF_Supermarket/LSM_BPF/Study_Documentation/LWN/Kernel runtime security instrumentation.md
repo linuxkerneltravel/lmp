@@ -1,8 +1,7 @@
 # Kernel runtime security instrumentation
 
+原文地址： https://lwn.net/Articles/798157/
 
-
-原文：
 
 Finding ways to make it easier and faster to mitigate an ongoing attack against a Linux system at runtime is part of the motivation behind the kernel runtime security instrumentation (KRSI) project. Its developer, KP Singh, gave a presentation about the project at the [2019 Linux Security Summit North America](https://events.linuxfoundation.org/events/linux-security-summit-north-america-2019/) (LSS-NA), which was held in late August in San Diego. A prototype of KRSI is implemented as a Linux security module (LSM) that allows eBPF programs to be attached to the kernel's security hooks.
 
