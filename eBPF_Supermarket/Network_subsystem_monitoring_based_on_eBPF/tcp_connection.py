@@ -1,5 +1,4 @@
 from __future__ import print_function
-from bcc.containers import filter_by_containers
 from bcc import BPF
 from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
@@ -88,8 +87,6 @@ b = BPF(text=bpf_text)
 # header
 print("%-9s %-7s %-12s %-2s %-16s %-5s %-16s %-5s %10s" % ("TIME", "PID", "COMM", "IP", \
     "DADDR", "DPORT", "SADDR", "SPORT", "DIRECTION"))
-
-start_ts = 0
 
 # b.trace_print()
 
