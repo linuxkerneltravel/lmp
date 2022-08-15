@@ -6,12 +6,10 @@
 # tcp_v6_rcv()
 
 from __future__ import print_function
-from bcc.containers import filter_by_containers
 from bcc import BPF
 from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
 import argparse
-from bcc.utils import printb
 from time import strftime
 from bcc import tcp
 
