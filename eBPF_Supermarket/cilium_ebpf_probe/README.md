@@ -40,7 +40,7 @@ httpserver   1/1     Running   0          3h46m
 $ docker run --name prometheus -v /etc/localtime:/etc/localtime -d -p 9090:9090 prom/prometheus:latest 
 ```
 
-这里默认 Prometheus 开放 9090 端口，我们使用最新版官方镜像，当前最新版本为 v2.11.1，启动完成后，浏览器访问 http://<IP>:9090 即可看到默认 UI 页面。
+这里默认 Prometheus 开放 9090 端口，我们使用最新版官方镜像，当前最新版本为 v2.11.1，启动完成后，浏览器访问 http://IP:9090 即可看到默认 UI 页面。
 
 **2.Docker启动pushgateway**
 
@@ -70,7 +70,7 @@ Prometheus 默认配置文件 prometheus.yml 在[容器](https://cloud.tencent.c
 $ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime grafana/grafana-enterprise:8.1.3
 ```
 
-接下来打开http://<IP>:3000即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
+接下来打开http://IP:3000即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
 
 ---
 
