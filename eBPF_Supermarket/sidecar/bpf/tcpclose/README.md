@@ -1,7 +1,7 @@
 # TCP Close
 
 ```
-╔======TCP connect begin====╗
+╔======TCP close begin====╗
 Time : 115h53m25.837791461s
 Comm : wrk:worker_0
 Pid  : 8133
@@ -14,8 +14,8 @@ RxB  : 116
 TxB  : 144
 Span : 965.756µs
 Ip   : 4
-╚======TCP connect end======╝
-╔======TCP connect begin====╗
+╚======TCP close end======╝
+╔======TCP close begin====╗
 Time : 115h53m26.840476107s
 Comm : kubelet
 Pid  : 1054
@@ -28,5 +28,5 @@ RxB  : 95
 TxB  : 108
 Span : 932.471µs
 Ip   : 4
-╚======TCP connect end======╝
+╚======TCP close end======╝
 ```
