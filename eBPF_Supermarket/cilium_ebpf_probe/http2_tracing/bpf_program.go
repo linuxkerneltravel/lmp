@@ -114,18 +114,13 @@ int probe_loopy_writer_write_header(struct pt_regs* ctx) {
 
 // Signature: 8 func (t *http2Server) operateHeaders(frame *http2.MetaHeadersFrame, handle func(*Stream),
 // traceCtx func(context.Context, string) context.Context)
-int probe_http2_server_operate_headers(struct pt_regs* ctx) { 
-
+int probe_http2_server_operate_headers(struct pt_regs* ctx) {
   void* frame_ptr=(void*)ctx->bx;
-
   void* fields_ptr;
   bpf_probe_read(&fields_ptr, sizeof(void*), frame_ptr + 8);
-
   int64_t fields_len;
   bpf_probe_read(&fields_len, sizeof(int64_t), frame_ptr + 8 + 8);
-
   submit_headers(ctx, fields_ptr, fields_len,2);
-
   return 0;
 }
 `
