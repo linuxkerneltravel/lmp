@@ -1,10 +1,9 @@
 from __future__ import print_function
-from bcc import BPF
-from bcc.containers import filter_by_containers
+from bcc import DEBUG_BPF_REGISTER_STATE
 import argparse
 from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
-from time import sleep, strftime, localtime, asctime, time
+from time import sleep, localtime, asctime, time
 from collections import namedtuple, defaultdict
 
 parser = argparse.ArgumentParser(description="Summarize TCP send/recv throughput by host",

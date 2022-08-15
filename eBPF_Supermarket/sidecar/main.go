@@ -9,9 +9,13 @@ import (
 	"github.com/eswzy/podstat/perf"
 	"github.com/eswzy/podstat/test"
 	"github.com/eswzy/podstat/tools"
+	"github.com/eswzy/podstat/visualization"
 )
 
 func main() {
+	visualization.VisPort = "8765"
+	go visualization.Vis()
+
 	kubeconfig := flag.String("kubeconfig", "", "path to the kubeconfig file")
 	podName := flag.String("pod", "", "name of the pod to inspect")
 	namespace := flag.String("namespace", "default", "namespace for this pod")
@@ -66,5 +70,5 @@ func main() {
 		servicePid = append(servicePid, int(serviceProcesses[i].Pid))
 	}
 
-	perf.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList)
+	perf.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, *podName)
 }
