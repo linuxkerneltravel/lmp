@@ -184,7 +184,6 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state)
 `
 
 const sourceTracepoint string = `
-// category:name
 TRACEPOINT_PROBE(sock, inet_sock_set_state)
 {
     if (args->protocol != IPPROTO_TCP)
@@ -308,9 +307,6 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state)
     return 0;
 }
 `
-
-// FIXME: change to more intuitive names
-// DAddr:DPort -> SAddr:LPort
 
 type ipv4EventData struct {
 	TsNs   uint64

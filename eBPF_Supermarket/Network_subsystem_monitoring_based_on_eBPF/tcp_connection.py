@@ -1,22 +1,4 @@
-#!/usr/bin/python
-# @lint-avoid-python-3-compatibility-imports
-#
-# tcpaccept Trace TCP accept()s.
-#           For Linux, uses BCC, eBPF. Embedded C.
-#
-# USAGE: tcpaccept [-h] [-T] [-t] [-p PID] [-P PORTS] [-4 | -6]
-#
-# This uses dynamic tracing of the kernel inet_csk_accept() socket function
-# (from tcp_prot.accept), and will need to be modified to match kernel changes.
-#
-# Copyright (c) 2015 Brendan Gregg.
-# Licensed under the Apache License, Version 2.0 (the "License")
-#
-# 13-Oct-2015   Brendan Gregg   Created this.
-# 14-Feb-2016      "      "     Switch to bpf_perf_output.
-
 from __future__ import print_function
-from bcc.containers import filter_by_containers
 from bcc import BPF
 from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
@@ -105,8 +87,6 @@ b = BPF(text=bpf_text)
 # header
 print("%-9s %-7s %-12s %-2s %-16s %-5s %-16s %-5s %10s" % ("TIME", "PID", "COMM", "IP", \
     "DADDR", "DPORT", "SADDR", "SPORT", "DIRECTION"))
-
-start_ts = 0
 
 # b.trace_print()
 

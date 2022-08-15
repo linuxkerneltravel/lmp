@@ -117,13 +117,14 @@ sudo python tcptop           # trace TCP send/recv by host
 ``` shell
 Thu Aug  4 21:23:28 2022
 PID     COMM         SADDR                 DADDR                  RX_KB  TX_KB
-3224405 b'sshd'      166.111.226.109:22    101.5.230.37:62037         0     40
-4022997 b'sshd'      166.111.226.109:2222  166.111.80.116:6058        0      0
+3224405 b'sshd'      xxx.xxx.226.109:22    101.5.230.37:62037         0     40
+4022997 b'sshd'      xxx.xxx.226.109:2222  xxx.xxx.80.116:6058        0      0
 
 PID     COMM         SADDR6                                   DADDR6                                    RX_KB  TX_KB
 2249878 b'gitlab-run 2402:f000:4:1001:809:26d1:ae03:a462:42774 2402:f000:1:408:101:6:8:149:443               0      0
 2249878 b'gitlab-run 2402:f000:4:1001:809:26d1:ae03:a462:42778 2402:f000:1:408:101:6:8:149:443               0      0
 ```
+
 
 ### 2.4 tcp_inerrs
 
@@ -159,9 +160,75 @@ TIME      PID     COMM         IP SADDR:SPORT              > DADDR:DPORT        
 21:14:36  0       swapper/22   6  ::ffff:10.85.1.5:55592   > ::ffff:10.85.1.5:1717    invalid seq  ESTABLISHED
 ```
 
-不足
+不足:
 
 inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和tcp_v6_do_rcv中包长度与TCP header比较及skb_checksum_complete，但缺少tcp_v4_rcv和tcp_v6_rcv中的部分验证。
+
+
+### 2.5 delay_analysis_in
+
+实时输出所有接收包信息及内核各层处理过程所花费的时间。
+
+
+参数如下：
+```
+-sp，--sport
+    [可选] 指定源端口
+-dp, --dport
+    [可选] 指定目标端口
+-s, --sample
+    [可选] 随机选包进行输出
+
+```
+
+运行示例 
+``` shell
+sudo python delay_analysis_in.py           # in packets delay analysis
+sudo python delay_analysis_in.py -dp 181   # only trace dport 181
+sudo python delay_analysis_in.py -s        # print random packets
+```
+
+输出样例
+``` shell
+SADDR:SPORT            -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
+xxx.xxx.80.116:5622    -> xxx.xxx.226.109:2222   2064211175   1609909874   9107651.969982       86         5          12         68
+127.0.0.1:44768        -> 127.0.0.1:45707        1556586908   600876255    9107651.970152       52         4          4          43
+127.0.0.1:45707        -> 127.0.0.1:44768        600876255    1556586938   9107651.972246       36         3          3          28
+```
+
+
+### 2.6 delay_analysis_out
+
+实时输出所有发送包信息及内核各层处理过程所花费的时间。
+
+
+参数如下：
+```
+-sp，--sport
+    [可选] 指定源端口
+-dp, --dport
+    [可选] 指定目标端口
+-s, --sample
+    [可选] 随机选包进行输出
+
+```
+
+运行示例 
+``` shell
+sudo python delay_analysis_in.py           # in packets delay analysis
+sudo python delay_analysis_in.py -dp 181   # only trace dport 181
+sudo python delay_analysis_in.py -s        # print random packets
+```
+
+输出样例
+``` shell
+SADDR:SPORT            -> NAT:PORT               -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627680    4175823286   9107735153635.615234 7          1          4          1
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627884    4175823286   9107735153671.039062 4          0          2          0
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628256    4175823286   9107735153707.218750 3          0          2          0
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628664    4175823286   9107735153770.941406 9          1          7          1
+```
+
 
 
 
