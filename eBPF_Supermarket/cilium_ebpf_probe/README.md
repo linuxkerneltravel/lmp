@@ -32,8 +32,45 @@ httpserver   1/1     Running   0          3h46m
         want (unsafe.Pointer, _Ctype_int, *_Ctype_char, *_Ctype_struct_bpf_insn, _Ctype_int, *_Ctype_char, _Ctype_uint, _Ctype_int, *_Ctype_char, _Ctype_uint, *_Ctype_char, _Ctype_int)
 
 ```
+为了进行可视化展示，需要通过以下流程对prometheus组件进行部署。
 
+**1.Docker启动普罗米修斯**
 
+```bash
+$ docker run --name prometheus -v /etc/localtime:/etc/localtime -d -p 9090:9090 prom/prometheus:latest 
+```
+
+这里默认 Prometheus 开放 9090 端口，我们使用最新版官方镜像，当前最新版本为 v2.11.1，启动完成后，浏览器访问 http://<IP>:9090 即可看到默认 UI 页面。
+
+**2.Docker启动pushgateway**
+
+```bash
+$ docker run --name pushgateway -v /etc/localtime:/etc/localtime -d -p 9091:9091 prom/pushgateway 
+```
+
+**3.将pushgateway和prometheus进行关联**
+
+Prometheus 默认配置文件 prometheus.yml 在[容器](https://cloud.tencent.com/product/tke?from=10680)内路径为 /etc/prometheus/prometheus.yml添加prometheus.yml配置如下
+
+```bash
+...
+- job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['10.10.103.122:9091'] #pushgateway的端口
+        labels:
+          instance: pushgateway
+```
+
+完成后重启prometheus`docker restart prometheus`
+
+**4.Docker启动Grafana**
+
+```bash
+$ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime grafana/grafana-enterprise:8.1.3
+```
+
+接下来打开http://<IP>:3000即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
 
 ---
 

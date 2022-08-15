@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-
 	//"time"
 )
 
@@ -22,7 +21,7 @@ func main() {
 	timeTickerChan := time.Tick(time.Second * 1) //每1秒进行一次展示输出
 	rand.Seed(time.Now().UnixNano())
 	for {
-		*count = rand.Intn(200)
+		*count = rand.Intn(500)
 		for i := 0; i < *count; i++ {
 			client := &http.Client{
 				Transport: &http.Transport{
