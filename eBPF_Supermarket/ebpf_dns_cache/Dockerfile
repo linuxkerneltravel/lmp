@@ -1,18 +1,14 @@
-FROM ghcr.io/foniod/redbpf-build:latest-x86_64-archlinux AS builder
+FROM frolvlad/alpine-glibc:latest AS builder
 
-RUN pacman -Sy && pacman -S --noconfirm git
+RUN apk add --no-cache clang elfutils-dev libelf zlib pkgconfig cargo rustfmt linux-headers make
 
 WORKDIR /workspace
-
 COPY . ebpf-dns-cache
-
 WORKDIR /workspace/ebpf-dns-cache
+RUN cargo build --release
 
-RUN rustup target add x86_64-unknown-linux-musl
-RUN cargo build --release --target x86_64-unknown-linux-musl
-
-FROM alpine:latest  
-
+FROM frolvlad/alpine-glibc:latest 
 WORKDIR /root/
-COPY --from=builder /workspace/ebpf-dns-cache/target/x86_64-unknown-linux-musl/release/bpf-dns ./
-CMD ["./bpf-dns"]  
+COPY --from=builder /workspace/ebpf-dns-cache/target/release/dns-cache ./
+RUN apk add --no-cache libelf zlib
+CMD ["./dns-cache"] 

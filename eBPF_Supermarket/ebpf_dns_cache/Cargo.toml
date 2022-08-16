@@ -1,3 +1,39 @@
-[workspace]
-members = ["userspace","probe"]
-default-members = ["userspace"]
+[package]
+name = "dns-cache"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+libbpf-rs = {version = "0.18"}
+tokio = { version = "1.20.0", features = [
+    "rt-multi-thread",
+    "macros",
+    "io-util",
+    "time",
+] }
+tracing-subscriber = "0.3.14"
+tracing = "0.1.35"
+tokio-fd = "0.3.0"
+libc = "0.2"
+etherparse = "0.12.0"
+dns-parser = "0.8"
+flume = "0.10.14"
+lazy_static = "1.4.0"
+toml = "0.5.9"
+serde = { version = "1",default-features = false, features = ["derive"] }
+humantime-serde = "1"
+moka = { version = "0.9", features = ["future", "dash"] }
+simple-dns = "0.4.6"
+fxhash = "0.2.1"
+
+[build-dependencies]
+libbpf-cargo = { git = "https://github.com/libbpf/libbpf-rs.git"}
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

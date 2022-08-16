@@ -76,12 +76,12 @@ int sched_switch(struct cswch_args *info) {
 		u64 initval = 1, *valp, delta;
 		struct task_struct *ts;
 
-		pid_t pid = info->prev_pid;
+		pid_t pid = info->next_pid;
 		u64 time = bpf_ktime_get_ns();
 
 		bpf_map_update_elem(&procStartTime, &pid, &time, BPF_ANY);
 
-		pid = info->next_pid;
+		pid = info->prev_pid;
 		// 计算空闲时间占比
 		valp = bpf_map_lookup_elem(&procStartTime, &pid);
 		ts = bpf_get_current_task_btf();
