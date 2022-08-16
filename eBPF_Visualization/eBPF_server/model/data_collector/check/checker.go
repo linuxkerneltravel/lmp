@@ -52,3 +52,18 @@ func VerifyMultipleDataMatched(line string, index_parms []string) bool {
 	}
 	return true
 }
+
+func OutNumberMatched(line string, indexnumber int) bool {
+	line_parms := strings.Fields(line)
+	if len(line_parms) != indexnumber {
+		return false
+	}
+	return true
+}
+
+func IsPossiblyLost(line string) bool {
+	if matched, _ := regexp.MatchString("Possibly lost", line); matched {
+		return true
+	}
+	return false
+}

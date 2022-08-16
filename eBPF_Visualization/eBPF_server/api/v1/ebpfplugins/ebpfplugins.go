@@ -190,7 +190,7 @@ func (e *EbpfPluginsApi) UnloadEbpfPlugins(c *gin.Context) {
 }
 
 // @Tags EbpfPlugins
-// @Summary 从内核卸载插件
+// @Summary 从内核获取插件
 // @Security ApiKeyAuth
 // @accept application/json
 // @Produce application/json

@@ -214,10 +214,16 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 									return
 								}
 							} else {
-								mismatcheerr := fmt.Sprintf("第%d行数据无法自动匹配，请使用指定类型的ebpf程序！", counter)
-								err = errors.New(mismatcheerr)
-								global.GVA_LOG.Error("error:\n", zap.Error(err))
-								return
+								if check.IsPossiblyLost(line) {
+									global.GVA_LOG.Warn("可能存在数据丢失...")
+									continue
+								} else {
+									mismatcheerr := fmt.Sprintf("第%d行数据无法自动匹配，请使用指定类型的ebpf程序！", counter)
+									fmt.Printf("本行数据内容：%s", line)
+									err = errors.New(mismatcheerr)
+									global.GVA_LOG.Error("error:\n", zap.Error(err))
+									continue
+								}
 							}
 						}
 					}

@@ -47,6 +47,7 @@ tags
 /eBPF_Visualization/eBPF_server/log
 /eBPF_Visualization/eBPF_web/node_modules
 /eBPF_Visualization/eBPF_web/dist
+/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db
 
 *.iml
 
