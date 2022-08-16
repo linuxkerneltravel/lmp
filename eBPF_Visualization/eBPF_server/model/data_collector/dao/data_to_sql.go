@@ -68,6 +68,10 @@ func (ti TableInfo) AppenTableByData(index string, line string) (error, TableInf
 	index_parms := strings.Fields(index)
 	elements := strings.Fields(line)
 	type_parms := make([]string, len(index_parms))
+	if len(elements) != len(type_parms) {
+		err := errors.New("Indexes and output do not match, cannot write to database!")
+		return err, ti
+	}
 	for i, element := range elements {
 		type_parms[i] = check.GetTypeFromData(element)
 	}
@@ -77,11 +81,16 @@ func (ti TableInfo) AppenTableByData(index string, line string) (error, TableInf
 		ti.IndexName[i] = check.EscapeData(index_parms[i])
 		ti.IndexType[i] = check.EscapeData(type_parms[i])
 	}
-	for i, _ := range ti.IndexName {
-		addcollumnsql := fmt.Sprintf("alter table %s add column \"%s\" %s", ti.TableName, ti.IndexName[i], ti.IndexType[i])
-		if err := GLOBALDB.Exec(addcollumnsql).Error; err != nil {
-			return err, ti
+	if check.OutNumberMatched(line, len(ti.IndexName)) {
+		for i, _ := range ti.IndexName {
+			addcollumnsql := fmt.Sprintf("alter table %s add column \"%s\" %s", ti.TableName, ti.IndexName[i], ti.IndexType[i])
+			if err := GLOBALDB.Exec(addcollumnsql).Error; err != nil {
+				return err, ti
+			}
 		}
+	} else {
+		err := errors.New("Indexes and output do not match, cannot write to database!")
+		return err, ti
 	}
 	return nil, ti
 }

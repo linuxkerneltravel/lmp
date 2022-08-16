@@ -1,7 +1,9 @@
 package logic
 
 import (
+	"errors"
 	"fmt"
+	"lmp/server/model/data_collector/check"
 	"lmp/server/model/data_collector/dao"
 )
 
@@ -43,7 +45,12 @@ func DataCollectorIndexFromData(pluginname string, index string, line string) (e
 }
 
 func DataCollectorRow(tableinfo dao.TableInfo, line string) error {
-	if err := tableinfo.InsertRow(line); err != nil {
+	if check.OutNumberMatched(line, len(tableinfo.IndexName)) {
+		if err := tableinfo.InsertRow(line); err != nil {
+			return err
+		}
+	} else {
+		err := errors.New("Indexes and output do not match, cannot write to database!")
 		return err
 	}
 	return nil
