@@ -15,7 +15,7 @@ import (
 var GLOBALDB *gorm.DB
 
 type Indextable struct {
-	Id         int    `gorm:"primaryKey;unique;column:IndexID",json:"Id"`
+	Id         int    `gorm:"primaryKey;unique;column:IndexID" json:"Id"`
 	PluginName string `gorm:"not null;unique;column:pluginname"`
 	StartTime  string `gorm:"column:StartTime"`
 	FinalTime  string `gorm:"column:FinalTime"`

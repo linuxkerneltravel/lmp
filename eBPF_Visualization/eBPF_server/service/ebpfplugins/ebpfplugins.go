@@ -84,7 +84,7 @@ func (ebpf *EbpfpluginsService) GetEbpfPluginsInfoList(sysUserAuthorityID string
 //@param: e model.EbpfPlugins
 //@return: err error
 
-func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error) {
+func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo, parameterlist []string) (err error) {
 	// todo
 	// 1.状态判断，看是否已经加载到内核，判断State即可，避免重复下发
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
@@ -101,7 +101,7 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	errorChannel := make(chan error, errorBufferCapacity)
 	wg.Add(1)
 	go func() {
-		runSinglePlugin(e, &outputChannel, &errorChannel)
+		runSinglePlugin(e, &outputChannel, &errorChannel, parameterlist)
 	}()
 	go func() {
 		select {
@@ -207,4 +207,8 @@ func (ebpf EbpfpluginsService) FindRows(pluginid int) (error, []map[string]inter
 		results = append(results, result)
 	}
 	return err, results
+}
+
+func (ebpf EbpfpluginsService) LoadSingleEbpfPlugin(pluginname string, ctx []string) {
+
 }
