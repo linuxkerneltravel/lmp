@@ -1,0 +1,297 @@
+package podnet
+
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/signal"
+	"strings"
+	"time"
+
+	"github.com/iovisor/gobpf/bcc"
+
+	"github.com/eswzy/podstat/bpf"
+	"github.com/eswzy/podstat/tools"
+)
+
+import "C"
+
+var source string
+
+const FUNCNAME_MAX_LEN = 64
+const IFNAMSIZ = 16
+const XT_TABLE_MAXNAMELEN = 32
+
+type bpfEventData struct {
+	TsNs uint64
+
+	Pid uint32
+	Tid uint32
+
+	Comm     [16]byte
+	FuncName [FUNCNAME_MAX_LEN]byte
+	IfName   [IFNAMSIZ]byte
+
+	SAddr tools.UnifiedAddress
+	DAddr tools.UnifiedAddress
+
+	Sport uint16
+	Dport uint16
+	Pad1  uint32
+
+	Flags uint8
+	Cpu   uint8
+	Pad2  uint16
+	NetNS uint32
+
+	SkbAddress uint64 // (void*)
+
+	// pkt info
+	DestMac tools.Mac // 48 bit
+	Pad3    uint16
+
+	Len     uint32
+	Ip      uint8
+	L4Proto uint8
+	TotLen  uint16
+
+	TcpFlags uint16
+	IcmpType uint8
+	Pad4     uint8
+	IcmPid   uint16
+	IcmpSeq  uint16
+
+	// ipt info
+	Hook uint32
+	Pf   uint8
+	Pad5 uint8
+	Pad6 uint16
+
+	Verdict   uint32
+	Pad7      uint32
+	TableName [XT_TABLE_MAXNAMELEN]byte
+	IptDelay  uint64
+
+	// skb info
+	PktType uint8
+	Pad8    uint8
+	Pad9    uint16
+	// call stack
+	KernelStackId uint32 // TODO: int map.get_stackid(void *ctx, u64 flags)
+
+	KernelIp uint64
+}
+
+type Event struct {
+	Time       time.Duration `json:"Time,omitempty"`
+	NetNS      uint32
+	Comm       string `json:"Comm"`
+	IfName     string
+	Pid        int `json:"pid"`
+	Tid        int `json:"Tid"`
+	SAddr      string
+	DAddr      string
+	Sport      int
+	Dport      int
+	SkbAddress string
+	L4Proto    string
+	TcpFlags   string
+	Cpu        uint8
+
+	Flags    uint8
+	DestMac  string
+	Len      uint32
+	Ip       uint8
+	TotLen   uint16
+	IcmpType uint8
+	IcmPid   uint16
+	IcmpSeq  uint16
+
+	// ipt info
+	Hook      uint32
+	Pf        uint8
+	Verdict   uint32
+	TableName string
+	IptDelay  uint64
+
+	// skb info
+	PktType uint8
+
+	// call stack
+	KernelStackId uint32 // TODO: int map.get_stackid(void *ctx, u64 flags)
+	KernelIp      uint64
+	FuncName      string
+}
+
+func (e Event) Print() {
+	fmt.Println("╔======Pod net begin====╗")
+	fmt.Println("e   :", e)
+	fmt.Println("╚======Pod net end======╝")
+}
+
+func getEventFromBpfEventData(bpfEvent bpfEventData) Event {
+	return Event{
+		Time: time.Duration(int64(bpfEvent.TsNs)),
+		Comm: strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
+		Pid:  int(bpfEvent.Pid),
+		Tid:  int(bpfEvent.Tid),
+
+		FuncName: strings.Trim(string(bpfEvent.FuncName[:]), "\u0000"),
+		Flags:    bpfEvent.Flags,
+		Cpu:      bpfEvent.Cpu,
+
+		// route info
+		IfName: strings.Trim(string(bpfEvent.IfName[:]), "\u0000"),
+		NetNS:  bpfEvent.NetNS,
+
+		// pkt info
+		DestMac:  bpfEvent.DestMac.ToString(),
+		Len:      bpfEvent.Len,
+		Ip:       bpfEvent.Ip,
+		L4Proto:  bpf.GetProtocolFromInt(int(bpfEvent.L4Proto)),
+		TotLen:   bpfEvent.TotLen,
+		SAddr:    bpfEvent.SAddr.ToString(int(bpfEvent.Ip)),
+		DAddr:    bpfEvent.DAddr.ToString(int(bpfEvent.Ip)),
+		IcmpType: bpfEvent.IcmpType,
+		IcmPid:   bpfEvent.IcmPid,
+		IcmpSeq:  bpfEvent.IcmpSeq,
+		Sport:    int(bpfEvent.Sport),
+		Dport:    int(bpfEvent.Dport),
+		TcpFlags: bpf.GetTcpFlags(int(bpfEvent.TcpFlags), true),
+
+		// ipt info
+		Hook:      bpfEvent.Hook,
+		Pf:        bpfEvent.Pf,
+		Verdict:   bpfEvent.Verdict,
+		TableName: strings.Trim(string(bpfEvent.TableName[:]), "\u0000"),
+		IptDelay:  bpfEvent.IptDelay,
+
+		// skb info
+		SkbAddress: fmt.Sprintf("0x%x", bpfEvent.SkbAddress),
+		PktType:    bpfEvent.PktType,
+
+		// call stack
+		KernelStackId: bpfEvent.KernelStackId,
+		KernelIp:      bpfEvent.KernelIp,
+	}
+}
+
+func contains(a []int, i int) bool {
+	for _, v := range a {
+		if v == i {
+			return true
+		}
+	}
+	return false
+}
+
+// Probe probes TCP close event and pushes it out
+func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event) {
+	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Action: "return 0;", Reverse: false}
+	lportFg := bpf.IntFilterGenerator{Name: "lport", List: portList, Action: "birth.delete(&sk); return 0;", Reverse: false}
+	dportFg := bpf.IntFilterGenerator{Name: "dport", List: portList, Action: "birth.delete(&sk); return 0;", Reverse: false}
+	familyFg := bpf.FamilyFilterGenerator{List: protocolList}
+
+	file, err := os.Open("bpf/podnet/podnet.c")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	content, _ := ioutil.ReadAll(file)
+
+	source = string(content[:])
+
+	sourceBpf := source
+
+	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_LPORT*/", lportFg.Generate(), 1)
+	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_DPORT*/", dportFg.Generate(), 1)
+	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_FAMILY*/", familyFg.Generate(), 1)
+
+	m := bcc.NewModule(sourceBpf, []string{})
+	defer m.Close()
+
+	// 5 netif rcv hooks:
+	bpf.AttachKprobe(m, "kprobe__netif_rx", "netif_rx")
+	bpf.AttachKprobe(m, "kprobe____netif_receive_skb", "netif_receive_skb")
+	bpf.AttachKprobe(m, "kprobe__tpacket_rcv", "tpacket_rcv")
+	bpf.AttachKprobe(m, "kprobe__packet_rcv", "packet_rcv")
+	bpf.AttachKprobe(m, "kprobe__napi_gro_receive", "napi_gro_receive")
+
+	// 1 netif send hook:
+	bpf.AttachKprobe(m, "kprobe____dev_queue_xmit", "__dev_queue_xmit")
+
+	// 14 br process hooks:
+	bpf.AttachKprobe(m, "kprobe__br_handle_frame", "br_handle_frame")
+	bpf.AttachKprobe(m, "kprobe__br_handle_frame_finish", "br_handle_frame_finish")
+	bpf.AttachKprobe(m, "kprobe__br_nf_pre_routing", "br_nf_pre_routing")
+	bpf.AttachKprobe(m, "kprobe__br_nf_pre_routing_finish", "br_nf_pre_routing_finish")
+	bpf.AttachKprobe(m, "kprobe__br_pass_frame_up", "br_pass_frame_up")
+	bpf.AttachKprobe(m, "kprobe__br_netif_receive_skb", "br_netif_receive_skb")
+	bpf.AttachKprobe(m, "kprobe__br_forward", "br_forward")
+	bpf.AttachKprobe(m, "kprobe____br_forward", "__br_forward")
+	bpf.AttachKprobe(m, "kprobe__deliver_clone", "deliver_clone")
+	bpf.AttachKprobe(m, "kprobe__br_forward_finish", "br_forward_finish")
+	bpf.AttachKprobe(m, "kprobe__br_nf_forward_ip", "br_nf_forward_ip")
+	bpf.AttachKprobe(m, "kprobe__br_nf_forward_finish", "br_nf_forward_finish")
+	bpf.AttachKprobe(m, "kprobe__br_nf_post_routing", "br_nf_post_routing")
+	bpf.AttachKprobe(m, "kprobe__br_nf_dev_queue_xmit", "br_nf_dev_queue_xmit")
+
+	// 4 ip layer hooks:
+	bpf.AttachKprobe(m, "kprobe__ip_rcv", "ip_rcv")
+	bpf.AttachKprobe(m, "kprobe__ip_rcv_finish", "ip_rcv_finish")
+	bpf.AttachKprobe(m, "kprobe__ip_output", "ip_output")
+	bpf.AttachKprobe(m, "kprobe__ip_finish_output", "ip_finish_output")
+
+	stacks := bcc.NewTable(m.TableId("stacks"), m)
+	fmt.Println(stacks.Name())
+
+	table := bcc.NewTable(m.TableId("route_event"), m)
+
+	channel := make(chan []byte, 1000)
+	perfMap, err := bcc.InitPerfMap(table, channel, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to init perf map: %s\n", err)
+		os.Exit(1)
+	}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+
+	fmt.Println("Deep pod net started!")
+	go func() {
+		for {
+			data := <-channel
+			var event bpfEventData
+			err := binary.Read(bytes.NewBuffer(data), bcc.GetHostByteOrder(), &event)
+			if err != nil {
+				fmt.Printf("failed to decode received data: %s\n", err)
+				continue
+			}
+
+			goEvent := getEventFromBpfEventData(event)
+			fmt.Println(goEvent)
+		}
+	}()
+
+	perfMap.Start()
+	<-sig
+	perfMap.Stop()
+}
+
+// Sample provides a no argument function call
+func Sample() {
+	var pidList []int
+	var portList []int
+	var protocolList []string
+	ch := make(chan Event, 10000)
+
+	go Probe(pidList, portList, protocolList, ch)
+
+	for {
+		event := <-ch
+		event.Print()
+	}
+}
