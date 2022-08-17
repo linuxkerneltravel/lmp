@@ -3,6 +3,7 @@ package ebpfplugins
 import (
 	"errors"
 	"io/ioutil"
+	"lmp/server/model/data_collector/dao"
 	"sync"
 
 	"lmp/server/global"
@@ -147,6 +148,7 @@ func (ebpf *EbpfpluginsService) UnloadEbpfPlugins(e request.PluginInfo) (err err
 			err = global.GVA_DB.Save(plugin).Error
 		}
 	}
+	dao.ChangeState(plugin.PluginName)
 	return err
 }
 
@@ -163,4 +165,46 @@ func (ebpf *EbpfpluginsService) GetEbpfPluginsContent(id uint) (err error, custo
 	data, err := ioutil.ReadFile(customer.PluginPath)
 	customer.Content = string(data)
 	return
+}
+
+//@author: [Gui-Yue](https://github.com/Gui-Yue)
+//@function: GetRunningPluginsInfo
+//@description: 分页获取正在运行的插件列表的信息
+//@param: info request.PageInfo
+//@return: err error, list interface{}, total int64
+func (ebpf EbpfpluginsService) GetRunningPluginsInfo(info request.PageInfo) (err error, list interface{}, total int64) {
+	limit := info.PageSize
+	offset := info.PageSize * (info.Page - 1)
+	db := dao.GLOBALDB.Table("indextable")
+	var RunningPluginsList []dao.Indextable
+	err = db.Count(&total).Error
+	if err != nil {
+		return err, RunningPluginsList, total
+	} else {
+		err = db.Limit(limit).Offset(offset).Find(&RunningPluginsList).Error
+	}
+	return err, RunningPluginsList, total
+}
+
+//@author: [Gui-Yue](https://github.com/Gui-Yue)
+//@function: FindRows
+//@description: 获取单个插件的数据
+//@param: pluginid int
+//@return: err error, list []map[string]interface{}
+func (ebpf EbpfpluginsService) FindRows(pluginid int) (error, []map[string]interface{}) {
+	var runningplugin dao.Indextable
+	dao.GLOBALDB.Table("indextable").Where("IndexID=?", pluginid).First(&runningplugin)
+	var results []map[string]interface{}
+	rows, err := dao.GLOBALDB.Table(runningplugin.PluginName).Rows()
+	if err != nil {
+		return err, results
+	}
+	for rows.Next() {
+		result := map[string]interface{}{}
+		if err := dao.GLOBALDB.ScanRows(rows, &result); err != nil {
+			return err, results
+		}
+		results = append(results, result)
+	}
+	return err, results
 }

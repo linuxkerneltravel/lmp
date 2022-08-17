@@ -3,6 +3,7 @@ package dao
 import (
 	"errors"
 	"fmt"
+	"gorm.io/gorm"
 	"strings"
 
 	"lmp/server/model/data_collector/check"
@@ -97,20 +98,19 @@ func (ti TableInfo) AppenTableByData(index string, line string) (error, TableInf
 
 func (ti TableInfo) InsertRow(line string) error {
 	SingleLineDate := strings.Fields(line)
-	values := make([]interface{}, len(SingleLineDate))
+	DataKV := make(map[string]interface{}, len(SingleLineDate))
 	for i, v := range SingleLineDate {
-		values[i] = v
+		DataKV[ti.IndexName[i]] = v
 	}
-
-	var columns string
-	for _, v := range ti.IndexName {
-		v = "\"" + check.EscapeData(v) + "\""
-		columns += v + ", "
+	if err := GLOBALDB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(ti.TableName).Create(DataKV).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
-	columns = columns[:len(columns)-2]
-
-	insertsql := fmt.Sprintf("insert into %s(%s) values(?)", ti.TableName, columns)
-	if err := GLOBALDB.Exec(insertsql, values).Error; err != nil {
+	if err := UpdateFinalTime(ti.TableName); err != nil {
 		return err
 	}
 	return nil
