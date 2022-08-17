@@ -13,8 +13,8 @@
 
 
 struct packet_tuple {
-    u32 saddr;
-    u32 daddr;
+    unsigned __int128 saddr;
+    unsigned __int128 daddr;
     u16 sport;
     u16 dport;
     u32 seq;
@@ -29,13 +29,13 @@ struct ktime_info {
 };
 
 struct data_t {
+    unsigned __int128 saddr;
+    unsigned __int128 daddr;
     u64 total_time;
     u64 mac_timestamp;
     u64 mac_time;
     u64 ip_time;
     u64 tcp_time;
-    u32 saddr;
-    u32 daddr;
     u16 sport;
     u16 dport;
     u32 seq;
@@ -49,13 +49,14 @@ static struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb){
     return (struct tcphdr *)(skb->head + skb->transport_header);
 }
 
-static inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb){
-    return (struct iphdr *)(skb->head + skb->network_header);
+static inline struct ipv6hdr *skb_to_ipv6hdr(const struct sk_buff *skb){
+    return (struct ipv6hdr *)(skb->head + skb->network_header);
 }
 
-static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip, struct tcphdr *tcp){
-    pkt_tuple->saddr = ip->saddr;
-    pkt_tuple->daddr = ip->daddr;
+
+static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct ipv6hdr *ip6h, struct tcphdr *tcp){
+    bpf_probe_read_kernel(&pkt_tuple->saddr, sizeof(pkt_tuple->saddr), &ip6h->saddr.in6_u.u6_addr32);
+    bpf_probe_read_kernel(&pkt_tuple->daddr, sizeof(pkt_tuple->daddr), &ip6h->daddr.in6_u.u6_addr32);
     u16 sport = tcp->source;
     u16 dport = tcp->dest;
     pkt_tuple->sport = ntohs(sport);
@@ -70,12 +71,12 @@ int kprobe__eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb){
     const struct ethhdr* eth = (struct ethhdr*) skb->data;
     u16 protocol = eth->h_proto;
 
-    if (protocol == 8){ // Protocol is IP
-        struct iphdr *ip = (struct iphdr *)(skb->data + 14);
-        # TODO options in hdr
-        struct tcphdr *tcp = (struct tcphdr *)(skb->data + 34);
+    if (protocol == 0xDD86){ // Protocol is IPv6
+        struct ipv6hdr *ip6h = (struct ipv6hdr *)(skb->data + 14);
+        struct tcphdr *tcp = (struct tcphdr *)(skb->data + sizeof(struct ipv6hdr)+14);
+
         struct packet_tuple pkt_tuple = {};
-        get_pkt_tuple(&pkt_tuple, ip, tcp);
+        get_pkt_tuple(&pkt_tuple, ip6h, tcp);
         
         ##SAMPLING##
         ##FILTER_DPORT##
@@ -92,15 +93,15 @@ int kprobe__eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb){
 }
 
 // int kprobe__ip_rcv(struct pt_regs *ctx, struct sk_buff *skb){
-int kprobe__ip_rcv_core(struct pt_regs *ctx, struct sk_buff *skb){
+int kprobe__ip6_rcv_core(struct pt_regs *ctx, struct sk_buff *skb){
     if (skb == NULL){
         return 0;
     }
     
-    struct iphdr *ip = skb_to_iphdr(skb);
+    struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
-    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    get_pkt_tuple(&pkt_tuple, ip6h, tcp);
 
     ##SAMPLING##
     ##FILTER_DPORT##
@@ -116,13 +117,14 @@ int kprobe__ip_rcv_core(struct pt_regs *ctx, struct sk_buff *skb){
     return 0;
 }
 
-int kprobe__tcp_v4_rcv(struct pt_regs *ctx, struct sk_buff *skb){
+
+int kprobe__tcp_v6_rcv(struct pt_regs *ctx, struct sk_buff *skb){
     if (skb == NULL)
         return 0;
-    struct iphdr *ip = skb_to_iphdr(skb);
+    struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
-    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    get_pkt_tuple(&pkt_tuple, ip6h, tcp);
 
     ##SAMPLING##
     ##FILTER_DPORT##
@@ -140,10 +142,10 @@ int kprobe__tcp_v4_rcv(struct pt_regs *ctx, struct sk_buff *skb){
 int kprobe__skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb){
     if (skb == NULL)
         return 0;
-    struct iphdr *ip = skb_to_iphdr(skb);
+    struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
-    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    get_pkt_tuple(&pkt_tuple, ip6h, tcp);
 
     ##SAMPLING##
     ##FILTER_DPORT##
