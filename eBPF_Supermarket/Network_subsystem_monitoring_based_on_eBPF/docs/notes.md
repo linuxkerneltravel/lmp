@@ -60,3 +60,73 @@ bpf_probe_read_kernel(&data4.daddr, sizeof(data4.daddr),
     &skp->__sk_common.skc_daddr);
 // ...
 ```
+
+
+3. IP层入口挂载点的选取
+
+起初将IP层的入口挂载点选为`ip_rcv()`函数，因其是ipv4报文处理过程的入口函数，但在运行时常出现如下结果：
+```shell
+SADDR:SPORT            -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
+10.85.1.19:1080        -> 10.85.1.5:44590        3758712519   1522329443   9114786.889590       114        18437629286819960 9114786889611 92
+```
+原因即为包进入ip层的时间没有被记录，即该包没有进入`ip_rcv()`函数。
+
+在Linux内核中，`inet_init`是TCP/IP协议栈初始化的入口函数，而IP 层在其中将自身注册到 ptype_base。ptype_base是一个哈希表，每种协议在初始化时，通过dev_add_pack()注册各自的协议信息进去，用于处理相应协议的网络数据。
+```C
+static struct packet_type ip_packet_type __read_mostly = {
+    .type = cpu_to_be16(ETH_P_IP),
+    .func = ip_rcv,
+    .list_func = ip_list_rcv,
+};
+
+static int __init inet_init(void) {
+    ...
+    ip_init();           // Set the IP module up
+    ipv4_proc_init();    // 注册 /proc/net/*， 例如 cat /proc/net/tcp 能看到所有 TCP socket 的状态统计
+    dev_add_pack(&ip_packet_type); // 注册 L3 rx handler：ip_rcv()/ip_list_rcv()
+    ...
+}
+```
+
+从上面的内核代码可以看出，`packet_type`中绑定了`ip_rcv()/ip_list_rcv()`两个函数，应该是根据包的具体类型选择调用。因此挂载点选为`ip_rcv()`函数时，很多包的IP层的入口并没有被统计到。
+
+```C
+int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
+	   struct net_device *orig_dev)
+{
+	struct net *net = dev_net(dev);
+	skb = ip_rcv_core(skb, net);
+    ...
+}
+
+void ip_list_rcv(struct list_head *head, struct packet_type *pt,
+		 struct net_device *orig_dev)
+{
+    ... // init
+	list_for_each_entry_safe(skb, next, head, list) {
+		struct net_device *dev = skb->dev;
+		struct net *net = dev_net(dev);
+		skb_list_del_init(skb);
+		skb = ip_rcv_core(skb, net);
+        ...
+    }
+    ...
+}
+```
+
+从上面的代码可以看出，`ip_rcv()/ip_list_rcv()`两个函数在简单的结构体初始化后即调用了`ip_rcv_core()`函数。因此IP层入口的挂载点选为`ip_rcv_core()`。
+
+
+4. delay_analysis_out的调试问题
+在本项目的开发过程中，我通常ssh到远程服务器进行代码的运行和输出查看。在运行`delay_analysis_out.py`程序时，程序输出即使瞬间也能上百，且其中大多数包都具有不同的seq和相同的ack，如下的截取：
+```shell
+SADDR:SPORT            -> NAT:PORT               -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627680    4175823286   9107735153635.615234 7          1          4          1
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627884    4175823286   9107735153671.039062 4          0          2          0
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628256    4175823286   9107735153707.218750 3          0          2          0
+xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628664    4175823286   9107735153770.941406 9          1          7          1
+```
+
+经过抓包确认，ack的数值没有提取错误。而ack相同的原因在于，这些发送包均为ssh连接中服务器发给客户端的包，客户端接收后返回给服务器的包只有ack而数据传输为空，这些包的seq也不会增长，因此服务器发送包的ack也不会变化。
+
+而ssh连接中，服务端每发出一个包会输出一行，将输出同步给客户端时又发出新的包，两个过程形成了正反馈，导致程序数据量巨大。（类比在串口发送的函数中打印串口）
