@@ -39,7 +39,7 @@ bpf_text = bpf_text.replace('##SAMPLING##', '')
 # process event
 def print_event(cpu, data, size):
     event = b["timestamp_events"].event(data)
-    print("%-22s -> %-22s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
+    print("%-42s -> %-42s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET6, event.saddr), event.sport),
         "%s:%d" % (inet_ntop(AF_INET6, event.daddr), event.dport),
         "%d" % (event.seq),
@@ -56,7 +56,7 @@ def print_event(cpu, data, size):
 b = BPF(text=bpf_text)
 
 # header
-print("%-22s -> %-22s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % \
+print("%-42s -> %-42s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % \
     ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP"))
 
 # read events

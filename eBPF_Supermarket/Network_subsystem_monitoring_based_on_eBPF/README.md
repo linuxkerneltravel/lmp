@@ -165,7 +165,7 @@ TIME      PID     COMM         IP SADDR:SPORT              > DADDR:DPORT        
 inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和tcp_v6_do_rcv中包长度与TCP header比较及skb_checksum_complete，但缺少tcp_v4_rcv和tcp_v6_rcv中的部分验证。
 
 
-### 2.5 delay_analysis_in
+### 2.5 delay_analysis_in/delay_analysis_in_v6
 
 实时输出所有接收包信息及内核各层处理过程所花费的时间。
 
@@ -188,7 +188,7 @@ sudo python delay_analysis_in.py -dp 181   # only trace dport 181
 sudo python delay_analysis_in.py -s        # print random packets
 ```
 
-输出样例
+输出样例-ipv4
 ``` shell
 SADDR:SPORT            -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
 xxx.xxx.80.116:5622    -> xxx.xxx.226.109:2222   2064211175   1609909874   9107651.969982       86         5          12         68
@@ -196,8 +196,17 @@ xxx.xxx.80.116:5622    -> xxx.xxx.226.109:2222   2064211175   1609909874   91076
 127.0.0.1:45707        -> 127.0.0.1:44768        600876255    1556586938   9107651.972246       36         3          3          28
 ```
 
+输出样例-ipv6
+``` shell
+SADDR:SPORT                        -> DADDR:DPORT                            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
+2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40512  3945336401   1159424513   9544853.614323       49         2          2          45
+2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40260  1111257592   1393462606   9544854.102531       65         1          1          61
+2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40270  1152750621   2984387336   9544854.631066       75         4          4          66
+2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40452  1185853100   1593078888   9544855.197227       69         6          4          58
+```
 
-### 2.6 delay_analysis_out
+
+### 2.6 delay_analysis_out/delay_analysis_out_v6
 
 实时输出所有发送包信息及内核各层处理过程所花费的时间。
 
@@ -220,7 +229,7 @@ sudo python delay_analysis_in.py -dp 181   # only trace dport 181
 sudo python delay_analysis_in.py -s        # print random packets
 ```
 
-输出样例
+输出样例-ipv4
 ``` shell
 SADDR:SPORT            -> NAT:PORT               -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
 xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627680    4175823286   9107735153635.615234 7          1          4          1
@@ -229,6 +238,14 @@ xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    45462
 xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628664    4175823286   9107735153770.941406 9          1          7          1
 ```
 
+输出样例-ipv6
+``` shell
+SADDR:SPORT                            -> DADDR:DPORT                      SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
+2402:f000:xx:xx:xx:xx:ae03:a462:40452  -> 2402:f000:xx:xx:xx:xx:8:149:443  1593144414   1185882612   9545059296177.548828 20         3          11         4
+2402:f000:xx:xx:xx:xx:ae03:a462:40452  -> 2402:f000:xx:xx:xx:xx:8:149:443  1593145392   1185883046   9545059358555.283203 13         2          7          3
+2402:f000:xx:xx:xx:xx:ae03:a462:40468  -> 2402:f000:xx:xx:xx:xx:8:149:443  68187760     42173401     9545059796634.861328 12         1          7          2
+2402:f000:xx:xx:xx:xx:ae03:a462:40468  -> 2402:f000:xx:xx:xx:xx:8:149:443  68188738     42173835     9545060000960.453125 9          1          4          2
+```
 
 
 
