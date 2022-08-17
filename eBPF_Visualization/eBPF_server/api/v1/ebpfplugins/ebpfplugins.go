@@ -7,6 +7,7 @@ import (
 	"lmp/server/model/ebpfplugins"
 	ebpfpluginsRes "lmp/server/model/ebpfplugins/response"
 	"lmp/server/utils"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -211,5 +212,46 @@ func (e *EbpfPluginsApi) GetEbpfPluginsContent(c *gin.Context) {
 		response.FailWithMessage("获取失败", c)
 	} else {
 		response.OkWithDetailed(ebpfpluginsRes.EbpfPluginsResponse{EbpfPlugins: data}, "获取成功", c)
+	}
+}
+
+// @Tags EbpfPlugins
+// @Summary 分页获取正在运行的插件列表
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Param data query request.PageInfo true "页码, 每页大小"
+// @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
+// @Router /ebpf/runningebpf [get]
+func (e *EbpfPluginsApi) GetRunningEbpfPluginList(c *gin.Context) {
+	var pageInfo request.PageInfo
+	_ = c.ShouldBindQuery(&pageInfo)
+	err, runningebpgplugins, total := ebpfService.GetRunningPluginsInfo(pageInfo)
+	if err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败"+err.Error(), c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     runningebpgplugins,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取成功", c)
+	}
+}
+
+func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
+	var id int
+	id_str := c.Param("id")
+	id, _ = strconv.Atoi(id_str)
+	_ = c.ShouldBindQuery(&id)
+	err, singleplugindata := ebpfService.FindRows(id)
+	if err != nil {
+		global.GVA_LOG.Error("获取失败", zap.Error(err))
+		response.FailWithMessage("获取失败"+err.Error(), c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List: singleplugindata,
+		}, "获取成功", c)
 	}
 }

@@ -153,7 +153,7 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
 
-	cmd := exec.Command("sudo", "python3", "-u", plugin.PluginPath)
+	cmd := exec.Command("sudo", "python", "-u", plugin.PluginPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
@@ -218,7 +218,7 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
 									global.GVA_LOG.Warn("可能存在数据丢失...")
 									continue
 								} else {
-									mismatcheerr := fmt.Sprintf("第%d行数据无法自动匹配，请使用指定类型的ebpf程序！", counter)
+									mismatcheerr := fmt.Sprintf("第%d行数据无法自动匹配，！", counter)
 									fmt.Printf("本行数据内容：%s", line)
 									err = errors.New(mismatcheerr)
 									global.GVA_LOG.Error("error:\n", zap.Error(err))
