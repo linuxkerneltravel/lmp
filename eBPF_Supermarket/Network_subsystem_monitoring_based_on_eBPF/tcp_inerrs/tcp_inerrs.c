@@ -1,5 +1,4 @@
 #include <uapi/linux/ptrace.h>
-// #include <uapi/linux/skbuff.h>
 #include <net/tcp.h>
 #include <net/sock.h>
 #include <bcc/proto.h>
