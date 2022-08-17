@@ -5,7 +5,7 @@ from struct import pack
 import argparse
 
 
-bpf_text = open('delay_analysis_in.c').read()
+bpf_text = open('delay_analysis_in_v6.c').read()
 
 #------------
 # args parser
@@ -40,8 +40,8 @@ bpf_text = bpf_text.replace('##SAMPLING##', '')
 def print_event(cpu, data, size):
     event = b["timestamp_events"].event(data)
     print("%-22s -> %-22s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
-        "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
-        "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
+        "%s:%d" % (inet_ntop(AF_INET6, event.saddr), event.sport),
+        "%s:%d" % (inet_ntop(AF_INET6, event.daddr), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
         "%f" % (event.mac_timestamp*1e-9),

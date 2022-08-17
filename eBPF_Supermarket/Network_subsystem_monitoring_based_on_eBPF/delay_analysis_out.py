@@ -18,11 +18,6 @@ parser.add_argument("-sp", "--sport", help="trace this source port only")
 parser.add_argument("-dp", "--dport", help="trace this destination port only")
 parser.add_argument("-s", "--sample", help="Trace sampling")
 
-# TODO add ipv6
-# group = parser.add_mutually_exclusive_group()
-# group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family only")
-# group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
-
 args = parser.parse_args()
 
 # code substitutions

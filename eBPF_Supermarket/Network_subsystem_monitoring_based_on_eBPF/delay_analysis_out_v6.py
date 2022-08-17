@@ -1,11 +1,11 @@
 from __future__ import print_function
 from bcc import BPF
-from socket import inet_ntop, AF_INET, AF_INET6
+from socket import inet_ntop, AF_INET, AF_INET6, gethostname, gethostbyname
 from struct import pack
 import argparse
 
 
-bpf_text = open('delay_analysis_in.c').read()
+bpf_text = open('delay_analysis_out_v6.c').read()
 
 #------------
 # args parser
@@ -36,19 +36,21 @@ bpf_text = bpf_text.replace('##FILTER_DPORT##', '')
 bpf_text = bpf_text.replace('##SAMPLING##', '')
 
 
+ip = gethostbyname(gethostname())
+
 # process event
 def print_event(cpu, data, size):
     event = b["timestamp_events"].event(data)
-    print("%-22s -> %-22s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
-        "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
-        "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
+    print("%-42s -> %-42s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
+        "%s:%d" % (inet_ntop(AF_INET6, event.saddr), event.sport),
+        "%s:%d" % (inet_ntop(AF_INET6, event.daddr), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
-        "%f" % (event.mac_timestamp*1e-9),
-        "%d" % (event.total_time/1000),
-        "%d" % (event.mac_time/1000),
-        "%d" % (event.ip_time/1000),
-        "%d" % (event.tcp_time/1000)
+        "%f" % (event.qdisc_timestamp / 1000),
+        "%d" % (event.total_time / 1000),
+        "%d" % (event.qdisc_time / 1000),
+        "%d" % (event.ip_time / 1000),
+        "%d" % (event.tcp_time / 1000)
     ))
 
 
@@ -56,8 +58,8 @@ def print_event(cpu, data, size):
 b = BPF(text=bpf_text)
 
 # header
-print("%-22s -> %-22s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % \
-    ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP"))
+print("%-42s -> %-42s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % \
+    ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "QDisc", "IP", "TCP"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
