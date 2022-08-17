@@ -1504,6 +1504,22 @@ paths:
       summary: 获取权限列表
       tags:
       - Casbin
+  /ebpf/batchloadebpf:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"success":true,"data":{},"msg":"获取成功"}'
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 批量加载ebpf程序
+      tags:
+      - EbpfPlugins
   /ebpf/ebpf:
     delete:
       consumes:
@@ -1655,6 +1671,47 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 分页获取权限插件列表
+      tags:
+      - EbpfPlugins
+  /ebpf/ebpfdata/:id:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"success":true,"data":{},"msg":"获取成功"}'
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 获取单个ebpf程序的数据
+      tags:
+      - EbpfPlugins
+  /ebpf/runningebpf:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"success":true,"data":{},"msg":"获取成功"}'
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: 分页获取正在运行的插件列表
       tags:
       - EbpfPlugins
   /init/checkdb:
