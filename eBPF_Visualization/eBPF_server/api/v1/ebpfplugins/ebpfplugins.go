@@ -7,7 +7,9 @@ import (
 	"lmp/server/model/ebpfplugins"
 	ebpfpluginsRes "lmp/server/model/ebpfplugins/response"
 	"lmp/server/utils"
+	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -271,7 +273,7 @@ func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
 // @Security ApiKeyAuth
 // @accept application/json
 // @Produce application/json
-// @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
+// @Success 200 {string} string "{"code":200,"msg":"获取成功"}"
 // @Router /ebpf/batchloadebpf [post]
 func (e *EbpfPluginsApi) BatchLoadEbpfplugins(c *gin.Context) {
 	jsondata := make(map[string][]string)
@@ -292,7 +294,12 @@ func (e *EbpfPluginsApi) BatchLoadEbpfplugins(c *gin.Context) {
 				response.FailWithMessage("加载失败"+err.Error(), c)
 				continue
 			} else {
-				response.OkWithMessage("加载成功", c)
+				c.JSON(http.StatusOK, gin.H{
+					"ebpfpluginname":   ebpfplugin,
+					"commandparameter": strings.Join(parameter, " "),
+					"code":             200,
+					"msg":              "加载成功",
+				})
 			}
 		}
 	}
