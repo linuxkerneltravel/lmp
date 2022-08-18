@@ -19,14 +19,25 @@ struct curState {
 };
 
 typedef int pid_t;
+// 计数表格，第0项为上下文切换次数，第1项为总共新建进程个数
 BPF_ARRAY(countMap, u64, 2);
-	// 一个表格，第0项为上下文切换次数，第1项为总共新建进程个数
+
+// 储存运行队列rq的全局变量
 BPF_ARRAY(rq_map, struct rq, 1);
+
+// 进程开始时间
 BPF_HASH(procStartTime, pid_t, u64, 4096);
 
+// CPU idle持续时间
 BPF_ARRAY(idleLastTime, u64, 1);
+
+// kthread持续时间
 BPF_ARRAY(ktLastTime, u64, 1);
 BPF_ARRAY(utLastTime, u64, 1);
+BPF_ARRAY(userTime, u64, 1);
+
+BPF_HASH(procAllTime, u32, u64, 4096);
+BPF_HASH(procIrqTime, u32, u64, 4096);
 
 BPF_PERCPU_ARRAY(runqlen, u64, 1);
 
@@ -36,8 +47,7 @@ BPF_ARRAY(softirqLastTime, u64, 1);
 BPF_HASH(irqCpuEnterTime, u32, u64, 4096);
 BPF_ARRAY(irqLastTime, u64, 1);
 
-BPF_HASH(idlePid, u32, u64, 32); // 运行类型为TASK_IDLE的进程
-BPF_PERCPU_ARRAY(curTask, u64, 1);
+BPF_HASH(idlePid, u32, u64, 32); // 运行类型为TASK_IDLE的进程，已废弃
 
 BPF_ARRAY(idleStart, u64, 128);
 BPF_ARRAY(symAddr, u64, 1);
@@ -49,8 +59,15 @@ struct sysc_state {
 	int pad; // 必须要有的pad项
 };
 BPF_HASH(syscMap, u32, struct sysc_state, 1024);
+BPF_HASH(procSyscTime, u32, u64, 4096); // 记录逐进程的Syscall时间
 BPF_ARRAY(syscTime, u64, 1);
 
+struct user_state {
+	u64 start;
+	u64 in_user;
+};
+
+BPF_HASH(usermodeMap, u32, struct user_state, 1024);
 
 struct __softirq_info {
 	u64 pad;
@@ -79,9 +96,73 @@ struct __irq_info {
 	u32 irq;
 };
 
+// 进入用户态
+int exit_to_user_mode_prepare() {
+	// Step1: 记录user开始时间，和当前的in_user状态
+	struct user_state us;
+	struct task_struct *ts = bpf_get_current_task();
+
+	u32 pid = ts->pid;
+	u64 time = bpf_ktime_get_ns();
+
+	us.start = time;
+	us.in_user = 1;
+
+	// Step2: 更新usermodeMap
+	usermodeMap.update(&pid, &us);
+	return 0;
+}
+
+// 在sched_switch中记录系统调用花费的时间
+__always_inline static void record_sysc(u64 time, pid_t prev, pid_t next) {
+	// 分别处理旧进程和新的进程
+	// 旧进程：检查是否处于系统调用中，如果是，就将累积的时间加到syscTime
+	struct sysc_state* stat = syscMap.lookup(&(prev));
+	if (stat && stat->in_sysc) {
+		u64 delta = time - stat->start;
+
+		u32 key = 0;
+		u64 *valq = syscTime.lookup(&key);
+		if (valq) *valq += delta;
+		else syscTime.update(&key, &delta);
+
+		key = prev;
+		valq = procSyscTime.lookup(&key);
+		if (valq) *valq += delta;
+		else procSyscTime.update(&key, &delta);
+	}
+
+	// 新进程：检查是否处于系统调用中，如果是，就将其开始时间更新为当前
+	stat = syscMap.lookup(&(next));
+	if (stat && stat->in_sysc) {
+		stat->start = time;
+	}
+}
+
+__always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
+	// 旧进程：检查是否处于用户态，如果是，更新总时间userTime
+	struct user_state *us = usermodeMap.lookup(&prev);
+	if (us && us->in_user) {
+		u64 delta = time - us->start;
+
+		u32 key = 0;
+		u64 *valp = userTime.lookup(&key);
+		if (valp) *valp += delta;
+		else userTime.update(&key, &delta);
+	}
+
+	// 新进程：检查是否处于用户态，如果是，更新起始时间
+	us = usermodeMap.lookup(&next);
+	if (us && us->in_user) {
+		us->start = time;
+	}
+}
+
 // 获取进程切换数
 int trace_sched_switch(struct cswch_args *info) {
 	pid_t prev = info->prev_pid, next = info->next_pid;
+	// bpf_trace_printk("sched_switch %d -> %d\n", prev, next);
+
 	if (prev != next) {
 		u32 key = 0;
 		u64 *valp, delta, cur;
@@ -89,60 +170,24 @@ int trace_sched_switch(struct cswch_args *info) {
 
 		pid_t pid = next;
 		u64 time = bpf_ktime_get_ns();
-		// 新建或修改一项进程的起始时间
+
+		// Step1: 记录next进程的起始时间
 		procStartTime.update(&pid, &time);
 
-		/* 更新当前的进程状态为正在执行next_prev
-		 * 必须确保结构体里没有编译器的自动pad，可通过自己加pad解决。这时pad一定要初始化
-		 * 当前已经不用结构体了!
-		 * 参阅: https://houmin.cc/posts/f9d032dd/
-		 */
-		cur = pid;
-		curTask.update(&key, &cur);
+		// Step2: Syscall时间处理
+		record_sysc(time, prev, next);
 
-		pid = prev;
-		// 计算空闲时间占比
-		valp = procStartTime.lookup(&pid); // *valp储存prev进程的开始时间
-		ts = (struct task_struct *)bpf_get_current_task(); // 当前的ts结构体指向prev
+		// Step3: UserMode时间处理
+		record_user(time, prev, next);
 
-		/* 捕获state为IDLE状态的进程
-		if (valp && ts->state == TASK_IDLE) {
-			// 捕获到空闲进程
-			u64 *valq;
-			valq = idlePid.lookup(&pid);
-			
-			if (!valq) { // 未记录此进程，现在记录
-				u64 initval = 1;
-				idlePid.update(&pid, &initval);
-			}
-		}*/
-
-		// 分别处理旧进程和新的进程
-		// 旧进程：检查是否处于系统调用中，如果是，就将累积的时间加到syscTime
-		struct sysc_state* stat = syscMap.lookup(&(prev));
-		if (stat && stat->in_sysc) {
-			delta = time - stat->start;
-			u64 *valq = syscTime.lookup(&key);
-			if (valq) *valq += delta;
-			else syscTime.update(&key, &delta);
-		}
-
-		// 新进程：检查是否处于系统调用中，如果是，就将其开始时间更新为当前
-		stat = syscMap.lookup(&(next));
-		if (stat && stat->in_sysc) {
-			stat->start = time;
-		}
-
-		// 记录上下文切换的总次数
+		// Step4: 记录上下文切换的总次数
 		valp = countMap.lookup(&key);
 		if (!valp) {
 			// 没有找到表项
 			u64 initval = 1;
 			countMap.update(&key, &initval);
-			return 0;
 		}
-
-		*valp += 1;
+		else *valp += 1;
 	}
 
 	return 0;
@@ -151,14 +196,14 @@ int trace_sched_switch(struct cswch_args *info) {
 #define PF_IDLE			0x00000002	/* I am an IDLE thread */
 #define PF_KTHREAD		0x00200000	/* I am a kernel thread */
 
-// 计算内核进程运行的时间
+// 计算各进程运行的时间（包括用户态和内核态）
 int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
 	int pid;
 	u64 *valp, time = bpf_ktime_get_ns(), delta;
 	struct task_struct *ts = bpf_get_current_task();
 
+	// Step1: 记录内核进程（非IDLE）运行时间
 	if ((prev->flags & PF_KTHREAD) && prev->pid != 0) {
-		// 是内核线程，但不是IDLE-0进程
 		pid = prev->pid;
 		valp = procStartTime.lookup(&pid);
 		if (valp) {
@@ -169,7 +214,8 @@ int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
 			if (valp) *valp += delta;
 			else ktLastTime.update(&key, &delta);
 		}
-	} else if (!(prev->flags & PF_KTHREAD)) { // 是用户态进程在执行
+	// Step2: 记录用户进程运行时间
+	} else if (!(prev->flags & PF_KTHREAD) && !(prev->flags & PF_IDLE)) {
 		pid = prev->pid;
 		valp = procStartTime.lookup(&pid);
 		if (valp) {
@@ -179,48 +225,93 @@ int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
 			valp = utLastTime.lookup(&key);
 			if (valp) *valp += delta;
 			else utLastTime.update(&key, &delta);
+
+			// 更新每个进程的运行时间
+			key = prev->pid;
+			valp = procAllTime.lookup(&key);
+			if (valp) *valp += delta;
+			else procAllTime.update(&key, &delta);
 		}
 	}
 	return 0;
 }
 
-// 系统调用进入的信号
+__always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
+	// Step1: 查询之前进入用户态的时间，记录退出用户态的时间，并将其累加到userTime
+	struct user_state *valp, us;
+	u32 key = 0;
+
+	valp = usermodeMap.lookup(&pid);
+	if (valp && !(flags & PF_IDLE) && !(flags & PF_KTHREAD) && valp->in_user) {
+		u64 delta = time - valp->start;
+		u64 *valq = userTime.lookup(&key);
+		if (valq) *valq += delta;
+		else userTime.update(&key, &delta);
+	}
+
+	// Step2: 更新当前状态和时间
+	us.start = time;
+	us.in_user = 0;
+	usermodeMap.update(&pid, &us);
+}
+
+// 系统调用进入的信号（同时退出用户态）
 int trace_sys_enter() {
-	// bpf_trace_printk("sys_enter\n");
+	char comm[16]; // task_struct结构体内comm的位数为16
 	struct task_struct *ts = bpf_get_current_task();
+
+	// Step1: 打印进程进入Syscall的信息
+	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
+	// if (comm[0] == 'd' && comm[1] == 'd')
+	// 	bpf_trace_printk("sys_enter\n");
+
+	// Step2: 记录当前syscall进入时间和状态，并更新syscMap
 	struct sysc_state sysc;
 	u32 pid = ts->pid;
-	u64 *valp;
+	u64 *valp, time = bpf_ktime_get_ns();
 
-	sysc.start = bpf_ktime_get_ns();
+	sysc.start = time;
 	sysc.flags = ts->flags;
 	sysc.in_sysc = 1;
 	sysc.pad = 0;
 	syscMap.update(&pid, &sysc);
 	
+	on_user_exit(time, pid, ts->flags);
 	return 0;
 }
 
 // 系统调用退出信号
 int trace_sys_exit() {
-	// bpf_trace_printk("sys_exit\n");
+	char comm[16]; // task_struct结构体内comm的位数为16
 	struct task_struct *ts = bpf_get_current_task();
+
+	// Step1: 打印进程退出Syscall的信息
+	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
+	// if (comm[0] == 'd' && comm[1] == 'd')
+	// 	bpf_trace_printk("sys_exit\n");
+
+	// Step2：累加进程Syscall时间到syscTime
 	struct sysc_state sysc;
 	u32 pid = ts->pid, key = 0;
 	u64 time = bpf_ktime_get_ns(), delta;
 	struct sysc_state *valp;
 	
 	valp = syscMap.lookup(&pid);
-	if (valp) {
-		// 既不是内核线程，也不是空闲线程，可以放心记录
-		if (!(valp->flags & PF_IDLE) && !(valp->flags & PF_KTHREAD) && valp->in_sysc) {
-			delta = time - valp->start;
-			u64 *valq = syscTime.lookup(&key);
-			if (valq) *valq += delta;
-			else syscTime.update(&key, &delta);
-		}
+
+	// Step2.5 确保当前进程之前存在记录，且既不是内核线程，也不是空闲线程，可以放心记录
+	if (valp && !(valp->flags & PF_IDLE) && !(valp->flags & PF_KTHREAD) && valp->in_sysc) {
+		delta = time - valp->start;
+		u64 *valq = syscTime.lookup(&key);
+		if (valq) *valq += delta;
+		else syscTime.update(&key, &delta);
+
+		key = pid;
+		valq = procSyscTime.lookup(&key);
+		if (valq) *valq += delta;
+		else procSyscTime.update(&key, &delta);
 	}
 
+	// Step3: 更新进程的Syscall状态为不在Syscall，并更新进入时间（Optional）
 	sysc.start = time;
 	sysc.flags = ts->flags;
 	sysc.in_sysc = 0;
@@ -232,12 +323,20 @@ int trace_sys_exit() {
 // 两个CPU各自会产生一个调用，这正好方便我们使用
 int tick_update() {
 	u32 key = 0;
-	u64 *valp, pid, time, delta = 0, *cur_pid;
-	struct task_struct *ts;
+	u64 val, *valp;
 
-	time = bpf_ktime_get_ns();
-	cur_pid = curTask.lookup(&key);
-	ts = (struct task_struct *)bpf_get_current_task();
+	unsigned long total_forks;
+	valp = symAddr.lookup(&key);
+	if (valp) {
+		void *addr = (void *)(*valp);
+		if (addr > 0) {
+			bpf_probe_read_kernel(&total_forks, sizeof(unsigned long), addr);
+			key = 1;
+			val = total_forks;
+			countMap.update(&key, &val);
+		}
+	}
+
 	return 0;
 }
 
@@ -292,18 +391,22 @@ int trace_softirq_exit(struct __softirq_info *info) {
 		// 找到表项
 		u64 last_time = now - *valp;
 		u32 key0 = 0;
-		valp = softirqLastTime.lookup(&key0);
 
-		if (!valp) {
-			softirqLastTime.update(&key0, &last_time);
-		} else {
-			*valp += last_time;
-		}
+		valp = softirqLastTime.lookup(&key0);
+		if (!valp) softirqLastTime.update(&key0, &last_time);
+		else *valp += last_time;
+
+		struct task_struct *ts = bpf_get_current_task();
+		key = ts->pid;
+		valp = procIrqTime.lookup(&key);
+		if (valp) *valp += last_time;
+		else procIrqTime.update(&key, &last_time);
 	}
 	return 0;
 }
 
-// 获取新建进程数
+/*
+// 获取新建进程数：为保证效率，已经采用直接读取total_forks的方式
 // SEC("tracepoint/sched/sched_process_fork")
 int trace_sched_process_fork() {
 	u32 key = 1;
@@ -319,6 +422,7 @@ int trace_sched_process_fork() {
 	*valp += 1;
 	return 0;
 }
+*/
 
 // 获取运行队列长度
 // SEC("kprobe/update_rq_clock")
@@ -367,6 +471,12 @@ int trace_irq_handler_exit(struct __irq_info *info) {
 		} else {
 			*valp += last_time;
 		}
+
+		struct task_struct *ts = bpf_get_current_task();
+		key = ts->pid;
+		valp = procIrqTime.lookup(&key);
+		if (valp) *valp += last_time;
+		else procIrqTime.update(&key, &last_time);
 	}
 	return 0;
 }
