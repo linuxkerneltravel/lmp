@@ -27,5 +27,6 @@ func (e *EbpfpluginsRouter) InitEbpfRouter(Router *gin.RouterGroup) {
 		ebpfRouterWithoutRecord.POST("ebpfContent", ebpfApi.GetEbpfPluginsContent)   // 获取插件列表
 		ebpfRouterWithoutRecord.GET("runningebpf", ebpfApi.GetRunningEbpfPluginList) //获取正在运行的插件列表
 		ebpfRouterWithoutRecord.GET("ebpfdata/:id", ebpfApi.GetSinglePluginData)     //获取单个单个插件的数据
+		ebpfRouterWithoutRecord.POST("batchloadebpf", ebpfApi.BatchLoadEbpfplugins)  //批量加载ebpf程序
 	}
 }
