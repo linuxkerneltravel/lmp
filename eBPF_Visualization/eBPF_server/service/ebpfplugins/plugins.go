@@ -153,11 +153,18 @@ func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error, pa
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
-	cmd := exec.Command("sudo", "python", "-u", plugin.PluginPath)
-	if len(parameterlist) > 0 {
-		parameter := strings.Join(parameterlist, " ")
-		cmd = exec.Command("sudo", "python", "-u", plugin.PluginPath, parameter)
-	}
+
+	cmdSlice := make([]string, 0)
+	cmdSlice = append(cmdSlice, "sudo")
+	cmdSlice = append(cmdSlice, "stdbuf")
+	cmdSlice = append(cmdSlice, "-oL")
+	cmdSlice = append(cmdSlice, "python3")
+	cmdSlice = append(cmdSlice, "-u")
+	cmdSlice = append(cmdSlice, plugin.PluginPath)
+	cmdSlice = append(cmdSlice, parameterlist...)
+	cmdStr := strings.Join(cmdSlice, " ")
+
+	cmd := exec.Command("sh", "-c", cmdStr)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
