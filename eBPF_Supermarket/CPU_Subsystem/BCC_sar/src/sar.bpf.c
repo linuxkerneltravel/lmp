@@ -20,7 +20,7 @@ struct curState {
 
 typedef int pid_t;
 // 计数表格，第0项为上下文切换次数，第1项为总共新建进程个数
-BPF_ARRAY(countMap, u64, 2);
+BPF_ARRAY(countMap, u64, 3);
 
 // 储存运行队列rq的全局变量
 BPF_ARRAY(rq_map, struct rq, 1);
@@ -35,9 +35,6 @@ BPF_ARRAY(idleLastTime, u64, 1);
 BPF_ARRAY(ktLastTime, u64, 1);
 BPF_ARRAY(utLastTime, u64, 1);
 BPF_ARRAY(userTime, u64, 1);
-
-BPF_HASH(procAllTime, u32, u64, 4096);
-BPF_HASH(procIrqTime, u32, u64, 4096);
 
 BPF_PERCPU_ARRAY(runqlen, u64, 1);
 
@@ -59,7 +56,6 @@ struct sysc_state {
 	int pad; // 必须要有的pad项
 };
 BPF_HASH(syscMap, u32, struct sysc_state, 1024);
-BPF_HASH(procSyscTime, u32, u64, 4096); // 记录逐进程的Syscall时间
 BPF_ARRAY(syscTime, u64, 1);
 
 struct user_state {
@@ -125,11 +121,6 @@ __always_inline static void record_sysc(u64 time, pid_t prev, pid_t next) {
 		u64 *valq = syscTime.lookup(&key);
 		if (valq) *valq += delta;
 		else syscTime.update(&key, &delta);
-
-		key = prev;
-		valq = procSyscTime.lookup(&key);
-		if (valq) *valq += delta;
-		else procSyscTime.update(&key, &delta);
 	}
 
 	// 新进程：检查是否处于系统调用中，如果是，就将其开始时间更新为当前
@@ -225,12 +216,6 @@ int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
 			valp = utLastTime.lookup(&key);
 			if (valp) *valp += delta;
 			else utLastTime.update(&key, &delta);
-
-			// 更新每个进程的运行时间
-			key = prev->pid;
-			valp = procAllTime.lookup(&key);
-			if (valp) *valp += delta;
-			else procAllTime.update(&key, &delta);
 		}
 	}
 	return 0;
@@ -304,11 +289,6 @@ int trace_sys_exit() {
 		u64 *valq = syscTime.lookup(&key);
 		if (valq) *valq += delta;
 		else syscTime.update(&key, &delta);
-
-		key = pid;
-		valq = procSyscTime.lookup(&key);
-		if (valq) *valq += delta;
-		else procSyscTime.update(&key, &delta);
 	}
 
 	// Step3: 更新进程的Syscall状态为不在Syscall，并更新进入时间（Optional）
@@ -395,12 +375,6 @@ int trace_softirq_exit(struct __softirq_info *info) {
 		valp = softirqLastTime.lookup(&key0);
 		if (!valp) softirqLastTime.update(&key0, &last_time);
 		else *valp += last_time;
-
-		struct task_struct *ts = bpf_get_current_task();
-		key = ts->pid;
-		valp = procIrqTime.lookup(&key);
-		if (valp) *valp += last_time;
-		else procIrqTime.update(&key, &last_time);
 	}
 	return 0;
 }
@@ -445,6 +419,12 @@ int update_rq_clock(struct pt_regs *ctx) {
 
 // SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
+	u32 _key = 2;
+	u64 _val = 1;
+	u64 *_p = countMap.lookup(&_key);
+	if (_p) *_p += 1;
+	else countMap.update(&_key, &_val);
+
 	// bpf_trace_printk("irq entry %d\n", info->irq);
 	u32 key = info->irq;
 	u64 val = bpf_ktime_get_ns();
@@ -471,13 +451,6 @@ int trace_irq_handler_exit(struct __irq_info *info) {
 		} else {
 			*valp += last_time;
 		}
-
-		struct task_struct *ts = bpf_get_current_task();
-		key = ts->pid;
-		valp = procIrqTime.lookup(&key);
-		if (valp) *valp += last_time;
-		else procIrqTime.update(&key, &last_time);
 	}
 	return 0;
 }
-

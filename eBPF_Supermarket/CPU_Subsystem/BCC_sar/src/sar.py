@@ -5,8 +5,9 @@ from bcc import BPF, PerfType, PerfSWConfig
 from bcc.utils import printb
 import time, argparse, configparser
 import ctypes, bpfutil
+from bpfutil import colorize
 
-CONFIGFILE = "config.ini"
+CONFIGFILE = "../config/config.ini"
 config = configparser.ConfigParser()
 config.read(CONFIGFILE)
 
@@ -25,7 +26,7 @@ def parse_arg():
 
 def attach_probe():
     # load BPF program
-    bpf = BPF(src_file="sar.c")
+    bpf = BPF(src_file="sar.bpf.c")
     bpf.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_sched_switch")
     bpf.attach_tracepoint(tp="irq:softirq_entry", fn_name="trace_softirq_entry")
     bpf.attach_tracepoint(tp="irq:softirq_exit", fn_name="trace_softirq_exit")
@@ -88,14 +89,6 @@ utLastTime = 0
 userTime = 0
 
 _line = line = 0
-procAll = bpfutil.SecondRecord()
-procSysc = bpfutil.SecondRecord()
-procIrq = bpfutil.SecondRecord()
-
-# 测试idlePidList的功能
-# while 1:
-#     printList(bpf['idlePid'])
-#     time.sleep(2)
 
 while 1:
     if args.interval > 0:
@@ -157,32 +150,44 @@ while 1:
     # 记录总的Sysc时间
     dtaSys = dtaKT + dtaSysc
 
+    count = bpf['countMap'][2].value
+
     # 根据展示类型展示
     timeStr = time.strftime("%H:%M:%S")
     if args.type == "time":
-        # key = ctypes.c_int32(args.process)
         print("%s %6d  %7d  %7d  %10d  %10d  %7d  %10d  %7d  %8d %6d" %
             (timeStr, proc_s, cswch_s, runqlen, dtaIrq / 1000, dtaSoft / 1000, 
             dtaIdle / 1000000, dtaKT / 1000, dtaSysc / 1000000, dtaUTRaw / 1000000,
             dtaSys / 1000000,
              ) )
-
-        # procAll.UpRd(bpf["procAllTime"][key].value) / 1000000,
-        #     procSysc.UpRd(bpf["procSyscTime"][key].value) / 1000000,
-        #     procIrq.UpRd(bpf["procIrqTime"][key].value) / 1000000
     else:
-        dtaIrq = float(dtaIrq) / num_cpus / 1000_000_0
-        dtaSoft = float(dtaSoft) / num_cpus / 1000_000_0
-        dtaIdle = float(dtaIdle) / num_cpus / 1000_000_0
-        dtaKT = float(dtaKT) / num_cpus / 1000_000_0
-        dtaSysc = float(dtaSysc) / num_cpus / 1000_000_0
-        # dtaUTime = float(dtaUTime) / num_cpus / 1000_000_0
-        dtaUTRaw = float(dtaUTRaw) / num_cpus / 1000_000_0
-        dtaSys = float(dtaSys) / num_cpus / 1000_000_0
+        fmt = ["%s", "%6d", "%7d", "%7d", "%10.1f", "%10.1f", "%7.1f", "%10.1f", "%7.1f", "%8.1f", "%6.1f"]
+        nums = [timeStr, proc_s, cswch_s, runqlen, dtaIrq, dtaSoft, dtaIdle, dtaKT, dtaSysc, dtaUTRaw, dtaSys]
+        
+        # 自动检查格式并匹配
+        target = []
+        for i in range(len(fmt)):
+            if 's' in fmt[i]:
+                target.append(fmt[i] % nums[i])
+            elif 'd' in fmt[i]:
+                # 直接代入即可
+                target.append(colorize(34, fmt[i] % nums[i]))
+            elif 'f' in fmt[i]:
+                # 一般是代入百分比的
+                nums[i] = float(nums[i]) / num_cpus / 1000_000_0
+                
+                str = fmt[i] % nums[i]
+                if nums[i] < 30:
+                    color = 34 # blue
+                elif nums[i] < 60:
+                    color = 32 # green
+                else:
+                    color = 31 # red
+                target.append(colorize(color, str))
+            else:
+                target.append(' ')
 
-        print("%s %6d  %7d  %7d  %10.1f  %10.1f  %7.1f  %10.1f  %7.1f  %8.1f %6.1f" %
-            (timeStr, proc_s, cswch_s, runqlen, dtaIrq, dtaSoft, 
-            dtaIdle, dtaKT, dtaSysc, dtaUTRaw, dtaSys, ) )
+        print("%s %s  %s  %s  %s  %s  %s  %s  %s  %s %s" % tuple(target))
 
     _line += 1
     line += 1

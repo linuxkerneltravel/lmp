@@ -53,3 +53,23 @@ def get_pid_by_name(name: str) -> int:
     pid = re.match(" *([0-9]+) ", f_str).group(0)
     pid = int(pid)
     return pid
+
+# GRAY=30
+# RED=31
+# GREEN=32
+# YELLOW=33
+# BLUE=34
+# MAGENTA=35
+# CYAN=36
+# WHITE=37
+# CRIMSON=38 
+def colorize(num, string, bold=False, highlight = False):
+    assert isinstance(num, int)
+    attr = []
+    if highlight: 
+        num += 10
+    attr.append(str(num))
+    if bold: attr.append('1')
+    return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
+
+# 原文链接：https://blog.csdn.net/hxxjxw/article/details/122432886
