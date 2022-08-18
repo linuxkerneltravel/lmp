@@ -208,7 +208,3 @@ func (ebpf EbpfpluginsService) FindRows(pluginid int) (error, []map[string]inter
 	}
 	return err, results
 }
-
-func (ebpf EbpfpluginsService) LoadSingleEbpfPlugin(pluginname string, ctx []string) {
-
-}
