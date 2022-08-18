@@ -32,6 +32,16 @@ func GetNewHistogramVec(name string, help string, constLabels map[string]string,
 		labelNames)
 }
 
+func GetNewCounterVec(name string, help string, constLabels map[string]string, labelNames []string) *prometheus.CounterVec {
+	return prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:        name,
+			Help:        help,
+			ConstLabels: constLabels,
+		},
+		labelNames)
+}
+
 func Vis() {
 	http.Handle("/metrics", promhttp.Handler())
 	fmt.Println("Exporter at: http://0.0.0.0:" + VisPort)
