@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"lmp/server/model/data_collector/check"
@@ -69,7 +70,7 @@ func TestInsertRow(t *testing.T) {
 		TableName: "plugin_test",
 	}
 	_ = ti.CreateTable()
-	_, _ = ti.AppenTableByData("TIME  READ_s WRITE_s FSYNC_s OPEN_s CREATE_s", "21:52:36:      1300       16        0       13        0")
+	_, ti = ti.AppenTableByData("TIME  READ_s WRITE_s FSYNC_s OPEN_s CREATE_s", "21:52:36:      1300       16        0       13        0")
 	line := "21:52:36:      1300       16        0       13        0"
 	if err := ti.InsertRow(line); err != nil {
 		t.Error("InsertRow failed:", err)
@@ -96,4 +97,16 @@ func TestGetTypeFromData(t *testing.T) {
 
 func TestIsPossiblyLost(t *testing.T) {
 	fmt.Println(check.IsPossiblyLost("Possibly lost 2163 samples"))
+}
+
+func TestFindListInfo(t *testing.T) {
+	_ = dao.ConnectSqlite()
+	list := dao.FindAllRecord()
+	fmt.Println(list)
+}
+
+func TestJoin(t *testing.T) {
+	list := []string{"1", "2"}
+	line := strings.Join(list, " ")
+	fmt.Println((line))
 }

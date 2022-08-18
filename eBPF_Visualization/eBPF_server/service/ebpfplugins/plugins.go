@@ -8,6 +8,7 @@ import (
 	"lmp/server/model/data_collector/check"
 	"lmp/server/model/data_collector/dao"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -147,13 +148,23 @@ func (CbpfPluginFactory) CreatePlugin(pluginName string, pluginType string) (Plu
 
 var pluginPid = make(map[string]int, 10)
 
-func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error) {
+func runSinglePlugin(e request.PluginInfo, out *chan bool, errch *chan error, parameterlist []string) {
 	// TODO
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
 
-	cmd := exec.Command("sudo", "python", "-u", plugin.PluginPath)
+	cmdSlice := make([]string, 0)
+	cmdSlice = append(cmdSlice, "sudo")
+	cmdSlice = append(cmdSlice, "stdbuf")
+	cmdSlice = append(cmdSlice, "-oL")
+	cmdSlice = append(cmdSlice, "python3")
+	cmdSlice = append(cmdSlice, "-u")
+	cmdSlice = append(cmdSlice, plugin.PluginPath)
+	cmdSlice = append(cmdSlice, parameterlist...)
+	cmdStr := strings.Join(cmdSlice, " ")
+
+	cmd := exec.Command("sh", "-c", cmdStr)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
