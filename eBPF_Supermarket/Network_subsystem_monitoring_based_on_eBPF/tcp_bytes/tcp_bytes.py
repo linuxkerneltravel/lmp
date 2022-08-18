@@ -1,5 +1,5 @@
 from __future__ import print_function
-from bcc import DEBUG_BPF_REGISTER_STATE
+from bcc import BPF
 import argparse
 from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
