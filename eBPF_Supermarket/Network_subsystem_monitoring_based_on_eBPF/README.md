@@ -69,11 +69,11 @@ RX
 
 运行示例 
 ``` shell
-sudo python tcpconnection.py -P 80,81  # only trace port 80 and 81
-sudo python tcpconnection.py -p 181    # only trace PID 181
-sudo python tcpconnection.py -4        # only trace IPv4 family
-sudo python tcpconnection.py -6        # only trace IPv6 family
-sudo python tcpconnection.py -r accept # only trace accept tcp connections
+sudo python tcp_connection.py -P 80,81  # only trace port 80 and 81
+sudo python tcp_connection.py -p 181    # only trace PID 181
+sudo python tcp_connection.py -4        # only trace IPv4 family
+sudo python tcp_connection.py -6        # only trace IPv6 family
+sudo python tcp_connection.py -r accept # only trace accept tcp connections
 ```
 
 输出样例
@@ -104,13 +104,11 @@ TIME      PID     COMM         IP DADDR            DPORT SADDR            SPORT 
 
 运行示例 
 ``` shell
-sudo python tcptop           # trace TCP send/recv by host
-    ./tcptop -C        # don't clear the screen
-    ./tcptop -p 181    # only trace PID 181
-    ./tcptop --cgroupmap mappath  # only trace cgroups in this BPF map
-    ./tcptop --mntnsmap mappath   # only trace mount namespaces in the map
-    ./tcptop -4        # trace IPv4 family only
-    ./tcptop -6        # trace IPv6 family only
+sudo python tcp_bytes.py           # trace TCP send/recv bytes by host
+sudo python tcp_bytes.py -p 181    # only trace PID 181
+sudo python tcp_bytes.py -i 5      # print results every 5 seconds
+sudo python tcp_bytes.py -4        # trace IPv4 family only
+sudo python tcp_bytes.py -6        # trace IPv6 family only
 ```
 
 输出样例

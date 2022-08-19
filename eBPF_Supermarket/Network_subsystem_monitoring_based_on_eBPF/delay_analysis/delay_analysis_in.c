@@ -72,7 +72,7 @@ int kprobe__eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb){
 
     if (protocol == 8){ // Protocol is IP
         struct iphdr *ip = (struct iphdr *)(skb->data + 14);
-        # TODO options in hdr
+        // TODO options in hdr
         struct tcphdr *tcp = (struct tcphdr *)(skb->data + 34);
         struct packet_tuple pkt_tuple = {};
         get_pkt_tuple(&pkt_tuple, ip, tcp);
