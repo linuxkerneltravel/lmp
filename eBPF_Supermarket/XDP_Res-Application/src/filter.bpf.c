@@ -22,11 +22,15 @@ struct metainfo{
 
 static int match_rule(struct metainfo *info){
    int result_bit = 0;
+   u32 wildcard_u32 = 65535;
+   u16 wildcard_u16 = 65535;
    int *ipproto_bit = ipproto_map.lookup(&info->ipproto);
    int *saddr_bit = saddr_map.lookup(&info->saddr);
    int *daddr_bit = daddr_map.lookup(&info->daddr);
    int *sport_bit = sport_map.lookup(&info->sport);
    int *dport_bit = dport_map.lookup(&info->dport);
+   if(ipproto_bit == NULL)
+      ipproto_bit = ipproto_map.lookup(&wildcard_u32);
    if(ipproto_bit != NULL){
       if(*ipproto_bit != 0){
          if(result_bit == 0){
@@ -36,6 +40,10 @@ static int match_rule(struct metainfo *info){
             result_bit = result_bit & *ipproto_bit;
       }
    }
+   if(info->dport == 5632)
+      bpf_trace_printk("1:%d",result_bit);
+   if(saddr_bit == NULL)
+      saddr_bit = saddr_map.lookup(&wildcard_u32);
    if(saddr_bit != NULL){
       if(*saddr_bit != 0){
          if(result_bit == 0)
@@ -44,6 +52,9 @@ static int match_rule(struct metainfo *info){
             result_bit = result_bit & *saddr_bit;
       }
    }
+
+   if(daddr_bit == NULL)
+      daddr_bit = daddr_map.lookup(&wildcard_u32);   
    if(daddr_bit != NULL){ 
       if(*daddr_bit != 0){     
          if(result_bit == 0)
@@ -52,6 +63,9 @@ static int match_rule(struct metainfo *info){
             result_bit = result_bit & *daddr_bit;
       }
    }
+
+   if(sport_bit == NULL)
+      sport_bit = sport_map.lookup(&wildcard_u16);
    if(sport_bit != NULL){
       if(*sport_bit != 0){
          if(result_bit == 0)
@@ -60,6 +74,9 @@ static int match_rule(struct metainfo *info){
             result_bit = result_bit & *sport_bit;
       }
    }
+
+   if(dport_bit == NULL)
+      dport_bit = dport_map.lookup(&wildcard_u16);
    if(dport_bit != NULL){
       if(*dport_bit != 0){
          if(result_bit == 0)
