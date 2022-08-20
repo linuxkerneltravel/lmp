@@ -2,4 +2,4 @@ package test
 
 var Namespace = "default"
 
-var Label = "app=details,version=v1"
+var Label = "app=productpage,version=v1"

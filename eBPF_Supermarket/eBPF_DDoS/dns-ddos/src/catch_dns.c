@@ -58,6 +58,15 @@ int catch_dns(struct __sk_buff *skb) {
   struct record *r = counter.lookup(&global_ip);
   if (flags != 0 && r) {
     __sync_fetch_and_add(&r->fail_count, 1);
+
+    __u8 global_fail_threshold_key = 4;
+    __u32 *threshold = configuration.lookup(&global_fail_threshold_key);
+    if (threshold && r->fail_count >= *threshold) {
+      __u8 enforce_tcp_key = 201;
+      __u32 enabled = 1;
+      configuration.update(&enforce_tcp_key, &enabled);
+      bpf_trace_printk("WARNING: under nxdomain attack, enforcing tcp");
+    }
   }
 
   __u32 src_ip = bpf_htonl(ip->dst);
