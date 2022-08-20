@@ -24,7 +24,7 @@ eBPF工具集散地
 | 基于 eBPF 的 XDP 研究与应用 | Research and application of XDP based on eBPF                    | 基于eBPF XDP机制打造一个工具使系统性能得到提升        | [@byxzone](https://github.com/byxzone) |
 |  | CPU_Subsystem                                                    |                                    |  |
 |  | eBPF_DDos                                                        |                                    |  |
-|  | eBPF_dns_cache                                                   |                                    |  |
+| 基于 eBPF 的 DNS Cache | eBPF_dns_cache                                                   |      缓存 DNS 查询结果，并在需要时构造并注入 DNS 响应                              | [@7rah](https://github.com/7rah) |
 |  | CPU_Subsystem                                                    |                                    |  |
 |  | Filesystem_Subsystem                                             |                                    |  |
 |  | LSM_BPF                                                          |                                    |  |
