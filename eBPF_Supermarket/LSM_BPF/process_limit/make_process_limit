@@ -1,7 +1,0 @@
-#/bin/bash/
-
-clang -g -O2 -target bpf -D__TARGET_ARCH_x86_64 -I . -c process_limit.bpf.c -o process_limit.bpf.o
-bpftool gen skeleton process_limit.bpf.o > process_limit.skel.h
-clang -g -O2 -Wall -I . -c process_limit.c -o process_limit.o
-clang -Wall -O2 -g process_limit.o libbpf/build/libbpf/libbpf.a -lelf -lz -o process_limit
-
