@@ -1,6 +1,9 @@
 package ebpfplugins
 
 import (
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/common/response"
@@ -10,9 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"time"
 )
 
 type EbpfPluginsApi struct{}
@@ -258,15 +259,41 @@ func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
 	id_str := c.Param("id")
 	id, _ = strconv.Atoi(id_str)
 	_ = c.ShouldBindQuery(&id)
-	err, singleplugindata := ebpfService.FindRows(id)
-	if err != nil {
-		global.GVA_LOG.Error("获取失败", zap.Error(err))
-		response.FailWithMessage("获取失败"+err.Error(), c)
-	} else {
-		response.OkWithDetailed(Result{
-			List:  singleplugindata,
-			Total: len(singleplugindata),
-		}, "获取成功", c)
+	var upgrager = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+		return true
+	}}
+	client, _ := upgrager.Upgrade(c.Writer, c.Request, nil)
+	data_lenth := 0
+	for {
+		err, singleplugindata := ebpfService.FindRows(id)
+		if err != nil {
+			global.GVA_LOG.Error("获取失败", zap.Error(err))
+			_ = client.WriteMessage(websocket.TextMessage, []byte("数据获取失败"))
+			_ = client.Close()
+			return
+		} else {
+			if data_lenth != len(singleplugindata) {
+				err := client.WriteJSON(Result{
+					List:  singleplugindata,
+					Total: len(singleplugindata),
+				})
+				if err != nil {
+					global.GVA_LOG.Error("写入json数据失败", zap.Error(err))
+					_ = client.WriteMessage(websocket.TextMessage, []byte("写入json数据失败"))
+					return
+				}
+				time.Sleep(time.Second * 2)
+				data_lenth = len(singleplugindata)
+			} else {
+				if err := client.WriteMessage(websocket.TextMessage, []byte("数据加载完毕，无数据更新")); err != nil {
+					global.GVA_LOG.Error("websocket message写入错误", zap.Error(err))
+				}
+				if err := client.Close(); err != nil {
+					global.GVA_LOG.Error("websocket 关闭失败:", zap.Error(err))
+				}
+				return
+			}
+		}
 	}
 }
 
