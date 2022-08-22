@@ -109,6 +109,8 @@ int probe_loopy_writer_write_header(struct pt_regs* ctx) {
   int64_t fields_len;
   fields_len=ctx->si;
   submit_headers(ctx, ptr, fields_len,1);
+	
+  bpf_trace_printk("streamID %d endStream %d",ctx->bx,ctx->cx);
   return 0;
 }
 
@@ -121,6 +123,14 @@ int probe_http2_server_operate_headers(struct pt_regs* ctx) {
   int64_t fields_len;
   bpf_probe_read(&fields_len, sizeof(int64_t), frame_ptr + 8 + 8);
   submit_headers(ctx, fields_ptr, fields_len,2);
+
+  void* headersframe_ptr;
+  bpf_probe_read(&headersframe_ptr,sizeof(void*),frame_ptr);
+  int32_t streamid;
+  bpf_probe_read(&streamid,sizeof(int32_t),headersframe_ptr+8);
+  int8_t weight;
+  bpf_probe_read(&weight,sizeof(int8_t),headersframe_ptr+17);
+  bpf_trace_printk("streamID %d weight %d",streamid,weight);
   return 0;
 }
 `

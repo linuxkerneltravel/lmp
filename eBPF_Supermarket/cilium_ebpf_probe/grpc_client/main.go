@@ -32,7 +32,7 @@ func connectAndGreet(address, name string, count, sleep_millis int) {
 			log.Fatalf("could not greet: %v", err)
 		}
 		log.Printf("Greeting: %s", r.Message)
-		//time.Sleep(time.Duration(sleep_millis) * time.Millisecond)
+		time.Sleep(time.Duration(sleep_millis) * time.Millisecond)
 	}
 }
 

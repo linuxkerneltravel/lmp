@@ -64,7 +64,7 @@ func main() {
 		panic(err.Error())
 	} else {
 		fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
-		res, _ := cluster_utils.GetAllPodProcess(clientset, "k8s-node2", namespace, pod, p.Status.ContainerStatuses)
+		res, _ := cluster_utils.GetAllPodProcess(clientset, "k8s-node2", namespace, pod, p.Status.ContainerStatuses, "wyuei/http_server:v2.0")
 		for k, v := range res {
 			fmt.Printf("get pod %s Pid and Attach Kprobe\n", k.Name)
 			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), pod)
@@ -84,7 +84,7 @@ func main() {
 		panic(err.Error())
 	} else {
 		fmt.Printf("Found pod %s in namespace %s\n", poduprobe, namespace)
-		res, _ := cluster_utils.GetPodELFPath(clientset, "k8s-node2", namespace, poduprobe, p2.Status.ContainerStatuses)
+		res, _ := cluster_utils.GetPodELFPath(clientset, "k8s-node2", namespace, poduprobe, p2.Status.ContainerStatuses, "wyuei/grpc_server:latest")
 		for k, v := range res {
 			fmt.Printf("get pod %s Merge Path and Attach Uprobe\n", k.Name)
 			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, poduprobe)
