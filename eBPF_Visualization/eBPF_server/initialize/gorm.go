@@ -1,6 +1,7 @@
 package initialize
 
 import (
+	"lmp/server/model/data_collector/logic"
 	"os"
 
 	"lmp/server/global"
@@ -15,6 +16,7 @@ import (
 // Gorm 初始化数据库并产生数据库全局变量
 // Author SliverHorn
 func Gorm() *gorm.DB {
+	_ = logic.InitCollectSqlite()
 	switch global.GVA_CONFIG.System.DbType {
 	case "mysql":
 		return GormMysql()
