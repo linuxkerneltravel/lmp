@@ -21,7 +21,8 @@ func main() {
 	timeTickerChan := time.Tick(time.Second * 1) //每1秒进行一次展示输出
 	rand.Seed(time.Now().UnixNano())
 	for {
-		*count = rand.Intn(500)
+		//*count = rand.Intn(500)
+		*count = 1
 		for i := 0; i < *count; i++ {
 			client := &http.Client{
 				Transport: &http.Transport{
@@ -36,7 +37,7 @@ func main() {
 			ErrPrint(err)
 			fmt.Println("response statuscode is", resp.StatusCode, " and res body is ", string(res))
 			resp.Body.Close()
-			//time.Sleep(time.Duration(100) * time.Millisecond)
+			time.Sleep(time.Duration(1000) * time.Millisecond)
 		}
 		<-timeTickerChan
 	}

@@ -70,7 +70,7 @@ Prometheus 默认配置文件 prometheus.yml 在[容器](https://cloud.tencent.c
 $ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime grafana/grafana-enterprise:8.1.3
 ```
 
-接下来打开http://IP:3000即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
+接下来打开 http://IP:3000 即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
 
 ---
 

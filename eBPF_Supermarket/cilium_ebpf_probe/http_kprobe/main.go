@@ -189,7 +189,7 @@ func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtim
 	body := resp.Body
 	b, _ := ioutil.ReadAll(body)
 	body.Close()
-	fmt.Printf("%s %s\n", color.BlueString("%s", "data from grpc received"), color.BlueString("%s", podname))
+	fmt.Printf("%s %s\n", color.BlueString("%s", "data from http received"), color.BlueString("%s", podname))
 	fmt.Printf("StatusCode: %s, Len: %s, ContentType: %s, Body: %s\n",
 		color.GreenString("%d", resp.StatusCode),
 		color.GreenString("%d", resp.ContentLength),
