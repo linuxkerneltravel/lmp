@@ -250,6 +250,10 @@ func (e *EbpfPluginsApi) GetRunningEbpfPluginList(c *gin.Context) {
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
 // @Router /ebpf/ebpfdata/:id [get]
 func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
+	type Result struct {
+		List  interface{} `json:"list"`
+		Total int         `json:"total"`
+	}
 	var id int
 	id_str := c.Param("id")
 	id, _ = strconv.Atoi(id_str)
@@ -259,11 +263,9 @@ func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
 		global.GVA_LOG.Error("获取失败", zap.Error(err))
 		response.FailWithMessage("获取失败"+err.Error(), c)
 	} else {
-		response.OkWithDetailed(response.PageResult{
-			List:     singleplugindata,
-			Total:    int64(len(singleplugindata)),
-			Page:     1,
-			PageSize: 1,
+		response.OkWithDetailed(Result{
+			List:  singleplugindata,
+			Total: len(singleplugindata),
 		}, "获取成功", c)
 	}
 }
