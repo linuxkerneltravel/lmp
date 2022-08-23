@@ -287,18 +287,21 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 
 // 系统调用进入的信号（同时退出用户态）
 int trace_sys_enter() {
+	u64 time = bpf_ktime_get_ns();
 	struct task_struct *ts = bpf_get_current_task();
 	char comm[16]; // task_struct结构体内comm的位数为16
 	
-	// Step1: 打印进程进入Syscall的信息
-	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
-	// if (comm[0] == 'd' && comm[1] == 'd')
-	// 	bpf_trace_printk("sys_enter\n");
+	// 记录syscall次数
+	u32 _key = 2;
+	u64 _val = 1;
+	u64 *_p = countMap.lookup(&_key);
+	if (_p) *_p += 1;
+	else countMap.update(&_key, &_val);
 
 	// Step2: 记录当前syscall进入时间和状态，并更新syscMap
 	struct sysc_state sysc;
 	u32 pid = ts->pid;
-	u64 *valp, time = bpf_ktime_get_ns();
+	u64 *valp;
 
 	sysc.start = time;
 	sysc.flags = ts->flags;
@@ -321,7 +324,7 @@ int trace_sys_exit() {
 
 // 两个CPU各自会产生一个调用，这正好方便我们使用
 int tick_update(struct pt_regs *ctx) {
-	// bpf_trace_printk("ip = %x\n", ctx->ip);
+	bpf_trace_printk("cs_rpl = %x\n", ctx->cs & 3);
 	u32 key = 0;
 	u64 val, *valp;
 
@@ -399,25 +402,6 @@ int trace_softirq_exit(struct __softirq_info *info) {
 	return 0;
 }
 
-/*
-// 获取新建进程数：为保证效率，已经采用直接读取total_forks的方式
-// SEC("tracepoint/sched/sched_process_fork")
-int trace_sched_process_fork() {
-	u32 key = 1;
-	u64 initval = 1, *valp;
-
-	valp = countMap.lookup(&key);
-	if (!valp) {
-		// 没有找到表项
-		countMap.update(&key, &initval);
-		return 0;
-	}
-
-	*valp += 1;
-	return 0;
-}
-*/
-
 // 获取运行队列长度
 // SEC("kprobe/update_rq_clock")
 int update_rq_clock(struct pt_regs *ctx) {
@@ -439,12 +423,6 @@ int update_rq_clock(struct pt_regs *ctx) {
 
 // SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
-	u32 _key = 2;
-	u64 _val = 1;
-	u64 *_p = countMap.lookup(&_key);
-	if (_p) *_p += 1;
-	else countMap.update(&_key, &_val);
-
 	// bpf_trace_printk("irq entry %d\n", info->irq);
 	u32 key = info->irq;
 	u64 val = bpf_ktime_get_ns();
