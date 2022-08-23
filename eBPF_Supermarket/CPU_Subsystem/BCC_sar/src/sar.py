@@ -84,8 +84,9 @@ def main():
 
     print("Tracing for Data's... Ctrl-C to end")
     thead_str = {
-        "time":     r"  time   proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms sys/ms",
-        "percent":  r"  time   proc/s  cswch/s  runqlen   irqTime/%   softirq/%   idle/%   kthread/%   sysc/%   utime/%  sys/%"
+        # 需要严格保持每两个表项之间间隔两个空格
+        "time":     r"  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  syscFreq",
+        "percent":  r"  time    proc/s  cswch/s  runqlen   irqTime/%   softirq/%   idle/%   kthread/%   sysc/%   utime/%   sys/%  syscFreq"
     }
     print(thead_str[args.type])
 
@@ -99,7 +100,8 @@ def main():
     syscTime = 0
     utLastTime = 0
     userTime = 0
-    sums = [0 for _ in range(10)]
+    syscCount = 0
+    sums = [0 for _ in range(11)]
 
     _line = line = 0
 
@@ -163,19 +165,25 @@ def main():
         # 记录总的Sysc时间
         dtaSys = dtaKT + dtaSysc
 
+        # 记录syscall的频率
+        _syscCount = syscCount
+        syscCount = bpf["countMap"][2].value
+        dtaSyscCount = syscCount - _syscCount
+
         # 第一次的数据不准，不予记录
         if line != 0:
             # 记录总值，以计算平均值
-            sums[0] += proc_s  
-            sums[1] += cswch_s 
-            sums[2] += runqlen 
-            sums[3] += dtaIrq  
-            sums[4] += dtaSoft 
-            sums[5] += dtaIdle 
-            sums[6] += dtaKT   
-            sums[7] += dtaSysc 
-            sums[8] += dtaUTRaw
-            sums[9] += dtaSys  
+            sums[0]  += proc_s  
+            sums[1]  += cswch_s 
+            sums[2]  += runqlen 
+            sums[3]  += dtaIrq  
+            sums[4]  += dtaSoft 
+            sums[5]  += dtaIdle 
+            sums[6]  += dtaKT   
+            sums[7]  += dtaSysc 
+            sums[8]  += dtaUTRaw
+            sums[9]  += dtaSys  
+            sums[10] += dtaSyscCount
 
         # 最后一次打印，要输出平均值
         if line == args.count or exiting == 1:
@@ -191,20 +199,21 @@ def main():
             dtaSysc        = sums[7] / line
             dtaUTRaw       = sums[8] / line
             dtaSys         = sums[9] / line
+            dtaSyscCount   = sums[10] / line
             print("\n", thead_str[args.type])
         else:
             timeStr = time.strftime("%H:%M:%S")
         
         # 按照类型输出信息
-        if args.type == "time":
-            print("%8s %6d  %7d  %7d  %10d  %10d  %7d  %10d  %7d  %8d %6d" %
+        if args.type == "time": # 输出时间型
+            print("%8s  %6d  %7d  %7d  %10d  %10d  %7d  %10d  %7d  %8d  %6d  %8d" %
                 (timeStr, proc_s, cswch_s, runqlen, dtaIrq / 1000, dtaSoft / 1000, 
                 dtaIdle / 1000000, dtaKT / 1000, dtaSysc / 1000000, dtaUTRaw / 1000000,
-                dtaSys / 1000000,
+                dtaSys / 1000000, dtaSyscCount,
                 ) )
         else:
-            fmt = ["%8s", "%6d", "%7d", "%7d", "%10.1f", "%10.1f", "%7.1f", "%10.1f", "%7.1f", "%8.1f", "%6.1f"]
-            nums = [timeStr, proc_s, cswch_s, runqlen, dtaIrq, dtaSoft, dtaIdle, dtaKT, dtaSysc, dtaUTRaw, dtaSys]
+            fmt = ["%8s", "%6d", "%7d", "%7d", "%10.1f", "%10.1f", "%7.1f", "%10.1f", "%7.1f", "%8.1f", "%6.1f", "%8d"]
+            nums = [timeStr, proc_s, cswch_s, runqlen, dtaIrq, dtaSoft, dtaIdle, dtaKT, dtaSysc, dtaUTRaw, dtaSys, dtaSyscCount]
             
             # 自动检查格式并匹配
             target = []
@@ -229,7 +238,7 @@ def main():
                 else:
                     target.append(' ')
 
-            print("%s %s  %s  %s  %s  %s  %s  %s  %s  %s %s" % tuple(target))
+            print(("%s  " * len(target)) % tuple(target))
 
         _line += 1
         line += 1
