@@ -33,7 +33,7 @@ def attach_probe():
 
     bpf.attach_tracepoint(tp="raw_syscalls:sys_enter", fn_name="trace_sys_enter")
     bpf.attach_tracepoint(tp="raw_syscalls:sys_exit", fn_name="trace_sys_exit")
-    bpf.attach_kprobe(event="exit_to_user_mode_prepare",fn_name="exit_to_user_mode_prepare")
+    # bpf.attach_kprobe(event="exit_to_user_mode_prepare",fn_name="exit_to_user_mode_prepare")
 
     # 上下文切换完成后的函数，包含了当前进程的ts和过去进程的ts
     bpf.attach_kprobe(event_re="^finish_task_switch$|^finish_task_switch\.isra\.\d$",
