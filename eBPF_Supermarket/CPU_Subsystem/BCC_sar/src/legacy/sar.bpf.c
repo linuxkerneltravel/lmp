@@ -135,6 +135,11 @@ __always_inline static void on_user_enter(u64 time) {
 	usermodeMap.update(&pid, &us);
 }
 
+// // 进入用户态(这个函数是irq和syscall共用的，现在废弃)
+// int exit_to_user_mode_prepare() {
+	
+// 	return 0;
+// }
 
 // 在sched_switch中记录系统调用花费的时间
 __always_inline static void record_sysc(u64 time, pid_t prev, pid_t next) {
@@ -194,6 +199,7 @@ __always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
 // 获取进程切换数
 int trace_sched_switch(struct cswch_args *info) {
 	pid_t prev = info->prev_pid, next = info->next_pid;
+	// bpf_trace_printk("sched_switch %d -> %d\n", prev, next);
 
 	if (prev != next) {
 		u32 key = 0;
@@ -207,10 +213,10 @@ int trace_sched_switch(struct cswch_args *info) {
 		procStartTime.update(&pid, &time);
 
 		// Step2: Syscall时间处理
-		// record_sysc(time, prev, next);
+		record_sysc(time, prev, next);
 
 		// Step3: UserMode时间处理
-		// record_user(time, prev, next);
+		record_user(time, prev, next);
 
 		// Step4: 记录上下文切换的总次数
 		valp = countMap.lookup(&key);
@@ -282,7 +288,7 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 }
 
 // 系统调用进入的信号（同时退出用户态）
-/* int trace_sys_enter() {
+int trace_sys_enter() {
 	u64 time = bpf_ktime_get_ns();
 	struct task_struct *ts = bpf_get_current_task();
 	char comm[16]; // task_struct结构体内comm的位数为16
@@ -308,17 +314,15 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 	on_user_exit(time, pid, ts->flags);
 	return 0;
 }
-*/
 
 // 系统调用退出信号
-/* int trace_sys_exit() {
+int trace_sys_exit() {
 	u64 time = bpf_ktime_get_ns();
 
 	on_sys_exit(time); // 使用统一的时间节点
 	on_user_enter(time);
 	return 0;
 }
-*/
 
 // 两个CPU各自会产生一个调用，这正好方便我们使用
 int tick_update(struct pt_regs *ctx) {
@@ -365,10 +369,14 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 			if (valp) *valp += delta;
 			else idleLastTime.update(&key, &delta);
 		}
+
+		// bpf_trace_printk("End idle.\n");
 	} else {
 		// 开始idle
 		u64 val = time;
 		idleStart.update(&key, &val);
+
+		// bpf_trace_printk("Begin idle.\n");
 	}
 	return 0;
 }
@@ -376,6 +384,7 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 // softirq入口函数
 // SEC("tracepoint/irq/softirq_entry")
 int trace_softirq_entry(struct __softirq_info *info) {
+	// bpf_trace_printk("softirq entry %d\n", info->vec);
 	u32 key = info->vec;
 	u64 val = bpf_ktime_get_ns();
 
@@ -386,6 +395,7 @@ int trace_softirq_entry(struct __softirq_info *info) {
 // softirq出口函数
 // SEC("tracepoint/irq/softirq_exit")
 int trace_softirq_exit(struct __softirq_info *info) {
+	// bpf_trace_printk("softirq exit %d\n", info->vec);
 	u32 key = info->vec;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 
@@ -423,6 +433,7 @@ int update_rq_clock(struct pt_regs *ctx) {
 
 // SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
+	// bpf_trace_printk("irq entry %d\n", info->irq);
 	u32 key = info->irq;
 	u64 val = bpf_ktime_get_ns();
 
@@ -432,6 +443,7 @@ int trace_irq_handler_entry(struct __irq_info *info) {
 
 // SEC("tracepoint/irq/irq_handler_exit")
 int trace_irq_handler_exit(struct __irq_info *info) {
+	// bpf_trace_printk("irq exit %d\n", info->irq);
 	u32 key = info->irq;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 
