@@ -1,6 +1,7 @@
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
 // #define TASK_IDLE			0x0402
+#define COUNT_BPF 1
 
 struct rq {
 	raw_spinlock_t lock;
@@ -94,6 +95,7 @@ struct __irq_info {
 	u32 irq;
 };
 
+/* 之前关于记录sysc时间和用户时间的一系列函数
 __always_inline static void on_sys_exit(u64 time) {
 	struct task_struct *ts = bpf_get_current_task();
 
@@ -191,8 +193,18 @@ __always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
 	}
 }
 
+*/
+
 // 获取进程切换数
 int trace_sched_switch(struct cswch_args *info) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	pid_t prev = info->prev_pid, next = info->next_pid;
 
 	if (prev != next) {
@@ -230,6 +242,14 @@ int trace_sched_switch(struct cswch_args *info) {
 
 // 计算各进程运行的时间（包括用户态和内核态）
 int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	int pid;
 	u64 *valp, time = bpf_ktime_get_ns(), delta;
 	struct task_struct *ts = bpf_get_current_task();
@@ -262,7 +282,7 @@ int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
 	return 0;
 }
 
-__always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
+/*__always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 	// Step1: 查询之前进入用户态的时间，记录退出用户态的时间，并将其累加到userTime
 	struct user_state *valp, us;
 	u32 key = 0;
@@ -279,7 +299,7 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 	us.start = time;
 	us.in_user = 0;
 	usermodeMap.update(&pid, &us);
-}
+}*/
 
 // 系统调用进入的信号（同时退出用户态）
 /* int trace_sys_enter() {
@@ -322,6 +342,14 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 
 // 两个CPU各自会产生一个调用，这正好方便我们使用
 int tick_update(struct pt_regs *ctx) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	// bpf_trace_printk("cs_rpl = %x\n", ctx->cs & 3);
 	u32 key = 0;
 	u64 val, *valp;
@@ -351,6 +379,14 @@ int tick_update(struct pt_regs *ctx) {
 
 /* 只有IDLE-0（0号进程）才可以执行cpu_idle的代码 */
 int trace_cpu_idle(struct idleStruct *pIDLE) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u64 delta, time = bpf_ktime_get_ns();
 	u32 key = pIDLE->cpu_id;
 	// 按cpuid记录空闲的开始，这十分重要，因为IDLE-0进程可同时运行在两个核上
@@ -376,6 +412,14 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 // softirq入口函数
 // SEC("tracepoint/irq/softirq_entry")
 int trace_softirq_entry(struct __softirq_info *info) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->vec;
 	u64 val = bpf_ktime_get_ns();
 
@@ -386,6 +430,14 @@ int trace_softirq_entry(struct __softirq_info *info) {
 // softirq出口函数
 // SEC("tracepoint/irq/softirq_exit")
 int trace_softirq_exit(struct __softirq_info *info) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->vec;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 
@@ -405,6 +457,14 @@ int trace_softirq_exit(struct __softirq_info *info) {
 // 获取运行队列长度
 // SEC("kprobe/update_rq_clock")
 int update_rq_clock(struct pt_regs *ctx) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key     = 0;
 	u32 rqKey	= 0;
 	struct rq *p_rq = 0;
@@ -423,6 +483,14 @@ int update_rq_clock(struct pt_regs *ctx) {
 
 // SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->irq;
 	u64 val = bpf_ktime_get_ns();
 
@@ -432,6 +500,14 @@ int trace_irq_handler_entry(struct __irq_info *info) {
 
 // SEC("tracepoint/irq/irq_handler_exit")
 int trace_irq_handler_exit(struct __irq_info *info) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->irq;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 
