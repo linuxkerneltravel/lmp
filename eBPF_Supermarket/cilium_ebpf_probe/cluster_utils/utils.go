@@ -161,7 +161,6 @@ func GetPodELFPath(clientset *kubernetes.Clientset, nodeName string, namespace s
 
 	// 2. traverse containerStatuses and get processes
 	for _, containerStatus := range containerStatuses {
-		fmt.Println(1111)
 		if containerStatus.Image == img {
 			fmt.Println("get specific docker of image ", img)
 			containerID := containerStatus.ContainerID

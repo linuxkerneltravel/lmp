@@ -37,7 +37,7 @@ func main() {
 			ErrPrint(err)
 			fmt.Println("response statuscode is", resp.StatusCode, " and res body is ", string(res))
 			resp.Body.Close()
-			time.Sleep(time.Duration(1000) * time.Millisecond)
+			time.Sleep(time.Duration(200) * time.Millisecond)
 		}
 		<-timeTickerChan
 	}

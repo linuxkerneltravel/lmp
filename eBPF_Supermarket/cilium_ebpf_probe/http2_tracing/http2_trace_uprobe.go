@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/iovisor/gobpf/bcc"
+	"github.com/xuri/excelize/v2"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,13 +31,20 @@ type http2HeaderEvent struct {
 	Name  headerField
 	Value headerField
 }
+type formatedHeaderevent struct {
+	Key   string
+	Value string
+}
 
 type writeHeaderEvent struct {
 	Headerevent [2]http2HeaderEvent
+	Sid         int32
 	Ns          int64
 }
 type operatorHeaderEvent struct {
 	Headerevent [8]http2HeaderEvent
+	Sid         int32
+	W           int8
 	Ns          int64
 }
 
@@ -83,6 +92,7 @@ var (
 	beginch             chan beginTimeEvent
 	endch               chan endTimeEvent
 	pn                  string
+	requestSlice        map[int32][]formatedHeaderevent
 	histogramRegistered = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "grpc_spend",
@@ -163,8 +173,9 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 		panic("Argument --binary needs to be specified")
 	}
 	pn = podname
-	prometheus.Register(histogramRegistered)
 
+	prometheus.Register(histogramRegistered)
+	requestSlice = make(map[int32][]formatedHeaderevent)
 	fmt.Println("Attach 1 uprobe on ", binaryProg)
 	bccMod := bcc.NewModule(bpfProgram, []string{})
 	const loopWriterWriteHeaderSymbol = "google.golang.org/grpc/internal/transport.(*loopyWriter).writeHeader"
@@ -218,7 +229,29 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 	perstatusmap := &PerStatusWithLock{perStatus: make(map[time.Time][]perTimeStatus)}
 	tmp := endTimeEvent{}
 	go parseToSturctFromChannel(perstatusmap)
+
+	f := excelize.NewFile()
+	index := f.NewSheet("Sheet1")
+	f.SetActiveSheet(index)
+
+	stringToAlpha := make(map[string]string)
+	stringToAlpha[":method"] = "B"
+	stringToAlpha[":scheme"] = "C"
+	stringToAlpha[":path"] = "D"
+	stringToAlpha[":authority"] = "E"
+	stringToAlpha["content-type"] = "F"
+	stringToAlpha["user-agent"] = "G"
+	stringToAlpha["te"] = "H"
+	stringToAlpha["grpc-timeout"] = "I"
+	stringToAlpha["weight"] = "J"
+	stringToAlpha[":status"] = "K"
+	stringToAlpha["content-type"] = "L"
+	stringToAlpha["grpc-status"] = "M"
+	stringToAlpha["grpc-message"] = "N"
+
+	// 创建一个工作表
 	//go PrintStaticsNumber(perstatusmap)
+	count := 1
 	for {
 		select {
 		case <-intCh:
@@ -229,11 +262,22 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 			if err := binary.Read(bytes.NewBuffer(v2), bcc.GetHostByteOrder(), &parsed2); err != nil {
 				panic(err)
 			}
-			fmt.Printf("%s \n", color.BlueString("%s", "data from grpc received"))
+
+			streamid := parsed2.Sid
 			for _, v := range parsed2.Headerevent {
-				fmt.Printf("[%s]=%s;", formatHeaderField(v.Name), color.GreenString("%s", formatHeaderField(v.Value)))
+				alphakey := formatHeaderField(v.Name)
+				alphavalue := formatHeaderField(v.Value)
+				requestSlice[streamid] = append(requestSlice[streamid], formatedHeaderevent{
+					Key:   alphakey,
+					Value: alphavalue,
+				})
+
+				f.SetCellValue("Sheet1", stringToAlpha[alphakey]+strconv.Itoa(count), alphavalue)
 			}
-			fmt.Printf("\n")
+			requestSlice[streamid] = append(requestSlice[streamid], formatedHeaderevent{
+				Key:   "weight",
+				Value: strconv.FormatInt(int64(parsed2.W), 10),
+			})
 			beginch <- beginTimeEvent{T: time.Now().Unix(), Ns: parsed2.Ns} //add to begin
 		case v1 := <-ch: //write on end
 
@@ -242,20 +286,40 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 				panic(err)
 			}
 
-			fmt.Printf("%s \n", color.BlueString("%s", "data from grpc header to send"))
-
+			//fmt.Printf("%s \n", color.BlueString("%s", "data from grpc header to send"))
+			streamid := parsed.Sid
+			f.SetCellValue("Sheet1", "A"+strconv.Itoa(count), strconv.Itoa(int(streamid)))
 			for _, v := range parsed.Headerevent {
 
 				if strings.EqualFold(formatHeaderField(v.Name), ":status") {
 					tmp.StatusCode = formatHeaderField(v.Value)
 				}
-				fmt.Printf("[%s]=%s；", formatHeaderField(v.Name), color.GreenString("%s", formatHeaderField(v.Value)))
+				alphakey := formatHeaderField(v.Name)
+				alphavalue := formatHeaderField(v.Value)
+				//fmt.Printf("[%s]=%s；", formatHeaderField(v.Name), color.GreenString("%s", formatHeaderField(v.Value)))
+				requestSlice[streamid] = append(requestSlice[streamid], formatedHeaderevent{
+					Key:   alphakey,
+					Value: alphavalue,
+				})
+				f.SetCellValue("Sheet1", stringToAlpha[alphakey]+strconv.Itoa(count), alphavalue)
 			}
 			if parsed.Ns != 0 {
 				tmp.Ns = parsed.Ns
 				endch <- tmp // add to end chan
+				fmt.Printf("HTTP2 from %s [%d](stream id:%d):", color.BlueString("%s", podname), count, streamid)
+				for _, item := range requestSlice[streamid] {
+					fmt.Printf("%s:%s,", item.Key, color.GreenString("%s", item.Value))
+				}
+				fmt.Printf("\n")
+				count += 1
+				if count == 20 {
+					if err := f.SaveAs("Book5.xlsx"); err != nil {
+						println(err.Error())
+
+					}
+				}
+
 			}
-			fmt.Printf("\n")
 		}
 	}
 }
