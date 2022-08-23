@@ -55,7 +55,7 @@ struct sysc_state {
 	unsigned int flags;
 	int pad; // 必须要有的pad项
 };
-BPF_HASH(syscMap, u32, struct sysc_state, 1024);
+BPF_HASH(syscMap, u32, struct sysc_state, 8192);
 BPF_ARRAY(syscTime, u64, 1);
 
 struct user_state {
@@ -63,7 +63,7 @@ struct user_state {
 	u64 in_user;
 };
 
-BPF_HASH(usermodeMap, u32, struct user_state, 1024);
+BPF_HASH(usermodeMap, u32, struct user_state, 8192);
 
 struct __softirq_info {
 	u64 pad;
@@ -119,24 +119,25 @@ __always_inline static void on_sys_exit(u64 time) {
 	syscMap.update(&pid, &sysc);
 }
 
-// 进入用户态
-int exit_to_user_mode_prepare() {
+__always_inline static void on_user_enter(u64 time) {
 	// Step1: 记录user开始时间，和当前的in_user状态
 	struct user_state us;
 	struct task_struct *ts = bpf_get_current_task();
 
 	u32 pid = ts->pid;
-	u64 time = bpf_ktime_get_ns();
 
 	us.start = time;
 	us.in_user = 1;
 
 	// Step2: 更新usermodeMap
 	usermodeMap.update(&pid, &us);
-
-	on_sys_exit(time); // 使用统一的时间节点
-	return 0;
 }
+
+// // 进入用户态(这个函数是irq和syscall共用的，现在废弃)
+// int exit_to_user_mode_prepare() {
+	
+// 	return 0;
+// }
 
 // 在sched_switch中记录系统调用花费的时间
 __always_inline static void record_sysc(u64 time, pid_t prev, pid_t next) {
@@ -163,7 +164,10 @@ __always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
 	// 旧进程：检查是否处于用户态，如果是，更新总时间userTime
 	struct user_state *us = usermodeMap.lookup(&prev);
 	struct sysc_state *sysc = syscMap.lookup(&prev);
-	if (us && us->in_user) {
+	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
+
+	// 不记录IDLE和KTHREAD的用户态时间
+	if (us && us->in_user && !(ts->flags & PF_KTHREAD) && !(ts->flags & PF_IDLE) ) {
 		u64 delta = time - us->start;
 
 		u32 key = 0;
@@ -176,6 +180,17 @@ __always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
 	us = usermodeMap.lookup(&next);
 	if (us && us->in_user) {
 		us->start = time;
+	} else if (!us) {
+		// 此时进程是第一次执行，需要判断其状态（或者此进程为永不会记录的内核线程）
+		// 我们简单地将它的认为是用户态。若误判，当前是sys，那么下一次sys_exit触发用户态进入信号，
+		// 那时之前未统计的错当成的用户时间被舍弃
+
+		// * 有必要查询task_struct结构体哪个字段记录了用户进程的状态
+		struct user_state _us;
+		_us.start = time;
+		_us.in_user = 1;
+		usermodeMap.update(&next, &_us);
+		// bpf_trace_printk("pid %d start.\n", next);
 	}
 }
 
@@ -272,9 +287,9 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 
 // 系统调用进入的信号（同时退出用户态）
 int trace_sys_enter() {
-	char comm[16]; // task_struct结构体内comm的位数为16
 	struct task_struct *ts = bpf_get_current_task();
-
+	char comm[16]; // task_struct结构体内comm的位数为16
+	
 	// Step1: 打印进程进入Syscall的信息
 	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
 	// if (comm[0] == 'd' && comm[1] == 'd')
@@ -297,43 +312,16 @@ int trace_sys_enter() {
 
 // 系统调用退出信号
 int trace_sys_exit() {
-	/*
-	char comm[16]; // task_struct结构体内comm的位数为16
-	struct task_struct *ts = bpf_get_current_task();
+	u64 time = bpf_ktime_get_ns();
 
-	// Step1: 打印进程退出Syscall的信息
-	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
-	// if (comm[0] == 'd' && comm[1] == 'd')
-	// 	bpf_trace_printk("sys_exit\n");
-
-	// Step2：累加进程Syscall时间到syscTime
-	struct sysc_state sysc;
-	u32 pid = ts->pid, key = 0;
-	u64 time = bpf_ktime_get_ns(), delta;
-	struct sysc_state *valp;
-	
-	valp = syscMap.lookup(&pid);
-
-	// Step2.5 确保当前进程之前存在记录，且既不是内核线程，也不是空闲线程，可以放心记录
-	if (valp && !(valp->flags & PF_IDLE) && !(valp->flags & PF_KTHREAD) && valp->in_sysc) {
-		delta = time - valp->start;
-		u64 *valq = syscTime.lookup(&key);
-		if (valq) *valq += delta;
-		else syscTime.update(&key, &delta);
-	}
-
-	// Step3: 更新进程的Syscall状态为不在Syscall，并更新进入时间（Optional）
-	sysc.start = time;
-	sysc.flags = ts->flags;
-	sysc.in_sysc = 0;
-	sysc.pad = 0;
-	syscMap.update(&pid, &sysc);
-	*/
+	on_sys_exit(time); // 使用统一的时间节点
+	on_user_enter(time);
 	return 0;
 }
 
 // 两个CPU各自会产生一个调用，这正好方便我们使用
-int tick_update() {
+int tick_update(struct pt_regs *ctx) {
+	// bpf_trace_printk("ip = %x\n", ctx->ip);
 	u32 key = 0;
 	u64 val, *valp;
 
