@@ -97,11 +97,9 @@ def main():
     softTime = 0
     idleTime = 0
     ktLastTime = 0
-    syscTime = 0
     utLastTime = 0
-    userTime = 0
-    syscCount = 0
-    sums = [0 for _ in range(11)]
+    tick_user = 0
+    sums = [0 for _ in range(10)]
 
     _line = line = 0
 
@@ -146,29 +144,10 @@ def main():
         ktLastTime = bpf['ktLastTime'][0].value
         dtaKT = (ktLastTime - _ktLastTime) # ns
 
-        # syscall占用时间
-        _syscTime = syscTime
-        syscTime = bpf['syscTime'][0].value
-        dtaSysc = (syscTime - _syscTime)
-
         # userThread占用时间
         _utLastTime = utLastTime
         utLastTime = bpf['utLastTime'][0].value
-        dtaUTime = utLastTime - _utLastTime
-        dtaUTime = (dtaUTime - (syscTime - _syscTime))
-
-        # 记录直接统计的（相较于总体-Sysc的）的用户态占用时间
-        _userTime = userTime
-        userTime = bpf['userTime'][0].value
-        dtaUTRaw = userTime - _userTime
-
-        # 记录总的Sysc时间
-        dtaSys = dtaKT + dtaSysc
-
-        # 记录syscall的频率
-        _syscCount = syscCount
-        syscCount = bpf["countMap"][2].value
-        dtaSyscCount = syscCount - _syscCount
+        dtaUTLastTime = utLastTime - _utLastTime
 
         # 第一次的数据不准，不予记录
         if line != 0:
@@ -183,7 +162,6 @@ def main():
             sums[7]  += dtaSysc 
             sums[8]  += dtaUTRaw
             sums[9]  += dtaSys  
-            sums[10] += dtaSyscCount
 
         # 最后一次打印，要输出平均值
         if line == args.count or exiting == 1:
@@ -199,17 +177,31 @@ def main():
             dtaSysc        = sums[7] / line
             dtaUTRaw       = sums[8] / line
             dtaSys         = sums[9] / line
-            dtaSyscCount   = sums[10] / line
             print("\n", thead_str[args.type])
         else:
             timeStr = time.strftime("%H:%M:%S")
         
+        _tick_user = tick_user
+        tick_users = bpf['tick_user'][0]
+        tick_user = 0
+        for i in tick_users:
+            tick_user += i
+        dtaTickUser = tick_user - _tick_user
+
+        # 这一段用tick计算的userTime来替换之前用syscall计算的userTime
+        dtaUTRaw = dtaTickUser / config.getint("numbers", "sample_freq") * 1000000000
+        dtaSysc = dtaUTLastTime - dtaUTRaw # 实际上包含了部分BPF（如果有的话）
+        # 普通用户进程可近似看做只含有usr和syscall(省略了irq & softirq)
+
+        # 记录总的Sysc时间
+        dtaSys = dtaKT + dtaSysc
+
         # 按照类型输出信息
         if args.type == "time": # 输出时间型
             print("%8s  %6d  %7d  %7d  %10d  %10d  %7d  %10d  %7d  %8d  %6d  %8d" %
                 (timeStr, proc_s, cswch_s, runqlen, dtaIrq / 1000, dtaSoft / 1000, 
                 dtaIdle / 1000000, dtaKT / 1000, dtaSysc / 1000000, dtaUTRaw / 1000000,
-                dtaSys / 1000000, dtaSyscCount,
+                dtaSys / 1000000
                 ) )
         else:
             fmt = ["%8s", "%6d", "%7d", "%7d", "%10.1f", "%10.1f", "%7.1f", "%10.1f", "%7.1f", "%8.1f", "%6.1f", "%8d"]
