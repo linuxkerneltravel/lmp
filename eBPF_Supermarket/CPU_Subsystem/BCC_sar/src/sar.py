@@ -31,8 +31,8 @@ def attach_probe():
     bpf.attach_tracepoint(tp="irq:irq_handler_exit", fn_name="trace_irq_handler_exit")
     bpf.attach_tracepoint(tp="power:cpu_idle", fn_name="trace_cpu_idle")
 
-    bpf.attach_tracepoint(tp="raw_syscalls:sys_enter", fn_name="trace_sys_enter")
-    bpf.attach_tracepoint(tp="raw_syscalls:sys_exit", fn_name="trace_sys_exit")
+    # bpf.attach_tracepoint(tp="raw_syscalls:sys_enter", fn_name="trace_sys_enter")
+    # bpf.attach_tracepoint(tp="raw_syscalls:sys_exit", fn_name="trace_sys_exit")
     # bpf.attach_kprobe(event="exit_to_user_mode_prepare",fn_name="exit_to_user_mode_prepare")
 
     # 上下文切换完成后的函数，包含了当前进程的ts和过去进程的ts
@@ -85,8 +85,8 @@ def main():
     print("Tracing for Data's... Ctrl-C to end")
     thead_str = {
         # 需要严格保持每两个表项之间间隔两个空格
-        "time":     r"  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  syscFreq",
-        "percent":  r"  time    proc/s  cswch/s  runqlen   irqTime/%   softirq/%   idle/%   kthread/%   sysc/%   utime/%   sys/%  syscFreq"
+        "time":     r"  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt",
+        "percent":  r"  time    proc/s  cswch/s  runqlen   irqTime/%   softirq/%   idle/%   kthread/%   sysc/%   utime/%   sys/%  BpfCnt"
     }
     print(thead_str[args.type])
 
@@ -99,6 +99,7 @@ def main():
     ktLastTime = 0
     utLastTime = 0
     tick_user = 0
+    bpfCount = 0
     sums = [0 for _ in range(10)]
 
     _line = line = 0
@@ -196,16 +197,20 @@ def main():
         # 记录总的Sysc时间
         dtaSys = dtaKT + dtaSysc
 
+        _bpfCount = bpfCount
+        bpfCount = bpf["countMap"][2].value
+        dtaBpfCount = bpfCount - _bpfCount
+
         # 按照类型输出信息
         if args.type == "time": # 输出时间型
-            print("%8s  %6d  %7d  %7d  %10d  %10d  %7d  %10d  %7d  %8d  %6d  %8d" %
+            print("%8s  %6d  %7d  %7d  %10d  %10d  %7d  %10d  %7d  %8d  %6d  %6d" %
                 (timeStr, proc_s, cswch_s, runqlen, dtaIrq / 1000, dtaSoft / 1000, 
                 dtaIdle / 1000000, dtaKT / 1000, dtaSysc / 1000000, dtaUTRaw / 1000000,
-                dtaSys / 1000000
+                dtaSys / 1000000, dtaBpfCount
                 ) )
         else:
-            fmt = ["%8s", "%6d", "%7d", "%7d", "%10.1f", "%10.1f", "%7.1f", "%10.1f", "%7.1f", "%8.1f", "%6.1f", "%8d"]
-            nums = [timeStr, proc_s, cswch_s, runqlen, dtaIrq, dtaSoft, dtaIdle, dtaKT, dtaSysc, dtaUTRaw, dtaSys, dtaSyscCount]
+            fmt = ["%8s", "%6d", "%7d", "%7d", "%10.1f", "%10.1f", "%7.1f", "%10.1f", "%7.1f", "%8.1f", "%6.1f", "%6d"]
+            nums = [timeStr, proc_s, cswch_s, runqlen, dtaIrq, dtaSoft, dtaIdle, dtaKT, dtaSysc, dtaUTRaw, dtaSys, dtaBpfCount]
             
             # 自动检查格式并匹配
             target = []
@@ -240,7 +245,8 @@ def main():
 
         # 需要再次打印表头
         if _line == config.getint("numbers", "thead_reprint_lines"):
-            print("\n", thead_str[args.type])
+            print()
+            print(thead_str[args.type])
             _line = 0
 
         # 打印BPF程序中的输出
