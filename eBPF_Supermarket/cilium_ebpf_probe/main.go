@@ -22,10 +22,24 @@ import (
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/openstack"
 )
 
+var (
+	kubeconfig *string
+	pod        *string
+	poduprobe  *string
+	imagename  *string
+	imagename2 *string
+)
+
 func main() {
-	var kubeconfig *string
 	//$KUBECONFIG=/etc/kubernetes/admin.conf
 	kubeconfig = flag.String("kubeconfig", "/etc/kubernetes/admin.conf", "absolute path to the kubeconfig file")
+
+	pod = flag.String("pod", "httpserver", "pod name of http protocol")
+	poduprobe = flag.String("poduprobe", "grpcserver", "pod name of http2 protocol")
+
+	imagename = flag.String("image1", "wyuei/http_server:v2.0", "docker image of http protocol")
+	imagename2 = flag.String("image2", "wyuei/grpc_server:latest", "docker image of http2 protocl")
+
 	flag.Parse()
 
 	// use the current context in kubeconfig
@@ -53,8 +67,7 @@ func main() {
 	// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
 	namespace := "wyw"
 	/*******kprobe on pod************/
-	pod := "httpserver"
-	p, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), pod, metav1.GetOptions{})
+	p, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), *pod, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
 	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
@@ -64,17 +77,16 @@ func main() {
 		panic(err.Error())
 	} else {
 		fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
-		res, _ := cluster_utils.GetAllPodProcess(clientset, "k8s-node2", namespace, pod, p.Status.ContainerStatuses, "wyuei/http_server:v2.0")
+		res, _ := cluster_utils.GetAllPodProcess(clientset, "k8s-node2", namespace, *pod, p.Status.ContainerStatuses, *imagename)
 		for k, v := range res {
 			fmt.Printf("get pod %s Pid and Attach Kprobe\n", k.Name)
-			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), pod)
+			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), *pod)
 		}
 	}
 
 	/*******uprobe on pod************/
-	poduprobe := "grpcserver"
 	binaryPath := "/go/src/grpc_server/main"
-	p2, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), poduprobe, metav1.GetOptions{})
+	p2, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), *poduprobe, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		fmt.Printf("Pod %s in namespace %s not found\n", poduprobe, namespace)
 	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
@@ -84,10 +96,10 @@ func main() {
 		panic(err.Error())
 	} else {
 		fmt.Printf("Found pod %s in namespace %s\n", poduprobe, namespace)
-		res, _ := cluster_utils.GetPodELFPath(clientset, "k8s-node2", namespace, poduprobe, p2.Status.ContainerStatuses, "wyuei/grpc_server:latest")
+		res, _ := cluster_utils.GetPodELFPath(clientset, "k8s-node2", namespace, *poduprobe, p2.Status.ContainerStatuses, *imagename2)
 		for k, v := range res {
 			fmt.Printf("get pod %s Merge Path and Attach Uprobe\n", k.Name)
-			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, poduprobe)
+			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, *poduprobe)
 		}
 	}
 	select {}
