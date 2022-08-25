@@ -288,6 +288,7 @@ func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
 			} else {
 				if !running {
 					_ = client.WriteMessage(websocket.TextMessage, []byte("插件已停止运行"))
+					global.GVA_LOG.Info("插件已卸载")
 					_ = client.Close()
 					return
 				}
