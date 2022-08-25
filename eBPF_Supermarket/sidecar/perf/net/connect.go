@@ -1,4 +1,4 @@
-package perf
+package net
 
 import (
 	"fmt"
