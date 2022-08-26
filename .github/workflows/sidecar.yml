@@ -28,7 +28,7 @@ jobs:
           # For Jammy (22.04)
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.20.0 https://github.com/iovisor/bcc.git
+          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
           mkdir bcc/build; cd bcc/build
           cmake ..
           make
@@ -77,7 +77,7 @@ jobs:
           # For Jammy (22.04)
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.20.0 https://github.com/iovisor/bcc.git
+          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
           mkdir bcc/build; cd bcc/build
           cmake ..
           make
