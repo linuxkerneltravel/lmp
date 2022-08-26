@@ -7,8 +7,13 @@ import bpfutil, ctypes
 
 bpf = BPF(src_file="wakeup.c")
 bpf.attach_tracepoint(tp="sched:sched_wakeup", fn_name="trace_wakeup")
-bpf.attach_tracepoint(tp="sched:sched_process_wait", fn_name="trace_wait")
-bpf.attach_tracepoint(tp="sched:sched_stat_blocked",fn_name="trace_block")
+bpf.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_sched_switch")
+# bpf.attach_kprobe(event="ttwu_do_wakeup", fn_name="ttwu_do_wakeup")
+
+# bpf.attach_kprobe(event="wake_up_process", fn_name="kprobe_wake_up_process")
+
+# bpf.attach_kprobe(event="try_to_wake_up", fn_name="kprobe_try_to_wake_up")
+# bpf.attach_kretprobe(event="try_to_wake_up", fn_name="kretprobe_try_to_wake_up")
 
 # 传递给bpf程序的定时事件
 bpf.attach_perf_event(ev_type=PerfType.SOFTWARE,
@@ -31,5 +36,36 @@ bpf['symAddr'][1] = ctypes.c_ulonglong(runqueues)
 # print(bpfutil.find_ksym("__per_cpu_offset"))
 # 计算方式：ptr_to_PERCPU_var + __per_cpu_offset[cpu]
 
+target_pid = 10327
+nowtime = 0
 while 1:
+    runlast = waitlast = sleeplast = 0
+
+    if ctypes.c_uint32(target_pid) in bpf["runlast"]: 
+        runlast = bpf['runlast'][ctypes.c_uint32(target_pid)].value
+    if ctypes.c_uint32(target_pid) in bpf["waitlast"]: 
+        waitlast = bpf['waitlast'][ctypes.c_uint32(target_pid)].value
+    if ctypes.c_uint32(target_pid) in bpf["sleeplast"]: 
+        sleeplast = bpf['sleeplast'][ctypes.c_uint32(target_pid)].value
+    
+    all = runlast + waitlast + sleeplast
+    # print(runlast / 1000000)
+    # print(waitlast / 1000000)
+    # print(sleeplast / 1000000)
+    print(all / 1000000, nowtime * 1000)
+
     sleep(1)
+    nowtime += 1
+
+'''
+# process event
+def print_event(cpu, data, size):
+    event = bpf["events"].event(data)
+    print("recv msg.")
+
+# loop with callback to print_event
+bpf["events"].open_perf_buffer(print_event)
+
+while 1:
+    bpf.perf_buffer_poll()
+'''

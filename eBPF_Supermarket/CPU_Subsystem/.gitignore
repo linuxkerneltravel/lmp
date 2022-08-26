@@ -5,3 +5,8 @@ bpf_bpfel.o
 temp_data/
 # 排除所有headers目录下的vmlinux
 **/headers/vmlinux.h
+
+*/test/process
+*/test/pthread
+
+*/temp
