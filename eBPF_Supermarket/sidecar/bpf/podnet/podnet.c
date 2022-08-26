@@ -437,6 +437,7 @@ do_trace(void *ctx, struct sk_buff *skb, const char *func_name, void *netdev)
     /*FILTER_PID*/
 
     struct event_t event = {.pid = pid, .tid = tid};
+    event.ts_ns = bpf_ktime_get_ns();
     union ___skb_pkt_type type = {};
 
     if (do_trace_skb(&event, ctx, skb, netdev) < 0)
@@ -446,7 +447,6 @@ do_trace(void *ctx, struct sk_buff *skb, const char *func_name, void *netdev)
     bpf_probe_read(&type.value, 1, ((char*)skb) + offsetof(typeof(*skb), __pkt_type_offset));
     event.pkt_type = type.pkt_type;
 
-    event.ts_ns = bpf_ktime_get_ns();
     bpf_strncpy(event.func_name, func_name, FUNCNAME_MAX_LEN);
     CALL_STACK(ctx, &event);
     bpf_get_current_comm(&event.task, sizeof(event.task));
@@ -619,8 +619,7 @@ int kprobe__ip_finish_output(struct pt_regs *ctx, struct net *net, struct sock *
 
 #if __BCC_iptable
 static int
-__ipt_do_table_in(struct pt_regs *ctx, struct sk_buff *skb,
-		const struct nf_hook_state *state, struct xt_table *table)
+__ipt_do_table_in(struct pt_regs *ctx, struct sk_buff *skb, const struct nf_hook_state *state, struct xt_table *table)
 {
     u32 pid = bpf_get_current_pid_tgid();
 
