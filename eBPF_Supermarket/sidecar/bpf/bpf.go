@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/iovisor/gobpf/bcc"
 )
@@ -50,8 +49,6 @@ func GetTcpFlags(f int, reversed bool) string {
 		}
 	}
 
-	// TODO: after verifying how it works, delete it.
-	res += strconv.Itoa(f)
 	return res
 }
 
