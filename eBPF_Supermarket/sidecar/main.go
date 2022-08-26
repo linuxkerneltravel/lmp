@@ -19,7 +19,14 @@ func main() {
 	kubeconfig := flag.String("kubeconfig", "", "path to the kubeconfig file")
 	podName := flag.String("pod", "", "name of the pod to inspect")
 	namespace := flag.String("namespace", "default", "namespace for this pod")
+	jaegerAgent := flag.String("jaeger", "", "Jaeger IP and port")
 	flag.Parse()
+
+	if *jaegerAgent == "" {
+		visualization.JaegerAgentHostPort = os.Getenv("VISUALIZE_IP") + ":" + "6831"
+	} else {
+		visualization.JaegerAgentHostPort = *jaegerAgent
+	}
 
 	if *podName == "" {
 		// TODO: testing code, delete it after the test
@@ -81,5 +88,5 @@ func main() {
 		NodeIp:      "UNSET",
 	}
 
-	net.GetKernelNetworkEvent(pidList, portList, so)
+	net.GetKernelNetworkEvent(pidList, portList, so, *podName)
 }
