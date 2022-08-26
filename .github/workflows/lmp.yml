@@ -1,0 +1,31 @@
+name: LMP
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Visualization/eBPF_server/**'
+  pull_request:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Visualization/eBPF_server/**'
+
+jobs:
+  lmp-build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Setup Go environment
+        uses: actions/setup-go@v2.1.3
+        with:
+          go-version: '1.18'
+      
+      - name: make lmp
+        run: |
+          cd eBPF_Visualization/eBPF_server
+          make all
+
