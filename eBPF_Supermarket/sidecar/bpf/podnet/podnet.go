@@ -131,6 +131,26 @@ func (e Event) Print() {
 	// fmt.Println("╚======Pod net end======╝")
 }
 
+type EventList []Event
+
+// Len is the number of elements in the collection.
+func (el EventList) Len() int {
+	return len(el)
+}
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (el EventList) Less(i, j int) bool {
+	return el[i].Time < el[j].Time
+}
+
+// Swap swaps the elements with indexes i and j.
+func (el EventList) Swap(i, j int) {
+	e := el[i]
+	el[i] = el[j]
+	el[j] = e
+}
+
 func getEventFromBpfEventData(bpfEvent bpfEventData) Event {
 	return Event{
 		Time:          time.Duration(int64(bpfEvent.TsNs)),
