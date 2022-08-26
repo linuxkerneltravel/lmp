@@ -265,7 +265,7 @@ func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
 	client, _ := upgrager.Upgrade(c.Writer, c.Request, nil)
 	data_lenth := 0
 	for {
-		err, singleplugindata := ebpfService.FindRows(id)
+		err, singleplugindata, running := ebpfService.FindRows(id)
 		if err != nil {
 			global.GVA_LOG.Error("获取失败", zap.Error(err))
 			_ = client.WriteMessage(websocket.TextMessage, []byte("数据获取失败"))
@@ -280,18 +280,21 @@ func (e *EbpfPluginsApi) GetSinglePluginData(c *gin.Context) {
 				if err != nil {
 					global.GVA_LOG.Error("写入json数据失败", zap.Error(err))
 					_ = client.WriteMessage(websocket.TextMessage, []byte("写入json数据失败"))
+					_ = client.Close()
 					return
 				}
 				time.Sleep(time.Second * 2)
 				data_lenth = len(singleplugindata)
 			} else {
-				if err := client.WriteMessage(websocket.TextMessage, []byte("数据加载完毕，无数据更新")); err != nil {
-					global.GVA_LOG.Error("websocket message写入错误", zap.Error(err))
+				if !running {
+					_ = client.WriteMessage(websocket.TextMessage, []byte("插件已停止运行"))
+					global.GVA_LOG.Info("插件已卸载")
+					_ = client.Close()
+					return
 				}
-				if err := client.Close(); err != nil {
-					global.GVA_LOG.Error("websocket 关闭失败:", zap.Error(err))
-				}
-				return
+				_ = client.WriteMessage(websocket.TextMessage, []byte("无数据更新"))
+				time.Sleep(time.Second * 2)
+				continue
 			}
 		}
 	}
