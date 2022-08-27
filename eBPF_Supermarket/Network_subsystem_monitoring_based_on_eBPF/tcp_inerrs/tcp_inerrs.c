@@ -1,5 +1,4 @@
 #include <uapi/linux/ptrace.h>
-// #include <uapi/linux/skbuff.h>
 #include <net/tcp.h>
 #include <net/sock.h>
 #include <bcc/proto.h>
@@ -21,10 +20,10 @@ struct ipv4_data_t {
 BPF_PERF_OUTPUT(ipv4_events);
 
 struct ipv6_data_t {
-    u64 ts_us;
-    u32 pid;
     unsigned __int128 saddr;
     unsigned __int128 daddr;
+    u64 ts_us;
+    u32 pid;
     u16 sport;
     u16 dport;
     u8 ip;
