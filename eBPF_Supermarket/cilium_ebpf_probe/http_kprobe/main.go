@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/xuri/excelize/v2"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -65,6 +66,8 @@ var (
 		},
 	)
 	statusMap map[int]prometheus.Gauge
+	f         = excelize.NewFile()
+	exceli    int
 )
 
 //为Map上锁
@@ -154,7 +157,8 @@ func (r *requestHandler) HandleBPFEvent(v []byte, requestMap *RequestMap, spendt
 		if msgInfo, ok := r.FdMap[ev.Attr.Fd]; ok {
 			delete(r.FdMap, ev.Attr.Fd)
 			msgInfo.Time_ns = ev.Attr.EndNs - msgInfo.Time_ns
-			go parseAndPrintMessage(msgInfo, requestMap, spendtimeMap)
+			exceli += 1
+			parseAndPrintMessage(msgInfo, requestMap, spendtimeMap, exceli)
 		} else {
 			fmt.Fprintf(os.Stderr, "Missing request with FD: %d\n", ev.Attr.Fd)
 			return
@@ -172,7 +176,7 @@ func (m *SpendTimeMap) addSependTimeMap(t time.Time, ns int64) {
 	m.SpendTime[t] = append(m.SpendTime[t], ns)
 	m.Unlock()
 }
-func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtimeMap *SpendTimeMap) {
+func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtimeMap *SpendTimeMap, excelIndex int) {
 	resp, err := http.ReadResponse(bufio.NewReader(&msgInfo.Buf), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to parse request\n")
@@ -189,12 +193,23 @@ func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtim
 	body := resp.Body
 	b, _ := ioutil.ReadAll(body)
 	body.Close()
-	fmt.Printf("%s %s\n", color.BlueString("%s", "data from grpc received"), color.BlueString("%s", podname))
-	fmt.Printf("StatusCode: %s, Len: %s, ContentType: %s, Body: %s\n",
+	fmt.Printf("HTTP from %s [%d]:StatusCode: %s, Len: %s, ContentType: %s, Body: %s\n",
+		color.BlueString("%s", podname),
+		excelIndex-1,
 		color.GreenString("%d", resp.StatusCode),
 		color.GreenString("%d", resp.ContentLength),
 		color.GreenString("%s", resp.Header["Content-Type"]),
 		color.GreenString("%s", string(b)))
+	f.SetCellValue("Sheet1", "A"+strconv.Itoa(excelIndex), resp.StatusCode)
+	f.SetCellValue("Sheet1", "B"+strconv.Itoa(excelIndex), resp.ContentLength)
+	f.SetCellValue("Sheet1", "C"+strconv.Itoa(excelIndex), resp.Header["Content-Type"])
+	f.SetCellValue("Sheet1", "D"+strconv.Itoa(excelIndex), string(b))
+
+	if excelIndex == 30 { //save logs data
+		if err := f.SaveAs("httpserver.xlsx"); err != nil {
+			println(err.Error())
+		}
+	}
 }
 
 func (m *RequestMap) readRequestMap() map[time.Time][]*http.Response {
@@ -240,6 +255,7 @@ func GetHttpViaKprobe(tracePID int, p string) {
 	podname = p
 	count = 0
 	prome = true
+	exceli = 1
 	prometheus.Register(histogramRegistered)
 
 	statusMap = make(map[int]prometheus.Gauge)
@@ -304,7 +320,13 @@ func GetHttpViaKprobe(tracePID int, p string) {
 	}
 
 	fmt.Println("kprobe for http begins...")
+	index := f.NewSheet("Sheet1")
+	f.SetActiveSheet(index)
 
+	f.SetCellValue("Sheet1", "A1", "StatusCode")
+	f.SetCellValue("Sheet1", "B1", "ContentLength")
+	f.SetCellValue("Sheet1", "C1", "Content-Type")
+	f.SetCellValue("Sheet1", "D1", "body")
 	//go PrintStatisticsNumber(requestMap, spendMap)
 	for {
 		select {

@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "cilium_ebpf_probe/proto/greetpb"
+	pb "lmp/eBPF_Supermarket/cilium_ebpf_probe/proto/greetpb"
 )
 
 type server struct{}

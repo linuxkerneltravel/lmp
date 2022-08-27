@@ -121,7 +121,7 @@ func GetAllProcessFromContainer(containerStatus v1.ContainerStatus, nodeContaine
 }
 
 // GetAllPodProcess get all processes from a pod
-func GetAllPodProcess(clientset *kubernetes.Clientset, nodeName string, namespace string, podName string, cs []v1.ContainerStatus) (map[v1.ContainerStatus][]*process.Process, error) {
+func GetAllPodProcess(clientset *kubernetes.Clientset, nodeName string, namespace string, podName string, cs []v1.ContainerStatus, img string) (map[v1.ContainerStatus][]*process.Process, error) {
 	// 1. Get all containers
 	containerStatuses := cs
 
@@ -132,19 +132,24 @@ func GetAllPodProcess(clientset *kubernetes.Clientset, nodeName string, namespac
 	}
 
 	// 2. traverse containerStatuses and get processes
+
 	for _, containerStatus := range containerStatuses {
-		processes, err := GetAllProcessFromContainer(containerStatus, nodeContainerRuntime)
-		if err != nil {
-			return nil, err
+
+		if containerStatus.Image == img {
+			processes, err := GetAllProcessFromContainer(containerStatus, nodeContainerRuntime)
+			fmt.Println("get specific docker of image ", img)
+			if err != nil {
+				return nil, err
+			}
+			res[containerStatus] = processes
 		}
-		res[containerStatus] = processes
 	}
 
 	return res, nil
 }
 
 //GetPodELFPath get the path of the elf path to attach uprobe on
-func GetPodELFPath(clientset *kubernetes.Clientset, nodeName string, namespace string, podName string, cs []v1.ContainerStatus) (map[v1.ContainerStatus]string, error) {
+func GetPodELFPath(clientset *kubernetes.Clientset, nodeName string, namespace string, podName string, cs []v1.ContainerStatus, img string) (map[v1.ContainerStatus]string, error) {
 	// 1. Get all containers
 
 	containerStatuses := cs
@@ -156,18 +161,22 @@ func GetPodELFPath(clientset *kubernetes.Clientset, nodeName string, namespace s
 
 	// 2. traverse containerStatuses and get processes
 	for _, containerStatus := range containerStatuses {
-		containerID := containerStatus.ContainerID
-		if strings.Contains(containerID, nodeContainerRuntime+"://") {
-			containerID = strings.Replace(containerID, nodeContainerRuntime+"://", "", -1)
-		} else { // double check
-			return nil, fmt.Errorf("unsupported ContainerID '%s'\n", containerID)
+		if containerStatus.Image == img {
+			fmt.Println("get specific docker of image ", img)
+			containerID := containerStatus.ContainerID
+			if strings.Contains(containerID, nodeContainerRuntime+"://") {
+				containerID = strings.Replace(containerID, nodeContainerRuntime+"://", "", -1)
+			} else { // double check
+				return nil, fmt.Errorf("unsupported ContainerID '%s'\n", containerID)
+			}
+
+			path, err := findELFPath(containerID, nodeContainerRuntime)
+			if err != nil {
+				return nil, err
+			}
+			res[containerStatus] = path
 		}
 
-		path, err := findELFPath(containerID, nodeContainerRuntime)
-		if err != nil {
-			return nil, err
-		}
-		res[containerStatus] = path
 	}
 	return res, nil
 }
