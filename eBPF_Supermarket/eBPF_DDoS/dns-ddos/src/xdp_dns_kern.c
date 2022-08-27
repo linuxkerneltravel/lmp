@@ -1,6 +1,5 @@
-#include "common.h"
+#include "helpers.h"
 #include <linux/if_ether.h>
-#include <linux/ip.h>
 #include <linux/udp.h>
 #include <linux/version.h>
 
@@ -40,7 +39,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
   struct record *r = bpf_map_lookup_elem(&counter, &src_ip);
   if (r) {
     // drop packets by failure count
-    __u32 failure_threshold_key = 0;
+    __u8 failure_threshold_key = 0;
     __u32 *threshold =
         bpf_map_lookup_elem(&configuration, &failure_threshold_key);
     if (threshold && r->fail_count >= *threshold) {
@@ -48,14 +47,14 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     }
 
     // drop packets by total count
-    __u32 count_threshold_key = 1;
+    __u8 count_threshold_key = 1;
     threshold = bpf_map_lookup_elem(&configuration, &count_threshold_key);
     if (threshold && r->count >= *threshold) {
       return XDP_DROP;
     }
 
     // drop packets by any request count
-    __u32 any_threshold_key = 2;
+    __u8 any_threshold_key = 2;
     threshold = bpf_map_lookup_elem(&configuration, &any_threshold_key);
     if (threshold && r->any_count >= *threshold) {
       return XDP_DROP;
@@ -79,11 +78,61 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     return XDP_DROP;
   }
 
-  if ((dnsh->flags >> 15) != 0) {
+  __u16 flags = bpf_htons(dnsh->flags);
+  if ((flags >> 15) != 0) {
     // not a request.
     return XDP_PASS;
   }
 
+  __u8 enforce_tcp_key = 201;
+  __u32 *enforce_tcp = bpf_map_lookup_elem(&configuration, &enforce_tcp_key);
+  if (enforce_tcp && *enforce_tcp) {
+    // set QR=1, TC=1
+    dnsh->flags = bpf_htons(flags | 0x8200);
+    dnsh->ancount = bpf_htons(1);
+
+    // return the response directly
+    __u8 src_mac[6];
+    src_mac[0] = eth->h_source[0];
+    src_mac[1] = eth->h_source[1];
+    src_mac[2] = eth->h_source[2];
+    src_mac[3] = eth->h_source[3];
+    src_mac[4] = eth->h_source[4];
+    src_mac[5] = eth->h_source[5];
+
+    eth->h_source[0] = eth->h_dest[0];
+    eth->h_source[1] = eth->h_dest[1];
+    eth->h_source[2] = eth->h_dest[2];
+    eth->h_source[3] = eth->h_dest[3];
+    eth->h_source[4] = eth->h_dest[4];
+    eth->h_source[5] = eth->h_dest[5];
+
+    eth->h_dest[0] = src_mac[0];
+    eth->h_dest[1] = src_mac[1];
+    eth->h_dest[2] = src_mac[2];
+    eth->h_dest[3] = src_mac[3];
+    eth->h_dest[4] = src_mac[4];
+    eth->h_dest[5] = src_mac[5];
+
+    __u32 dst_ip = iph->daddr;
+    iph->saddr = dst_ip;
+    iph->daddr = src_ip;
+    iph->check = iph_csum(iph);
+
+    __u16 src_port = udph->source;
+    __u16 dst_port = udph->dest;
+    udph->source = dst_port;
+    udph->dest = src_port;
+    // udph->check = csum_diff4(src_port, dst_port, udph->check);
+    // udph->check = csum_diff4(dst_port, src_port, udph->check);
+    udph->check = csum_diff4(src_ip, dst_ip, udph->check);
+    udph->check = csum_diff4(dst_ip, src_ip, udph->check);
+    udph->check = csum_diff4(bpf_htons(flags), dnsh->flags, udph->check);
+    udph->check = csum_diff4(0, dnsh->ancount, udph->check);
+    return XDP_TX;
+  }
+
+  // get qtype
   void *cursor = dnsh + 1;
 #pragma unroll
   for (__u8 i = 0; i < 20; ++i) {

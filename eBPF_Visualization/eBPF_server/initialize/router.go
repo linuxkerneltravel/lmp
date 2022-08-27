@@ -52,6 +52,7 @@ func Routers() *gin.Engine {
 	{
 		systemRouter.InitBaseRouter(PublicGroup) // 注册基础功能路由 不做鉴权
 		systemRouter.InitInitRouter(PublicGroup) // 自动初始化相关
+		ebpfRouter.InitEbpfRouter(PublicGroup)   // ebpf路由
 	}
 	PrivateGroup := Router.Group("")
 	PrivateGroup.Use(middleware.JWTAuth()).Use(middleware.CasbinHandler())
@@ -69,7 +70,6 @@ func Routers() *gin.Engine {
 		systemRouter.InitSysOperationRecordRouter(PrivateGroup)  // 操作记录
 		systemRouter.InitSysDictionaryDetailRouter(PrivateGroup) // 字典详情管理
 
-		ebpfRouter.InitEbpfRouter(PrivateGroup) // ebpf路由
 	}
 
 	InstallPlugin(PublicGroup, PrivateGroup) // 安装插件
