@@ -191,20 +191,23 @@ func (ebpf EbpfpluginsService) GetRunningPluginsInfo(info request.PageInfo) (err
 //@description: 获取单个插件的数据
 //@param: pluginid int
 //@return: err error, list []map[string]interface{}
-func (ebpf EbpfpluginsService) FindRows(pluginid int) (error, []map[string]interface{}) {
+func (ebpf EbpfpluginsService) FindRows(pluginid int) (error, []map[string]interface{}, bool) {
 	var runningplugin dao.Indextable
 	dao.GLOBALDB.Table("indextable").Where("IndexID=?", pluginid).First(&runningplugin)
 	var results []map[string]interface{}
 	rows, err := dao.GLOBALDB.Table(runningplugin.PluginName).Rows()
 	if err != nil {
-		return err, results
+		return err, results, false
 	}
 	for rows.Next() {
 		result := map[string]interface{}{}
 		if err := dao.GLOBALDB.ScanRows(rows, &result); err != nil {
-			return err, results
+			return err, results, false
 		}
 		results = append(results, result)
 	}
-	return err, results
+	if runningplugin.State == false {
+		return err, results, false
+	}
+	return err, results, true
 }

@@ -4,7 +4,6 @@ import (
 	"lmp/server/core"
 	"lmp/server/global"
 	"lmp/server/initialize"
-	"lmp/server/model/data_collector/logic"
 )
 
 //go:generate go env -w GO111MODULE=on
@@ -25,7 +24,6 @@ func main() {
 	global.GVA_DB = initialize.Gorm() // gorm连接数据库
 	initialize.Timer()
 	initialize.DBList()
-	_ = logic.InitCollectSqlite()
 	if global.GVA_DB != nil {
 		initialize.RegisterTables(global.GVA_DB) // 初始化表
 		// 程序结束前关闭数据库链接

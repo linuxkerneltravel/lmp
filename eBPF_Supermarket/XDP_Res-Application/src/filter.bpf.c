@@ -40,8 +40,6 @@ static int match_rule(struct metainfo *info){
             result_bit = result_bit & *ipproto_bit;
       }
    }
-   if(info->dport == 5632)
-      bpf_trace_printk("1:%d",result_bit);
    if(saddr_bit == NULL)
       saddr_bit = saddr_map.lookup(&wildcard_u32);
    if(saddr_bit != NULL){
