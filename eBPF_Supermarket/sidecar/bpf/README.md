@@ -4,8 +4,10 @@
 
 This directory is all about BPF programs and management. It includes:
 
-- [TP Accept Event Probe](tcpaccept): To capture TCP accept information. With time, pid, address and port information.
-- [TP Connect Event Probe](tcpconnect): To capture TCP connect information. With time, pid, address and port information.
+- [TCP Accept Event Probe](tcpaccept): captures TCP accept event information. With time, pid, address and port information.
+- [TCP Connect Event Probe](tcpconnect): captures TCP connect event information. With time, pid, address and port information.
+- [TCP Close Event Probe](tcpclose): captures TCP close event information. With basic info and traffic statistics.
+- [Network Subsystem Probe](podnet): traces key network event in host, for most scenarios in this project, in-pod network stack.
 
 For most probes, they can filter by process id, and notify you by Go channel.
 

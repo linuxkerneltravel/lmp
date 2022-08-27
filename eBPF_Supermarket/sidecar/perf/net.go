@@ -2,11 +2,14 @@ package perf
 
 import (
 	"fmt"
+	"strconv"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
 	"github.com/eswzy/podstat/bpf/tcpaccept"
 	"github.com/eswzy/podstat/bpf/tcpconnect"
+	"github.com/eswzy/podstat/visualization"
 )
 
 type SidecarAcceptEvent tcpaccept.Event
@@ -83,9 +86,38 @@ func fillRequestOverSidecarField(m *map[RequestOverSidecarKey]RequestOverSidecar
 	}
 }
 
-func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, portList []int) {
+func updateMetric(vec *prometheus.SummaryVec, labels map[string]string, value float64) {
+	if value < 0 {
+		return
+	}
+	summary, err := vec.GetMetricWith(labels)
+	if err == nil {
+		summary.Observe(value)
+	} else {
+		fmt.Println(err)
+	}
+}
+
+func updateCountMetric(vec *prometheus.CounterVec, labels map[string]string) {
+	summary, err := vec.GetMetricWith(labels)
+	if err == nil {
+		summary.Inc()
+	} else {
+		fmt.Println(err)
+	}
+}
+
+func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, portList []int, podName string) {
 	var pidList = append(sidecarPidList, servicePidList...)
 	var protocolList []string
+
+	processLabel := []string{"pid", "podName"}
+	sidecarTime := visualization.GetNewSummaryVec("sidecar_process_request_duration", "", map[string]string{}, processLabel)
+	sidecarToServiceTime := visualization.GetNewSummaryVec("sidecar_to_service_container_duration", "", map[string]string{}, processLabel)
+	longConnectionCount := visualization.GetNewCounterVec("long_connection_counter", "", map[string]string{}, processLabel)
+	prometheus.MustRegister(sidecarTime)
+	prometheus.MustRegister(sidecarToServiceTime)
+	prometheus.MustRegister(longConnectionCount)
 
 	sidecarAcceptAndConnectEventPairMap := make(map[SidecarAcceptAndSidecarConnectKey]SidecarAcceptAndSidecarConnectValue)
 	sidecarConnectAndServiceAcceptEventPairMap := make(map[SidecarConnectAndServiceAcceptKey]SidecarConnectAndServiceAcceptValue)
@@ -103,6 +135,9 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 				fmt.Println("got SidecarAcceptEvent: ", v1)
 				pair, ok := sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v1.Pid, Tid: v1.Tid}]
 				if ok == false || (pair.Ok || pair.Ok == false && pair.SidecarConnect == sice) {
+					if ok {
+						updateCountMetric(longConnectionCount, map[string]string{"pid": strconv.Itoa(v1.Pid), "podName": podName})
+					}
 					sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v1.Pid, Tid: v1.Tid}] = SidecarAcceptAndSidecarConnectValue{SidecarAccept: SidecarAcceptEvent(v1), Ok: false}
 				} else {
 					pair.SidecarAccept = SidecarAcceptEvent(v1)
@@ -110,6 +145,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v1.Pid, Tid: v1.Tid}] = pair
 					fmt.Println("pair1", pair)
 					fmt.Println("[DELTA sidecar]", (pair.SidecarConnect.Time - pair.SidecarAccept.Time).String())
+					updateMetric(sidecarTime, map[string]string{"pid": strconv.Itoa(v1.Pid), "podName": podName}, float64(pair.SidecarConnect.Time-pair.SidecarAccept.Time))
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, &pair, nil)
 				}
 				// fmt.Println("SidecarAcceptEvent done.")
@@ -117,6 +153,9 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 				fmt.Println("got ServiceAcceptEvent: ", v1)
 				pair, ok := sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v1.DAddr, SidecarPort: v1.DPort}]
 				if ok == false || pair.Ok || (pair.Ok == false && pair.SidecarConnect == sice) {
+					if ok { // never reaches here?
+						updateCountMetric(longConnectionCount, map[string]string{"pid": strconv.Itoa(v1.Pid), "podName": podName})
+					}
 					sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v1.DAddr, SidecarPort: v1.DPort}] = SidecarConnectAndServiceAcceptValue{ServiceAccept: ServiceAcceptEvent(v1), Ok: false}
 				} else {
 					pair.ServiceAccept = ServiceAcceptEvent(v1)
@@ -124,6 +163,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v1.DAddr, SidecarPort: v1.DPort}] = pair
 					fmt.Println("pair2", pair)
 					fmt.Println("[DELTA service]", (pair.ServiceAccept.Time - pair.SidecarConnect.Time).String())
+					updateMetric(sidecarToServiceTime, map[string]string{"pid": strconv.Itoa(v1.Pid), "podName": podName}, float64(pair.ServiceAccept.Time-pair.SidecarConnect.Time))
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, nil, &pair)
 				}
 				// fmt.Println("ServiceAcceptEvent done")
@@ -136,6 +176,9 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 				// process sidecar accept and connect event
 				pair1, ok := sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v2.Pid, Tid: v2.Tid}]
 				if ok == false || pair1.Ok || (pair1.Ok == false && pair1.SidecarAccept == siae) {
+					if ok {
+						updateCountMetric(longConnectionCount, map[string]string{"pid": strconv.Itoa(v2.Pid), "podName": podName})
+					}
 					sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v2.Pid, Tid: v2.Tid}] = SidecarAcceptAndSidecarConnectValue{SidecarConnect: SidecarConnectEvent(v2), Ok: false}
 				} else {
 					pair1.SidecarConnect = SidecarConnectEvent(v2)
@@ -143,11 +186,15 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					sidecarAcceptAndConnectEventPairMap[SidecarAcceptAndSidecarConnectKey{Pid: v2.Pid, Tid: v2.Tid}] = pair1
 					fmt.Println("pair1: ", pair1)
 					fmt.Println("[DELTA sidecar]", (pair1.SidecarConnect.Time - pair1.SidecarAccept.Time).String())
+					updateMetric(sidecarTime, map[string]string{"pid": strconv.Itoa(v2.Pid), "podName": podName}, float64(pair1.SidecarConnect.Time-pair1.SidecarAccept.Time))
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, &pair1, nil)
 				}
 				// process sidecar connect and service accept
 				pair2, ok := sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v2.SAddr, SidecarPort: v2.LPort}]
 				if ok == false || pair2.Ok || (pair2.Ok == false && pair2.ServiceAccept == seae) {
+					if ok { // never reaches here?
+						updateCountMetric(longConnectionCount, map[string]string{"pid": strconv.Itoa(v2.Pid), "podName": podName})
+					}
 					sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v2.SAddr, SidecarPort: v2.LPort}] = SidecarConnectAndServiceAcceptValue{SidecarConnect: SidecarConnectEvent(v2), Ok: false}
 				} else {
 					pair2.SidecarConnect = SidecarConnectEvent(v2)
@@ -155,6 +202,7 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 					sidecarConnectAndServiceAcceptEventPairMap[SidecarConnectAndServiceAcceptKey{SidecarIp: v2.SAddr, SidecarPort: v2.LPort}] = pair2
 					fmt.Println("pair2: ", pair2)
 					fmt.Println("[DELTA service]", (pair2.ServiceAccept.Time - pair2.SidecarConnect.Time).String())
+					updateMetric(sidecarToServiceTime, map[string]string{"pid": strconv.Itoa(v2.Pid), "podName": podName}, float64(pair2.ServiceAccept.Time-pair2.SidecarConnect.Time))
 					fillRequestOverSidecarField(&RequestOverSidecarEventPairMap, nil, &pair2)
 				}
 				// fmt.Println("SidecarConnectEvent done")

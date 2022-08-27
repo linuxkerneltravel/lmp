@@ -3,6 +3,7 @@ package dao
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"lmp/server/global"
 
@@ -14,8 +15,11 @@ import (
 var GLOBALDB *gorm.DB
 
 type Indextable struct {
-	Id         int    `gorm:"primaryKey;unique;column:IndexID"`
+	Id         int    `gorm:"primaryKey;unique;column:IndexID" json:"Id"`
 	PluginName string `gorm:"not null;unique;column:pluginname"`
+	StartTime  string `gorm:"column:StartTime"`
+	FinalTime  string `gorm:"column:FinalTime"`
+	State      bool   `gorm:"default:true;column:State"`
 }
 
 func ConnectSqlite() error {
@@ -32,6 +36,7 @@ func ConnectSqlite() error {
 		},
 	})
 	GLOBALDB = db
+
 	return err
 }
 
@@ -65,6 +70,7 @@ func InitSqlite() error {
 func CreatePluginRecord(pluginname string) error {
 	indexinfo := Indextable{
 		PluginName: pluginname,
+		StartTime:  time.Now().Format("2006-01-02 15:04:05"),
 	}
 	err := GLOBALDB.Create(&indexinfo).Model(&Indextable{}).Error
 	return err
@@ -81,4 +87,23 @@ func PluginRecordExist(pluginname string) bool {
 		return false
 	}
 	return true
+}
+
+func UpdateFinalTime(pluginname string) error {
+	finaltime := time.Now().Format("2006-01-02 15:04:05")
+	err := GLOBALDB.Table("indextable").Where("pluginname=?", pluginname).Update("FinalTime", finaltime).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ChangeState(pluginname string) {
+	GLOBALDB.Table("indextable").Where("pluginname=?", pluginname).Update("State", false)
+}
+
+func FindAllRecord() []Indextable {
+	var list []Indextable
+	GLOBALDB.Table("indextable").Find(&list)
+	return list
 }
