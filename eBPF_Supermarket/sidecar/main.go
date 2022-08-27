@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/eswzy/podstat/k8s"
-	"github.com/eswzy/podstat/perf"
+	"github.com/eswzy/podstat/perf/net"
 	"github.com/eswzy/podstat/test"
 	"github.com/eswzy/podstat/tools"
 	"github.com/eswzy/podstat/visualization"
@@ -19,7 +19,14 @@ func main() {
 	kubeconfig := flag.String("kubeconfig", "", "path to the kubeconfig file")
 	podName := flag.String("pod", "", "name of the pod to inspect")
 	namespace := flag.String("namespace", "default", "namespace for this pod")
+	jaegerAgent := flag.String("jaeger", "", "Jaeger IP and port")
 	flag.Parse()
+
+	if *jaegerAgent == "" {
+		visualization.JaegerAgentHostPort = os.Getenv("VISUALIZE_IP") + ":" + "6831"
+	} else {
+		visualization.JaegerAgentHostPort = *jaegerAgent
+	}
 
 	if *podName == "" {
 		// TODO: testing code, delete it after the test
@@ -61,7 +68,7 @@ func main() {
 
 	var sidecarPid []int
 	var servicePid []int
-	var portList = []int{15006, 9080, 80, 8000}
+	var portList []int // {15006, 9080, 80, 8000}
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -69,6 +76,17 @@ func main() {
 	for i := 0; i < len(serviceProcesses); i++ {
 		servicePid = append(servicePid, int(serviceProcesses[i].Pid))
 	}
+	var pidList []int
+	pidList = append(pidList, sidecarPid...)
+	pidList = append(pidList, servicePid...)
 
-	perf.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, *podName)
+	so := net.SidecarOpt{
+		SidecarPort: 8000,
+		ServicePort: 80,
+		LocalIP:     "127.0.0.1",
+		PodIp:       "UNSET",
+		NodeIp:      "UNSET",
+	}
+
+	net.GetKernelNetworkEvent(pidList, portList, so, *podName)
 }

@@ -17,10 +17,10 @@ struct ipv4_data_t {
 BPF_PERF_OUTPUT(ipv4_events);
 
 struct ipv6_data_t {
-    u64 ts_us;
-    u32 pid;
     unsigned __int128 saddr;
     unsigned __int128 daddr;
+    u64 ts_us;
+    u32 pid;
     u8 ip;
     u16 sport;
     u16 dport;

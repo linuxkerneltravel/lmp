@@ -2,8 +2,8 @@ from socket import htons,htonl
 
 rules_raw = []
 
-ipproto_id = {'ICMP':1,'IGMP':2,'TCP':6,'UDP':17,0:0,65535:63335}
-action_id = {'DROP':1,0:0}
+ipproto_id = {'ICMP':1,'IGMP':2,'TCP':6,'UDP':17,0:0}
+action_id = {'DROP':1,'REDIRECT':4,0:0}
 
 '''
 0-ipproto
@@ -15,15 +15,11 @@ action_id = {'DROP':1,0:0}
 '''
 
 rules_raw.append(['ICMP',0,0,0,0,'DROP'])
-rules_raw.append(['TCP',0,0,0,22,'DROP'])
-rules_raw.append(['TCP',0,0,0,3000,'DROP'])
+rules_raw.append(['TCP',0,0,0,8888,'REDIRECT'])
 
 def rule_pretreat(rules_raw):
     rules = []
     for r in rules_raw:
-        for i in range(0,5):
-            if r[i] == 0:
-                r[i] = 65535
         rules.append([ipproto_id[r[0]],htonl(r[1]),htonl(r[2]),htons(r[3]),htons(r[4]),action_id[r[5]]])
     return rules
     
