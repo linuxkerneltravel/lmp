@@ -26,8 +26,5 @@ jobs:
       run: |
         kubectl cluster-info
         kubectl create namespace wyw
-    - name: create pod
-      run: |
-        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml --disable-admission-plugins=ServiceAccount
-        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml --disable-admission-plugins=ServiceAccount
-        
+        kubectl get serviceaccount
+ 
