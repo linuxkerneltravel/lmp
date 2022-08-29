@@ -22,3 +22,9 @@ jobs:
         cat /etc/rancher/k3s/k3s.yaml
         mkdir -p ~/.kube
         cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+    - name: example tests
+      run: |
+        kubectl cluster-info
+        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml
+        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml
+        
