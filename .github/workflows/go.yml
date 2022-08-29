@@ -25,6 +25,7 @@ jobs:
     - name: example tests
       run: |
         kubectl cluster-info
+        kubectl create namespace wyw
         kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml
         kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml
         
