@@ -1,0 +1,24 @@
+name: Go
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "develop" ]
+
+jobs:
+   build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v3    
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+    - name: install k8s
+      run: |
+        curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE=777 sh -
+        cat /etc/rancher/k3s/k3s.yaml
+        mkdir -p ~/.kube
+        cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
