@@ -52,6 +52,15 @@ func (ip UnifiedAddress) ToString(version int) string {
 	return ""
 }
 
+func IpToUint32(ipAddr string) (uint32, error) {
+	ip := net.ParseIP(ipAddr)
+	if ip == nil {
+		return 0, fmt.Errorf("wrong IP address format")
+	}
+	ip = ip.To4()
+	return binary.LittleEndian.Uint32(ip), nil
+}
+
 func (m Mac) ToString() string {
 	res := ""
 	for i := 0; i < 6; i++ {
