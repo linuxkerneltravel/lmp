@@ -5,8 +5,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -196,12 +198,22 @@ func contains(a []int, i int) bool {
 	return false
 }
 
-// Probe probes TCP close event and pushes it out
-func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event) {
-	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Action: "return 0;", Reverse: false}
-	lportFg := bpf.IntFilterGenerator{Name: "lport", List: portList, Action: "birth.delete(&sk); return 0;", Reverse: false}
-	dportFg := bpf.IntFilterGenerator{Name: "dport", List: portList, Action: "birth.delete(&sk); return 0;", Reverse: false}
-	familyFg := bpf.FamilyFilterGenerator{List: protocolList}
+// Probe probes network events and pushes them out
+func Probe(pidList []int, reverse bool, podIp string, ch chan<- Event) {
+	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Action: "return 0;", Reverse: reverse}
+	ipFilter := ""
+	ipRep := ""
+	if podIp != "" {
+		ipAdd := net.ParseIP(podIp)
+		if ipAdd.To4() != nil { // IPv4
+			ipFilter = "/*FILTER_IPV4*/"
+			ipv4Int, _ := tools.IpToUint32(podIp)
+			ipRep = "if(iphdr.saddr != " + strconv.Itoa(int(ipv4Int)) + " && iphdr.daddr != " + strconv.Itoa(int(ipv4Int)) + ") return -1;"
+		} else if ipAdd.To16() != nil { // IPv6
+			ipFilter = "/*FILTER_IPV6*/"
+			ipRep = "" // TODO
+		}
+	}
 
 	file, err := os.Open("bpf/podnet/podnet.c")
 	if err != nil {
@@ -211,13 +223,13 @@ func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event
 	content, _ := ioutil.ReadAll(file)
 
 	source = string(content[:])
-
 	sourceBpf := source
 
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_LPORT*/", lportFg.Generate(), 1)
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_DPORT*/", dportFg.Generate(), 1)
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_FAMILY*/", familyFg.Generate(), 1)
+
+	if ipFilter != "" {
+		sourceBpf = strings.Replace(sourceBpf, ipFilter, ipRep, 1)
+	}
 
 	m := bcc.NewModule(sourceBpf, []string{})
 	defer m.Close()
@@ -290,11 +302,10 @@ func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event
 // Sample provides a no argument function call
 func Sample() {
 	var pidList []int
-	var portList []int
-	var protocolList []string
+	ipAdd := ""
 	ch := make(chan Event, 10000)
 
-	go Probe(pidList, portList, protocolList, ch)
+	go Probe(pidList, false, ipAdd, ch)
 
 	for {
 		event := <-ch
