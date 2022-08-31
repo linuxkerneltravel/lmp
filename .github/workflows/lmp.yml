@@ -11,12 +11,10 @@ on:
       - "*"
     paths:
       - 'eBPF_Visualization/eBPF_server/**'
-  pull_request_review:
-  workflow_dispatch:
 
 jobs:
   web-backend-build-and-run:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
 
