@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 
 func TestGetSidecarBinaryPath(t *testing.T) {
 	kubeconfig := GetDefaultKubeConfig()
-	nodeName := test.NodeName
+	nodeName, _ := os.Hostname()
 	namespace := test.Namespace
 	label := test.Label
 	podName, err := GetPodNameFromNodeAndLabel(kubeconfig, namespace, nodeName, label)
