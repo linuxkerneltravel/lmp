@@ -2,6 +2,7 @@ package podnet
 
 import (
 	"bytes"
+	"embed"
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
@@ -20,6 +21,9 @@ import (
 
 import "C"
 
+//go:embed podnet.c
+var content embed.FS
+
 var source string
 
 const FUNCNAME_MAX_LEN = 64
@@ -32,7 +36,7 @@ type bpfEventData struct {
 	Pid uint32
 	Tid uint32
 
-	Comm     [16]byte
+	// Comm     [16]byte
 	FuncName [FUNCNAME_MAX_LEN]byte
 	IfName   [IFNAMSIZ]byte
 
@@ -155,8 +159,8 @@ func (el EventList) Swap(i, j int) {
 
 func getEventFromBpfEventData(bpfEvent bpfEventData) Event {
 	return Event{
-		Time:          time.Duration(int64(bpfEvent.TsNs)),
-		Comm:          strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
+		Time: time.Duration(int64(bpfEvent.TsNs)),
+		// Comm:          strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:           int(bpfEvent.Pid),
 		Tid:           int(bpfEvent.Tid),
 		FuncName:      strings.Trim(string(bpfEvent.FuncName[:]), "\u0000"),
@@ -215,17 +219,25 @@ func Probe(pidList []int, reverse bool, podIp string, ch chan<- Event) {
 		}
 	}
 
-	file, err := os.Open("bpf/podnet/podnet.c")
+	file, err := content.Open("podnet.c")
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
-	content, _ := ioutil.ReadAll(file)
+	sourceContent, _ := ioutil.ReadAll(file)
 
-	source = string(content[:])
+	source = string(sourceContent[:])
 	sourceBpf := source
 
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	if tools.IsInMinikubeMode() {
+		nsPidFilter, err := bpf.GetFilterByParentProcessPidNamespace(tools.MinikubePid, pidList, reverse)
+		if err != nil {
+			panic(err)
+		}
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", nsPidFilter, 1)
+	} else {
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	}
 
 	if ipFilter != "" {
 		sourceBpf = strings.Replace(sourceBpf, ipFilter, ipRep, 1)

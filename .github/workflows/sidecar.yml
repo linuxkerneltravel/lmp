@@ -118,5 +118,5 @@ jobs:
           docker ps -a
           ps axjf
           cd eBPF_Supermarket/sidecar/
-          sudo -E go run main.go
+          sudo -E timeout 300 go run main.go || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
 
