@@ -291,8 +291,10 @@ do_trace_skb(struct event_t *event, void *ctx, struct sk_buff *skb, void *netdev
         }
     }
 
+    /*FILTER_NS*/
 
 #endif
+
     event->cpu = bpf_get_smp_processor_id();
     member_read(&event->len, skb, len);
     member_read(&head, skb, head);
@@ -315,6 +317,8 @@ do_trace_skb(struct event_t *event, void *ctx, struct sk_buff *skb, void *netdev
         struct iphdr iphdr;
         bpf_probe_read(&iphdr, sizeof(iphdr), l3_header_address);
 
+        /*FILTER_IPV4*/
+
         l4_offset_from_ip_header = iphdr.ihl * 4;
         event->l4_proto  = iphdr.protocol;
         event->saddr[0] = iphdr.saddr;
@@ -336,6 +340,8 @@ do_trace_skb(struct event_t *event, void *ctx, struct sk_buff *skb, void *netdev
         bpf_probe_read(event->daddr, sizeof(ipv6hdr->daddr),   (char*)ipv6hdr + offsetof(struct ipv6hdr, daddr));
 	    bpf_probe_read(&event->tot_len, sizeof(ipv6hdr->payload_len), (char*)ipv6hdr + offsetof(struct ipv6hdr, payload_len));
         event->tot_len = ntohs(event->tot_len);
+
+        /*FILTER_IPV6*/
 
         if (event->l4_proto == IPPROTO_ICMPV6) {
             proto_icmp_echo_request = ICMPV6_ECHO_REQUEST;

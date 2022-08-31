@@ -21,18 +21,17 @@ func TestEndianness(t *testing.T) {
 
 		b := NetToHostLong(uint32(cases[i].num))
 		if int(b) != cases[i].hostNumLong {
-			t.Errorf("NetToHostShort %d failed, expected: '%d', got '%d'", cases[i].num, cases[i].hostNumLong, b)
+			t.Errorf("NetToHostLong %d failed, expected: '%d', got '%d'", cases[i].num, cases[i].hostNumLong, b)
 		}
 
 		c := HostToNetShort(uint16(cases[i].hostNumShort))
 		if int(c) != cases[i].num {
-			t.Errorf("NetToHostShort %d failed, expected: '%d', got '%d'", cases[i].hostNumShort, cases[i].num, c)
+			t.Errorf("HostToNetShort %d failed, expected: '%d', got '%d'", cases[i].hostNumShort, cases[i].num, c)
 		}
 
 		d := HostToNetLong(uint32(cases[i].hostNumLong))
 		if int(d) != cases[i].num {
-			t.Errorf("NetToHostShort %d failed, expected: '%d', got '%d'", cases[i].hostNumLong, cases[i].num, d)
+			t.Errorf("HostToNetLong %d failed, expected: '%d', got '%d'", cases[i].hostNumLong, cases[i].num, d)
 		}
 	}
-
 }
