@@ -4,22 +4,47 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
+
+	"github.com/shirou/gopsutil/v3/host"
 
 	"github.com/eswzy/podstat/k8s"
-	"github.com/eswzy/podstat/perf"
+	"github.com/eswzy/podstat/perf/net"
 	"github.com/eswzy/podstat/test"
 	"github.com/eswzy/podstat/tools"
 	"github.com/eswzy/podstat/visualization"
 )
 
 func main() {
+	uptime, _ := host.Uptime()
+	net.TimeOffset = net.TimeOffset.Add(-time.Duration(uptime * 1000000000))
+
 	visualization.VisPort = "8765"
 	go visualization.Vis()
 
 	kubeconfig := flag.String("kubeconfig", "", "path to the kubeconfig file")
 	podName := flag.String("pod", "", "name of the pod to inspect")
 	namespace := flag.String("namespace", "default", "namespace for this pod")
+	jaegerAgent := flag.String("jaeger", "", "Jaeger IP and port")
 	flag.Parse()
+
+	if *jaegerAgent == "" {
+		visualization.JaegerAgentHostPort = os.Getenv("VISUALIZE_IP") + ":" + "6831"
+	} else {
+		visualization.JaegerAgentHostPort = *jaegerAgent
+	}
+
+	if tools.IsInMinikubeMode() {
+		minikubePid := os.Getenv("MINIKUBE_ROOT_PID")
+		minikubePidInt, err := strconv.Atoi(minikubePid)
+		if err != nil {
+			fmt.Println("[ERROR] MINIKUBE_ROOT_PID load failed:", minikubePid)
+			os.Exit(1)
+		}
+		fmt.Println("[INFO] Minikube root pid:", minikubePidInt)
+		tools.MinikubePid = minikubePidInt
+	}
 
 	if *podName == "" {
 		// TODO: testing code, delete it after the test
@@ -47,12 +72,7 @@ func main() {
 	}
 
 	sidecarProcesses, serviceProcesses, err := k8s.GetSidecarAndServiceProcess(checkedKubeconfig, nodeName, *namespace, *podName)
-	// FIXME: see function `findInitPid()` in file `/tools/container.go`
-	if err != nil || sidecarProcesses[0] == nil {
-		if tools.IsInMinikubeMode() {
-			fmt.Println("Unsupported Minikube runtime because of failed pid extraction.")
-			os.Exit(0)
-		}
+	if err != nil {
 		fmt.Printf("[ERROR] Got err: %s\n", err)
 		os.Exit(1)
 	}
@@ -61,7 +81,6 @@ func main() {
 
 	var sidecarPid []int
 	var servicePid []int
-	var portList = []int{15006, 9080, 80, 8000}
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -69,6 +88,18 @@ func main() {
 	for i := 0; i < len(serviceProcesses); i++ {
 		servicePid = append(servicePid, int(serviceProcesses[i].Pid))
 	}
+	var pidList []int
+	pidList = append(pidList, sidecarPid...)
+	pidList = append(pidList, servicePid...)
 
-	perf.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, *podName)
+	targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), *podName, *namespace)
+	so := net.SidecarOpt{
+		SidecarPort: 8000,
+		ServicePort: 80,
+		LocalIP:     "127.0.0.1",
+		PodIp:       targetPod.Status.PodIP,
+		NodeIp:      targetPod.Status.HostIP,
+	}
+
+	net.GetKernelNetworkEvent(pidList, so, *podName)
 }
