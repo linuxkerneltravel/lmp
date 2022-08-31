@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Visualization/eBPF_server/**'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Visualization/eBPF_server/**'
+  pull_request_review:
+  workflow_dispatch:
+
+jobs:
+  web-backend-build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build Lmp Web Backend
+        run: |
+          cd eBPF_Visualization/eBPF_server
+          go mod tidy
+          make
+          sudo -E timeout 120 go run cmd/server/main.go || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+        timeout-minutes: 5
+

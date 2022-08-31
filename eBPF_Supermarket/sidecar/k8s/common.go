@@ -38,7 +38,7 @@ func PreflightCheck(kubeconfig string) (string, string, string, string, error) {
 	// 3. Get node container runtime
 	nodeContainerRuntime, nodeContainerRuntimeVersion, err := tools.GetNodeContainerRuntime(kubeconfig, nodeName)
 	if err != nil {
-		return kubeconfig, nodeName, "", "", fmt.Errorf("cannot find out node container runtime from node: %s", nodeName)
+		return kubeconfig, nodeName, "", "", fmt.Errorf("cannot find out node container runtime from node %s: %s", nodeName, err)
 	}
 	fmt.Printf("[PREFLIGHT] Got container runtime '%s://%s'\n", nodeContainerRuntime, nodeContainerRuntimeVersion)
 	if policy.IsSupportedContainerRuntime(nodeContainerRuntime) == false {

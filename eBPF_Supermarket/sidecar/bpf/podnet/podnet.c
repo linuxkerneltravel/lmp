@@ -52,7 +52,7 @@ struct event_t {
     u32 pid;
     u32 tid;
 
-    char task[TASK_COMM_LEN];
+    // char task[TASK_COMM_LEN];
     char func_name[FUNCNAME_MAX_LEN];
     char ifname[IFNAMSIZ];
 
@@ -291,8 +291,10 @@ do_trace_skb(struct event_t *event, void *ctx, struct sk_buff *skb, void *netdev
         }
     }
 
+    /*FILTER_NS*/
 
 #endif
+
     event->cpu = bpf_get_smp_processor_id();
     member_read(&event->len, skb, len);
     member_read(&head, skb, head);
@@ -315,6 +317,8 @@ do_trace_skb(struct event_t *event, void *ctx, struct sk_buff *skb, void *netdev
         struct iphdr iphdr;
         bpf_probe_read(&iphdr, sizeof(iphdr), l3_header_address);
 
+        /*FILTER_IPV4*/
+
         l4_offset_from_ip_header = iphdr.ihl * 4;
         event->l4_proto  = iphdr.protocol;
         event->saddr[0] = iphdr.saddr;
@@ -336,6 +340,8 @@ do_trace_skb(struct event_t *event, void *ctx, struct sk_buff *skb, void *netdev
         bpf_probe_read(event->daddr, sizeof(ipv6hdr->daddr),   (char*)ipv6hdr + offsetof(struct ipv6hdr, daddr));
 	    bpf_probe_read(&event->tot_len, sizeof(ipv6hdr->payload_len), (char*)ipv6hdr + offsetof(struct ipv6hdr, payload_len));
         event->tot_len = ntohs(event->tot_len);
+
+        /*FILTER_IPV6*/
 
         if (event->l4_proto == IPPROTO_ICMPV6) {
             proto_icmp_echo_request = ICMPV6_ECHO_REQUEST;
@@ -437,6 +443,7 @@ do_trace(void *ctx, struct sk_buff *skb, const char *func_name, void *netdev)
     /*FILTER_PID*/
 
     struct event_t event = {.pid = pid, .tid = tid};
+    event.ts_ns = bpf_ktime_get_ns();
     union ___skb_pkt_type type = {};
 
     if (do_trace_skb(&event, ctx, skb, netdev) < 0)
@@ -446,10 +453,9 @@ do_trace(void *ctx, struct sk_buff *skb, const char *func_name, void *netdev)
     bpf_probe_read(&type.value, 1, ((char*)skb) + offsetof(typeof(*skb), __pkt_type_offset));
     event.pkt_type = type.pkt_type;
 
-    event.ts_ns = bpf_ktime_get_ns();
     bpf_strncpy(event.func_name, func_name, FUNCNAME_MAX_LEN);
     CALL_STACK(ctx, &event);
-    bpf_get_current_comm(&event.task, sizeof(event.task));
+    // bpf_get_current_comm(&event.task, sizeof(event.task));
     route_event.perf_submit(ctx, &event, sizeof(event));
 out:
     return 0;
@@ -619,8 +625,7 @@ int kprobe__ip_finish_output(struct pt_regs *ctx, struct net *net, struct sock *
 
 #if __BCC_iptable
 static int
-__ipt_do_table_in(struct pt_regs *ctx, struct sk_buff *skb,
-		const struct nf_hook_state *state, struct xt_table *table)
+__ipt_do_table_in(struct pt_regs *ctx, struct sk_buff *skb, const struct nf_hook_state *state, struct xt_table *table)
 {
     u32 pid = bpf_get_current_pid_tgid();
 
@@ -670,7 +675,7 @@ __ipt_do_table_out(struct pt_regs * ctx, struct sk_buff *skb)
 
     event.ts_ns = bpf_ktime_get_ns();
     CALL_STACK(ctx, &event);
-    bpf_get_current_comm(&event.task, sizeof(event.task));
+    // bpf_get_current_comm(&event.task, sizeof(event.task));
     route_event.perf_submit(ctx, &event, sizeof(event));
 
     return 0;
@@ -710,7 +715,7 @@ int kprobe____kfree_skb(struct pt_regs *ctx, struct sk_buff *skb)
     event.ts_ns = bpf_ktime_get_ns();
     bpf_strncpy(event.func_name, __func__+8, FUNCNAME_MAX_LEN);
     get_stack(ctx, &event);
-    bpf_get_current_comm(&event.task, sizeof(event.task));
+    // bpf_get_current_comm(&event.task, sizeof(event.task));
     route_event.perf_submit(ctx, event, sizeof(*event));
     return 0;
 }

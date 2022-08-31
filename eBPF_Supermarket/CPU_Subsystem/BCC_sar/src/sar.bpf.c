@@ -1,6 +1,7 @@
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
 // #define TASK_IDLE			0x0402
+#define COUNT_BPF 1
 
 struct rq {
 	raw_spinlock_t lock;
@@ -55,15 +56,17 @@ struct sysc_state {
 	unsigned int flags;
 	int pad; // 必须要有的pad项
 };
-BPF_HASH(syscMap, u32, struct sysc_state, 1024);
+BPF_HASH(syscMap, u32, struct sysc_state, 8192);
 BPF_ARRAY(syscTime, u64, 1);
+
+BPF_PERCPU_ARRAY(tick_user, u64, 1);
 
 struct user_state {
 	u64 start;
 	u64 in_user;
 };
 
-BPF_HASH(usermodeMap, u32, struct user_state, 1024);
+BPF_HASH(usermodeMap, u32, struct user_state, 8192);
 
 struct __softirq_info {
 	u64 pad;
@@ -92,6 +95,7 @@ struct __irq_info {
 	u32 irq;
 };
 
+/* 之前关于记录sysc时间和用户时间的一系列函数
 __always_inline static void on_sys_exit(u64 time) {
 	struct task_struct *ts = bpf_get_current_task();
 
@@ -119,24 +123,20 @@ __always_inline static void on_sys_exit(u64 time) {
 	syscMap.update(&pid, &sysc);
 }
 
-// 进入用户态
-int exit_to_user_mode_prepare() {
+__always_inline static void on_user_enter(u64 time) {
 	// Step1: 记录user开始时间，和当前的in_user状态
 	struct user_state us;
 	struct task_struct *ts = bpf_get_current_task();
 
 	u32 pid = ts->pid;
-	u64 time = bpf_ktime_get_ns();
 
 	us.start = time;
 	us.in_user = 1;
 
 	// Step2: 更新usermodeMap
 	usermodeMap.update(&pid, &us);
-
-	on_sys_exit(time); // 使用统一的时间节点
-	return 0;
 }
+
 
 // 在sched_switch中记录系统调用花费的时间
 __always_inline static void record_sysc(u64 time, pid_t prev, pid_t next) {
@@ -163,7 +163,10 @@ __always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
 	// 旧进程：检查是否处于用户态，如果是，更新总时间userTime
 	struct user_state *us = usermodeMap.lookup(&prev);
 	struct sysc_state *sysc = syscMap.lookup(&prev);
-	if (us && us->in_user) {
+	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
+
+	// 不记录IDLE和KTHREAD的用户态时间
+	if (us && us->in_user && !(ts->flags & PF_KTHREAD) && !(ts->flags & PF_IDLE) ) {
 		u64 delta = time - us->start;
 
 		u32 key = 0;
@@ -176,13 +179,33 @@ __always_inline static void record_user(u64 time, pid_t prev, pid_t next) {
 	us = usermodeMap.lookup(&next);
 	if (us && us->in_user) {
 		us->start = time;
+	} else if (!us) {
+		// 此时进程是第一次执行，需要判断其状态（或者此进程为永不会记录的内核线程）
+		// 我们简单地将它的认为是用户态。若误判，当前是sys，那么下一次sys_exit触发用户态进入信号，
+		// 那时之前未统计的错当成的用户时间被舍弃
+
+		// * 有必要查询task_struct结构体哪个字段记录了用户进程的状态
+		struct user_state _us;
+		_us.start = time;
+		_us.in_user = 1;
+		usermodeMap.update(&next, &_us);
+		// bpf_trace_printk("pid %d start.\n", next);
 	}
 }
 
+*/
+
 // 获取进程切换数
 int trace_sched_switch(struct cswch_args *info) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	pid_t prev = info->prev_pid, next = info->next_pid;
-	// bpf_trace_printk("sched_switch %d -> %d\n", prev, next);
 
 	if (prev != next) {
 		u32 key = 0;
@@ -196,10 +219,10 @@ int trace_sched_switch(struct cswch_args *info) {
 		procStartTime.update(&pid, &time);
 
 		// Step2: Syscall时间处理
-		record_sysc(time, prev, next);
+		// record_sysc(time, prev, next);
 
 		// Step3: UserMode时间处理
-		record_user(time, prev, next);
+		// record_user(time, prev, next);
 
 		// Step4: 记录上下文切换的总次数
 		valp = countMap.lookup(&key);
@@ -219,6 +242,14 @@ int trace_sched_switch(struct cswch_args *info) {
 
 // 计算各进程运行的时间（包括用户态和内核态）
 int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	int pid;
 	u64 *valp, time = bpf_ktime_get_ns(), delta;
 	struct task_struct *ts = bpf_get_current_task();
@@ -251,7 +282,7 @@ int finish_sched(struct pt_regs *ctx, struct task_struct *prev) {
 	return 0;
 }
 
-__always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
+/*__always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 	// Step1: 查询之前进入用户态的时间，记录退出用户态的时间，并将其累加到userTime
 	struct user_state *valp, us;
 	u32 key = 0;
@@ -268,22 +299,25 @@ __always_inline static void on_user_exit(u64 time, pid_t pid, u32 flags) {
 	us.start = time;
 	us.in_user = 0;
 	usermodeMap.update(&pid, &us);
-}
+}*/
 
 // 系统调用进入的信号（同时退出用户态）
-int trace_sys_enter() {
-	char comm[16]; // task_struct结构体内comm的位数为16
+/* int trace_sys_enter() {
+	u64 time = bpf_ktime_get_ns();
 	struct task_struct *ts = bpf_get_current_task();
-
-	// Step1: 打印进程进入Syscall的信息
-	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
-	// if (comm[0] == 'd' && comm[1] == 'd')
-	// 	bpf_trace_printk("sys_enter\n");
+	char comm[16]; // task_struct结构体内comm的位数为16
+	
+	// 记录syscall次数
+	u32 _key = 2;
+	u64 _val = 1;
+	u64 *_p = countMap.lookup(&_key);
+	if (_p) *_p += 1;
+	else countMap.update(&_key, &_val);
 
 	// Step2: 记录当前syscall进入时间和状态，并更新syscMap
 	struct sysc_state sysc;
 	u32 pid = ts->pid;
-	u64 *valp, time = bpf_ktime_get_ns();
+	u64 *valp;
 
 	sysc.start = time;
 	sysc.flags = ts->flags;
@@ -294,48 +328,39 @@ int trace_sys_enter() {
 	on_user_exit(time, pid, ts->flags);
 	return 0;
 }
+*/
 
 // 系统调用退出信号
-int trace_sys_exit() {
-	/*
-	char comm[16]; // task_struct结构体内comm的位数为16
-	struct task_struct *ts = bpf_get_current_task();
+/* int trace_sys_exit() {
+	u64 time = bpf_ktime_get_ns();
 
-	// Step1: 打印进程退出Syscall的信息
-	// bpf_probe_read_kernel(comm, 16, ts->comm); // 读取进程名称
-	// if (comm[0] == 'd' && comm[1] == 'd')
-	// 	bpf_trace_printk("sys_exit\n");
-
-	// Step2：累加进程Syscall时间到syscTime
-	struct sysc_state sysc;
-	u32 pid = ts->pid, key = 0;
-	u64 time = bpf_ktime_get_ns(), delta;
-	struct sysc_state *valp;
-	
-	valp = syscMap.lookup(&pid);
-
-	// Step2.5 确保当前进程之前存在记录，且既不是内核线程，也不是空闲线程，可以放心记录
-	if (valp && !(valp->flags & PF_IDLE) && !(valp->flags & PF_KTHREAD) && valp->in_sysc) {
-		delta = time - valp->start;
-		u64 *valq = syscTime.lookup(&key);
-		if (valq) *valq += delta;
-		else syscTime.update(&key, &delta);
-	}
-
-	// Step3: 更新进程的Syscall状态为不在Syscall，并更新进入时间（Optional）
-	sysc.start = time;
-	sysc.flags = ts->flags;
-	sysc.in_sysc = 0;
-	sysc.pad = 0;
-	syscMap.update(&pid, &sysc);
-	*/
+	on_sys_exit(time); // 使用统一的时间节点
+	on_user_enter(time);
 	return 0;
 }
+*/
 
 // 两个CPU各自会产生一个调用，这正好方便我们使用
-int tick_update() {
+int tick_update(struct pt_regs *ctx) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
+	// bpf_trace_printk("cs_rpl = %x\n", ctx->cs & 3);
 	u32 key = 0;
 	u64 val, *valp;
+
+	// 记录用户态时间，直接从头文件arch/x86/include/asm/ptrace.h中引用
+	if (user_mode(ctx)) {
+		u64 initval = 1;
+		valp = tick_user.lookup(&key);
+		if (valp) *valp += 1;
+		else tick_user.update(&key, &initval);
+	}
 
 	unsigned long total_forks;
 	valp = symAddr.lookup(&key);
@@ -354,6 +379,14 @@ int tick_update() {
 
 /* 只有IDLE-0（0号进程）才可以执行cpu_idle的代码 */
 int trace_cpu_idle(struct idleStruct *pIDLE) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u64 delta, time = bpf_ktime_get_ns();
 	u32 key = pIDLE->cpu_id;
 	// 按cpuid记录空闲的开始，这十分重要，因为IDLE-0进程可同时运行在两个核上
@@ -368,14 +401,10 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 			if (valp) *valp += delta;
 			else idleLastTime.update(&key, &delta);
 		}
-
-		// bpf_trace_printk("End idle.\n");
 	} else {
 		// 开始idle
 		u64 val = time;
 		idleStart.update(&key, &val);
-
-		// bpf_trace_printk("Begin idle.\n");
 	}
 	return 0;
 }
@@ -383,7 +412,14 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 // softirq入口函数
 // SEC("tracepoint/irq/softirq_entry")
 int trace_softirq_entry(struct __softirq_info *info) {
-	// bpf_trace_printk("softirq entry %d\n", info->vec);
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->vec;
 	u64 val = bpf_ktime_get_ns();
 
@@ -394,7 +430,14 @@ int trace_softirq_entry(struct __softirq_info *info) {
 // softirq出口函数
 // SEC("tracepoint/irq/softirq_exit")
 int trace_softirq_exit(struct __softirq_info *info) {
-	// bpf_trace_printk("softirq exit %d\n", info->vec);
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->vec;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 
@@ -411,28 +454,17 @@ int trace_softirq_exit(struct __softirq_info *info) {
 	return 0;
 }
 
-/*
-// 获取新建进程数：为保证效率，已经采用直接读取total_forks的方式
-// SEC("tracepoint/sched/sched_process_fork")
-int trace_sched_process_fork() {
-	u32 key = 1;
-	u64 initval = 1, *valp;
-
-	valp = countMap.lookup(&key);
-	if (!valp) {
-		// 没有找到表项
-		countMap.update(&key, &initval);
-		return 0;
-	}
-
-	*valp += 1;
-	return 0;
-}
-*/
-
 // 获取运行队列长度
 // SEC("kprobe/update_rq_clock")
 int update_rq_clock(struct pt_regs *ctx) {
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key     = 0;
 	u32 rqKey	= 0;
 	struct rq *p_rq = 0;
@@ -451,13 +483,14 @@ int update_rq_clock(struct pt_regs *ctx) {
 
 // SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
-	u32 _key = 2;
-	u64 _val = 1;
-	u64 *_p = countMap.lookup(&_key);
-	if (_p) *_p += 1;
-	else countMap.update(&_key, &_val);
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
 
-	// bpf_trace_printk("irq entry %d\n", info->irq);
 	u32 key = info->irq;
 	u64 val = bpf_ktime_get_ns();
 
@@ -467,7 +500,14 @@ int trace_irq_handler_entry(struct __irq_info *info) {
 
 // SEC("tracepoint/irq/irq_handler_exit")
 int trace_irq_handler_exit(struct __irq_info *info) {
-	// bpf_trace_printk("irq exit %d\n", info->irq);
+	if (COUNT_BPF) { // 记录插桩点执行次数
+		u32 _key = 2;
+		u64 _val = 1;
+		u64 *_p = countMap.lookup(&_key);
+		if (_p) *_p += 1;
+		else countMap.update(&_key, &_val);
+	}
+
 	u32 key = info->irq;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 
