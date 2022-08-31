@@ -110,11 +110,13 @@ jobs:
 
       - name: Run
         run: |
+          docker ps -a
+          export MINIKUBE_ROOT_PID=$(docker inspect $(docker ps | grep minikube | awk -F ' ' '{print $1}') -f '{{.State.Pid}}')
           export MINIKUBE_STARTED=TRUE
           eval $(minikube -p minikube docker-env)
           env
           docker ps -a
           ps axjf
           cd eBPF_Supermarket/sidecar/
-          go run main.go
+          sudo -E timeout 300 go run main.go || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
 
