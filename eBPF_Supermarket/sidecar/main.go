@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/host"
@@ -34,6 +35,17 @@ func main() {
 		visualization.JaegerAgentHostPort = *jaegerAgent
 	}
 
+	if tools.IsInMinikubeMode() {
+		minikubePid := os.Getenv("MINIKUBE_ROOT_PID")
+		minikubePidInt, err := strconv.Atoi(minikubePid)
+		if err != nil {
+			fmt.Println("[ERROR] MINIKUBE_ROOT_PID load failed:", minikubePid)
+			os.Exit(1)
+		}
+		fmt.Println("[INFO] Minikube root pid:", minikubePidInt)
+		tools.MinikubePid = minikubePidInt
+	}
+
 	if *podName == "" {
 		// TODO: testing code, delete it after the test
 		// https://istio.io/latest/docs/setup/getting-started/
@@ -60,12 +72,7 @@ func main() {
 	}
 
 	sidecarProcesses, serviceProcesses, err := k8s.GetSidecarAndServiceProcess(checkedKubeconfig, nodeName, *namespace, *podName)
-	// FIXME: see function `findInitPid()` in file `/tools/container.go`
-	if err != nil || sidecarProcesses[0] == nil {
-		if tools.IsInMinikubeMode() {
-			fmt.Println("Unsupported Minikube runtime because of failed pid extraction.")
-			os.Exit(0)
-		}
+	if err != nil {
 		fmt.Printf("[ERROR] Got err: %s\n", err)
 		os.Exit(1)
 	}
