@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from __future__ import print_function
+from os import getpid
 from time import sleep, time
 from bcc import BPF, PerfType, PerfSWConfig
 import bpfutil, ctypes, argparse
@@ -76,15 +77,19 @@ if __name__ == "__main__":
     bpf['symAddr'][1] = ctypes.c_ulonglong(runqueues)
     # 计算方式：某个cpu的PERCPU变量的地址 = PERCPU变量的地址 + __per_cpu_offset[cpu]
 
+    # 传递自己的PID，使BPF避开这个pid，这件事非常重要！
+    bpf["ownPid"][0] = ctypes.c_int(getpid())
+
     pidEvent = {}
 
     f = open("event.txt", "w")
 
     # perf数据接收回调函数
     def print_event(cpu, data, size):
+        global cnt
+        cnt += 1
         # 成员：pid, comm, type, stackid, waker, waker_comm, time
         event = bpf["events"].event(data)
-        stacktraces = bpf["stacktraces"]
 
         pid = event.pid
         stackid = event.stackid
@@ -95,17 +100,20 @@ if __name__ == "__main__":
         # 读取栈信息到stack_str中
         if event.type <= 2:
             stack_str = ""
-            for addr in stacktraces.walk(stackid):
-                sym = bpf.ksym(addr).decode('utf-8', 'replace')
-                stack_str = stack_str + "\t" + sym + "\n"
+            for addr in bpf["stacktraces"].walk(stackid):
+                stack_str = str(addr)
+                break
+                # sym = bpf.ksym(addr).decode('utf-8', 'replace')
+                # stack_str = stack_str + "\t" + sym + "\n"
         else:
             stack_str = "None"
 
         if pid not in pidEvent:
             pidEvent[pid] = []
 
-        pid_str = "{} {} type={} {} {} {}us\n{}\n\n".format(pid, comm, event.type, 
+        pid_str = "#{}: {} {} type={} {} {} {}us\n{}\n\n".format(cnt, pid, comm, event.type, 
                     event.waker, waker_comm, int(event.time / 1000), stack_str)
+        f.write(pid_str)
         pidEvent[pid].append(pid_str)
 
     target_pid = args.pid
@@ -165,10 +173,13 @@ if __name__ == "__main__":
     elif args.type == 'event':
         # 准备从perf_output中接收数据
         start = time()
-        bpf["events"].open_perf_buffer(print_event) 
+        bpf["events"].open_perf_buffer(print_event, page_cnt=128)
+        global cnt
+        cnt = 0
 
         while 1:
-            bpf.perf_buffer_poll(timeout=1000)
+            bpf.perf_buffer_poll()
+            sleep(1)
             if time() - start > args.time:
                 break
 
@@ -176,6 +187,9 @@ if __name__ == "__main__":
             # print(nowtime)
             # if nowtime == 10:
             #     break
+
+        print(cnt)
+        print("count = ", bpf["countMap"][0].value)
 
     '''
     # perf缓冲区的用法

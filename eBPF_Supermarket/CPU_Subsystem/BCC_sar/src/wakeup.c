@@ -5,7 +5,9 @@
 #define TARGET_PID 10327
 
 BPF_ARRAY(symAddr, u64, 5);
-BPF_STACK_TRACE(stacktraces, 4096);
+BPF_ARRAY(countMap, u64, 1);
+BPF_ARRAY(ownPid, int, 1);
+BPF_STACK_TRACE(stacktraces, 50009);
 
 struct sleep_record {
     u32 state;
@@ -89,6 +91,19 @@ struct perf_data {
     u64 time;
 };
 
+__always_inline static void inc_count() {
+    u32 key = 0;
+    u64 initval = 1, *valp = countMap.lookup(&key);
+    if (valp) *valp += 1;
+    else countMap.update(&key, &initval);
+}
+
+__always_inline static int getMyPid() {
+    u32 key = 0;
+    int *valp = ownPid.lookup(&key);
+    if (valp) return *valp;
+    else return -1;
+}
 
 __always_inline static void copy_comm(char *src, char *dst) {
     for (int i = 0; i < 15; i++) {
@@ -116,7 +131,7 @@ __always_inline static void begin_sleep(struct pt_regs *ctx) {
 
     // 向用户空间传送睡眠进程名、pid以及发生阻塞时的栈信息
     events.perf_submit(ctx, &data, sizeof(data));
-
+    // inc_count();
     // bpf_trace_printk("#%-8d Begin Sleep", pid);
 }
 
@@ -138,6 +153,7 @@ __always_inline static void end_sleep(struct pt_regs *waker_ctx,
     events.perf_submit(waker_ctx, &data, sizeof(data));
     // bpf_trace_printk("#%-8d Wakeup %d", waker_pid, ws->pid);
     // bpf_trace_printk("#%-8d End Sleep", ws->pid);
+    // inc_count();
 }
 
 __always_inline static void begin_run(int pid, char *comm, struct pt_regs *ctx) {
@@ -152,6 +168,7 @@ __always_inline static void begin_run(int pid, char *comm, struct pt_regs *ctx) 
 
     events.perf_submit(ctx, &data, sizeof(data));
     // bpf_trace_printk("#%-8d Begin Run", pid);
+    // inc_count();
 }
 
 __always_inline static void end_run(int pid, char *comm, struct pt_regs *ctx) {
@@ -166,6 +183,7 @@ __always_inline static void end_run(int pid, char *comm, struct pt_regs *ctx) {
 
     events.perf_submit(ctx, &data, sizeof(data));
     // bpf_trace_printk("#%-8d End Run", pid);
+    // inc_count();
 }
 
 __always_inline static void begin_wait(int pid, char *comm, struct pt_regs *ctx) {
@@ -180,6 +198,7 @@ __always_inline static void begin_wait(int pid, char *comm, struct pt_regs *ctx)
 
     events.perf_submit(ctx, &data, sizeof(data));
     // bpf_trace_printk("#%-8d Begin Wait", pid);
+    // inc_count();
 }
 
 __always_inline static void end_wait(int pid, char *comm, struct pt_regs *ctx) {
@@ -194,10 +213,14 @@ __always_inline static void end_wait(int pid, char *comm, struct pt_regs *ctx) {
 
     events.perf_submit(ctx, &data, sizeof(data));
     // bpf_trace_printk("#%-8d End Wait", pid);
+    // inc_count();
 }
 
 int trace_sched_switch(struct cswch_args *ctx) {
+    int myPid = getMyPid();
+    inc_count();
     if (ctx->next_pid == ctx->prev_pid) return 0;
+    // if (ctx->next_pid == myPid || ctx->prev_pid == myPid) return 0;
 
     struct task_struct *ts = bpf_get_current_task();
     struct sleep_record sr;
@@ -260,7 +283,11 @@ int trace_sched_switch(struct cswch_args *ctx) {
 
 
 int trace_wakeup(struct wakeup_struct *ws) {
+    inc_count();
     struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
+    int myPid = getMyPid();
+    // if (ws->pid == myPid && ts->pid == myPid) return 0;
+
     // char comm[16];
     // bpf_probe_read_kernel(comm, 16, ts->comm);
     // comm[15] = 0;
