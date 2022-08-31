@@ -1,6 +1,6 @@
 autocode:
   transfer-restart: true
-  root: /home/zcy/goproject/src/github.com/lmp
+  root: /home/yuemeng/lmp/eBPF_Visualization
   server: /server
   server-api: /api/v1/autocode
   server-initialize: /initialize
@@ -61,7 +61,7 @@ jwt:
   buffer-time: 86400
   expires-time: 604800
   issuer: qmPlus
-  signing-key: 433aa37d-7172-4da5-bc0d-ad76b3089bd9
+  signing-key: 0ec4e65a-f316-44f1-9bcd-70f9c25d3c0c
 local:
   path: uploads/file
 mysql:
@@ -86,6 +86,8 @@ pgsql:
   max-open-conns: 100
   log-mode: ""
   log-zap: false
+sqlite:
+  path: "./model/data_collector/dao/tables/ebpfplugin.db"
 redis:
   db: 0
   addr: 127.0.0.1:6379

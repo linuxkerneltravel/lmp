@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar-demo
+  labels:
+    app: sidecar
+spec:
+  nodeSelector:
+    sidecar-demo-node: dev  # kubectl label nodes node2 sidecar-demo-node=dev
+  initContainers:
+    - name: sidecar-init
+      image: eswzy/sidecar-init
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        capabilities:
+          add:
+            - NET_ADMIN
+        privileged: true
+  containers:
+    - name: sidecar-service
+      image: nginx  # TODO: use self-made service image instead
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 80
+    - name: sidecar-proxy
+      image: eswzy/sidecar-proxy
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 8000

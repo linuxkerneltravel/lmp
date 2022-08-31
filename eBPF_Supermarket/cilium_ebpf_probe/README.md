@@ -1,10 +1,76 @@
 # 基于 eBPF 的云原生场景下 Pod 性能监测
 
 ---
+# **如何运行**
 
-**目录**
+**环境情况**
 
-[toc]
+| Require | Version          |
+| ------- |:-----------------|
+| Linux   | 5.17.5           |
+| CentOS  | 7.9.2009 (Core)  |
+| GCC     | 11.2.1           |
+| LLVM    | 11.0.0           |
+| GoLang  | 1.18 Linux/amd64 |
+
+将本项目从Git仓库Clone下后，首先在cilium_ebpf_probe/k8s_yaml文件下通过kubectl apply命令在namespace“wyw”中创建grpc_server和http_server pod，等待pod变更为Running状态。namespace可在yaml文件中进行自定义设计。
+
+```bash
+[root@k8s-master k8s_yaml]# kubectl get pods -n wyw
+NAME         READY   STATUS    RESTARTS   AGE
+grpcserver   1/1     Running   0          3m2s
+httpserver   1/1     Running   0          3h46m
+```
+
+在cilium_ebpf_probe目录下直接运行go run  main.go即可，go会自动下载所需依赖。
+
+当出现如下报错时，显示gobpf和bcc版本不匹配所导致，在go.mod中修改gobpf@v0.0.0-20210109143822-fb892541d416为gobpf@v0.1.0或gobpf@v0.2.0至能运行即可。
+
+```bash
+/root/go/pkg/mod/github.com/iovisor/gobpf@v0.0.0-20210109143822-fb892541d416/bcc/module.go:230:132: not enough arguments in call to (_C2func_bcc_func_load)
+        have (unsafe.Pointer, _Ctype_int, *_Ctype_char, *_Ctype_struct_bpf_insn, _Ctype_int, *_Ctype_char, _Ctype_uint, _Ctype_int, *_Ctype_char, _Ctype_uint, nil)
+        want (unsafe.Pointer, _Ctype_int, *_Ctype_char, *_Ctype_struct_bpf_insn, _Ctype_int, *_Ctype_char, _Ctype_uint, _Ctype_int, *_Ctype_char, _Ctype_uint, *_Ctype_char, _Ctype_int)
+
+```
+为了进行可视化展示，需要通过以下流程对prometheus组件进行部署。
+
+**1.Docker启动普罗米修斯**
+
+```bash
+$ docker run --name prometheus -v /etc/localtime:/etc/localtime -d -p 9090:9090 prom/prometheus:latest 
+```
+
+这里默认 Prometheus 开放 9090 端口，我们使用最新版官方镜像，当前最新版本为 v2.11.1，启动完成后，浏览器访问 http://IP:9090 即可看到默认 UI 页面。
+
+**2.Docker启动pushgateway**
+
+```bash
+$ docker run --name pushgateway -v /etc/localtime:/etc/localtime -d -p 9091:9091 prom/pushgateway 
+```
+
+**3.将pushgateway和prometheus进行关联**
+
+Prometheus 默认配置文件 prometheus.yml 在[容器](https://cloud.tencent.com/product/tke?from=10680)内路径为 /etc/prometheus/prometheus.yml添加prometheus.yml配置如下
+
+```bash
+...
+- job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['10.10.103.122:9091'] #pushgateway的端口
+        labels:
+          instance: pushgateway
+```
+
+完成后重启prometheus`docker restart prometheus`
+
+**4.Docker启动Grafana**
+
+```bash
+$ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime grafana/grafana-enterprise:8.1.3
+```
+
+接下来打开 http://IP:3000 即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
 
 ---
 

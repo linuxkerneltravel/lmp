@@ -3,12 +3,20 @@ package ebpfplugins
 import (
 	"errors"
 	"io/ioutil"
+	"lmp/server/model/data_collector/dao"
+	"sync"
+
 	"lmp/server/global"
 	"lmp/server/model/common/request"
 	"lmp/server/model/ebpfplugins"
 )
 
 type EbpfpluginsService struct{}
+
+const (
+	outputBufferCapacity = 2
+	errorBufferCapacity  = 1
+)
 
 //@author: [helight](https://github.com/hellight)
 //@function: CreateEbpfPlugins
@@ -75,7 +83,8 @@ func (ebpf *EbpfpluginsService) GetEbpfPluginsInfoList(sysUserAuthorityID string
 //@description: 加载插件到内核
 //@param: e model.EbpfPlugins
 //@return: err error
-func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error) {
+
+func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo, parameterlist []string) (err error) {
 	// todo
 	// 1.状态判断，看是否已经加载到内核，判断State即可，避免重复下发
 	db := global.GVA_DB.Model(&ebpfplugins.EbpfPlugins{})
@@ -87,15 +96,30 @@ func (ebpf *EbpfpluginsService) LoadEbpfPlugins(e request.PluginInfo) (err error
 	}
 
 	// 2.加载执行
-	err = runSinglePlugin(plugin.PluginPath)
+	var wg sync.WaitGroup
+	outputChannel := make(chan bool, outputBufferCapacity)
+	errorChannel := make(chan error, errorBufferCapacity)
+	wg.Add(1)
+	go func() {
+		runSinglePlugin(e, &outputChannel, &errorChannel, parameterlist)
+	}()
+	go func() {
+		select {
+		case <-outputChannel:
+			global.GVA_LOG.Info("Start run plugin!")
+			wg.Done()
+		case err = <-errorChannel:
+			global.GVA_LOG.Error("error in runSinglePlugin!")
+			wg.Done()
+		}
+	}()
+	wg.Wait()
 	if err != nil {
 		return err
 	}
-
-	// 3.执行之后结果执行，成功还是失败
+	// 3.执行之后结果，成功还是失败
 	plugin.State = 1 // 表示已经成功加载内核中运行
 	err = global.GVA_DB.Save(plugin).Error
-
 	return err
 }
 
@@ -115,11 +139,16 @@ func (ebpf *EbpfpluginsService) UnloadEbpfPlugins(e request.PluginInfo) (err err
 	var plugin ebpfplugins.EbpfPlugins
 	db.Where("id = ?", e.PluginId).First(&plugin)
 	if plugin.State == 1 {
-		plugin.State = 0
-		killProcess(plugin.PluginPath)
-		err = global.GVA_DB.Save(plugin).Error
+		if pluginPid[plugin.PluginPath] == 0 {
+			plugin.State = 0
+			err = global.GVA_DB.Save(plugin).Error
+		} else {
+			plugin.State = 0
+			killProcess(plugin.PluginPath)
+			err = global.GVA_DB.Save(plugin).Error
+		}
 	}
-
+	dao.ChangeState(plugin.PluginName)
 	return err
 }
 
@@ -136,4 +165,49 @@ func (ebpf *EbpfpluginsService) GetEbpfPluginsContent(id uint) (err error, custo
 	data, err := ioutil.ReadFile(customer.PluginPath)
 	customer.Content = string(data)
 	return
+}
+
+//@author: [Gui-Yue](https://github.com/Gui-Yue)
+//@function: GetRunningPluginsInfo
+//@description: 分页获取正在运行的插件列表的信息
+//@param: info request.PageInfo
+//@return: err error, list interface{}, total int64
+func (ebpf EbpfpluginsService) GetRunningPluginsInfo(info request.PageInfo) (err error, list interface{}, total int64) {
+	limit := info.PageSize
+	offset := info.PageSize * (info.Page - 1)
+	db := dao.GLOBALDB.Table("indextable")
+	var RunningPluginsList []dao.Indextable
+	err = db.Count(&total).Error
+	if err != nil {
+		return err, RunningPluginsList, total
+	} else {
+		err = db.Limit(limit).Offset(offset).Find(&RunningPluginsList).Error
+	}
+	return err, RunningPluginsList, total
+}
+
+//@author: [Gui-Yue](https://github.com/Gui-Yue)
+//@function: FindRows
+//@description: 获取单个插件的数据
+//@param: pluginid int
+//@return: err error, list []map[string]interface{}
+func (ebpf EbpfpluginsService) FindRows(pluginid int) (error, []map[string]interface{}, bool) {
+	var runningplugin dao.Indextable
+	dao.GLOBALDB.Table("indextable").Where("IndexID=?", pluginid).First(&runningplugin)
+	var results []map[string]interface{}
+	rows, err := dao.GLOBALDB.Table(runningplugin.PluginName).Rows()
+	if err != nil {
+		return err, results, false
+	}
+	for rows.Next() {
+		result := map[string]interface{}{}
+		if err := dao.GLOBALDB.ScanRows(rows, &result); err != nil {
+			return err, results, false
+		}
+		results = append(results, result)
+	}
+	if runningplugin.State == false {
+		return err, results, false
+	}
+	return err, results, true
 }

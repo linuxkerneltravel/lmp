@@ -5,25 +5,34 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/shirou/gopsutil/v3/process"
 	v1 "k8s.io/api/core/v1"
 )
 
+func GetDockerContainerInfo(containerID string) (types.ContainerJSON, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return types.ContainerJSON{}, err
+	}
+
+	containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
+	if err != nil {
+		return types.ContainerJSON{}, err
+	}
+	return containerInfo, nil
+}
+
 // findInitPid gets myProcess ID of the initial myProcess
 func findInitPid(containerID string, runtime string) (int, error) {
 	if runtime == "docker" {
-		cli, err := client.NewClientWithOpts(client.FromEnv)
-		if err != nil {
-			return 0, err
-		}
-
-		containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
+		containerInfo, err := GetDockerContainerInfo(containerID)
 		if err != nil {
 			return -1, err
 		}
 
-		// FIXME: get real PID for minikube docker container
+		// TODO: get real PID for minikube docker container
 		// ref: cgroups golang library (https://github.com/containerd/cgroups), systemd-cgls(1) and IsInMinikubeMode()
 		return containerInfo.State.Pid, nil
 	}
@@ -46,6 +55,18 @@ func GetAllProcessFromContainer(containerStatus v1.ContainerStatus, nodeContaine
 	}
 
 	fmt.Println("[INFO] Found pid", initPid, "from container", containerID)
+	if IsInMinikubeMode() {
+		fmt.Println("[INFO] Minikube mode detected...")
+		childProcesses, err := FindChildProcessesUnderMinikubeWithDockerDriver(initPid)
+		if err != nil {
+			return nil, err
+		}
+
+		resProcesses := append([]*process.Process{{Pid: int32(initPid)}}, childProcesses...)
+		fmt.Println("[INFO] Got PIDs under Minikube:", resProcesses)
+		return resProcesses, nil
+	}
+
 	initProcess, err := process.NewProcess(int32(initPid))
 	if err != nil {
 		return nil, err
@@ -63,12 +84,7 @@ func GetAllProcessFromContainer(containerStatus v1.ContainerStatus, nodeContaine
 // GetContainerFileSystemRoot get root path on the local machine file system
 func GetContainerFileSystemRoot(containerID string, runtime string) (string, error) {
 	if runtime == "docker" {
-		cli, err := client.NewClientWithOpts(client.FromEnv)
-		if err != nil {
-			return "", err
-		}
-
-		containerInfo, err := cli.ContainerInspect(context.TODO(), containerID)
+		containerInfo, err := GetDockerContainerInfo(containerID)
 		if err != nil {
 			return "", err
 		}

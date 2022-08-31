@@ -38,7 +38,7 @@ func PreflightCheck(kubeconfig string) (string, string, string, string, error) {
 	// 3. Get node container runtime
 	nodeContainerRuntime, nodeContainerRuntimeVersion, err := tools.GetNodeContainerRuntime(kubeconfig, nodeName)
 	if err != nil {
-		return kubeconfig, nodeName, "", "", fmt.Errorf("cannot find out node container runtime from node: %s", nodeName)
+		return kubeconfig, nodeName, "", "", fmt.Errorf("cannot find out node container runtime from node %s: %s", nodeName, err)
 	}
 	fmt.Printf("[PREFLIGHT] Got container runtime '%s://%s'\n", nodeContainerRuntime, nodeContainerRuntimeVersion)
 	if policy.IsSupportedContainerRuntime(nodeContainerRuntime) == false {
@@ -48,8 +48,8 @@ func PreflightCheck(kubeconfig string) (string, string, string, string, error) {
 	return kubeconfig, nodeName, nodeContainerRuntime, nodeContainerRuntimeVersion, nil
 }
 
-// getContainersFromPod get containerStatuses from pod spec
-func getContainersFromPod(kubeconfig string, nodeName string, namespace string, podName string) ([]v1.ContainerStatus, error) {
+// GetContainersFromPod get containerStatuses from pod spec
+func GetContainersFromPod(kubeconfig string, nodeName string, namespace string, podName string) ([]v1.ContainerStatus, error) {
 	// 1. Get pod object
 	targetPod, err := tools.LocateTargetPod(kubeconfig, podName, namespace)
 	if err != nil {
@@ -73,7 +73,7 @@ func getContainersFromPod(kubeconfig string, nodeName string, namespace string, 
 // GetAllPodProcess get all processes from a pod
 func GetAllPodProcess(kubeconfig string, nodeName string, namespace string, podName string) (map[v1.ContainerStatus][]*process.Process, error) {
 	// 1. Get all containers
-	containerStatuses, err := getContainersFromPod(kubeconfig, nodeName, namespace, podName)
+	containerStatuses, err := GetContainersFromPod(kubeconfig, nodeName, namespace, podName)
 	if err != nil {
 		return nil, err
 	}
@@ -97,15 +97,15 @@ func GetAllPodProcess(kubeconfig string, nodeName string, namespace string, podN
 }
 
 // GetSidecarAndServiceProcess get single sidecar process and single service process
-func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace string, podName string) (*process.Process, *process.Process, error) {
+func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace string, podName string) ([]*process.Process, []*process.Process, error) {
 	// 1. Get all containers
-	containerStatuses, err := getContainersFromPod(kubeconfig, nodeName, namespace, podName)
+	containerStatuses, err := GetContainersFromPod(kubeconfig, nodeName, namespace, podName)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// 2. Get sidecar container and service containers
-	sidecarContainerStatus, sidecarContainerIndex, err := policy.GetSidecarFromContainerStatuses(containerStatuses)
+	sidecarContainerStatus, sidecarContainerIndex, _, err := policy.GetSidecarFromContainerStatuses(containerStatuses)
 	if err != nil {
 		return nil, nil, fmt.Errorf("sidecar finding failed: %s", err)
 	}
@@ -132,11 +132,8 @@ func GetSidecarAndServiceProcess(kubeconfig string, nodeName string, namespace s
 		return nil, nil, fmt.Errorf("unsupported process number '%d' or '%d'", len(sidecarProcesses), len(serviceProcesses))
 	}
 
-	sidecarProcessBPF := sidecarProcesses[len(sidecarProcesses)-1]
-	serviceProcessBPF := serviceProcesses[len(serviceProcesses)-1]
+	fmt.Println("[INFO] Sidecar processes for BPF:", sidecarProcesses)
+	fmt.Println("[INFO] Service processes for BPF:", serviceProcesses)
 
-	fmt.Println("[INFO] Sidecar process for BPF:", sidecarProcessBPF)
-	fmt.Println("[INFO] Service process for BPF:", serviceProcessBPF)
-
-	return sidecarProcessBPF, serviceProcessBPF, nil
+	return sidecarProcesses, serviceProcesses, nil
 }
