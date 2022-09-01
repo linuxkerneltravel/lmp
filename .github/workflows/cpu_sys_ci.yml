@@ -30,9 +30,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install psutil==5.9.1
           pip install flake8 pytest
           cd eBPF_Supermarket/CPU_Subsystem/BCC_sar
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           sudo apt-get install bpfcc-tools linux-headers-$(uname -r) # install BCC
       
       # - name: Build BCC
@@ -68,6 +68,7 @@ jobs:
           cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src
           # find the process which runs for the longest time
           TARGET=$(ps -eo pid --sort -time | sed -n "2p" | awk '{print $1}')
+          echo target=$TARGET
           sudo python3 sar.py -t time -c 3 -p $TARGET
           sudo python3 sar.py -t percent -c 3 -p $TARGET
 
