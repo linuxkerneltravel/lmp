@@ -2,10 +2,15 @@ name: Go
 
 on:
   push:
-    branches: [ "develop" ]
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/cilium_ebpf_probe/**'
   pull_request:
-    branches: [ "develop" ]
-
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/cilium_ebpf_probe/**'
 jobs:
    build:
     runs-on: ubuntu-22.04
@@ -15,24 +20,24 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: 1.18
-    - name: Build BCC
-      run: |
-        sudo apt install -y bison build-essential cmake flex git libedit-dev \
-        libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-        git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
-        mkdir bcc/build; cd bcc/build
-        cmake ..
-        make
-        sudo make install
-        cmake -DPYTHON_CMD=python3 .. # build python3 binding
-        pushd src/python/
-        make
-        sudo make install
-        popd
+   
+    - name: Start minikube
+      id: minikube
+      uses: medyagh/setup-minikube@master
 
-    - name: example tests
+    - name: pod start
       run: |
         kubectl cluster-info
         kubectl create namespace wyw
-        kubectl get serviceaccount
- 
+        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml
+        test_pod() {
+                while [[ $(kubectl get pods -n $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]
+                  do 
+                    echo "waiting for pod"
+                    sleep 5
+                    kubectl get pods -owide -A; 
+                  done
+                return 0
+              }
+        test_pod wyw
+        echo "httpserver is done"
