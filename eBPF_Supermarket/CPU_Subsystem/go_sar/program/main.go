@@ -91,7 +91,7 @@ func main() {
 		key = 0
 		objs.Runqlen.Lookup(key, &all_cpu_value)
 		runqlen = 0
-		for cpuid := 0; cpuid < 128; cpuid++ {
+		for cpuid := 0; cpuid < len(all_cpu_value); cpuid++ {
 			runqlen += all_cpu_value[cpuid]
 		}
 
