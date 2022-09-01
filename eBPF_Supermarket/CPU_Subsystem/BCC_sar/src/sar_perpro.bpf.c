@@ -285,7 +285,6 @@ int trace_softirq_exit(struct __softirq_info *info) {
 	return 0;
 }
 
-
 // SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
 	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
