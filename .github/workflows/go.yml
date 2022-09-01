@@ -23,7 +23,7 @@ jobs:
       run: |
         kubectl create namespace wyw
         kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml
-        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml.yaml
+        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml
         test_pod() {
                 while [[ $(kubectl get pods -n $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]
                   do 
