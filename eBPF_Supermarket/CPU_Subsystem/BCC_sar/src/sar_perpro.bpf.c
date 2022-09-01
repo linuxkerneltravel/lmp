@@ -1,6 +1,6 @@
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
-#define TARGET_PID 129189
+#define TARGET_PID 65005
 
 typedef int pid_t;
 BPF_ARRAY(TotalMap, u64, 9);

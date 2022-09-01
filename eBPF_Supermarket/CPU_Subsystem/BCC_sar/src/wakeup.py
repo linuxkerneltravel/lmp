@@ -30,16 +30,17 @@ class deltaTimeMgr:
             return self.delta
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Wakeup Monitoring System")
+    parser = argparse.ArgumentParser(description="Wakeup Monitoring System", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-t", "--type", default="time", help=
-    """Type of output method.\n
-    event: print event to screen. (May cause lost of information)
-    time: print time of sleep,run,wait and compares their addition with actual time.
-        -- Since our eBPF program is event driven, the static process like pid 1(systemd) which don't cause any event
-        won't be recorded, so their value may become less.
+    """Type of output method.
+event: print event to screen. (May cause lost of information)
+time: print time of sleep,run,wait and compares their addition with actual time.
+    -- Since our eBPF program is event driven, the static process like pid 1(systemd) 
+which don't cause any event won't be recorded, so their value may become less.
     """)
     parser.add_argument("-p", "--pid", default=0, type=int, help="The Process needs to be attached on.")
     parser.add_argument("--time", default=3, type=float, help="excution time")
+    parser.add_argument("-o", "--output", default="event.txt", type=str, help="The output file which saves all the content.")
 
     return parser.parse_args()
 
@@ -79,42 +80,6 @@ if __name__ == "__main__":
 
     # 传递自己的PID，使BPF避开这个pid，这件事非常重要！
     bpf["ownPid"][0] = ctypes.c_int(getpid())
-
-    pidEvent = {}
-
-    f = open("event.txt", "w")
-
-    # perf数据接收回调函数
-    def print_event(cpu, data, size):
-        global cnt
-        cnt += 1
-        # 成员：pid, comm, type, stackid, waker, waker_comm, time
-        event = bpf["events"].event(data)
-
-        pid = event.pid
-        stackid = event.stackid
-
-        comm = event.comm.decode('utf-8')
-        waker_comm = event.waker_comm.decode('utf-8')
-
-        # 读取栈信息到stack_str中
-        if event.type <= 2:
-            stack_str = ""
-            for addr in bpf["stacktraces"].walk(stackid):
-                stack_str = str(addr)
-                break
-                # sym = bpf.ksym(addr).decode('utf-8', 'replace')
-                # stack_str = stack_str + "\t" + sym + "\n"
-        else:
-            stack_str = "None"
-
-        if pid not in pidEvent:
-            pidEvent[pid] = []
-
-        pid_str = "#{}: {} {} type={} {} {} {}us\n{}\n\n".format(cnt, pid, comm, event.type, 
-                    event.waker, waker_comm, int(event.time / 1000), stack_str)
-        f.write(pid_str)
-        pidEvent[pid].append(pid_str)
 
     target_pid = args.pid
     nowtime = 0
@@ -171,6 +136,58 @@ if __name__ == "__main__":
                 print(thead)
 
     elif args.type == 'event':
+        pidEvent = {} # 存储每个pid的event列表
+        f = open(args.output, "w")
+    
+        # perf数据接收回调函数
+        def print_event(cpu, data, size):
+            global cnt
+            cnt += 1
+            # 成员：pid, comm, type, stackid, waker, waker_comm, time
+            event = bpf["events"].event(data)
+
+            pid = event.pid
+            stackid = event.stackid
+
+            comm = event.comm.decode('utf-8')
+            waker_comm = event.waker_comm.decode('utf-8')
+
+            # 读取栈信息到stack_str中
+            if event.type <= 2:
+                stack_str = ""
+                # 直接打印整个栈的信息
+                # for addr in bpf["stacktraces"].walk(stackid):
+                #     sym = bpf.ksym(addr).decode('utf-8', 'replace')
+                #     stack_str = stack_str + "\t" + sym + "\n"
+
+                # 对于BEGIN_SLEEP, 打印wchan
+                stack_str = ""
+                if event.type == BEGIN_SLEEP:
+                    find_schedule = 0
+                    for addr in bpf["stacktraces"].walk(stackid):
+                        sym = bpf.ksym(addr).decode('utf-8', 'replace')
+                        if "schedule" in sym and find_schedule == 0:
+                            find_schedule = 1
+                        elif "schedule" not in sym and find_schedule == 1:
+                            stack_str = sym
+                            break
+                else: # END_SLEEP
+                    # 之后可能做一下数据分类，现在先只用第一项
+                    for addr in bpf["stacktraces"].walk(stackid):
+                        sym = bpf.ksym(addr).decode('utf-8', 'replace')
+                        stack_str = sym
+                        break
+            else:
+                stack_str = "None"
+
+            if pid not in pidEvent:
+                pidEvent[pid] = []
+
+            pid_str = "#{}: {} {} type={} {} {} {}us\n{}\n\n".format(cnt, pid, comm, event.type, 
+                        event.waker, waker_comm, int(event.time / 1000), stack_str)
+            f.write(pid_str)
+            pidEvent[pid].append(pid_str)
+
         # 准备从perf_output中接收数据
         start = time()
         bpf["events"].open_perf_buffer(print_event, page_cnt=128)
@@ -188,11 +205,71 @@ if __name__ == "__main__":
             # if nowtime == 10:
             #     break
 
-        print(cnt)
-        print("count = ", bpf["countMap"][0].value)
+        f.close() # 关闭文件
+        print("EVENT cnt = ", cnt)
+        print("Tracepoint count = ", bpf["countMap"][0].value)
+
+    elif args.type == "flame":
+        f = open(args.output, "w")
+        runbegin = {}
+        def flame_record(cpu, data, size):
+            # 成员：pid, comm, type, stackid, waker, waker_comm, time
+            event = bpf["events"].event(data)
+
+            pid = event.pid
+            comm = event.comm.decode('utf-8')
+            # waker_comm = event.waker_comm.decode('utf-8')
+
+            if cpu != 0: return
+
+            if event.type == BEGIN_RUN:
+                runbegin[pid] = event.time
+            elif event.type == END_RUN and pid in runbegin:
+                if pid != 0:
+                    time = int((event.time - runbegin[pid]) / 1000) # us
+                else:
+                    time = 3 # 优化idle进程的显示
+                f.write("{0};{1} {2}\n".format(comm, pid, time))
+
+        bpf["events"].open_perf_buffer(flame_record, page_cnt=128)
+        start = time()
+        while 1:
+            bpf.perf_buffer_poll()
+            sleep(1)
+            if time() - start > args.time:
+                break
+
+    elif args.type == "runinterval":
+        runbegin = {}
+        def flame_record(cpu, data, size):
+            # 成员：pid, comm, type, stackid, waker, waker_comm, time
+            event = bpf["events"].event(data)
+
+            pid = event.pid
+            comm = event.comm.decode('utf-8')
+            # waker_comm = event.waker_comm.decode('utf-8')
+
+            if cpu != 0: return
+
+            if event.type == BEGIN_RUN:
+                runbegin[pid] = event.time
+            elif event.type == END_RUN and pid in runbegin:
+                if pid != 0:
+                    time = int((event.time - runbegin[pid]) / 1000) # us
+                else:
+                    time = 3 # 优化idle进程的显示
+                f.write("{0};{1} {2}\n".format(comm, pid, time))
+
+        bpf["events"].open_perf_buffer(flame_record, page_cnt=128)
+        start = time()
+        while 1:
+            bpf.perf_buffer_poll()
+            sleep(1)
+            if time() - start > args.time:
+                break
 
     '''
-    # perf缓冲区的用法
+    # perf缓冲区的用法(previous)
     def print_event(cpu, data, size):
         event = bpf["events"].event(data)
         print("recv msg.")
@@ -201,5 +278,5 @@ if __name__ == "__main__":
     bpf["events"].open_perf_buffer(print_event)
 
     while 1:
-        bpf.perf_buffer_poll()
+        bpf.perf_buffer_poll() # 仅适用于与poll不发生牵连影响的perf_submit
     '''

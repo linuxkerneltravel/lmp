@@ -116,5 +116,9 @@ func main() {
 			dtaIrq, dtaSoft, dtaIdle/1000000)
 
 		actualTime += 1
+
+		if actualTime == 5 {
+			break
+		}
 	}
 }

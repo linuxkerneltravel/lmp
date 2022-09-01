@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/CPU_Subsystem/**'
+
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/CPU_Subsystem/**'
+      
+  pull_request_review:
+  workflow_dispatch:
+
+jobs:
+  bcc-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.9.5"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Build BCC
+        run: |
+          set -x
+          sudo apt-get update
+          # Use release 9 of llvm etc. - later versions have an unfixed
+          # bug on Ubuntu:
+          # https://github.com/iovisor/bcc/issues/2915
+          sudo apt-get -y install bison build-essential cmake flex git libelf-dev libfl-dev libedit-dev libllvm9 llvm-9-dev libclang-9-dev python zlib1g-dev
+          pushd /tmp
+          git clone --depth 1 --branch v0.20.0 https://github.com/iovisor/bcc.git
+          mkdir -p bcc/build; cd bcc/build
+          # Symlink /usr/lib/llvm to avoid "Unable to find clang libraries"
+          # The directory appears only to be created when installing the
+          # virtual llvm-dev package.
+          # https://github.com/iovisor/bcc/issues/492
+          sudo ln -s /usr/lib/llvm-9 /usr/local/llvm
+          cmake ..
+          make
+          sudo make install
+
+      - name: Run BCC_sar
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src
+          sudo python3 sar.py -h
+          sudo python3 sar.py -t time -c 3
+          sudo python3 sar.py -t percent -c 5
+          sudo python3 sar.py -t percent -c 3 -i 2
+
+      - name: Run BCC_sar(Per Process)
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src
+          # find the process which runs for the longest time
+          TARGET=$(ps -eo pid --sort -time | sed -n "2p" | awk '{print $1}')
+          sudo python3 sar.py -t time -c 3 -p $TARGET
+          sudo python3 sar.py -t percent -c 3 -p $TARGET
+
+  go-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build Cilium And Run Go Program
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/go_sar
+          # download cilium-eBPF package
+          go mod tidy
+          cd program
+          chmod +x run.sh
+          ./run.sh
+          
