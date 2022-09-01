@@ -87,6 +87,15 @@ jobs:
           sudo apt install clang llvm
           export BPF_CLANG=clang # configure llvm
 
+          # 为当前平台单独生成一个vmlinux.h
+          sudo apt install linux-tools-$(uname -r)
+          sudo apt install linux-tools-generic
+          sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > cd eBPF_Supermarket/CPU_Subsystem/vmlinux.h
+          echo 'Already produce own vmlinux.h'
+
+          # 查看目标平台CPU信息
+          cat /proc/cpuinfo
+
           cd eBPF_Supermarket/CPU_Subsystem/go_sar
 
           # download cilium-eBPF package
