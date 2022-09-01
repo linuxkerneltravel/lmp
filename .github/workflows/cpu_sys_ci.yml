@@ -84,7 +84,7 @@ jobs:
 
       - name: Build Cilium And Run Go Program
         run: |
-          apt install clang llvm
+          sudo apt install clang llvm
           export BPF_CLANG=clang # configure llvm
 
           cd eBPF_Supermarket/CPU_Subsystem/go_sar
