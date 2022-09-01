@@ -86,7 +86,7 @@ int sched_switch(struct cswch_args *info) {
 		valp = bpf_map_lookup_elem(&procStartTime, &pid);
 
 		// 不能直接读取结构体指针里的字段，需要用bpf_probe_read_kernel
-		ts = (struct task_struct *)bpf_get_current_task();
+		ts = (struct task_struct *)bpf_get_current_task_btf();
 		long ts_state;
 		bpf_probe_read_kernel(&ts_state, sizeof(long), &(ts->state));
 		if (valp && ts_state == TASK_IDLE) {
