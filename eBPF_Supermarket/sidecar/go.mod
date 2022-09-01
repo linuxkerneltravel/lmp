@@ -2,9 +2,12 @@ module github.com/eswzy/podstat
 
 go 1.18
 
+replace github.com/iovisor/gobpf => github.com/ESWZY/gobpf v0.2.1-0.20220720201619-9eb793319a76
+
 require (
 	github.com/docker/docker v20.10.17+incompatible
-	github.com/iovisor/gobpf v0.2.0
+	github.com/iovisor/gobpf v0.0.0-00010101000000-000000000000
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.12.2
 	github.com/shirou/gopsutil/v3 v3.22.6
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
@@ -49,7 +52,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect

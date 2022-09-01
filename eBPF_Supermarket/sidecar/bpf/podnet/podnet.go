@@ -2,11 +2,14 @@ package podnet
 
 import (
 	"bytes"
+	"embed"
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +20,9 @@ import (
 )
 
 import "C"
+
+//go:embed podnet.c
+var content embed.FS
 
 var source string
 
@@ -30,7 +36,7 @@ type bpfEventData struct {
 	Pid uint32
 	Tid uint32
 
-	Comm     [16]byte
+	// Comm     [16]byte
 	FuncName [FUNCNAME_MAX_LEN]byte
 	IfName   [IFNAMSIZ]byte
 
@@ -153,8 +159,8 @@ func (el EventList) Swap(i, j int) {
 
 func getEventFromBpfEventData(bpfEvent bpfEventData) Event {
 	return Event{
-		Time:          time.Duration(int64(bpfEvent.TsNs)),
-		Comm:          strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
+		Time: time.Duration(int64(bpfEvent.TsNs)),
+		// Comm:          strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:           int(bpfEvent.Pid),
 		Tid:           int(bpfEvent.Tid),
 		FuncName:      strings.Trim(string(bpfEvent.FuncName[:]), "\u0000"),
@@ -196,28 +202,46 @@ func contains(a []int, i int) bool {
 	return false
 }
 
-// Probe probes TCP close event and pushes it out
-func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event) {
-	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Action: "return 0;", Reverse: false}
-	lportFg := bpf.IntFilterGenerator{Name: "lport", List: portList, Action: "birth.delete(&sk); return 0;", Reverse: false}
-	dportFg := bpf.IntFilterGenerator{Name: "dport", List: portList, Action: "birth.delete(&sk); return 0;", Reverse: false}
-	familyFg := bpf.FamilyFilterGenerator{List: protocolList}
+// Probe probes network events and pushes them out
+func Probe(pidList []int, reverse bool, podIp string, ch chan<- Event) {
+	pidFg := bpf.IntFilterGenerator{Name: "pid", List: pidList, Action: "return 0;", Reverse: reverse}
+	ipFilter := ""
+	ipRep := ""
+	if podIp != "" {
+		ipAdd := net.ParseIP(podIp)
+		if ipAdd.To4() != nil { // IPv4
+			ipFilter = "/*FILTER_IPV4*/"
+			ipv4Int, _ := tools.IpToUint32(podIp)
+			ipRep = "if(iphdr.saddr != " + strconv.Itoa(int(ipv4Int)) + " && iphdr.daddr != " + strconv.Itoa(int(ipv4Int)) + ") return -1;"
+		} else if ipAdd.To16() != nil { // IPv6
+			ipFilter = "/*FILTER_IPV6*/"
+			ipRep = "" // TODO
+		}
+	}
 
-	file, err := os.Open("bpf/podnet/podnet.c")
+	file, err := content.Open("podnet.c")
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
-	content, _ := ioutil.ReadAll(file)
+	sourceContent, _ := ioutil.ReadAll(file)
 
-	source = string(content[:])
-
+	source = string(sourceContent[:])
 	sourceBpf := source
 
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_LPORT*/", lportFg.Generate(), 1)
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_DPORT*/", dportFg.Generate(), 1)
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_FAMILY*/", familyFg.Generate(), 1)
+	if tools.IsInMinikubeMode() {
+		nsPidFilter, err := bpf.GetFilterByParentProcessPidNamespace(tools.MinikubePid, pidList, reverse)
+		if err != nil {
+			panic(err)
+		}
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", nsPidFilter, 1)
+	} else {
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	}
+
+	if ipFilter != "" {
+		sourceBpf = strings.Replace(sourceBpf, ipFilter, ipRep, 1)
+	}
 
 	m := bcc.NewModule(sourceBpf, []string{})
 	defer m.Close()
@@ -290,11 +314,10 @@ func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event
 // Sample provides a no argument function call
 func Sample() {
 	var pidList []int
-	var portList []int
-	var protocolList []string
+	ipAdd := ""
 	ch := make(chan Event, 10000)
 
-	go Probe(pidList, portList, protocolList, ch)
+	go Probe(pidList, false, ipAdd, ch)
 
 	for {
 		event := <-ch

@@ -100,3 +100,4 @@ rm:
 	-docker rm sidecar-jaeger
 	-docker rm sidecar-node-exporter
 	rm prometheus.yml
+

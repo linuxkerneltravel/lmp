@@ -4,6 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
+
+	"github.com/shirou/gopsutil/v3/host"
 
 	"github.com/eswzy/podstat/k8s"
 	"github.com/eswzy/podstat/perf/net"
@@ -13,6 +17,9 @@ import (
 )
 
 func main() {
+	uptime, _ := host.Uptime()
+	net.TimeOffset = net.TimeOffset.Add(-time.Duration(uptime * 1000000000))
+
 	visualization.VisPort = "8765"
 	go visualization.Vis()
 
@@ -26,6 +33,17 @@ func main() {
 		visualization.JaegerAgentHostPort = os.Getenv("VISUALIZE_IP") + ":" + "6831"
 	} else {
 		visualization.JaegerAgentHostPort = *jaegerAgent
+	}
+
+	if tools.IsInMinikubeMode() {
+		minikubePid := os.Getenv("MINIKUBE_ROOT_PID")
+		minikubePidInt, err := strconv.Atoi(minikubePid)
+		if err != nil {
+			fmt.Println("[ERROR] MINIKUBE_ROOT_PID load failed:", minikubePid)
+			os.Exit(1)
+		}
+		fmt.Println("[INFO] Minikube root pid:", minikubePidInt)
+		tools.MinikubePid = minikubePidInt
 	}
 
 	if *podName == "" {
@@ -54,12 +72,7 @@ func main() {
 	}
 
 	sidecarProcesses, serviceProcesses, err := k8s.GetSidecarAndServiceProcess(checkedKubeconfig, nodeName, *namespace, *podName)
-	// FIXME: see function `findInitPid()` in file `/tools/container.go`
-	if err != nil || sidecarProcesses[0] == nil {
-		if tools.IsInMinikubeMode() {
-			fmt.Println("Unsupported Minikube runtime because of failed pid extraction.")
-			os.Exit(0)
-		}
+	if err != nil {
 		fmt.Printf("[ERROR] Got err: %s\n", err)
 		os.Exit(1)
 	}
@@ -68,7 +81,6 @@ func main() {
 
 	var sidecarPid []int
 	var servicePid []int
-	var portList []int // {15006, 9080, 80, 8000}
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -80,13 +92,14 @@ func main() {
 	pidList = append(pidList, sidecarPid...)
 	pidList = append(pidList, servicePid...)
 
+	targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), *podName, *namespace)
 	so := net.SidecarOpt{
 		SidecarPort: 8000,
 		ServicePort: 80,
 		LocalIP:     "127.0.0.1",
-		PodIp:       "UNSET",
-		NodeIp:      "UNSET",
+		PodIp:       targetPod.Status.PodIP,
+		NodeIp:      targetPod.Status.HostIP,
 	}
 
-	net.GetKernelNetworkEvent(pidList, portList, so, *podName)
+	net.GetKernelNetworkEvent(pidList, so, *podName)
 }

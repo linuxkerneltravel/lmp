@@ -2,8 +2,10 @@ package bpf
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type IntFilterGenerator struct {
@@ -82,4 +84,28 @@ func GetFamilyFilter(family string) string {
 
 	return res
 
+}
+
+func GetFilterByParentProcessPidNamespace(rootPid int, pidList []int, reverse bool) (string, error) {
+	info, err := os.Stat("/proc/" + strconv.Itoa(rootPid) + "/ns/pid")
+	if err != nil {
+		return "", fmt.Errorf("get error for /proc/%s/ns/pid: %s", strconv.Itoa(rootPid), err)
+	}
+	dev := info.Sys().(*syscall.Stat_t).Dev
+	ino := info.Sys().(*syscall.Stat_t).Ino
+
+	fg := IntFilterGenerator{
+		Name:    "filter_ns.tgid", // TODO: it looks like tgid is the real pid
+		List:    pidList,
+		Action:  "return 0;",
+		Reverse: reverse,
+	}
+
+	res := "  struct bpf_pidns_info filter_ns = {};\n\n  if(bpf_get_ns_current_pid_tgid(DEV, INO, &filter_ns, sizeof(struct bpf_pidns_info)))\n    return 0;\n\n  /*FILTER_NS_PID*/"
+
+	res = strings.Replace(res, "DEV", strconv.Itoa(int(dev)), 1)
+	res = strings.Replace(res, "INO", strconv.Itoa(int(ino)), 1)
+	res = strings.Replace(res, "/*FILTER_NS_PID*/", fg.Generate(), 1)
+
+	return res, nil
 }
