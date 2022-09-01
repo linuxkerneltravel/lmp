@@ -13,7 +13,7 @@ on:
       - 'eBPF_Supermarket/sidecar/**'
 
 jobs:
-  sidecar-build-and-test:
+  build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -22,10 +22,56 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.18
-      
+
+#      - name: Dep
+#        run: |
+#          echo "deb http://ddebs.ubuntu.com $(lsb_release -cs) main restricted universe multiverse
+#          deb http://ddebs.ubuntu.com $(lsb_release -cs)-updates main restricted universe multiverse
+#          deb http://ddebs.ubuntu.com $(lsb_release -cs)-proposed main restricted universe multiverse" | \
+#          sudo tee -a /etc/apt/sources.list.d/ddebs.list
+#          sudo apt install ubuntu-dbgsym-keyring
+#          sudo apt update
+#          sudo apt-get install -y libbpfcc-dev
+#          sudo apt install bpftrace-dbgsym
+#          bpftrace --version
+#          sudo bpftrace -l "tracepoint:net*"
+
+#          sudo apt-get update && sudo apt-get upgrade
+#          sudo apt-get install -y libbpfcc-dev
+#          sudo apt-get install -y \
+#          bison \
+#          cmake \
+#          flex \
+#          g++ \
+#          git \
+#          libelf-dev \
+#          zlib1g-dev \
+#          libfl-dev \
+#          systemtap-sdt-dev \
+#          binutils-dev \
+#          libcereal-dev \
+#          llvm-12-dev \
+#          llvm-12-runtime \
+#          libclang-12-dev \
+#          clang-12 \
+#          libpcap-dev \
+#          libgtest-dev \
+#          libgmock-dev \
+#          asciidoctor
+#          git clone https://github.com/iovisor/bpftrace
+#          mkdir bpftrace/build; cd bpftrace/build;
+#          git clone http://github.com/libbpf/libbpf
+#          cd libbpf/src
+#          make
+#          sudo make install
+#          cd ../..
+#          cmake ..  -DKERNEL_INCLUDE_DIRS=libbpf/include/uapi/
+#          make -j8
+#          sudo make install
+#          bpftrace --version
+
       - name: Build BCC
         run: |
-          # For Jammy (22.04)
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
           git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
@@ -38,17 +84,17 @@ jobs:
           make
           sudo make install
           popd
-
       - name: Build
         run: |
           cd eBPF_Supermarket/sidecar/
           go build -v ./...
+
       - name: Test
         run: |
           cd eBPF_Supermarket/sidecar/
-          go test `go list ./... | grep -v github.com/eswzy/podstat/tools ｜ grep -v github.com/eswzy/podstat/bpf`
+          sudo go test ./...
 
-  sidecar-integration-test-with-minikube-and-istio:
+  integration-test-with-minikube-and-istio:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -71,10 +117,8 @@ jobs:
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
           kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-      
       - name: Build BCC
         run: |
-          # For Jammy (22.04)
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
           git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
@@ -87,7 +131,6 @@ jobs:
           make
           sudo make install
           popd
-
       - name: Wait for istio
         run: |
           kubectl get nodes
@@ -107,7 +150,6 @@ jobs:
           test_pod app=productpage
           echo "productpage is done"
           kubectl exec "$(kubectl get pod -l app=ratings -o jsonpath='{.items[0].metadata.name}')" -c ratings -- curl -sS productpage:9080/productpage | grep -o "<title>.*</title>"
-
       - name: Run
         run: |
           docker ps -a
@@ -119,4 +161,3 @@ jobs:
           ps axjf
           cd eBPF_Supermarket/sidecar/
           sudo -E timeout 300 go run main.go || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
-
