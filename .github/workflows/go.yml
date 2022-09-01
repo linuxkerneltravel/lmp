@@ -30,6 +30,7 @@ jobs:
                     echo "waiting for pod"
                     sleep 5
                     kubectl get pods -owide -A; 
+                    kubectl describe pod httpserver -n wyw
                   done
                 return 0
               }
