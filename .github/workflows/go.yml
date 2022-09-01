@@ -1,16 +1,10 @@
 name: Go
 
 on:
-  push:
-    branches:
-      - "*"
-    paths: 
-      - 'eBPF_Supermarket/cilium_ebpf_probe/**'
-  pull_request:
-    branches:
-      - "*"
-    paths: 
-      - 'eBPF_Supermarket/cilium_ebpf_probe/**'
+    push:
+      branches: [ "develop" ]
+    pull_request:
+      branches: [ "develop" ]
 jobs:
    build:
     runs-on: ubuntu-22.04
