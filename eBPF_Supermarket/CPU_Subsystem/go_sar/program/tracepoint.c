@@ -90,8 +90,8 @@ int sched_switch(struct cswch_args *info) {
 		// 不能直接读取结构体指针里的字段，需要用bpf_probe_read_kernel
 		ts = (void *)bpf_get_current_task();
 		unsigned int ts_flags;
-		bpf_probe_read_kernel(&ts_flags, sizeof(int), &(ts->flags));
-		
+		bpf_probe_read_kernel(&ts_flags, sizeof(int), &(ts->flags)); 
+
 		if (valp && (ts_flags & PF_IDLE)) {
 			delta = time - *valp;
 			pid = 0;
