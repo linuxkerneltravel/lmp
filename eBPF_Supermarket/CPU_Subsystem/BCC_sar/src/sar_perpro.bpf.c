@@ -297,7 +297,7 @@ int trace_irq_handler_entry(struct __irq_info *info) {
 	return 0;
 }
 
-// SEC("tracepoint/irq/irq_handler_exit") 
+// SEC("tracepoint/irq/irq_handler_exit")
 int trace_irq_handler_exit(struct __irq_info *info) {
 	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
 	if (ts->pid != TARGET_PID) return 0;
