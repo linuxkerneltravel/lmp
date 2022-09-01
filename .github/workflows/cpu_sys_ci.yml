@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install psutil==5.9.1
+          sudo pip install psutil==5.9.1
           pip install flake8 pytest
           cd eBPF_Supermarket/CPU_Subsystem/BCC_sar
           sudo apt-get install bpfcc-tools linux-headers-$(uname -r) # install BCC
@@ -84,7 +84,11 @@ jobs:
 
       - name: Build Cilium And Run Go Program
         run: |
+          apt install clang llvm
+          export BPF_CLANG=clang # configure llvm
+
           cd eBPF_Supermarket/CPU_Subsystem/go_sar
+
           # download cilium-eBPF package
           go mod tidy
           cd program
