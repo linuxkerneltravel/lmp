@@ -73,7 +73,7 @@ jobs:
           sudo python3 sar.py -t percent -c 3 -p $TARGET
 
   go-build-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
 
@@ -93,5 +93,6 @@ jobs:
           go mod tidy
           cd program
           chmod +x run.sh
+          uname -r
           ./run.sh
 
