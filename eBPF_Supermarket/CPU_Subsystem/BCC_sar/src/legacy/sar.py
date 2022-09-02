@@ -4,8 +4,9 @@ from __future__ import print_function
 from bcc import BPF, PerfType, PerfSWConfig
 from bcc.utils import printb
 import time, argparse, configparser
-import ctypes, bpfutil, signal
-from bpfutil import colorize
+import ctypes, signal
+from .. import bpfutil
+from ..bpfutil import colorize
 
 def parse_arg():
     parser = argparse.ArgumentParser(description="CPU subsystem parameter display")

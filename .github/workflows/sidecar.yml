@@ -4,12 +4,12 @@ on:
   push:
     branches:
       - "*"
-    paths: 
+    paths:
       - 'eBPF_Supermarket/sidecar/**'
   pull_request:
     branches:
       - "*"
-    paths: 
+    paths:
       - 'eBPF_Supermarket/sidecar/**'
 
 jobs:
@@ -22,7 +22,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.18
-
 #      - name: Dep
 #        run: |
 #          echo "deb http://ddebs.ubuntu.com $(lsb_release -cs) main restricted universe multiverse
@@ -69,7 +68,6 @@ jobs:
 #          make -j8
 #          sudo make install
 #          bpftrace --version
-
       - name: Build BCC
         run: |
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
@@ -117,6 +115,7 @@ jobs:
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
           kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
+
       - name: Build BCC
         run: |
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
@@ -161,3 +160,4 @@ jobs:
           ps axjf
           cd eBPF_Supermarket/sidecar/
           sudo -E timeout 300 go run main.go || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
+
