@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser(description="Trace TCP connections",
 parser.add_argument("-p", "--pid", help="trace this PID only")
 parser.add_argument("-P", "--port", help="comma-separated list of local ports to trace")
 parser.add_argument("-r", "--direction", help="trace this direction only") # 'accept' or 'connect'
+parser.add_argument("-c", "--count", type=int, default=99999999, help="count of outputs")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family only")
 group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
@@ -93,8 +94,15 @@ print("%-9s %-7s %-12s %-2s %-16s %-5s %-16s %-5s %10s" % ("TIME", "PID", "COMM"
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)
 b["ipv6_events"].open_perf_buffer(print_ipv6_event)
+
+line = 0
+
 while 1:
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
         exit()
+    
+    line += 1
+    if line >= args.count:
+        break

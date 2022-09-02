@@ -13,6 +13,7 @@ parser.add_argument("-i", "--interval", type=float, default=1)
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family only")
 group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
+parser.add_argument("-c", "--count", type=int, default=99999999, help="count of outputs")
 args = parser.parse_args()
 
 print_interval = args.interval + 0.0
@@ -64,6 +65,7 @@ ipv4_recv = b["ipv4_recv"]
 ipv6_send = b["ipv6_send"]
 ipv6_recv = b["ipv6_recv"]
 
+line = 0
 
 while 1:
     try:
@@ -128,3 +130,7 @@ while 1:
             int(recv_bytes / 1024), int(send_bytes / 1024)))
     
     print("-"*60)
+
+    line += 1
+    if line >= args.count:
+        break
