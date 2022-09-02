@@ -17,6 +17,7 @@ parser = argparse.ArgumentParser(description="Trace time delay in network subsys
 parser.add_argument("-sp", "--sport", help="trace this source port only")
 parser.add_argument("-dp", "--dport", help="trace this destination port only")
 parser.add_argument("-s", "--sample", help="Trace sampling")
+parser.add_argument("-c", "--count", type=int, default=99999999, help="count of outputs")
 
 args = parser.parse_args()
 
@@ -61,9 +62,16 @@ print("%-42s -> %-42s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % \
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
+
+line = 0
+
 while 1:
     try:
         b.perf_buffer_poll()
         # b.trace_print()
     except KeyboardInterrupt:
         exit()
+    
+    line += 1
+    if line >= args.count:
+        break

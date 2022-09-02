@@ -78,8 +78,8 @@ int kprobe__tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb){
     
     struct ipv6_data_t data6 = {};
     data6.pid = pid;
-    bpf_probe_read_kernel(&data6.saddr, sizeof(data6.saddr), &sk->__sk_common.skc_rcv_saddr);
-    bpf_probe_read_kernel(&data6.daddr, sizeof(data6.daddr), &sk->__sk_common.skc_daddr);
+    bpf_probe_read_kernel(&data6.saddr, sizeof(data6.saddr), &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+    bpf_probe_read_kernel(&data6.daddr, sizeof(data6.daddr), &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
     data6.dport = dport;
     data6.sport = sport;
     data6.seq = seq;
