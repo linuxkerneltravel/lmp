@@ -36,29 +36,29 @@ jobs:
       - name: Run nic_throughput
         run: |
           cd eBPF_Supermarket/Network_Subsystem/nic_throughput
-          sudo python nic_throughput.py -n lo
+          sudo python nic_throughput.py -n lo -c 10
       
-      - name: Run tcp_connection
-        run: |
-          cd eBPF_Supermarket/Network_Subsystem/tcp_connection
-          sudo python tcp_connection.py
+      # - name: Run tcp_connection
+      #   run: |
+      #     cd eBPF_Supermarket/Network_Subsystem/tcp_connection
+      #     sudo python tcp_connection.py
       
-      - name: Run tcp_bytes
-        run: |
-          cd eBPF_Supermarket/Network_Subsystem/tcp_bytes
-          sudo python tcp_bytes.py
+      # - name: Run tcp_bytes
+      #   run: |
+      #     cd eBPF_Supermarket/Network_Subsystem/tcp_bytes
+      #     sudo python tcp_bytes.py
       
-      - name: Run tcp_inerrs
-        run: |
-          cd eBPF_Supermarket/Network_Subsystem/tcp_inerrs
-          sudo python tcp_inerrs.py
+      # - name: Run tcp_inerrs
+      #   run: |
+      #     cd eBPF_Supermarket/Network_Subsystem/tcp_inerrs
+      #     sudo python tcp_inerrs.py
       
-      - name: Run delay_analysis
-        run: |
-          cd eBPF_Supermarket/Network_Subsystem/delay_analysis
-          sudo python delay_analysis_in.py
-          sudo python delay_analysis_in_v6.py
-          sudo python delay_analysis_out.py
-          sudo python delay_analysis_out_v6.py
-          sudo python tcp_flow.py
-          sudo python tcp_flow_v6.py
+      # - name: Run delay_analysis
+      #   run: |
+      #     cd eBPF_Supermarket/Network_Subsystem/delay_analysis
+      #     sudo python delay_analysis_in.py
+      #     sudo python delay_analysis_in_v6.py
+      #     sudo python delay_analysis_out.py
+      #     sudo python delay_analysis_out_v6.py
+      #     sudo python tcp_flow.py
+      #     sudo python tcp_flow_v6.py
