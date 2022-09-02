@@ -81,6 +81,7 @@ func main() {
 
 	var sidecarPid []int
 	var servicePid []int
+	var portList = []int{15006, 9080, 80, 8000}
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -92,14 +93,16 @@ func main() {
 	pidList = append(pidList, sidecarPid...)
 	pidList = append(pidList, servicePid...)
 
-	targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), *podName, *namespace)
-	so := net.SidecarOpt{
-		SidecarPort: 8000,
-		ServicePort: 80,
-		LocalIP:     "127.0.0.1",
-		PodIp:       targetPod.Status.PodIP,
-		NodeIp:      targetPod.Status.HostIP,
-	}
+	net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, *podName)
 
-	net.GetKernelNetworkEvent(pidList, so, *podName)
+	//targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), *podName, *namespace)
+	//so := net.SidecarOpt{
+	//	SidecarPort: 8000,
+	//	ServicePort: 80,
+	//	LocalIP:     "127.0.0.1",
+	//	PodIp:       targetPod.Status.PodIP,
+	//	NodeIp:      targetPod.Status.HostIP,
+	//}
+	//
+	//net.GetKernelNetworkEvent(pidList, so, *podName)
 }
