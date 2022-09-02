@@ -84,8 +84,8 @@ jobs:
         run: |
           cd eBPF_Supermarket/Network_Subsystem/delay_analysis
           sudo python delay_analysis_in.py -c 3
-          sudo python delay_analysis_in_v6.py -c 3
+          sudo python delay_analysis_in_v6.py -c 1
           sudo python delay_analysis_out.py -c 3
-          sudo python delay_analysis_out_v6.py -c 3
+          sudo python delay_analysis_out_v6.py -c 1
           sudo python tcp_flow.py -c 3
-          sudo python tcp_flow_v6.py -c 3
+          sudo python tcp_flow_v6.py -c 1

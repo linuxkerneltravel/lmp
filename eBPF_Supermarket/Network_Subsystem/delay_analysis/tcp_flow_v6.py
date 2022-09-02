@@ -63,12 +63,12 @@ b["ipv6_events"].open_perf_buffer(print_ipv6_event)
 line = 0
 
 while 1:
+    line += 1
+    if line >= args.count:
+        break
+    
     try:
         b.perf_buffer_poll()
         # b.trace_print()
     except KeyboardInterrupt:
         exit()
-    
-    line += 1
-    if line >= args.count:
-        break
