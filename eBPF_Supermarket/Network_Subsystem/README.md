@@ -222,9 +222,9 @@ SADDR:SPORT                        -> DADDR:DPORT                            SEQ
 
 运行示例 
 ``` shell
-sudo python delay_analysis_in.py           # in packets delay analysis
-sudo python delay_analysis_in.py -dp 181   # only trace dport 181
-sudo python delay_analysis_in.py -s        # print random packets
+sudo python delay_analysis_out.py           # in packets delay analysis
+sudo python delay_analysis_out.py -dp 181   # only trace dport 181
+sudo python delay_analysis_out.py -s        # print random packets
 ```
 
 输出样例-ipv4
