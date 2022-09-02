@@ -39,10 +39,10 @@ BPF_ARRAY(userTime, u64, 1);
 
 BPF_PERCPU_ARRAY(runqlen, u64, 1);
 
-BPF_HASH(softirqCpuEnterTime, u32, u64, 4096);
+BPF_TABLE("percpu_hash", u32, u64, softirqCpuEnterTime, 4096);
 BPF_ARRAY(softirqLastTime, u64, 1);
 
-BPF_HASH(irqCpuEnterTime, u32, u64, 4096);
+BPF_TABLE("percpu_hash", u32, u64, irqCpuEnterTime, 4096);
 BPF_ARRAY(irqLastTime, u64, 1);
 
 BPF_HASH(idlePid, u32, u64, 32); // 运行类型为TASK_IDLE的进程，已废弃
