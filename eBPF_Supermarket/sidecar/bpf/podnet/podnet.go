@@ -228,16 +228,7 @@ func Probe(pidList []int, reverse bool, podIp string, ch chan<- Event) {
 
 	source = string(sourceContent[:])
 	sourceBpf := source
-
-	if tools.IsInMinikubeMode() {
-		nsPidFilter, err := bpf.GetFilterByParentProcessPidNamespace(tools.MinikubePid, pidList, reverse)
-		if err != nil {
-			panic(err)
-		}
-		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", nsPidFilter, 1)
-	} else {
-		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
-	}
+	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
 
 	if ipFilter != "" {
 		sourceBpf = strings.Replace(sourceBpf, ipFilter, ipRep, 1)
