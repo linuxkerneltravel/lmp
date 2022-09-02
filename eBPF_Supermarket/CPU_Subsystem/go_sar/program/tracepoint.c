@@ -68,6 +68,8 @@ struct cswch_args {
 	int next_prio;
 };
 
+#define PF_IDLE			0x00000002	/* I am an IDLE thread */
+
 // 获取进程切换数
 SEC("tracepoint/sched/sched_switch")
 int sched_switch(struct cswch_args *info) {
@@ -84,8 +86,13 @@ int sched_switch(struct cswch_args *info) {
 		pid = info->prev_pid;
 		// 计算空闲时间占比
 		valp = bpf_map_lookup_elem(&procStartTime, &pid);
-		ts = bpf_get_current_task_btf();
-		if (valp && ts->state == TASK_IDLE) {
+
+		// 不能直接读取结构体指针里的字段，需要用bpf_probe_read_kernel
+		ts = (void *)bpf_get_current_task();
+		unsigned int ts_flags;
+		bpf_probe_read_kernel(&ts_flags, sizeof(int), &(ts->flags)); 
+
+		if (valp && (ts_flags & PF_IDLE)) {
 			delta = time - *valp;
 			pid = 0;
 			valp = bpf_map_lookup_elem(&procLastTime, &pid);

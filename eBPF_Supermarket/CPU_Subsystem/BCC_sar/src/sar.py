@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 from bcc import BPF, PerfType, PerfSWConfig
-from bcc.utils import printb
 import time, argparse, configparser
 import ctypes, bpfutil, signal
 from bpfutil import colorize
