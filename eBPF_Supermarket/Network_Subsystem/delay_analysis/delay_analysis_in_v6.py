@@ -9,9 +9,6 @@ bpf_text = open('delay_analysis_in_v6.c').read()
 
 #------------
 # args parser
-parser = argparse.ArgumentParser()
-args = parser.parse_args()
-
 parser = argparse.ArgumentParser(description="Trace time delay in network subsystem",
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("-sp", "--sport", help="trace this source port only")
