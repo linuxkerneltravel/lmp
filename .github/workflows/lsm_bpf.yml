@@ -13,14 +13,17 @@ on:
       - 'eBPF_Supermarket/LSM_BPF/lsm_bpf_monitoring/**'
 
 jobs:
-  build:
+  build-and-test:
 
     runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v3
     
-
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+          python-version: "3.10"
       
     - name: make
       run: make
