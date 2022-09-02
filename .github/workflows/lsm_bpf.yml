@@ -1,0 +1,35 @@
+name: lsm_bpf
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/LSM_BPF/lsm_bpf_monitoring/**'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/LSM_BPF/lsm_bpf_monitoring/**'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    
+
+      
+    - name: make
+      run: make
+      
+
+      
+    - name: run
+      run: |
+        sudo ./deny_unshare
+      
+      
+      
