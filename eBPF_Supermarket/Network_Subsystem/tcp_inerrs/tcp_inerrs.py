@@ -77,7 +77,7 @@ def print_ipv6_event(cpu, data, size):
         tcp.tcpstate[event.state]))
 
 
-b = BPF(text=bpf_text, debug=0x8)
+b = BPF(text=bpf_text)
 
 
 
@@ -92,11 +92,12 @@ b["ipv6_events"].open_perf_buffer(print_ipv6_event)
 line = 0
 
 while 1:
+    
+    line += 1
+    if line >= args.count:
+        break
+
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
         exit()
-
-    line += 1
-    if line >= args.count:
-        break
