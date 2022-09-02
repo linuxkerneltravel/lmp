@@ -212,6 +212,7 @@ func monitorLoopInPod(heap *map[ConnectIdType]InPodConnectionOverall, timeout ti
 				allSpan := t.StartSpan(
 					"Inner Pod",
 					opentracing.StartTime(TimeOffset.Add(conn.Ce.toService[0].Time)),
+					opentracing.Tag{Key: "Connection ID", Value: strconv.Itoa(int(connectId))},
 				)
 
 				connectionEstablishmentSpan := t.StartSpan(

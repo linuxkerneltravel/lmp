@@ -14,6 +14,8 @@ import (
 
 var MinikubePid = -1
 
+var ppidAndPid map[int]map[int]int
+
 // FileExists checks if a file exists
 func FileExists(filePath string) bool {
 	fileInfo, err := os.Stat(filePath)
@@ -55,6 +57,7 @@ func fromIntToProcess(pidList []int) []*process.Process {
 	return res
 }
 
+// findChildProcessesFromProcFileSystem gets PIDs under ppid's namespace
 func findChildProcessesFromProcFileSystem(ppid, pid int) ([]int, error) {
 	pattern := fmt.Sprintf("/proc/%d/root/proc", ppid)
 	files, err := os.ReadDir(pattern)
@@ -72,8 +75,8 @@ func findChildProcessesFromProcFileSystem(ppid, pid int) ([]int, error) {
 			}
 			defer file.Close()
 			content, _ := ioutil.ReadAll(file)
-			regexp, _ := regexp.Compile("PPid:[\\s]*[0-9]*")
-			regRes := regexp.FindString(string(content[:]))
+			reg, _ := regexp.Compile("PPid:[\\s]*[0-9]*")
+			regRes := reg.FindString(string(content[:]))
 			regRes = strings.Replace(regRes, "PPid:", "", 1)
 			regRes = strings.Trim(regRes, " \t")
 
@@ -94,4 +97,65 @@ func FindChildProcessesUnderMinikubeWithDockerDriver(pid int) ([]*process.Proces
 	pidList, err := findChildProcessesFromProcFileSystem(MinikubePid, pid)
 
 	return fromIntToProcess(pidList), err
+}
+
+func getNsPidList(statusPath string) ([]int, error) {
+	file, err := os.Open(statusPath)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	content, _ := ioutil.ReadAll(file)
+
+	reg, _ := regexp.Compile("NSpid:.*")
+	regRes := reg.FindString(string(content[:]))
+	regRes = strings.Replace(regRes, "NSpid:", "", 1)
+	regRes = strings.Trim(regRes, " \t")
+
+	var res []int
+
+	for _, s := range strings.Split(regRes, "\t") {
+		i, _ := strconv.Atoi(s)
+		res = append(res, i)
+	}
+
+	return res, nil
+}
+
+func GetPidUnderRootPidNamespace(ppid, pid int) (int, error) {
+	if ppidAndPid == nil {
+		ppidAndPid = make(map[int]map[int]int)
+	}
+	_, ok := ppidAndPid[ppid]
+	if ok == false {
+		ppidAndPid[ppid] = make(map[int]int)
+		var allProcessUnderPp []*process.Process
+		pp, err := process.NewProcess(int32(ppid))
+		if err != nil {
+			return -1, fmt.Errorf("no process PID=%d: %s", ppid, err)
+		}
+		cs, _ := pp.Children()
+		allProcessUnderPp = append(allProcessUnderPp, cs...)
+		for _, c := range cs {
+			ccs, _ := c.Children()
+			allProcessUnderPp = append(allProcessUnderPp, ccs...)
+		}
+
+		for _, cp := range allProcessUnderPp {
+			pattern := fmt.Sprintf("/proc/%d/status", cp.Pid)
+			res, _ := getNsPidList(pattern)
+			if len(res) > 1 {
+				ppidAndPid[ppid][res[1]] = res[0]
+			}
+		}
+	}
+
+	res, ok := ppidAndPid[ppid][pid]
+
+	if ok {
+		return res, nil
+	} else {
+		fmt.Println(ppidAndPid)
+		return -1, fmt.Errorf("process %d under %d not found", pid, ppid)
+	}
 }
