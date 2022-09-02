@@ -4,12 +4,12 @@ on:
   push:
     branches:
       - "*"
-    paths: 
+    paths:
       - 'eBPF_Supermarket/sidecar/**'
   pull_request:
     branches:
       - "*"
-    paths: 
+    paths:
       - 'eBPF_Supermarket/sidecar/**'
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.18
-      
+
       - name: Build BCC
         run: |
           # For Jammy (22.04)
@@ -38,7 +38,6 @@ jobs:
           make
           sudo make install
           popd
-
       - name: Build
         run: |
           cd eBPF_Supermarket/sidecar/
@@ -47,7 +46,6 @@ jobs:
         run: |
           cd eBPF_Supermarket/sidecar/
           go test `go list ./... | grep -v github.com/eswzy/podstat/tools ｜ grep -v github.com/eswzy/podstat/bpf`
-
   sidecar-integration-test-with-minikube-and-istio:
     runs-on: ubuntu-22.04
     steps:
@@ -71,7 +69,7 @@ jobs:
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
           kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-      
+
       - name: Build BCC
         run: |
           # For Jammy (22.04)
@@ -87,7 +85,6 @@ jobs:
           make
           sudo make install
           popd
-
       - name: Wait for istio
         run: |
           kubectl get nodes
@@ -107,7 +104,6 @@ jobs:
           test_pod app=productpage
           echo "productpage is done"
           kubectl exec "$(kubectl get pod -l app=ratings -o jsonpath='{.items[0].metadata.name}')" -c ratings -- curl -sS productpage:9080/productpage | grep -o "<title>.*</title>"
-
       - name: Run
         run: |
           docker ps -a
@@ -119,4 +115,3 @@ jobs:
           ps axjf
           cd eBPF_Supermarket/sidecar/
           sudo -E timeout 300 go run main.go || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
-
