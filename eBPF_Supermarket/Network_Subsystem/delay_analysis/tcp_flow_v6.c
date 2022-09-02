@@ -48,18 +48,12 @@ static struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb){
     return (struct tcphdr *)(skb->head + skb->transport_header);
 }
 
-static inline struct ipv6hdr *skb_to_ipv6hdr(const struct sk_buff *skb){
-    return (struct ipv6hdr *)(skb->head + skb->network_header);
-}
-
-
 int kprobe__tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb){
     u16 family = sk->__sk_common.skc_family;
     if (family != AF_INET6) return 0;
 
     u32 pid = bpf_get_current_pid_tgid();
     struct tcphdr *tcp = skb_to_tcphdr(skb);
-    struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     struct ipv6_flow_info *finfo, zero = {};
     finfo = flows_info.lookup_or_init(&sk, &zero);
@@ -84,10 +78,8 @@ int kprobe__tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb){
     
     struct ipv6_data_t data6 = {};
     data6.pid = pid;
-    data6.saddr = &ip6h->saddr.in6_u.u6_addr32;
-    data6.daddr = &ip6h->daddr.in6_u.u6_addr32;
-    // bpf_probe_read_kernel(&data6->daddr, sizeof(data6->daddr), &ip6h->saddr.in6_u.u6_addr32);
-    // bpf_probe_read_kernel(&data6->daddr, sizeof(data6->daddr), &ip6h->daddr.in6_u.u6_addr32);
+    bpf_probe_read_kernel(&data6.saddr, sizeof(data6.saddr), &sk->__sk_common.skc_rcv_saddr);
+    bpf_probe_read_kernel(&data6.daddr, sizeof(data6.daddr), &sk->__sk_common.skc_daddr);
     data6.dport = dport;
     data6.sport = sport;
     data6.seq = seq;
