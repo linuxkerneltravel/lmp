@@ -9,10 +9,11 @@ xdp_dns:
 	docker run --rm -ti -v$(shell pwd):/input -v$(shell pwd)/build:/output \
        	bpf-builder sh -c "cd /input/src && make DEBUG=$(DEBUG)"
 
-test:
+test-dns-server:
 	docker run -d -m 128m --expose=53 --expose=53/udp -p 53:53 -p 53:53/udp \
 	-v $(shell pwd)/test/config:/etc/coredns --name dwq-coredns burkeazbill/docker-coredns -conf /etc/coredns/Corefile
 
+test: test-dns-server
 	docker run --privileged -d --name dwq-ddos-test --network=container:dwq-coredns \
 	-v /lib/modules:/lib/modules -v /usr/src:/usr/src -v /sys/kernel/debug:/sys/kernel/debug:rw \
 	-v /sys/fs/bpf:/sys/fs/bpf -v $(shell pwd):/ddos bpf-builder \
