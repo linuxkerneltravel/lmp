@@ -12,11 +12,12 @@ on:
     paths:
       - 'eBPF_Supermarket/LSM_BPF/lsm_bpf_monitoring/**'
 
+  pull_request_review:
+  workflow_dispatch:
+  
 jobs:
   build-and-test:
-
     runs-on: ubuntu-22.04
-
     steps:
     - uses: actions/checkout@v3
     
@@ -27,8 +28,6 @@ jobs:
       
     - name: make
       run: make
-      
-
       
     - name: run
       run: |
