@@ -27,7 +27,6 @@ bpftrace_application 是一些 Bpftrace 构建的例程，需要预装 bpftrace�
     [必选] 网卡名称
 -i, --interval
     [可选] 输出时间间隔，默认为1s
-
 ```
 
 运行示例 `sudo python nic_throughput.py -n lo`
@@ -63,8 +62,6 @@ RX
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
-
-
 ```
 
 运行示例 
@@ -99,7 +96,6 @@ TIME      PID     COMM         IP DADDR            DPORT SADDR            SPORT 
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
-
 ```
 
 运行示例 
@@ -137,7 +133,6 @@ PID     COMM         SADDR6                                   DADDR6            
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
-
 ```
 
 运行示例 
@@ -176,7 +171,6 @@ inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和t
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
-
 ```
 
 运行示例 
@@ -208,7 +202,6 @@ SADDR:SPORT                        -> DADDR:DPORT                            SEQ
 
 实时输出所有发送包信息及内核各层处理过程所花费的时间。
 
-
 参数如下：
 ```
 -sp，--sport
@@ -217,7 +210,6 @@ SADDR:SPORT                        -> DADDR:DPORT                            SEQ
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
-
 ```
 
 运行示例 
@@ -245,6 +237,27 @@ SADDR:SPORT                            -> DADDR:DPORT                      SEQ  
 2402:f000:xx:xx:xx:xx:ae03:a462:40468  -> 2402:f000:xx:xx:xx:xx:8:149:443  68188738     42173835     9545060000960.453125 9          1          4          2
 ```
 
+
+### 2.7 tcp_flow/tcp_flow_v6
+
+实时输出各tcp数据流的统计信息，包括：状态、标志位、拥塞窗口、接收窗口、重传、超时、快重传、平滑往返时间等参数。
+
+参数如下：
+```
+-sp，--sport
+    [可选] 指定源端口
+-dp, --dport
+    [可选] 指定目标端口
+-s, --sample
+    [可选] 随机选包进行输出
+```
+
+运行示例 
+``` shell
+sudo python tcp_flow.py             # tcp flow statistics
+sudo python tcp_flow.py -dp 181     # only trace dport 181
+sudo python tcp_flow.py -s          # print random packets
+```
 
 
 ## 3. 文档
