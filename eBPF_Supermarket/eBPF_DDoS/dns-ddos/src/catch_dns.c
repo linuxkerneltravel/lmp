@@ -29,6 +29,10 @@ BPF_TABLE_PINNED("hash", u8, u32, configuration, 255,
 BPF_TABLE_PINNED("lru_hash", u32, struct record, counter, 65535,
                  "/sys/fs/bpf/xdp/globals/counter");
 
+BPF_ARRAY(metrics, u64, 16);
+
+BPF_HASH(req_time, u16, u64);
+
 #define DROP 0
 #define PASS -1
 
@@ -46,10 +50,32 @@ int catch_dns(struct __sk_buff *skb) {
   }
 
   struct udp_t *udp = cursor_advance(cursor, sizeof(*udp));
+
+  if (udp->dport == 53) {
+    // request
+    // calculate requst size
+    __u64 len = udp->length;
+    int req_size_key = 0;
+    __u64 *size = metrics.lookup(&req_size_key);
+    if (size) {
+      __sync_fetch_and_add(size, len);
+    } else {
+      metrics.update(&req_size_key, &len);
+    }
+
+    // record request time
+    struct dns_hdr_t *dns_hdr = cursor_advance(cursor, sizeof(*dns_hdr));
+    __u16 id = dns_hdr->id;
+    __u64 time = bpf_ktime_get_ns();
+    req_time.update(&id, &time);
+    return PASS;
+  }
+
   if (udp->sport != 53) {
     return PASS;
   }
 
+  // response
   struct dns_hdr_t *dns_hdr = cursor_advance(cursor, sizeof(*dns_hdr));
   __u16 flags = dns_hdr->flags;
   flags &= 15;
@@ -83,6 +109,31 @@ int catch_dns(struct __sk_buff *skb) {
     }
   } else {
     __sync_fetch_and_add(&r->fail_count, 1);
+  }
+
+  // calculate response size
+  __u64 len = udp->length;
+  int res_size_key = 1;
+  __u64 *size = metrics.lookup(&res_size_key);
+  if (size) {
+    __sync_fetch_and_add(size, len);
+  } else {
+    metrics.update(&res_size_key, &len);
+  }
+
+  // calculate request time
+  __u16 id = dns_hdr->id;
+  __u64 *start = req_time.lookup(&id);
+  if (start) {
+    __u64 time = bpf_ktime_get_ns() - *start;
+    int req_time_key = 2;
+    __u64 *t = metrics.lookup(&req_time_key);
+    if (t) {
+      __sync_fetch_and_add(t, time);
+    } else {
+      metrics.update(&req_time_key, &time);
+    }
+    req_time.delete(&id);
   }
   return PASS;
 }

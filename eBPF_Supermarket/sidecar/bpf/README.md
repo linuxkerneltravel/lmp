@@ -27,6 +27,7 @@ To develop BPF program in Go, here are some best practices hints. Maybe they are
 
 1. Keep your event struct *aligned in 8 byte*. Compiler always do some unknowable things when we write not aligned code. For some time, the compiler of C and the compiler of Go organize your struct differently. And, when you read binary data from C to Go, they will come out and make trouble. So, keep your data structure aligned to avoid it.
 2. Use `/*FILTER*/` as placeholder for inserting filter code. That can make sure your code can work even if you don't provide filter code.
+3. In [iovisor/bcc@ffff0ed](https://github.com/iovisor/bcc/commit/ffff0edc00ad249cffbf44d855b15020cc968536), `bcc_func_load`'s signature was changed. However, [gobpf](https://github.com/iovisor/gobpf) still lacks of maintenance on this. So, we should change the library as [this PR](https://github.com/iovisor/gobpf/pull/311). As a workaround, we extracted this as a [new library](https://github.com/ESWZY/gobpf/tree/0.24.0), and just need use `replace` directive `replace github.com/iovisor/gobpf => github.com/ESWZY/gobpf v0.2.1-0.20220720201619-9eb793319a76` in `go.mod` file (after `go get github.com/ESWZY/gobpf@0.24.0`).
 
 ## See Also
 

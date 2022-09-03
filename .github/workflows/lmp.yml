@@ -1,31 +1,33 @@
-name: LMP
+name: Web-Backend
 
 on:
   push:
     branches:
       - "*"
-    paths: 
+    paths:
       - 'eBPF_Visualization/eBPF_server/**'
   pull_request:
     branches:
       - "*"
-    paths: 
+    paths:
       - 'eBPF_Visualization/eBPF_server/**'
 
 jobs:
-  lmp-build:
+  web-backend-build-and-run:
     runs-on: ubuntu-22.04
-
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Setup Go environment
-        uses: actions/setup-go@v2.1.3
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.18'
-      
-      - name: make lmp
+          go-version: 1.18
+
+      - name: Build Lmp Web Backend
         run: |
           cd eBPF_Visualization/eBPF_server
-          make all
+          go mod tidy
+          make
+          sudo -E timeout 120 go run cmd/server/main.go || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+        timeout-minutes: 5
 
