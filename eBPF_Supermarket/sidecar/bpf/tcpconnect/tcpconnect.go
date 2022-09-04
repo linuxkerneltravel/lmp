@@ -181,7 +181,7 @@ func getEventFromIpv4EventData(bpfEvent ipv4EventData) Event {
 		Time:  time.Duration(int64(bpfEvent.TsNs)),
 		Comm:  strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:   int(bpfEvent.Pid),
-		Tid:   0, // int(bpfEvent.Tid),
+		Tid:   int(bpfEvent.Tid),
 		SAddr: bpfEvent.SAddr.ToString(),
 		DAddr: bpfEvent.DAddr.ToString(),
 		LPort: int(bpfEvent.LPort),
@@ -195,7 +195,7 @@ func getTcpEventFromIpv6EventData(bpfEvent ipv6EventData) Event {
 		Time:  time.Duration(int64(bpfEvent.TsNs)),
 		Comm:  strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:   int(bpfEvent.Pid),
-		Tid:   0, // int(bpfEvent.Tid),
+		Tid:   int(bpfEvent.Tid),
 		SAddr: bpfEvent.SAddr.ToString(),
 		DAddr: bpfEvent.DAddr.ToString(),
 		LPort: int(bpfEvent.LPort),
@@ -215,7 +215,15 @@ func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event
 	familyFg := bpf.FamilyFilterGenerator{List: protocolList}
 
 	sourceBpf := source
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	if tools.IsInMinikubeMode() {
+		nsPidFilter, err := bpf.GetFilterByParentProcessPidNamespace(tools.MinikubePid, pidList, false)
+		if err != nil {
+			panic(err)
+		}
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", nsPidFilter, 1)
+	} else {
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	}
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PORT*/", portFg.Generate(), 1)
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_FAMILY*/", familyFg.Generate(), 1)
 

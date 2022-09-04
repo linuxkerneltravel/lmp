@@ -184,7 +184,6 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state)
 `
 
 const sourceTracepoint string = `
-// category:name
 TRACEPOINT_PROBE(sock, inet_sock_set_state)
 {
     if (args->protocol != IPPROTO_TCP)
@@ -309,9 +308,6 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state)
 }
 `
 
-// FIXME: change to more intuitive names
-// DAddr:DPort -> SAddr:LPort
-
 type ipv4EventData struct {
 	TsNs   uint64
 	Pid    uint32
@@ -422,7 +418,15 @@ func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event
 		sourceBpf += sourceKprobe
 	}
 
-	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	if tools.IsInMinikubeMode() {
+		nsPidFilter, err := bpf.GetFilterByParentProcessPidNamespace(tools.MinikubePid, pidList, false)
+		if err != nil {
+			panic(err)
+		}
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", nsPidFilter, 1)
+	} else {
+		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
+	}
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_LPORT*/", lportFg.Generate(), 1)
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_DPORT*/", dportFg.Generate(), 1)
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_FAMILY*/", familyFg.Generate(), 1)
