@@ -1,3 +1,0 @@
-[submodule "eBPF_Supermarket/sidecar/libbpf"]
-	path = eBPF_Supermarket/sidecar/libbpf
-	url = https://github.com/libbpf/libbpf

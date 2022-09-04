@@ -32,7 +32,7 @@ func findInitPid(containerID string, runtime string) (int, error) {
 			return -1, err
 		}
 
-		// FIXME: get real PID for minikube docker container
+		// TODO: get real PID for minikube docker container
 		// ref: cgroups golang library (https://github.com/containerd/cgroups), systemd-cgls(1) and IsInMinikubeMode()
 		return containerInfo.State.Pid, nil
 	}
@@ -55,6 +55,18 @@ func GetAllProcessFromContainer(containerStatus v1.ContainerStatus, nodeContaine
 	}
 
 	fmt.Println("[INFO] Found pid", initPid, "from container", containerID)
+	if IsInMinikubeMode() {
+		fmt.Println("[INFO] Minikube mode detected...")
+		childProcesses, err := FindChildProcessesUnderMinikubeWithDockerDriver(initPid)
+		if err != nil {
+			return nil, err
+		}
+
+		resProcesses := append([]*process.Process{{Pid: int32(initPid)}}, childProcesses...)
+		fmt.Println("[INFO] Got PIDs under Minikube:", resProcesses)
+		return resProcesses, nil
+	}
+
 	initProcess, err := process.NewProcess(int32(initPid))
 	if err != nil {
 		return nil, err

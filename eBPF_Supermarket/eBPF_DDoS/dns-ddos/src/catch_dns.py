@@ -13,6 +13,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=LOG_FORMAT)
 
 def clean_map(config, counter):
     amplification = False
+    nxdomain = False
+
     while 1:
         seconds = config.get(
             config.Key(constants.INTERVAL_KEY), default=ctypes.c_uint32(60)
@@ -32,14 +34,16 @@ def clean_map(config, counter):
             config.Key(constants.GLOBAL_ANY_THRESHOLD_KEY),
             default=ctypes.c_uint32(65535),
         ).value
+        global_fail_threshold = config.get(
+            config.Key(constants.GLOBAL_FAIL_THRESHOLD_KEY),
+            default=ctypes.c_uint32(65535),
+        ).value
 
         for ip, record in counter.items():
             if ip.value == constants.GLOBAL_IP:
                 a = 0
                 if record.any_count < global_any_threshold or not amplification:
                     a = record.any_count
-                f = record.fail_count
-                t = record.count
 
                 if record.any_count < global_any_threshold:
                     record.any_count = 0
@@ -47,10 +51,21 @@ def clean_map(config, counter):
                 else:
                     amplification = True
 
+                f = record.fail_count
+                if f >= global_fail_threshold:
+                    nxdomain = True
+
+                t = record.count
                 if t > 0:
                     if amplification:
                         logging.warning(
                             "under amplification attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}".format(
+                                seconds, f, f / t, a, a / t, t
+                            ),
+                        )
+                    elif nxdomain:
+                        logging.warning(
+                            "under nxdomain attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}".format(
                                 seconds, f, f / t, a, a / t, t
                             ),
                         )
@@ -61,6 +76,7 @@ def clean_map(config, counter):
                             ),
                         )
 
+                record.fail_count = 0
                 record.count = 0
                 counter[ip] = record
             elif (
@@ -84,7 +100,7 @@ counter = b.get_table("counter")
 cleaner = Thread(target=clean_map, kwargs={"config": configuration, "counter": counter})
 cleaner.start()
 
-print("started")
+print("started!")
 while 1:
     try:
         (task, pid, cpu, flags, ts, msg) = b.trace_fields()
