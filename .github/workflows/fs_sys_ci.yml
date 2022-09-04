@@ -45,4 +45,9 @@ jobs:
       - name: Run Main
         run: |
           cd eBPF_Supermarket/Filesystem_Subsystem
-          ./fs.py -h
+          sudo python3 fs.py -h
+      
+      - name: Run Test
+        run: |
+          cd eBPF_Supermarket/Filesystem_Subsystem
+          sudo python3 fs.py -w
