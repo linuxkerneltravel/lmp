@@ -232,15 +232,7 @@ func Probe(pidList []int, portList []int, protocolList []string, ch chan<- Event
 	familyFg := bpf.FamilyFilterGenerator{List: protocolList}
 
 	sourceBpf := source
-	if tools.IsInMinikubeMode() {
-		nsPidFilter, err := bpf.GetFilterByParentProcessPidNamespace(tools.MinikubePid, pidList, false)
-		if err != nil {
-			panic(err)
-		}
-		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", nsPidFilter, 1)
-	} else {
-		sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
-	}
+	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PORT*/", portFg.Generate(), 1)
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_FAMILY*/", familyFg.Generate(), 1)
 

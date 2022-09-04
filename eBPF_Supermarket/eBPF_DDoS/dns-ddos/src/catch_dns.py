@@ -11,7 +11,7 @@ LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=LOG_FORMAT)
 
 
-def clean_map(config, counter):
+def clean_map(config, counter, metrics):
     amplification = False
     nxdomain = False
 
@@ -22,22 +22,42 @@ def clean_map(config, counter):
         time.sleep(seconds)
 
         fail_threshold = config.get(
-            config.Key(constants.FAILURE_THRESHOLD_KEY), default=ctypes.c_uint32(65535)
+            config.Key(constants.FAILURE_THRESHOLD_KEY),
+            default=ctypes.c_uint32(4294967295),
         ).value
         count_threshold = config.get(
-            config.Key(constants.COUNT_THRESHOLD_KEY), default=ctypes.c_uint32(65535)
+            config.Key(constants.COUNT_THRESHOLD_KEY),
+            default=ctypes.c_uint32(4294967295),
         ).value
         any_threshold = config.get(
-            config.Key(constants.ANY_THRESHOLD_KEY), default=ctypes.c_uint32(65535)
+            config.Key(constants.ANY_THRESHOLD_KEY), default=ctypes.c_uint32(4294967295)
         ).value
         global_any_threshold = config.get(
             config.Key(constants.GLOBAL_ANY_THRESHOLD_KEY),
-            default=ctypes.c_uint32(65535),
+            default=ctypes.c_uint32(4294967295),
         ).value
         global_fail_threshold = config.get(
             config.Key(constants.GLOBAL_FAIL_THRESHOLD_KEY),
-            default=ctypes.c_uint32(65535),
+            default=ctypes.c_uint32(4294967295),
         ).value
+
+        qsize = metrics.get(
+            metrics.Key(constants.REQUEST_SIZE_KEY),
+            default=ctypes.c_uint64(0),
+        ).value
+        rsize = metrics.get(
+            metrics.Key(constants.RESPONSE_SIZE_KEY),
+            default=ctypes.c_uint64(0),
+        ).value
+
+        req_time = metrics.get(
+            metrics.Key(constants.REQUEST_TIME_KEY),
+            default=ctypes.c_uint64(65535),
+        ).value
+
+        metrics[metrics.Key(constants.REQUEST_SIZE_KEY)] = ctypes.c_uint64(0)
+        metrics[metrics.Key(constants.RESPONSE_SIZE_KEY)] = ctypes.c_uint64(0)
+        metrics[metrics.Key(constants.REQUEST_TIME_KEY)] = ctypes.c_uint64(0)
 
         for ip, record in counter.items():
             if ip.value == constants.GLOBAL_IP:
@@ -52,27 +72,50 @@ def clean_map(config, counter):
                     amplification = True
 
                 f = record.fail_count
-                if f >= global_fail_threshold:
+                if f < global_fail_threshold:
+                    nxdomain = False
+                else:
                     nxdomain = True
 
-                t = record.count
-                if t > 0:
+                cnt = record.count
+                if cnt > 0:
                     if amplification:
                         logging.warning(
-                            "under amplification attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}".format(
-                                seconds, f, f / t, a, a / t, t
+                            "under amplification attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_request_time: {:.2}ms, amplification_factor: {:.2%}".format(
+                                seconds,
+                                f,
+                                f / cnt,
+                                a,
+                                a / cnt,
+                                cnt,
+                                req_time / cnt / 1e6,
+                                rsize / qsize,
                             ),
                         )
                     elif nxdomain:
                         logging.warning(
-                            "under nxdomain attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}".format(
-                                seconds, f, f / t, a, a / t, t
+                            "under nxdomain attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_request_time: {:.2}ms, amplification_factor: {:.2%}".format(
+                                seconds,
+                                f,
+                                f / cnt,
+                                a,
+                                a / cnt,
+                                cnt,
+                                req_time / cnt / 1e6,
+                                rsize / qsize,
                             ),
                         )
                     else:
                         logging.info(
-                            "stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}".format(
-                                seconds, f, f / t, a, a / t, t
+                            "stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_request_time: {:.2}ms, amplification_factor: {:.2%}".format(
+                                seconds,
+                                f,
+                                f / cnt,
+                                a,
+                                a / cnt,
+                                cnt,
+                                req_time / cnt / 1e6,
+                                rsize / qsize,
                             ),
                         )
 
@@ -97,7 +140,12 @@ BPF.attach_raw_socket(sk_filter, interface)
 # start cleaner
 configuration = b.get_table("configuration")
 counter = b.get_table("counter")
-cleaner = Thread(target=clean_map, kwargs={"config": configuration, "counter": counter})
+metrics = b.get_table("metrics")
+
+cleaner = Thread(
+    target=clean_map,
+    kwargs={"config": configuration, "counter": counter, "metrics": metrics},
+)
 cleaner.start()
 
 print("started!")

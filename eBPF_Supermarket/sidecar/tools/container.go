@@ -57,14 +57,15 @@ func GetAllProcessFromContainer(containerStatus v1.ContainerStatus, nodeContaine
 	fmt.Println("[INFO] Found pid", initPid, "from container", containerID)
 	if IsInMinikubeMode() {
 		fmt.Println("[INFO] Minikube mode detected...")
-		childProcesses, err := FindChildProcessesUnderMinikubeWithDockerDriver(initPid)
+		if MinikubePid < 0 {
+			return nil, fmt.Errorf("minikube uninitialized")
+		}
+		oldInitPid := initPid
+		initPid, err = GetPidUnderRootPidNamespace(MinikubePid, initPid)
+		fmt.Printf("[INFO] Minikube process map %d -> %d\n", oldInitPid, initPid)
 		if err != nil {
 			return nil, err
 		}
-
-		resProcesses := append([]*process.Process{{Pid: int32(initPid)}}, childProcesses...)
-		fmt.Println("[INFO] Got PIDs under Minikube:", resProcesses)
-		return resProcesses, nil
 	}
 
 	initProcess, err := process.NewProcess(int32(initPid))
