@@ -23,6 +23,7 @@ REASONS = {
 parser = argparse.ArgumentParser(description="Trace TCP connections",
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("-p", "--pid", help="trace this PID only")
+parser.add_argument("-c", "--count", type=int, default=99999999, help="count of outputs")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-4", "--ipv4", action="store_true",
                    help="trace IPv4 family only")
@@ -76,7 +77,7 @@ def print_ipv6_event(cpu, data, size):
         tcp.tcpstate[event.state]))
 
 
-b = BPF(text=bpf_text, debug=0x8)
+b = BPF(text=bpf_text)
 
 
 
@@ -87,15 +88,16 @@ print("%-9s %-7s %-12s %-2s %-24s > %-24s %-12s %s" % ("TIME", "PID", "COMM", "I
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)
 b["ipv6_events"].open_perf_buffer(print_ipv6_event)
+
+line = 0
+
 while 1:
+    
+    line += 1
+    if line >= args.count:
+        break
+
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
         exit()
-
-# while True:
-#     try:
-#         b.trace_print()
-#         pass
-#     except KeyboardInterrupt:
-#         exit()

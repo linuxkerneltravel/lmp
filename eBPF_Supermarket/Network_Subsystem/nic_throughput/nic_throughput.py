@@ -106,6 +106,7 @@ def print_table(table, qnum):
 parser = argparse.ArgumentParser(description="")
 parser.add_argument("-n", "--name", type=str, default="")
 parser.add_argument("-i", "--interval", type=float, default=1)
+parser.add_argument("-c", "--count", type=int, default=99999999, help="count of outputs")
 args = parser.parse_args()
 
 if args.name == "":
@@ -149,6 +150,8 @@ _name = Devname()
 _name.name = dev_name.encode()
 devname_map[0] = _name
 
+line = 0
+
 while 1:
     try:
         sleep(print_interval)
@@ -169,3 +172,7 @@ while 1:
     print_table(table, rx_num)
     b['rx_q'].clear()
     print("-"*60)
+
+    line += 1
+    if line >= args.count:
+        break

@@ -27,7 +27,6 @@ bpftrace_application 是一些 Bpftrace 构建的例程，需要预装 bpftrace�
     [必选] 网卡名称
 -i, --interval
     [可选] 输出时间间隔，默认为1s
-
 ```
 
 运行示例 `sudo python nic_throughput.py -n lo`
@@ -63,8 +62,6 @@ RX
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
-
-
 ```
 
 运行示例 
@@ -99,7 +96,6 @@ TIME      PID     COMM         IP DADDR            DPORT SADDR            SPORT 
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
-
 ```
 
 运行示例 
@@ -137,7 +133,6 @@ PID     COMM         SADDR6                                   DADDR6            
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
-
 ```
 
 运行示例 
@@ -176,7 +171,6 @@ inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和t
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
-
 ```
 
 运行示例 
@@ -208,7 +202,6 @@ SADDR:SPORT                        -> DADDR:DPORT                            SEQ
 
 实时输出所有发送包信息及内核各层处理过程所花费的时间。
 
-
 参数如下：
 ```
 -sp，--sport
@@ -217,14 +210,13 @@ SADDR:SPORT                        -> DADDR:DPORT                            SEQ
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
-
 ```
 
 运行示例 
 ``` shell
-sudo python delay_analysis_in.py           # in packets delay analysis
-sudo python delay_analysis_in.py -dp 181   # only trace dport 181
-sudo python delay_analysis_in.py -s        # print random packets
+sudo python delay_analysis_out.py           # in packets delay analysis
+sudo python delay_analysis_out.py -dp 181   # only trace dport 181
+sudo python delay_analysis_out.py -s        # print random packets
 ```
 
 输出样例-ipv4
@@ -246,6 +238,45 @@ SADDR:SPORT                            -> DADDR:DPORT                      SEQ  
 ```
 
 
+### 2.7 tcp_flow/tcp_flow_v6
+
+实时输出各tcp数据流的统计信息，包括：状态、标志位、拥塞窗口、接收窗口、重传、超时、快重传、平滑往返时间等参数。
+
+参数如下：
+```
+-sp，--sport
+    [可选] 指定源端口
+-dp, --dport
+    [可选] 指定目标端口
+-s, --sample
+    [可选] 随机选包进行输出
+```
+
+运行示例 
+``` shell
+sudo python tcp_flow.py             # tcp flow statistics
+sudo python tcp_flow.py -dp 181     # only trace dport 181
+sudo python tcp_flow.py -s          # print random packets
+```
+
+输出样例-ipv4
+``` shell
+SADDR:SPORT            -> DADDR:DPORT            SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION    
+xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413300 80056    10       ESTABLISHED  (ACK      ) 1089520984524445
+xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413472 99147    10       ESTABLISHED  (ACK      ) 1089521015019755
+xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413644 90529    10       ESTABLISHED  (ACK      ) 1089521045876263
+xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413816 83052    10       ESTABLISHED  (ACK      ) 1089521074049535
+```
+
+输出样例-ipv6
+``` shell
+SADDR:SPORT                         -> DADDR:DPORT                           SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION    
+7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:34a3:41780          3207675940 1227745636 755      10       ESTABLISHED  (ACK      ) 1089829523332328
+7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:3ca3:41788          3236972446 845593229  610      10       ESTABLISHED  (ACK      ) 1089830024368853
+7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:e2b2:45794          633889857  1632505163 1045     10       ESTABLISHED  (ACK      ) 1089830525273321
+7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:e2b2:45794          633889857  1632505163 970      10       ESTABLISHED  (PSH|ACK  ) 1089830784653289
+```
+
 
 ## 3. 文档
 docs目录下主要放置了开发过程中，形成的文档
@@ -253,15 +284,9 @@ docs目录下主要放置了开发过程中，形成的文档
 | doc | content |
 | ------ | ------ |
 | README | 网络子系统性能监测工具-项目介绍与各工具使用方法 |
-| Systems_Performance_Network.md | 《性能之巅》网络子系统相关部分阅读笔记 |
-| notes | 开发过程中遇到的问题与解决方案 | 
 | apply | GitLink项目介绍与申请方案 |
-
-
-计划完成的文档
-| doc | content |
-| ------ | ------ |
-| performance_monitoring | 根据性能检测法监测网络子系统 |
-| interface | 网络接口层源码分析，传统工具VSeBPF |
-| tcp | tcp层源码分析，传统工具VSeBPF | 
+| Systems_Performance_Network.md | 《性能之巅》网络子系统相关部分阅读笔记 |
+| Traditional Network Tool | 传统网络性能监测分析工具 | 
+| notes | 开发过程中遇到的问题与解决方案 | 
+| Structures | 网络子系统的eBPF程序开发中常用的内核结构体解析 | 
 
