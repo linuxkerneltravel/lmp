@@ -124,7 +124,8 @@ if __name__ == "__main__":
 
             if all != 0:
                 print("%8.2f  %9.2f  %9.2f  %10d  %10d" % 
-                    (runlast / all, waitlast / all, sleeplast / all, int(all / 1000000), 1000) )
+                    (runlast / all * 100, waitlast / all * 100, sleeplast / all * 100,
+                    int(all / 1000000), 1000) )
             else:
                 print("%8.2f  %9.2f  %9.2f  %10d  %10d" % 
                     (0, 0, 0, int(all / 1000000), 1000) )
