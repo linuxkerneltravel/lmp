@@ -44,4 +44,5 @@ jobs:
          
       - name: Run xdp_filter
         run: |
+          cd eBPF_Supermarket/XDP_Res-Application/
           sudo python3 src/xdp_filter/filter.py -t 5 -i lo -m 0
