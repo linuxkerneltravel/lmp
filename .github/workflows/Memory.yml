@@ -1,22 +1,49 @@
-name: C/C++ CI
+name: memory
 
 on:
   push:
-    branches: [ "develop" ]
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Memory_Subsystem/**'
   pull_request:
-    branches: [ "develop" ]
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Memory_Subsystem/**'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  build-and_tast:
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+    
+    - name: build libbpf
+      run: |
+       sudo apt-get install llvm clong
+       #
+       #
+       
+    - name: run procstat
+      run:  |
+        cd eBPF_Supermarket/Memory_Subsystem/memstat/procstat
+        make
+        sudo ./procstat
+           
+    - name: run sysstat
+      run: |
+        cd eBPF_Supermarket/Memory_Subsystem/memstat/sysstat
+        make
+        sudo ./sysstat  
+        
+    - name: run paf
+      run: |
+        cd eBPF_Supermarket/Memory_Subsystem/paf
+        make
+        sudo ./paf 
+        
+    - name: run pr
+      run: |
+        cd eBPF_Supermarket/Memory_Subsystem/pr
+        make
+        ./pr      
