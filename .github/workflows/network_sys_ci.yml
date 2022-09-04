@@ -1,0 +1,91 @@
+name: Network-Subsystem
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Network_Subsystem/**'
+      - '.github/workflows/network_sys_ci.yml'
+
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/**'
+      
+  pull_request_review:
+  workflow_dispatch:
+
+jobs:
+  bcc-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache BCC build directory
+        id: cache-bcc
+        uses: actions/cache@v3
+        with:
+          path: bcc
+          key: ${{ runner.os }}-bcc
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd eBPF_Supermarket/Network_Subsystem
+          sudo apt-get install -y linux-headers-$(uname -r)
+          sudo apt-get install -y python-is-python3
+          sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
+          sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
+
+      - name: Build BCC
+        if: steps.cache-bcc.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
+          tar xf bcc-src-with-submodule.tar.gz
+          cd bcc/
+          mkdir build
+          cd build/
+          cmake -DCMAKE_INSTALL_PREFIX=/usr -DPYTHON_CMD=python3 ..
+          make
+
+      - name: Install BCC
+        run: |
+          cd bcc/build/
+          sudo make install
+
+      - name: Run nic_throughput
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/nic_throughput
+          sudo python nic_throughput.py -n lo -c 3
+      
+      - name: Run tcp_connection
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/tcp_connection
+          sudo python tcp_connection.py -c 3
+      
+      - name: Run tcp_bytes
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/tcp_bytes
+          sudo python tcp_bytes.py -c 3
+      
+      - name: Run tcp_inerrs
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/tcp_inerrs
+          sudo python tcp_inerrs.py -c 1
+      
+      - name: Run delay_analysis
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/delay_analysis
+          sudo python delay_analysis_in.py -c 3
+          sudo python delay_analysis_in_v6.py -c 1
+          sudo python delay_analysis_out.py -c 3
+          sudo python delay_analysis_out_v6.py -c 1
+          sudo python tcp_flow.py -c 3
+          sudo python tcp_flow_v6.py -c 1
