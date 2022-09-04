@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "*"
+    path:
+      - 'eBPF_Supermarket/Filesystem_Subsystem/**'
+
+  pull_request:
+    branches:
+      - "*"
+    path:
+      - 'eBPF_Supermarket/Filesystem_Subsystem/**'
+
+  pull_request_review:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+    
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Build BCC
+        run: |
+          sudo apt install -y bison build-essential cmake flex git libedit-dev \
+          libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
+          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
+          mkdir bcc/build; cd bcc/build
+          cmake ..
+          make
+          sudo make install
+          cmake -DPYTHON_CMD=python3 .. # build python3 binding
+          pushd src/python/
+          make
+          sudo make install
+          popd
+
+      - name: Run Main
+        run: |
+          cd eBPF_Supermarket/Filesystem_Subsystem
+          sudo python3 fs.py -h
+      
+      - name: Run Test
+        run: |
+          cd eBPF_Supermarket/Filesystem_Subsystem
+          sudo python3 fs.py -w

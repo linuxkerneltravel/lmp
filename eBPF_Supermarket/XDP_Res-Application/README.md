@@ -50,140 +50,58 @@ netfilter/iptables 具体介绍：[basic.md](./docs/iptables_netfilter/basic.md)
 
 netfilter/iptables 内核实现：[kernel_implement.md](./docs/iptables_netfilter/kernel_implement.md)
 
-#### 使用XDP提取五元组信息
+#### 类O(1)匹配算法
 
-在接收到包之后，可以通过计算偏移量，对数据包逐层解析的方式获取到五元组信息（传输层协议、源ip地址、目的ip地址、源端口号、目的端口号）。
+本项目借助位图(bitmap)以及BPF HASH，实现了类O(1)匹配，具体实现原理介绍：[match.md](./docs/design/match.md)
 
-```c
-//data为数据包头指针，data_end为数据包结束位置指针
-void *data = (void *)(long)ctx->data;
-void *data_end = (void *)(long)ctx->data_end;
-//偏移量
-int offset = 0;
-//存储五元组信息
-struct metainfo info;
-//以太网头部
-struct ethhdr *eth = (struct ethhdr *)data;
-//ip头部
-struct iphdr *ip;
-//以太网头部偏移量
-offset = sizeof(struct ethhdr);
-//通过数据包头+偏移量的方式得到ip头部
-ip = data + offset;
-//从ip头部获取信息
-info.ipproto = ip->protocol;//协议
-info.saddr = ip->saddr;//源地址
-info.daddr = ip->daddr;//目的地址
-//再次计算偏移量
-offset += sizeof(struct iphdr);
-if(info.ipproto == IPPROTO_TCP){
-    //tcp头部
-    struct tcphdr *tcp = data + offset;
-    offset += sizeof(struct tcphdr);
-    if(data + offset > data_end)
-        return XDP_DROP;
-    //从tcp头部获取信息
-    info.sport = tcp->source;//源端口
-    info.dport = tcp->dest;//目的端口
-   }
-else if(info.ipproto == IPPROTO_UDP){
-    //udp头部
-    struct udphdr *udp = data + offset;
-    offset += sizeof(struct udphdr);
-    if(data + offset > data_end)
-        return XDP_DROP;
-    //从udp头部获取信息
-    info.sport = udp->source;//源端口
-    info.dport = udp->dest;//目的端口
-}
-```
+#### 借助 eBPF XDP 实现 iptables 的部分功能，提升 kube-proxy / istio 流量劫持的性能
 
-#### 规则匹配
+- 当前 kube-proxy 包转发路径：
 
-参考字节跳动的匹配方案[1]，实现了规则匹配。
+<img src = './docs/proxy/images/flow-with-kube-proxy.png'></img>
 
-```c
-//存储各项规则的BPF HASH MAP
-BPF_HASH(ipproto_map, u32, u32);
-BPF_HASH(saddr_map, u32, u32);
-BPF_HASH(daddr_map, u32, u32);
-BPF_HASH(sport_map, u16, u32);
-BPF_HASH(dport_map, u16, u32);
-BPF_HASH(action_map,u32, u32);
+- istio 流量劫持(以Bookinfo为例)：[2]
 
-static int match_rule(struct metainfo *info){
-   int result_bit = 0;
-   //查找对应规则
-   int *ipproto_bit = ipproto_map.lookup(&info->ipproto);
-   int *saddr_bit = saddr_map.lookup(&info->saddr);
-   int *daddr_bit = daddr_map.lookup(&info->daddr);
-   int *sport_bit = sport_map.lookup(&info->sport);
-   int *dport_bit = dport_map.lookup(&info->dport);
-   if(ipproto_bit != NULL){ //是否匹配到对应规则
-      if(*ipproto_bit != 0){ //0代表没有
-         if(result_bit == 0){ //result_bit为空时，使result_bit等于该项规则编号
-            result_bit = *ipproto_bit;
-         }
-         else
-            result_bit = result_bit & *ipproto_bit; //如果result_bit不为空，与该规则编号进行按位与运算。
-      }
-   }
-   if(saddr_bit != NULL){
-      if(*saddr_bit != 0){
-         if(result_bit == 0)
-            result_bit = *saddr_bit;
-         else
-            result_bit = result_bit & *saddr_bit;
-      }
-   }
-   if(daddr_bit != NULL){ 
-      if(*daddr_bit != 0){     
-         if(result_bit == 0)
-            result_bit = *daddr_bit;
-         else
-            result_bit = result_bit & *daddr_bit;
-      }
-   }
-   if(sport_bit != NULL){
-      if(*sport_bit != 0){
-         if(result_bit == 0)
-            result_bit = *sport_bit;
-         else
-            result_bit = result_bit & *sport_bit;
-      }
-   }
-   if(dport_bit != NULL){
-      if(*dport_bit != 0){
-         if(result_bit == 0)
-            result_bit = *dport_bit;
-         else
-            result_bit = result_bit & *dport_bit;
-      }
-   }
-   if(result_bit == 0) //如果result_bit仍未空，说明没有匹配到规则，执行XDP_PASS（即什么都不做）
-      return XDP_PASS;
-   //执行到这说明匹配到了规则，进一步处理
-   result_bit &= -result_bit; //得到优先级最高的规则编号，等价于 result_bit &= !result_bit + 1
-   //从action表里查找对应动作
-   int *action = action_map.lookup(&result_bit);
-      if(action != NULL)
-         return *action; //返回对应动作
+<img src = './docs/proxy/images/istio-iptables.svg'></img>
 
-   return XDP_PASS; //没有找到相应动作，返回XDP_PASS
-}
-```
+productpage 访问 reviews Pod，入站流量处理过程对应于图示上的步骤：1、2、3、4、Envoy Inbound Handler、5、6、7、8、应用容器。
 
-该规则匹配方案仍然存在一些问题，在实际运行过程中出现误处理，仍在改进中。
+reviews Pod 访问 rating 服务的出站流量处理过程对应于图示上的步骤是：9、10、11、12、Envoy Outbound Handler、13、14、15。
+
+- 计划使用 eBPF XDP 以及 TC 实现代替 iptables 的部分能力，并且是对应用透明的。
+
+在搜索相关内容时，找到了一个在今年三月开源的工具：Merbridge。
+
+> Merbridge 专为服务网格设计，使用 eBPF 代替传统的 iptables 劫持流量，能够让服务网格的流量拦截和转发能力更加高效。相比传统的 iptables 流量劫持技术，基于 eBPF 的 Merbridge 可以绕过很多内核模块，缩短边车和服务间的数据路径，从而加速网络。Merbridge 没有对现有的 Istio 作出任何修改，原有的逻辑依然畅通。这意味着，如果您不想继续使用 eBPF，直接删除相关的 DaemonSet 就能恢复为传统的 iptables 方式，不会出现任何问题。[3]
+
+该项目主要借助的是 eBPF 的 sockops 和 redir 能力，缩短了数据路径，类似于[4]的实现。
+
+<img src="./docs/proxy/images/sameNode_eBPF_path.png"> </img>
+
+对于同一 Node 内，不同 Pod 之间的通信，绕过了内核网络协议栈，提高了性能。
+
+借助 XDP (native mode)，在不同 Node 之间的通信，也可以绕过 iptables 的部分功能，从而提高性能。
 
 #### 运行
 
+- XDP Filter
+
+编写规则文件` ./src/xdp_filter/rules.txt`
+
 ```
-cd src
-sudo python3 ./filter.py
+sudo python3 ./src/xdp_filter/filter.py
 ```
 
-目前自定义规则部分仍在编写，现有程序的规则是写在`rules.py`里的。
+- eBPF XDP Proxy
+
+> 编写中...
 
 ### Ref
 
-[1] [字节跳动技术团队 —— eBPF技术实践：高性能ACL](https://blog.csdn.net/ByteDanceTech/article/details/106632252)
+[1] [字节跳动技术团队 —— eBPF技术实践：高性能ACL](https://blog.csdn.net/ByteDanceTech/article/details/106632252)  
+
+[2] [Istio 中的 Sidecar 注入、透明流量劫持及流量路由过程详解](https://jimmysong.io/blog/sidecar-injection-iptables-and-traffic-routing)
+
+[3] [MERBRIDGE](https://merbridge.io/)
+
+[4] [利用 ebpf sockmap/redirection 提升 socket 性能](https://arthurchiao.art/blog/socket-acceleration-with-ebpf-zh/)

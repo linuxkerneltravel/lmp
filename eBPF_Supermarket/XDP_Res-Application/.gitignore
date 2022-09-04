@@ -1,2 +1,3 @@
 .vscode
-./src/__pycache__
+src/xdp_filter/__pycache__
+src/ebpf_xdp_proxy/__pycache__
