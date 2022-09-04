@@ -1,0 +1,49 @@
+name: memory
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Memory_Subsystem/**'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Memory_Subsystem/**'
+
+jobs:
+  build-and_tast:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: build libbpf
+      run: |
+       sudo apt-get install llvm clong
+       #构建环境过程存在部分错误
+       #
+       
+    - name: run procstat
+      run:  |
+        cd eBPF_Supermarket/Memory_Subsystem/memstat/procstat
+        make
+        sudo ./procstat
+           
+    - name: run sysstat
+      run: |
+        cd eBPF_Supermarket/Memory_Subsystem/memstat/sysstat
+        make
+        sudo ./sysstat  
+        
+    - name: run paf
+      run: |
+        cd eBPF_Supermarket/Memory_Subsystem/paf
+        make
+        sudo ./paf 
+        
+    - name: run pr
+      run: |
+        cd eBPF_Supermarket/Memory_Subsystem/pr
+        make
+        ./pr      
