@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/XDP_Res-Application/**'
+
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/XDP_Res-Application/**'
+      
+  pull_request_review:
+  workflow_dispatch:
+
+jobs:
+  bcc-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          sudo apt install -y bison build-essential cmake flex git libedit-dev libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
+          wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
+          tar -zxvf bcc-src-with-submodule.tar.gz
+          mkdir bcc/build; cd bcc/build
+          cmake ..
+          make -j `cat /proc/cpuinfo | grep processor| wc -l`
+          sudo make install
+          cmake -DPYTHON_CMD=python3 .. # build python3 binding
+          pushd src/python/
+          make -j `cat /proc/cpuinfo | grep processor| wc -l`
+          sudo make install
+          popd
+         
+      - name: Run xdp_filter
+        run: |
+          cd eBPF_Supermarket/XDP_Res-Application/
+          sudo python3 src/xdp_filter/filter.py -t 5 -i lo -m 0
