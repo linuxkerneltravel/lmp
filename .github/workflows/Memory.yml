@@ -21,7 +21,7 @@ jobs:
     - name: build libbpf
       run: |
        sudo apt-get install llvm clong
-       #
+       #构建环境过程存在部分错误
        #
        
     - name: run procstat
