@@ -25,8 +25,6 @@ type headerField struct {
 	Msg  [headerFieldStrSize]byte
 }
 
-// http2HeaderEvent's memory layout is identical to the go_grpc_http2_header_event_t in bpf_program.go, such that the
-// event data obtained from the perf buffer can be directly copied to http2HeaderEvent.
 type http2HeaderEvent struct {
 	Name  headerField
 	Value headerField
@@ -106,11 +104,6 @@ var (
 	})
 )
 
-//
-//func init() {
-//	flag.StringVar(&binaryProg, "binary", "", "The binary to probe")
-//}
-
 func parseToSturctFromChannel(m *PerStatusWithLock) {
 
 	for {
@@ -185,14 +178,6 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 	const http2ServerOperateHeadersSymbol = "google.golang.org/grpc/internal/transport.(*http2Server).operateHeaders"
 	const http2ServerOperateHeadersProbeFn = "probe_http2_server_operate_headers"
 	mustAttachUprobe(bccMod, binaryProg, http2ServerOperateHeadersSymbol, http2ServerOperateHeadersProbeFn)
-	//
-	//const handleStreamSymbol = "google.golang.org/grpc.(*Server).handleStream"
-	//const handleStreamProbeFn = "probe_handleStream"
-	//mustAttachUprobe(bccMod, binaryProg, handleStreamSymbol, handleStreamProbeFn)
-	//
-	//const sendResponseSymbol = "google.golang.org/grpc.(*Server).sendResponse"
-	//const sendResponseProbeFn = "probe_sendResponse"
-	//mustAttachUprobe(bccMod, binaryProg, sendResponseSymbol, sendResponseProbeFn)
 
 	fmt.Println("uprobe for http2 grpc begin...")
 	defer func() {
@@ -313,7 +298,7 @@ func GetHttp2ViaUprobe(binaryProg string, podname string) {
 				fmt.Printf("\n")
 				count += 1
 				if count == 20 {
-					if err := f.SaveAs("Book5.xlsx"); err != nil {
+					if err := f.SaveAs("BookUprobe.xlsx"); err != nil {
 						println(err.Error())
 
 					}

@@ -81,10 +81,6 @@ type RequestMap struct {
 }
 
 func Histogram_Push(podname string, spendtime int64, gotime int64) {
-	//completionTime := prometheus.NewGauge(prometheus.GaugeOpts{
-	//	Name: "HTTPSpendTime",
-	//	Help: "The timestamp of the last successful completion of a DB backup.",
-	//})
 	histogramRegistered.Observe(float64(spendtime / 1000 / 1000))
 	if err := push.New("http://10.10.103.122:9091", "HTTPSpend"). // push.New("pushgateway地址", "job名称")
 									Collector(histogramRegistered).                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
