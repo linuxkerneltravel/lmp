@@ -52,6 +52,7 @@ func (ip UnifiedAddress) ToString(version int) string {
 	return ""
 }
 
+// IpToUint32 converts IP in string (e.g. 127.0.0.1) to int (e.g. 0x100007f)
 func IpToUint32(ipAddr string) (uint32, error) {
 	ip := net.ParseIP(ipAddr)
 	if ip == nil {

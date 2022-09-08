@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -158,4 +159,24 @@ func GetPidUnderRootPidNamespace(ppid, pid int) (int, error) {
 		fmt.Println(ppidAndPid)
 		return -1, fmt.Errorf("process %d under %d not found", pid, ppid)
 	}
+}
+
+// DetectCgroupPath returns the first-found mount point of type cgroup2
+func DetectCgroupPath() (string, error) {
+	f, err := os.Open("/proc/mounts")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		// example fields: cgroup2 /sys/fs/cgroup/unified cgroup2 rw,nosuid,nodev,noexec,relatime 0 0
+		fields := strings.Split(scanner.Text(), " ")
+		if len(fields) >= 3 && fields[2] == "cgroup2" {
+			return fields[1], nil
+		}
+	}
+
+	return "", fmt.Errorf("cgroup2 not mounted")
 }

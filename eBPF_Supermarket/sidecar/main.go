@@ -4,12 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/host"
 
 	"github.com/eswzy/podstat/k8s"
+	"github.com/eswzy/podstat/optimize/sockredir"
 	"github.com/eswzy/podstat/perf/net"
 	"github.com/eswzy/podstat/test"
 	"github.com/eswzy/podstat/tools"
@@ -81,7 +83,9 @@ func main() {
 
 	var sidecarPid []int
 	var servicePid []int
-	var portList = []int{15006, 9080, 80, 8000}
+	// var portList = []int{15006, 9080, 80, 8000}
+
+	// net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, *podName)
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -93,16 +97,21 @@ func main() {
 	pidList = append(pidList, sidecarPid...)
 	pidList = append(pidList, servicePid...)
 
-	net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, *podName)
+	targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), *podName, *namespace)
+	so := net.SidecarOpt{
+		SidecarPort: 8000,
+		ServicePort: 80,
+		LocalIP:     "127.0.0.1", // for Envoy, 127.0.0.6
+		PodIp:       targetPod.Status.PodIP,
+		NodeIp:      targetPod.Status.HostIP,
+	}
 
-	//targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), *podName, *namespace)
-	//so := net.SidecarOpt{
-	//	SidecarPort: 8000,
-	//	ServicePort: 80,
-	//	LocalIP:     "127.0.0.1",
-	//	PodIp:       targetPod.Status.PodIP,
-	//	NodeIp:      targetPod.Status.HostIP,
-	//}
-	//
-	//net.GetKernelNetworkEvent(pidList, so, *podName)
+	go net.GetKernelNetworkEvent(pidList, so, *podName)
+	localIP, _ := tools.IpToUint32(so.LocalIP)
+	localIPEnvoy, _ := tools.IpToUint32("127.0.0.6")
+	go sockredir.EnableSockOpsRedirect([]int{int(localIP), int(localIPEnvoy)})
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+	<-sig
 }
