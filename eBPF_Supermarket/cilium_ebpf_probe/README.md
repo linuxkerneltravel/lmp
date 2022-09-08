@@ -9,7 +9,7 @@
 
 # **运行**
 
-### ENVIRONMENT
+## ENVIRONMENT
 
 | Require    | Version          |
 | ---------- | :--------------- |
@@ -21,9 +21,9 @@
 | Kubernetes | v1.23.0          |
 | Docker     | 20.10.14         |
 
-#### 集群
+### 集群
 
-1. 请保证运行环境中已部署Kubernetes、Docker环境。
+1. 请保证运行环境中已部署Kubernetes、Docker、Go等环境。Kubernetes请勿以Kind、K3S等其他形式部署。
 
 2. 启动待监测的server pod
 
@@ -46,7 +46,7 @@ grpcserver   1/1     Running   0          3m2s
 httpserver   1/1     Running   0          3h46m
 ```
 
-#### 可视化
+### 可视化
 
 ​	为了进行可视化展示，需要通过以下流程对prometheus组件进行部署。
 
@@ -88,15 +88,15 @@ $ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime gra
 
 接下来打开 http://yourIP:3000 即可查看Grafana界面。并将对应的传送API接口修改，即可成功运行本探针程序。
 
-#### BCC
+### BCC
 
-​	请参看bcc官方教程在centos系统下的安装指导。
+7. 请参看bcc官方教程在centos系统下的安装指导。
 
 ​	https://github.com/iovisor/bcc/blob/master/INSTALL.md#centos---source
 
-#### 运行
+### 运行
 
-​	回到`lmp/eBPF_Supermarket/cilium_ebpf_probe`目录下。
+8. 回到`lmp/eBPF_Supermarket/cilium_ebpf_probe`目录下。
 
 ```bash
 $ go run main.go
@@ -108,10 +108,9 @@ $ go run main.go
 /root/go/pkg/mod/github.com/iovisor/gobpf@v0.0.0-20210109143822-fb892541d416/bcc/module.go:230:132: not enough arguments in call to (_C2func_bcc_func_load)
         have (unsafe.Pointer, _Ctype_int, *_Ctype_char, *_Ctype_struct_bpf_insn, _Ctype_int, *_Ctype_char, _Ctype_uint, _Ctype_int, *_Ctype_char, _Ctype_uint, nil)
         want (unsafe.Pointer, _Ctype_int, *_Ctype_char, *_Ctype_struct_bpf_insn, _Ctype_int, *_Ctype_char, _Ctype_uint, _Ctype_int, *_Ctype_char, _Ctype_uint, *_Ctype_char, _Ctype_int)
-
 ```
 
-​	针对主程序，设置了以下参数可供自定义，或可采用默认参数。
+​	针对`main.go`，设置了以下参数可供自定义，或可采用默认参数。
 
 | Name         | Default                    | Usage                                |
 | ------------ | -------------------------- | ------------------------------------ |
@@ -123,20 +122,283 @@ $ go run main.go
 | --namespace  | Wow                        | namespace of your pod                |
 | --nodename   | k8s-node2                  | node which your pods running on      |
 
-运行成功后可见如下显示：
+​	运行成功后可见如下显示：
 
-TODO
+```bash
+[root@k8s-node2 cilium_ebpf_probe]# go run main.go
+There are 2 pods in the cluster in wyw namespace
+Found pod httpserver in namespace wywach Uprobe
+[INFO] Found pid 15061 from container d7e04981aacd20a98901d8f41f3ac810b113693023817b170be8462a79f14eb8a296c35/merged/go/src/grpc_server/main
+[INFO] No child process founded for container d7e04981aacd20a98901d8f41f3ac810b113693023817b170be8462a79f14eb8
+get specific docker of image  wyuei/http_server:v2.0
+get pod httpserver Pid and Attach Kprobe
+Found pod grpcserver in namespace wyw
+get specific docker of image  wyuei/grpc_server:latest
+get pod grpcserver Merge Path and Attach Uprobe
+Attach 1 uprobe on  /var/lib/docker/overlay2/24eaa194ebf14c9bc0db8d933ed15ffe990fda059d7c69990a1d74134a296c35/merged/go/src/grpc_server/main
+kprobe for http begins...
+uprobe for http2 grpc begin...
+```
 
-# 开发
+**捕获HTTP数据**
 
+​	进入cilium_ebpf_probe目录下的http_client路径，提供了简单的HTTP客户端，调用进行访问。
 
+```bash
+[root@k8s-node2 cilium_ebpf_probe]# cd http_client/
+[root@k8s-node2 http_client]# ls
+main.go
+[root@k8s-node2 http_client]# go run main.go
+```
 
+​	主程序捕捉到的报文信息如下：
 
+```bash
+HTTP from httpserver [1]:StatusCode: 200, Len: 35, ContentType: [text/plain; charset=utf-8], Body: Resonse:The request was successful.
+HTTP from httpserver [2]:StatusCode: 200, Len: 35, ContentType: [text/plain; charset=utf-8], Body: Resonse:The request was successful.
+```
 
-# 项目实现细节
+**捕获gRPC数据**
+
+​	进入cilium_ebpf_probe目录下的grpc_client路径，提供了简单的gRPC客户端，调用进行访问。
+
+```bash
+[root@k8s-node2 cilium_ebpf_probe]# cd grpc_client/
+[root@k8s-node2 grpc_client]# ls
+main.go
+[root@k8s-node2 grpc_client]# go run main.go --count=2
+2022/09/08 13:56:29 Greeting: Hello world
+2022/09/08 13:56:29 Greeting: Hello world
+```
+
+​	主程序捕获报文信息如下：
+
+```bash
+HTTP2 from grpcserver [1](stream id:1)::method:POST,:scheme:http,:path:/greet.Greeter/SayHello,:authority:10.0.3.236:50051,content-type:application/grpc,user-agent:grpc-go/1.48.0,te:trailers,grpc-timeout:4975471u,weight:0,:status:200,content-type:application/grpc,grpc-status:0,grpc-message:,
+HTTP2 from grpcserver [2](stream id:3)::method:POST,:scheme:http,:path:/greet.Greeter/SayHello,:authority:10.0.3.236:50051,content-type:application/grpc,user-agent:grpc-go/1.48.0,te:trailers,grpc-timeout:4999852u,weight:0,:status:200,content-type:application/grpc,grpc-status:0,grpc-message:,
+```
+
+## 结果输出
+
+​	本项目将捕获到的HTTP层请求，解析后分析其请求延时、计数和状态码，形成Metrics传递至pushgateway。报文部分则输出至xlsx文件。
+
+### Metrics类型
+
+#### HTTP Spend
+
+​	标识一次HTTP响应请求的延时，以其push至pushgateway的时间作为时间戳。
+
+​	使用Histogram类型，有20个bucket。job名定义为`HTTPSpend`，为其打上podname和instance的label。
+
+```go
+var histogramRegistered = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "http_spend",
+			Help:    "A histogram of normally distributed http spend time(us).",
+			Buckets: prometheus.LinearBuckets(0, 800, 20), //start,width,count
+		},
+	)
+func Histogram_Push(podname string, spendtime int64, gotime int64) {
+	histogramRegistered.Observe(float64(spendtime / 1000 / 1000)) //ns/1000/1000
+	if err := push.New("http://10.10.103.122:9091", "HTTPSpend"). // push.New("pushgateway地址", "job名称")
+									Collector(histogramRegistered).      
+									Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
+									Push(); err != nil {
+		fmt.Println("Could not push completion time to Pushgateway:", err)
+	}
+}
+```
+
+#### HTTP Status Code
+
+​	收集HTTP响应的状态码。
+
+​	为了方便计数，为每一类型的状态码都定义一种Gauge类型，每出现一次状态码，在相应的Gauge值内进行自加。job名定义为`HTTPStatus`，为其打上podname、instance和相应status code的label。
+
+```go
+var statusMap map[int]prometheus.Gauge
+statusMap = make(map[int]prometheus.Gauge)
+statusMap[200] = prometheus.NewGauge(prometheus.GaugeOpts{
+  Name: "http_status_code_200",
+  Help: "Current status of the http protocol.",
+})
+...
+func Gauge_Push(podname string, statuscode int, gotime int64) {
+	statusMap[statuscode].Add(1)
+	if err := push.New("http://10.10.103.122:9091", "HTTPStatus"). // push.New("pushgateway地址", "job名称")
+									Collector(statusMap[statuscode]). 
+									Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("StatusCode", strconv.Itoa(statuscode)). 
+									Push(); err != nil {
+		fmt.Println("Could not push completion time to Pushgateway:", err)
+	}
+}
+```
+
+#### gRPC Spend
+
+​	标识一次gRPC响应请求的延时。
+
+​	使用Histogram类型，job名定义为`GRPCSpend`，原理与HTTP Spend一致。
+
+#### gRPC Status Code
+
+​	收集gRPC响应的状态码。
+
+​	使用Gauge类型，job名定义为`GRPCStatus`，原理与HTTP Status Code一致。
+
+### Grafana可视化图表
+
+​	本项目展示内容可通过Prometheus结合Grafana进行可视化展示，可定制以下图表内容：
+
+1. **HTTP Delay Distributation**
+
+​	展示HTTP响应延时分布的HeatMap，在Delay根据Bucket的分布上加上时间维度，显示随着时间，Delay在各个区间内分布的趋势。
+
+```sql
+A
+Metrics browser > http_spend_bucket
+```
+
+2. **HTTP Request Count**
+
+​	展示HTTP响应请求计数的Time Series，显示随着时间请求变化的趋势。在上文Metrics指标中虽然没有直接对count进行统计，但可通过Histogram直接完成当前时刻的计数。
+
+```sql
+A
+Metrics browser > http_spend_count
+```
+
+3. **HTTP Request Delay**
+
+​	展示HTTP响应延时的区间分布的Histogram。
+
+```sql
+A
+Metrics browser > http_spend_bucket
+```
+
+4. **HTTP StatusCode**
+
+​	展示HTTP响应请求的Status Code的统计Pie Chart。需要将上文Metrics指标中同一Job下，lable StatusCode不同的实例分别载入。
+
+```sql
+A
+Metrics browser > http_status_code_200
+Legend code_200
+Format Time series
+B
+Metrics browser > http_status_code_400
+Legend code_400
+Format Time series
+C
+Metrics browser > http_status_code_404
+Legend code_404
+Format Time series
+...
+```
+
+5. **gRPC Request Count**
+
+​	展示gRPC响应请求计数的Time Series，显示随着时间请求变化的趋势。
+
+```sql
+A
+Metrics browser > grpc_spend_count
+```
+
+6. **gRPC Request Delay**
+
+​	展示gRPC响应延时的区间分布的Histogram。
+
+```sql
+A
+Metrics browser > grpc_spend_bucket
+```
+
+7. **gRPC StatusCode**
+
+​	展示gRPC响应请求的Status Code的统计Pie Chart。
+
+```SQL
+A
+Metrics browser > gRPC_status_0
+Legend code_0
+Format Time series
+```
+
+### XLSL输出
+
+​	本项目捕捉到报文相关信息，由于是文本形式，因此考虑XLSX形式导出。
+
+1. **HTTP报文信息导出**
+
+​	导出至`httpserver.xlsx`中，属性列为：
+
+- statuscode
+- contentlength
+- content-type
+- body
+
+2. **gRPC报文信息导出**
+
+​	导出至`BookUprobe.xlsx`中，属性列为：
+
+- streamID
+- method
+- scheme
+- path
+- authority
+- content-type
+- user-agent
+- te
+- grpc-timeout
+- weight
+- status
+- content-type
+- grpc-status
+- grpc-message
+
+# 项目实现
 
 ## 目录框架
 
+```
+-------cilium_ebpf_probe                                                              
+   |---- cluster_utils            cluster Helper函数     
+   |---- Dockerfile               server端镜像Dockerfile文件
+   |---- grpc_client              grpc客户端              
+   |---- grpc_server              grpc服务端              
+   |---- http2_tracing            http2 uprobe部分       
+   |   \- bpf_program.go             bpf程序             
+   |    \- http2_trace_uprobe.go     用户态程序             
+   |---- http_client              http客户端              
+   |---- http_server              http服务端              
+   |---- http_kprobe              http kprobe部分        
+   |   \- bpf_program.go             bpf程序             
+   |    \- main.go                   用户态程序             
+   |---- k8s_yaml                 kubernetes部署Pod文件    
+   |---- proto                    grpc proto           
+   |- go.mod                                           
+   +- main.go                     程序入口             
+```
 
+## 技术细节
 
-# 未完成
+请参看Document的技术实现部分。
+
+# 待实现
+
+1. 目前本项目针对gRPC协议，只进行了HTTP2标头的追踪，而不是数据帧。对于跟踪数据帧，需要识别接受数据帧作为参数的其他Golang net/http2 库函数，并确定相关数据结构的内存布局。
+2. 目前本项目只针对golang启动的gRPC服务器完成报文头的uprobe点追踪。对于Java、C语言，由于用户态实现方式不同，需要进行重新寻找uprobe点、确定不同编程语言的函数传参方式等工作。
+3. 目前本项目只针对原生Kubernetes完成了Uprobe点、Kprobe点的添加，对于以Minikube、Kind等其他形式部署的集群，由于存在不同命名空间内Pid映射、文件挂载位置迁移等问题，有待继续完善开发。
+
+# 参考引用
+
+- https://blog.px.dev/ebpf-http-tracing/
+- https://blog.px.dev/ebpf-openssl-tracing/
+- https://blog.px.dev/ebpf-http2-tracing/
+- https://zhuanlan.zhihu.com/p/27339191
+- https://cch123.gitbooks.io/duplicate/content/part3/translation-details/function-calling-sequence/calling-convention.html
+- https://yunlzheng.gitbook.io/prometheus-book/parti-prometheus-ji-chu/promql/prometheus-promql-best-praticase
+- https://go.googlesource.com/proposal/+/master/design/40724-register-calling.md
+- https://yunlzheng.gitbook.io/prometheus-book/parti-prometheus-ji-chu/promql/prometheus-promql-best-praticase

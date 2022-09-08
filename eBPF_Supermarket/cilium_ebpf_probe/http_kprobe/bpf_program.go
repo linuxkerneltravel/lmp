@@ -21,8 +21,6 @@ struct syscall_write_event_t {
     int event_type;
     int fd; 
     int bytes;
-    // Care needs to be taken as only msg_size bytes of msg are guaranteed
-    // to be valid.
     int msg_size;
 	u64 start_ns;
 	u64 end_ns;

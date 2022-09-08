@@ -25,8 +25,6 @@ type headerField struct {
 	Msg  [headerFieldStrSize]byte
 }
 
-// http2HeaderEvent's memory layout is identical to the go_grpc_http2_header_event_t in bpf_program.go, such that the
-// event data obtained from the perf buffer can be directly copied to http2HeaderEvent.
 type http2HeaderEvent struct {
 	Name  headerField
 	Value headerField
