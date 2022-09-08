@@ -46,6 +46,7 @@ jaeger_port = 6831
 _pull:
 	@if [ $(sidecar_ip) = $(local_ip) ]; then\
 		docker pull prom/node-exporter;\
+		docker pull gcr.io/cadvisor/cadvisor;\
 	fi
 
 	@if [ $(visualize_ip) = $(local_ip) ]; then\
@@ -63,17 +64,17 @@ _deploy:
 		prometheus_template.yml > prometheus.yml
 
 	@if [ $(sidecar_ip) = $(local_ip) ]; then\
-		docker run -d --name sidecar-node-exporter	-p $(node_exporter_port):9100 prom/node-exporter;\
-		sudo docker run --volume=/:/rootfs:ro --volume=/var/run:/var/run:ro --volume=/sys:/sys:ro --volume=/var/lib/docker/:/var/lib/docker:ro --volume=/dev/disk/:/dev/disk:ro --publish=$(cadvisor_port):8080 --detach=true --name=cadvisor --privileged --device=/dev/kmsg google/cadvisor;\
+		docker      run -d --name sidecar-node-exporter	-p $(node_exporter_port):9100 prom/node-exporter;\
+		sudo docker run -d --name=sidecar-cadvisor      -p $(cadvisor_port):8080      --volume=/:/rootfs:ro --volume=/var/run:/var/run:ro --volume=/sys:/sys:ro --volume=/var/lib/docker/:/var/lib/docker:ro --volume=/dev/disk/:/dev/disk:ro --detach=true --privileged --device=/dev/kmsg gcr.io/cadvisor/cadvisor;\
 		echo "Node exporter at http://$(node_exporter_ip):$(node_exporter_port)/";\
-		echo "cAdvisor at http://$(cadvisor_ip):$(cadvisor_port/)";\
+		echo "cAdvisor at http://$(cadvisor_ip):$(cadvisor_port)/";\
 	fi
 
 	@if [ $(visualize_ip) = $(local_ip) ]; then\
 		docker run -d --name sidecar-prometheus		-p $(prometheus_port):9090 	-v ~/data/prom-data:/prometheus -v $(mkfile_dir)prometheus.yml:/etc/prometheus/prometheus.yml --user root prom/prometheus;\
 		docker run -d --name sidecar-pushgateway	-p $(pushgateway_port):9091	-v ~/data/grafana-data:/var/lib/grafana prom/pushgateway;\
 		docker run -d --name sidecar-grafana		-p $(grafana_port):3000		grafana/grafana;\
-		docker run -d --name sidecar-jaeger 		-p $(jaeger_port):6831/udp -p 6832:6832/udp -p 5778:5778 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 14250:14250 -p 14268:14268 -p 14269:14269 -p 9411:9411 -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -e COLLECTOR_OTLP_ENABLED=true jaegertracing/all-in-one;\
+		docker run -d --name sidecar-jaeger 		-p $(jaeger_port):6831/udp  -p 6832:6832/udp -p 5778:5778 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 14250:14250 -p 14268:14268 -p 14269:14269 -p 9411:9411 -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -e COLLECTOR_OTLP_ENABLED=true jaegertracing/all-in-one;\
 		echo "Prometheus at http://$(prometheus_ip):$(prometheus_port)/";\
 		echo "Pushgateway at http://$(pushgateway_ip):$(pushgateway_port)/";\
 		echo "Grafana at http://$(grafana_ip):$(grafana_port)/";\
@@ -92,6 +93,7 @@ start:
 	-docker start sidecar-grafana
 	-docker start sidecar-jaeger
 	-docker start sidecar-node-exporter
+	-docker start sidecar-cadvisor
 
 rm:
 	-docker rm sidecar-prometheus
@@ -99,5 +101,5 @@ rm:
 	-docker rm sidecar-grafana
 	-docker rm sidecar-jaeger
 	-docker rm sidecar-node-exporter
+	-docker rm sidecar-cadvisor
 	rm prometheus.yml
-

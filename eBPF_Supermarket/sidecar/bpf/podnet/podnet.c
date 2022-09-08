@@ -52,7 +52,7 @@ struct event_t {
     u32 pid;
     u32 tid;
 
-    // char task[TASK_COMM_LEN];
+    char task[TASK_COMM_LEN];
     char func_name[FUNCNAME_MAX_LEN];
     char ifname[IFNAMSIZ];
 
@@ -455,7 +455,7 @@ do_trace(void *ctx, struct sk_buff *skb, const char *func_name, void *netdev)
 
     bpf_strncpy(event.func_name, func_name, FUNCNAME_MAX_LEN);
     CALL_STACK(ctx, &event);
-    // bpf_get_current_comm(&event.task, sizeof(event.task));
+    bpf_get_current_comm(&event.task, sizeof(event.task));
     route_event.perf_submit(ctx, &event, sizeof(event));
 out:
     return 0;
@@ -675,7 +675,7 @@ __ipt_do_table_out(struct pt_regs * ctx, struct sk_buff *skb)
 
     event.ts_ns = bpf_ktime_get_ns();
     CALL_STACK(ctx, &event);
-    // bpf_get_current_comm(&event.task, sizeof(event.task));
+    bpf_get_current_comm(&event.task, sizeof(event.task));
     route_event.perf_submit(ctx, &event, sizeof(event));
 
     return 0;
@@ -715,7 +715,7 @@ int kprobe____kfree_skb(struct pt_regs *ctx, struct sk_buff *skb)
     event.ts_ns = bpf_ktime_get_ns();
     bpf_strncpy(event.func_name, __func__+8, FUNCNAME_MAX_LEN);
     get_stack(ctx, &event);
-    // bpf_get_current_comm(&event.task, sizeof(event.task));
+    bpf_get_current_comm(&event.task, sizeof(event.task));
     route_event.perf_submit(ctx, event, sizeof(*event));
     return 0;
 }
