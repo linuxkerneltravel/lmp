@@ -489,14 +489,14 @@ func GetKernelNetworkEvent(pidList []int, sidecarOpt SidecarOpt, podName string)
 	ch := make(chan podnet.Event, 100000)
 	heartBeatInPod := make(chan bool)
 	heartBeatOutPod := make(chan bool)
-	outSpanPairId := make(chan string) // TODO: outSpanPairId is used to pair the outer network span with inner pod span
+	// outSpanPairId := make(chan string) // TODO: outSpanPairId is used to pair the outer network span with inner pod span
 	allInPodEventHeap := make(map[ConnectIdType]InPodConnectionOverall)
 	allOutPodEventHeap := make(map[ConnectIdType]OutPodConnectionOverall)
 
 	go podnet.Probe(pidList, false, "", ch)   // probes inner pod events
 	go podnet.Probe(pidList, true, podIp, ch) // probes outer pod events
-	go monitorLoopInPod(&allInPodEventHeap, time.Second, podName, heartBeatInPod, outSpanPairId)
-	go monitorLoopOutPod(&allOutPodEventHeap, time.Second, podName, heartBeatOutPod, outSpanPairId)
+	// go monitorLoopInPod(&allInPodEventHeap, time.Second, podName, heartBeatInPod, outSpanPairId)
+	// go monitorLoopOutPod(&allOutPodEventHeap, time.Second, podName, heartBeatOutPod, outSpanPairId)
 
 	for {
 		event := <-ch

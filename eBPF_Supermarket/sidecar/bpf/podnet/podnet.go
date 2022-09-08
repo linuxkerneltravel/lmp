@@ -36,7 +36,7 @@ type bpfEventData struct {
 	Pid uint32
 	Tid uint32
 
-	// Comm     [16]byte
+	Comm     [16]byte
 	FuncName [FUNCNAME_MAX_LEN]byte
 	IfName   [IFNAMSIZ]byte
 
@@ -159,8 +159,8 @@ func (el EventList) Swap(i, j int) {
 
 func getEventFromBpfEventData(bpfEvent bpfEventData) Event {
 	return Event{
-		Time: time.Duration(int64(bpfEvent.TsNs)),
-		// Comm:          strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
+		Time:          time.Duration(int64(bpfEvent.TsNs)),
+		Comm:          strings.Trim(string(bpfEvent.Comm[:]), "\u0000"),
 		Pid:           int(bpfEvent.Pid),
 		Tid:           int(bpfEvent.Tid),
 		FuncName:      strings.Trim(string(bpfEvent.FuncName[:]), "\u0000"),
@@ -293,6 +293,7 @@ func Probe(pidList []int, reverse bool, podIp string, ch chan<- Event) {
 			}
 
 			goEvent := getEventFromBpfEventData(event)
+			goEvent.Print()
 			ch <- goEvent
 		}
 	}()
