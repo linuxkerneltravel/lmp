@@ -50,14 +50,14 @@ def clean_map(config, counter, metrics):
             default=ctypes.c_uint64(0),
         ).value
 
-        req_time = metrics.get(
-            metrics.Key(constants.REQUEST_TIME_KEY),
+        resp_time = metrics.get(
+            metrics.Key(constants.RESPONSE_TIME_KEY),
             default=ctypes.c_uint64(65535),
         ).value
 
         metrics[metrics.Key(constants.REQUEST_SIZE_KEY)] = ctypes.c_uint64(0)
         metrics[metrics.Key(constants.RESPONSE_SIZE_KEY)] = ctypes.c_uint64(0)
-        metrics[metrics.Key(constants.REQUEST_TIME_KEY)] = ctypes.c_uint64(0)
+        metrics[metrics.Key(constants.RESPONSE_TIME_KEY)] = ctypes.c_uint64(0)
 
         for ip, record in counter.items():
             if ip.value == constants.GLOBAL_IP:
@@ -81,40 +81,40 @@ def clean_map(config, counter, metrics):
                 if cnt > 0:
                     if amplification:
                         logging.warning(
-                            "under amplification attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_request_time: {:.2}ms, amplification_factor: {:.2%}".format(
+                            "under amplification attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_response_time: {:.2}ms, amplification_factor: {:.2%}".format(
                                 seconds,
                                 f,
                                 f / cnt,
                                 a,
                                 a / cnt,
                                 cnt,
-                                req_time / cnt / 1e6,
+                                resp_time / cnt / 1e6,
                                 rsize / qsize,
                             ),
                         )
                     elif nxdomain:
                         logging.warning(
-                            "under nxdomain attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_request_time: {:.2}ms, amplification_factor: {:.2%}".format(
+                            "under nxdomain attack!!! stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_response_time: {:.2}ms, amplification_factor: {:.2%}".format(
                                 seconds,
                                 f,
                                 f / cnt,
                                 a,
                                 a / cnt,
                                 cnt,
-                                req_time / cnt / 1e6,
+                                resp_time / cnt / 1e6,
                                 rsize / qsize,
                             ),
                         )
                     else:
                         logging.info(
-                            "stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_request_time: {:.2}ms, amplification_factor: {:.2%}".format(
+                            "stats in {}s: fail_count: {}({:.2%}), any_count: {}({:.2%}), total_count: {}, avg_response_time: {:.2}ms, amplification_factor: {:.2%}".format(
                                 seconds,
                                 f,
                                 f / cnt,
                                 a,
                                 a / cnt,
                                 cnt,
-                                req_time / cnt / 1e6,
+                                resp_time / cnt / 1e6,
                                 rsize / qsize,
                             ),
                         )
