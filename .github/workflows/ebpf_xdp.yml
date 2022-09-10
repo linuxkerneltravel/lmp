@@ -1,4 +1,4 @@
-name: CI
+name: XDP
 
 on:
   push:
@@ -6,12 +6,13 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/XDP_Res-Application/**'
-
+      - '.github/workflows/ebpf_xdp.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/XDP_Res-Application/**'
+      - '.github/workflows/ebpf_xdp.yml'
       
   pull_request_review:
   workflow_dispatch:

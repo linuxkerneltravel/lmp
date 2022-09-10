@@ -1,4 +1,4 @@
-name: CI
+name: CPU Subsystem
 
 on:
   push:
@@ -6,15 +6,13 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/CPU_Subsystem/**'
-
+      - '.github/workflows/system_cpu.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/CPU_Subsystem/**'
-      
-  pull_request_review:
-  workflow_dispatch:
+      - '.github/workflows/system_cpu.yml'
 
 jobs:
   bcc-project-build-and-test:

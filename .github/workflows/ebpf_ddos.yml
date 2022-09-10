@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - "*"
+    paths:
+      - 'eBPF_Supermarket/eBPF_DDoS/**'
+      - '.github/workflows/ebpf_lsm.yml'
   pull_request:
     branches:
       - "*"
+    paths:
+      - 'eBPF_Supermarket/eBPF_DDoS/**'
+      - '.github/workflows/ebpf_lsm.yml'
 
 jobs:
   build-and-test:

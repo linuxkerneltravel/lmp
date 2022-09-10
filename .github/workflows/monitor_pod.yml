@@ -1,10 +1,19 @@
-name: Go
+name: Pod Monitor
 
 on:
-    push:
-      branches: [ "develop" ]
-    pull_request:
-      branches: [ "develop" ]
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/sidecar/**'
+      - '.github/workflows/monitor_pod.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/sidecar/**'
+      - '.github/workflows/monitor_pod.yml'
+
 jobs:
    build:
     runs-on: ubuntu-22.04

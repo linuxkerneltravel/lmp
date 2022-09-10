@@ -1,4 +1,4 @@
-name: Sidecar
+name: Sidecar Monitor
 
 on:
   push:
@@ -6,11 +6,13 @@ on:
       - "*"
     paths:
       - 'eBPF_Supermarket/sidecar/**'
+      - '.github/workflows/monitor_sidecar.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/sidecar/**'
+      - '.github/workflows/monitor_sidecar.yml'
 
 jobs:
   build-and-test:
