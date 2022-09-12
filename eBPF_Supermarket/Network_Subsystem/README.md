@@ -27,9 +27,15 @@ bpftrace_application 是一些 Bpftrace 构建的例程，需要预装 bpftrace�
     [必选] 网卡名称
 -i, --interval
     [可选] 输出时间间隔，默认为1s
+-c, --count
+    [可选] 输出条数，默认为99999999
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 `sudo python nic_throughput.py -n lo`
+运行示例 `sudo python nic_throughput.py --print -n lo`
 
 输出样例
 ``` shell
@@ -38,7 +44,6 @@ TX
  QueueID    avg_size   BPS        PPS
  0          64.0       384.0      6.0
  Total      64.0       384.0      6.0
-
 RX
  QueueID    avg_size   BPS        PPS
  0          50.0       300.0      6.0
@@ -52,9 +57,9 @@ RX
 
 参数如下：
 ```
--p，--pid
+-P，--pid
     [可选] 指定进程
--P, --port
+-p, --port
     [可选] 指定源端口
 -r, --direction
     [可选] 仅输出方向为connect或accept的连接
@@ -62,24 +67,28 @@ RX
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
 运行示例 
 ``` shell
-sudo python tcp_connection.py -P 80,81  # only trace port 80 and 81
-sudo python tcp_connection.py -p 181    # only trace PID 181
-sudo python tcp_connection.py -4        # only trace IPv4 family
-sudo python tcp_connection.py -6        # only trace IPv6 family
-sudo python tcp_connection.py -r accept # only trace accept tcp connections
+sudo python tcp_connection.py --print -P 181    # only trace PID 181
+sudo python tcp_connection.py --print -p 80,81  # only trace port 80 and 81
+sudo python tcp_connection.py --print -4        # only trace IPv4 family
+sudo python tcp_connection.py --print -6        # only trace IPv6 family
+sudo python tcp_connection.py --print -r accept # only trace accept tcp connections
 ```
 
 输出样例
 ``` shell
-TIME      PID     COMM         IP DADDR            DPORT SADDR            SPORT  DIRECTION
-21:59:03  753526  java         4  127.0.0.1        2181  127.0.0.1        36702    connect
-21:59:03  3048248 java         4  127.0.0.1        2181  127.0.0.1        36698    connect
-21:59:03  2475785 java         4  127.0.0.1        2181  127.0.0.1        36700    connect
-21:59:03  2475720 java         4  172.17.0.2       2181  172.17.0.5       45194    connect
+TIME      PID     TASK         IP SADDR:SPORT                                DADDR:DPORT                                 DIRECTION
+17:16:52  1083981 sshd         4  xxx.xxx.226.109:2222                       xxx.xxx.80.116:9323                            accept
+17:17:01  2023299 auth-thu     4  xxx.xxx.226.109:47824                      xxx.xxx.204.120:80                            connect
+17:17:01  2023299 auth-thu     4  xxx.xxx.226.109:47278                      xxx.xxx.4.100:443                             connect
+17:17:01  2023300 auth-thu     4  xxx.xxx.226.109:41286                      xxx.xxx.100:80                                connect
 ```
 
 ### 2.3 tcp_bytes
@@ -88,7 +97,7 @@ TIME      PID     COMM         IP DADDR            DPORT SADDR            SPORT 
 
 参数如下：
 ```
--p，--pid
+-P，--pid
     [可选] 指定进程
 -i, --interval
     [可选] 输出时间间隔，默认为1s
@@ -96,27 +105,31 @@ TIME      PID     COMM         IP DADDR            DPORT SADDR            SPORT 
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
 运行示例 
 ``` shell
-sudo python tcp_bytes.py           # trace TCP send/recv bytes by host
-sudo python tcp_bytes.py -p 181    # only trace PID 181
-sudo python tcp_bytes.py -i 5      # print results every 5 seconds
-sudo python tcp_bytes.py -4        # trace IPv4 family only
-sudo python tcp_bytes.py -6        # trace IPv6 family only
+sudo python tcp_bytes.py --print           # trace TCP send/recv bytes by host
+sudo python tcp_bytes.py --print -P 181    # only trace PID 181
+sudo python tcp_bytes.py --print -i 5      # print results every 5 seconds
+sudo python tcp_bytes.py --print -4        # trace IPv4 family only
+sudo python tcp_bytes.py --print -6        # trace IPv6 family only
 ```
 
 输出样例
 ``` shell
-Thu Aug  4 21:23:28 2022
-PID     COMM         SADDR                 DADDR                  RX_KB  TX_KB
-3224405 b'sshd'      xxx.xxx.226.109:22    101.5.230.37:62037         0     40
-4022997 b'sshd'      xxx.xxx.226.109:2222  xxx.xxx.80.116:6058        0      0
+Mon Sep 12 17:32:01 2022
+PID     COMM            SADDR:SPORT            DADDR:DPORT             RX_KB  TX_KB
+2024669 auth-thu        xxx.xxx.226.109:47364  xxx.xxx.4.100:443           5      0
+2012378 sshd            xxx.xxx.226.109:2222   xxx.xxx.80.116:5787         0      0
 
-PID     COMM         SADDR6                                   DADDR6                                    RX_KB  TX_KB
-2249878 b'gitlab-run 2402:f000:4:1001:809:26d1:ae03:a462:42774 2402:f000:1:408:101:6:8:149:443               0      0
-2249878 b'gitlab-run 2402:f000:4:1001:809:26d1:ae03:a462:42778 2402:f000:1:408:101:6:8:149:443               0      0
+PID     COMM            SADDR6:SPORT                           DADDR6:DPORT                                    RX_KB  TX_KB
+1066    gitlab-runner   2402:f000:xx:xx:xx:xx:ae03:a462:49676  2402:f000:xx:xx:xx:xx:8:149:443                     0      0
+1066    gitlab-runner   2402:f000:xx:xx:xx:xx:ae03:a462:49664  2402:f000:xx:xx:xx:xx:8:149:443                     0      0
 ```
 
 
@@ -127,30 +140,33 @@ PID     COMM         SADDR6                                   DADDR6            
 
 参数如下：
 ```
--p，--pid
+-P，--pid
     [可选] 指定进程
 -4, --ipv4
     [可选] 仅输出IPv4连接
 -6, --ipv6
     [可选] 仅输出IPv6连接
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
 运行示例 
 ``` shell
-sudo python tcp_inerrs.py           # trace TCP send/recv by host
-sudo python tcp_inerrs.py -p 181    # only trace PID 181
-sudo python tcp_inerrs.py -4        # trace IPv4 family only
-sudo python tcp_inerrs.py -6        # trace IPv6 family only
+sudo python tcp_inerrs.py --print           # trace TCP send/recv by host
+sudo python tcp_inerrs.py --print -P 181    # only trace PID 181
+sudo python tcp_inerrs.py --print -4        # trace IPv4 family only
+sudo python tcp_inerrs.py --print -6        # trace IPv6 family only
 ```
 
 输出样例
 ``` shell
-TIME      PID     COMM         IP SADDR:SPORT              > DADDR:DPORT              REASON       STATE
-21:14:36  0       swapper/7    6  ::ffff:10.85.1.5:1717    > ::ffff:10.85.1.5:55596   invalid seq  ESTABLISHED
-21:14:36  68      ksoftirqd/11 6  ::ffff:10.85.1.5:1717    > ::ffff:10.85.1.5:55592   invalid seq  ESTABLISHED
-21:14:36  0       swapper/22   6  ::ffff:10.85.1.5:55598   > ::ffff:10.85.1.5:1717    invalid seq  ESTABLISHED
-21:14:36  0       swapper/22   6  ::ffff:10.85.1.5:55596   > ::ffff:10.85.1.5:1717    invalid seq  ESTABLISHED
-21:14:36  0       swapper/22   6  ::ffff:10.85.1.5:55592   > ::ffff:10.85.1.5:1717    invalid seq  ESTABLISHED
+TIME      PID     TASK         IP SADDR:SPORT                                DADDR:DPORT                                REASON       STATE
+18:04:29  0       swapper/21   6  ::xx:xx:xx:14:5:1718                      ::xx:xx:xx:14:5:40998                       invalid seq  ESTABLISHED
+18:04:29  0       swapper/27   6  ::xx:xx:xx:14:5:40998                     ::xx:xx:xx:14:5:1718                        invalid seq  ESTABLISHED
+18:04:32  0       swapper/7    4  xxx.xxx.0.1:46854                         xxx.xxx.0.6:8086                            invalid seq  ESTABLISHED
+18:04:32  0       swapper/8    4  xxx.xxx.0.1:44382                         xxx.xxx.0.1:8086                            invalid seq  ESTABLISHED
 ```
 
 不足:
@@ -165,36 +181,41 @@ inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和t
 
 参数如下：
 ```
--sp，--sport
+--sport
     [可选] 指定源端口
--dp, --dport
+--dport
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
 运行示例 
 ``` shell
-sudo python delay_analysis_in.py           # in packets delay analysis
-sudo python delay_analysis_in.py -dp 181   # only trace dport 181
-sudo python delay_analysis_in.py -s        # print random packets
+sudo python delay_analysis_in.py --print                # in packets delay analysis
+sudo python delay_analysis_in.py --print --sport 181    # only trace dport 181
+sudo python delay_analysis_in.py --print -s             # print random packets
 ```
 
 输出样例-ipv4
 ``` shell
-SADDR:SPORT            -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
-xxx.xxx.80.116:5622    -> xxx.xxx.226.109:2222   2064211175   1609909874   9107651.969982       86         5          12         68
-127.0.0.1:44768        -> 127.0.0.1:45707        1556586908   600876255    9107651.970152       52         4          4          43
-127.0.0.1:45707        -> 127.0.0.1:44768        600876255    1556586938   9107651.972246       36         3          3          28
+SADDR:SPORT            DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
+xxx.xxx.80.116:4764    xxx.xxx.226.109:2222   2552894083   3022847673   1965572.051824       60         2          5          53
+xxx.xxx.0.1:8086       xxx.xxx.0.1:47524      473644034    601104234    1965572.055672       20         1          1          17
+xxx.xxx.0.1:8086       xxx.xxx.0.1:47524      473644288    601104680    1965572.057494       9          1          1          6
+xxx.xxx.0.1:8086       xxx.xxx.0.1:47524      473644542    601105124    1965572.059016       8          1          1          5
 ```
 
 输出样例-ipv6
 ``` shell
-SADDR:SPORT                        -> DADDR:DPORT                            SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
-2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40512  3945336401   1159424513   9544853.614323       49         2          2          45
-2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40260  1111257592   1393462606   9544854.102531       65         1          1          61
-2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40270  1152750621   2984387336   9544854.631066       75         4          4          66
-2402:f000:xx:xx:xx:xx:8:149:443    -> 2402:f000:xx:xx:xx:xx:ae03:a462:40452  1185853100   1593078888   9544855.197227       69         6          4          58
+SADDR:SPORT                                DADDR:DPORT                                SEQ          ACK          TIME                 TOTAL      MAC        IP         TCP
+2402:f000:xx:xx:xx:xx:8:149:443            2402:f000:xx:xx:xx:xx:ae03:a462:53068      1330936861   1442164181   1966205.030733       58         5          5          48
+2402:f000:xx:xx:xx:xx:8:149:443            2402:f000:xx:xx:xx:xx:ae03:a462:60062      1677550202   2546935294   1966205.445864       39         1          0          36
+2402:f000:xx:xx:xx:xx:8:149:443            2402:f000:xx:xx:xx:xx:ae03:a462:60062      1677554298   2546935294   1966205.459252       36         4          1          30
+2402:f000:xx:xx:xx:xx:8:149:443            2402:f000:xx:xx:xx:xx:ae03:a462:60062      1677555872   2546935387   1966205.462547       40         2          2          35
 ```
 
 
@@ -204,37 +225,41 @@ SADDR:SPORT                        -> DADDR:DPORT                            SEQ
 
 参数如下：
 ```
--sp，--sport
+--sport
     [可选] 指定源端口
--dp, --dport
+--dport
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
 运行示例 
 ``` shell
-sudo python delay_analysis_out.py           # in packets delay analysis
-sudo python delay_analysis_out.py -dp 181   # only trace dport 181
-sudo python delay_analysis_out.py -s        # print random packets
+sudo python delay_analysis_out.py --print               # in packets delay analysis
+sudo python delay_analysis_out.py --print --dport 181   # only trace dport 181
+sudo python delay_analysis_out.py --print -s            # print random packets
 ```
 
 输出样例-ipv4
 ``` shell
-SADDR:SPORT            -> NAT:PORT               -> DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
-xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627680    4175823286   9107735153635.615234 7          1          4          1
-xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454627884    4175823286   9107735153671.039062 4          0          2          0
-xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628256    4175823286   9107735153707.218750 3          0          2          0
-xxx.xxx.226.109:2222   -> xxx.xxx.226.109:2222   -> xxx.xxx.80.116:6119    454628664    4175823286   9107735153770.941406 9          1          7          1
+SADDR:SPORT            DADDR:DPORT            SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
+xxx.xxx.226.109:2222   xxx.xxx.80.116:4764    3024514817   2553916591   1966734601415.804932 7          1          3          2
+xxx.xxx.0.1:47688      xxx.xxx.0.1:8086       704108815    4232475180   1966734602529.614990 5          0          3          0
+xxx.xxx.0.1:47688      xxx.xxx.0.1:8086       704109101    4232475180   1966734602550.580078 1          0          0          0
+xxx.xxx.0.1:47688      xxx.xxx.0.1:8086       704109274    4232475434   1966734606068.666016 3          0          2          0
 ```
 
 输出样例-ipv6
 ``` shell
-SADDR:SPORT                            -> DADDR:DPORT                      SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
-2402:f000:xx:xx:xx:xx:ae03:a462:40452  -> 2402:f000:xx:xx:xx:xx:8:149:443  1593144414   1185882612   9545059296177.548828 20         3          11         4
-2402:f000:xx:xx:xx:xx:ae03:a462:40452  -> 2402:f000:xx:xx:xx:xx:8:149:443  1593145392   1185883046   9545059358555.283203 13         2          7          3
-2402:f000:xx:xx:xx:xx:ae03:a462:40468  -> 2402:f000:xx:xx:xx:xx:8:149:443  68187760     42173401     9545059796634.861328 12         1          7          2
-2402:f000:xx:xx:xx:xx:ae03:a462:40468  -> 2402:f000:xx:xx:xx:xx:8:149:443  68188738     42173835     9545060000960.453125 9          1          4          2
+SADDR:SPORT                                DADDR:DPORT                                SEQ          ACK          TIME                 TOTAL      QDisc      IP         TCP
+2402:f000:xx:xx:xx:xx:ae03:a462:52604      2402:f000:xx:xx:xx:xx:8:149:443            175178107    2213596842   1967081875839.106934 14         2          8          3
+2402:f000:xx:xx:xx:xx:ae03:a462:52604      2402:f000:xx:xx:xx:xx:8:149:443            175179085    2213597276   1967082196119.920898 13         2          7          3
+2402:f000:xx:xx:xx:xx:ae03:a462:52910      2402:f000:xx:xx:xx:xx:8:149:443            3170199073   715481605    1967082376292.343994 15         2          9          3
+2402:f000:xx:xx:xx:xx:ae03:a462:52910      2402:f000:xx:xx:xx:xx:8:149:443            3170200051   715482039    1967082553342.146973 12         2          7          3
 ```
 
 
@@ -244,28 +269,32 @@ SADDR:SPORT                            -> DADDR:DPORT                      SEQ  
 
 参数如下：
 ```
--sp，--sport
+--sport
     [可选] 指定源端口
--dp, --dport
+--dport
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
+--print
+    [可选] 在命令行打印结果
+--visual
+    [可选] 将结果通过influxdb-grafana可视化
 ```
 
 运行示例 
 ``` shell
-sudo python tcp_flow.py             # tcp flow statistics
-sudo python tcp_flow.py -dp 181     # only trace dport 181
-sudo python tcp_flow.py -s          # print random packets
+sudo python tcp_flow.py --print             # tcp flow statistics
+sudo python tcp_flow.py --print --dport 181 # only trace dport 181
+sudo python tcp_flow.py --print -s          # print random packets
 ```
 
 输出样例-ipv4
 ``` shell
-SADDR:SPORT            -> DADDR:DPORT            SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION    
-xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413300 80056    10       ESTABLISHED  (ACK      ) 1089520984524445
-xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413472 99147    10       ESTABLISHED  (ACK      ) 1089521015019755
-xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413644 90529    10       ESTABLISHED  (ACK      ) 1089521045876263
-xxx.xxx.40.2:57786     -> xxx.xxx.226.109:2222   890771451  1691413816 83052    10       ESTABLISHED  (ACK      ) 1089521074049535
+SADDR:SPORT            DADDR:DPORT            SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION
+xxx.xxx.80.116:5787    xxx.xxx.226.109:2222   4289328689 1517436636 38529    10       ESTABLISHED  (ACK      ) 1967793286084852
+xxx.xxx.0.1:50276      xxx.xxx.0.1:8086       3069571858 2113352096 11       10       ESTABLISHED  (PSH|ACK  ) 1967793286973630
+xxx.xxx.0.1:50276      xxx.xxx.0.1:8086       3069572362 2113352350 11       10       ESTABLISHED  (PSH|ACK  ) 1967793290606337
+xxx.xxx.0.1:50276      xxx.xxx.0.1:8086       3069572857 2113352604 11       10       ESTABLISHED  (PSH|ACK  ) 1967793292603883
 ```
 
 输出样例-ipv6
@@ -275,10 +304,62 @@ SADDR:SPORT                         -> DADDR:DPORT                           SEQ
 7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:3ca3:41788          3236972446 845593229  610      10       ESTABLISHED  (ACK      ) 1089830024368853
 7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:e2b2:45794          633889857  1632505163 1045     10       ESTABLISHED  (ACK      ) 1089830525273321
 7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:e2b2:45794          633889857  1632505163 970      10       ESTABLISHED  (PSH|ACK  ) 1089830784653289
+
+SADDR:SPORT                                DADDR:DPORT                                SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION
+2402:f000:xx:xx:xx:xx:ae03:a462:443        2402:f000:xx:xx:xx:xx:8:149:47676          1521586220 2385524185 511      10       ESTABLISHED  (ACK      ) 1968155502990169
+2402:f000:xx:xx:xx:xx:ae03:a462:443        2402:f000:xx:xx:xx:xx:8:149:57238          1325360876 1513984909 2691     10       ESTABLISHED  (ACK      ) 1968156003146672
+::xx:xx:xx:0.6:53416                       ::xx:xx:xx:0.1:8086                        3243751202 2191205767 24       10       ESTABLISHED  (PSH|ACK  ) 1968155504483466
+::xx:xx:xx:0.6:53416                       ::xx:xx:xx:0.1:8086                        3243752250 2191206275 27       10       ESTABLISHED  (PSH|ACK  ) 1968155510192720
 ```
 
+## 3. 可视化
+python-influxdb-grafana
 
-## 3. 文档
+pushgateway+prometheus: 由prome主导的，长期监控，prome去scrap（爬虫+数据库，带有监控性质）
+influxdb: 单纯的时序数据库，可以更灵活的掌握数据的插入方式
+
+**1.Docker启动influxdb**
+
+```bash
+docker run -d -p 8086:8086 influxdb:1.8
+```
+
+**2.Docker启动Grafana**
+
+```bash
+$ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime grafana/grafana-enterprise:8.1.3
+```
+
+**3.Grafana Database配置**
+打开`http://yourIP:3000`即可查看Grafana界面，在Configuration的Data Sources中添加InfluxDB，并配置地址及InfluxDB Details中`database`为`network_subsystem`：
+
+![InfluxDB Details](./docs/images/grafana_databse.png)
+
+**4.数据收集**
+开启将结果通过influxdb-grafana可视化的功能，需在运行命令时添加`--visual`。
+
+运行示例 
+``` shell
+sudo python nic_throughput.py --visual -n lo
+sudo python tcp_connection.py --visual
+sudo python tcp_bytes.py --visual
+sudo python tcp_inerrs.py --visual
+sudo python delay_analysis_in.py --visual
+sudo python delay_analysis_out.py --visual 
+sudo python tcp_flow.py --visual
+```
+
+**4.数据展示**
+对于按照一定时间间隔输出的数据，可以将数据画为点线图：
+
+![tcp_bytes工具可视化](./docs/images/tcp_bytes.png)
+
+对于离散事件，可以将数据展示为表格：
+
+![tcp_connection工具可视化](./docs/images/tcp_connection.png)
+
+
+## 4. 文档
 docs目录下主要放置了开发过程中，形成的文档
 
 | doc | content |
