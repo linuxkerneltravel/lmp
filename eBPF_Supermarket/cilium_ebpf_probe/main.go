@@ -11,15 +11,6 @@ import (
 	"lmp/eBPF_Supermarket/cilium_ebpf_probe/cluster_utils"
 	"lmp/eBPF_Supermarket/cilium_ebpf_probe/http2_tracing"
 	"lmp/eBPF_Supermarket/cilium_ebpf_probe/http_kprobe"
-	//
-	// Uncomment to load all auth plugins
-	// _ "k8s.io/client-go/plugin/pkg/client/auth"
-	//
-	// Or uncomment to load specific auth plugins
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/azure"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-	// _ "k8s.io/client-go/plugin/pkg/client/auth/openstack"
 )
 
 var (
@@ -28,6 +19,8 @@ var (
 	poduprobe  *string
 	imagename  *string
 	imagename2 *string
+	namespace  *string
+	nodename   *string
 )
 
 func main() {
@@ -39,6 +32,10 @@ func main() {
 
 	imagename = flag.String("image1", "wyuei/http_server:v2.0", "docker image of http protocol")
 	imagename2 = flag.String("image2", "wyuei/grpc_server:latest", "docker image of http2 protocl")
+
+	namespace = flag.String("namespace", "wyw", "namespace of your pod")
+
+	nodename = flag.String("nodename", "k8s-node2", "node which your pods running on")
 
 	flag.Parse()
 
@@ -62,22 +59,18 @@ func main() {
 	}
 	fmt.Printf("There are %d pods in the cluster in wyw namespace\n", len(pods.Items))
 
-	// Examples for error handling:
-	// - Use helper functions like e.g. errors.IsNotFound()
-	// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
-	namespace := "wyw"
 	/*******kprobe on pod************/
-	p, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), *pod, metav1.GetOptions{})
+	p, err := clientset.CoreV1().Pods(*namespace).Get(context.TODO(), *pod, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
+		fmt.Printf("Pod %s in namespace %s not found\n", *pod, *namespace)
 	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
 		fmt.Printf("Error getting pod %s in namespace %s: %v\n",
-			pod, namespace, statusError.ErrStatus.Message)
+			*pod, *namespace, statusError.ErrStatus.Message)
 	} else if err != nil {
 		panic(err.Error())
 	} else {
-		fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
-		res, _ := cluster_utils.GetAllPodProcess(clientset, "k8s-node2", namespace, *pod, p.Status.ContainerStatuses, *imagename)
+		fmt.Printf("Found pod %s in namespace %s\n", *pod, *namespace)
+		res, _ := cluster_utils.GetAllPodProcess(clientset, *nodename, *namespace, *pod, p.Status.ContainerStatuses, *imagename)
 		for k, v := range res {
 			fmt.Printf("get pod %s Pid and Attach Kprobe\n", k.Name)
 			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), *pod)
@@ -86,17 +79,17 @@ func main() {
 
 	/*******uprobe on pod************/
 	binaryPath := "/go/src/grpc_server/main"
-	p2, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), *poduprobe, metav1.GetOptions{})
+	p2, err := clientset.CoreV1().Pods(*namespace).Get(context.TODO(), *poduprobe, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		fmt.Printf("Pod %s in namespace %s not found\n", poduprobe, namespace)
+		fmt.Printf("Pod %s in namespace %s not found\n", *poduprobe, *namespace)
 	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
 		fmt.Printf("Error getting pod %s in namespace %s: %v\n",
-			poduprobe, namespace, statusError.ErrStatus.Message)
+			*poduprobe, *namespace, statusError.ErrStatus.Message)
 	} else if err != nil {
 		panic(err.Error())
 	} else {
-		fmt.Printf("Found pod %s in namespace %s\n", poduprobe, namespace)
-		res, _ := cluster_utils.GetPodELFPath(clientset, "k8s-node2", namespace, *poduprobe, p2.Status.ContainerStatuses, *imagename2)
+		fmt.Printf("Found pod %s in namespace %s\n", *poduprobe, *namespace)
+		res, _ := cluster_utils.GetPodELFPath(clientset, *nodename, *namespace, *poduprobe, p2.Status.ContainerStatuses, *imagename2)
 		for k, v := range res {
 			fmt.Printf("get pod %s Merge Path and Attach Uprobe\n", k.Name)
 			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, *poduprobe)

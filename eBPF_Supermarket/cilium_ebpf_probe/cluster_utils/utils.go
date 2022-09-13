@@ -11,23 +11,6 @@ import (
 	"strings"
 )
 
-// buildClientset build clientset by kubeconfig
-//func buildClientset(kubeconfig string) (*kubernetes.Clientset, error) {
-//	// use the current context in kubeconfig
-//	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-//	if err != nil {
-//		return &kubernetes.Clientset{}, err
-//	}
-//
-//	// create the clientset
-//	clientset, err := kubernetes.NewForConfig(config)
-//	if err != nil {
-//		return &kubernetes.Clientset{}, err
-//	}
-//
-//	return clientset, nil
-//}
-
 func GetNodeContainerRuntime(clientset *kubernetes.Clientset, nodeName string) (string, string, error) {
 
 	// get node information

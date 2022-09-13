@@ -1,4 +1,4 @@
-name: Network-Subsystem
+name: Network Subsystem
 
 on:
   push:
@@ -6,16 +6,13 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/Network_Subsystem/**'
-      - '.github/workflows/network_sys_ci.yml'
-
+      - '.github/workflows/system_network.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/Network_Subsystem/**'
-      
-  pull_request_review:
-  workflow_dispatch:
+      - '.github/workflows/system_network.yml'
 
 jobs:
   bcc-project-build-and-test:

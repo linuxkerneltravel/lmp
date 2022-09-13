@@ -1,4 +1,4 @@
-name: Web-Backend
+name: LMP Web Backend
 
 on:
   push:
@@ -6,11 +6,13 @@ on:
       - "*"
     paths:
       - 'eBPF_Visualization/eBPF_server/**'
+      - '.github/workflows/web_lmp.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Visualization/eBPF_server/**'
+      - '.github/workflows/web_lmp.yml'
 
 jobs:
   web-backend-build-and-run:

@@ -31,7 +31,7 @@ BPF_TABLE_PINNED("lru_hash", u32, struct record, counter, 65535,
 
 BPF_ARRAY(metrics, u64, 16);
 
-BPF_HASH(req_time, u16, u64);
+BPF_HASH(resp_time, u16, u64);
 
 #define DROP 0
 #define PASS -1
@@ -67,7 +67,7 @@ int catch_dns(struct __sk_buff *skb) {
     struct dns_hdr_t *dns_hdr = cursor_advance(cursor, sizeof(*dns_hdr));
     __u16 id = dns_hdr->id;
     __u64 time = bpf_ktime_get_ns();
-    req_time.update(&id, &time);
+    resp_time.update(&id, &time);
     return PASS;
   }
 
@@ -123,7 +123,7 @@ int catch_dns(struct __sk_buff *skb) {
 
   // calculate request time
   __u16 id = dns_hdr->id;
-  __u64 *start = req_time.lookup(&id);
+  __u64 *start = resp_time.lookup(&id);
   if (start) {
     __u64 time = bpf_ktime_get_ns() - *start;
     int req_time_key = 2;
@@ -133,7 +133,7 @@ int catch_dns(struct __sk_buff *skb) {
     } else {
       metrics.update(&req_time_key, &time);
     }
-    req_time.delete(&id);
+    resp_time.delete(&id);
   }
   return PASS;
 }
