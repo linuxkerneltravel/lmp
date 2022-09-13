@@ -104,7 +104,6 @@ def print_table(table, qnum, dir):
             if args.print:
                 print("%-11d %-11s %-11s %-11s" % (data[0], to_str(avg), to_str(BPS), to_str(PPS)))
             if args.visual:
-                # data = NICThroughput(dev_name, data[0], avg, BPS, PPS)
                 export_nic_throughput(dev_name, data[0], avg, BPS, PPS, "nic_throughput_" + dir)
 
         # -------- print total --------
@@ -113,7 +112,6 @@ def print_table(table, qnum, dir):
             if dir=="RX":
                 print("-" * 60)
         if args.visual:
-            # data = NICThroughput()
             export_nic_throughput(dev_name, 'total', tAVG, tBPS, tPPS, "nic_throughput_" + dir)
 
 

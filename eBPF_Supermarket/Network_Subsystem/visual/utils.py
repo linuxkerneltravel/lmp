@@ -4,20 +4,18 @@ from struct import pack
 
 
 ############## pre defines #################
-client = InfluxDBClient('localhost', 8086, 'root', 'root', 'network_subsystem')
-client.create_database('network_subsystem')
+client = None
+
+def create_client():
+    global client
+    if client is None:
+        client = InfluxDBClient('localhost', 8086, 'root', 'root', 'network_subsystem')
+        client.create_database('network_subsystem')
 
 
 ################## nic_throughput ###################
-class NICThroughput:
-    def __init__(self, NICName, QueueID, avg_size, BPS, PPS,):
-        self.NICName = NICName
-        self.QueueID = QueueID
-        self.avg_size = avg_size
-        self.BPS = BPS
-        self.PPS = PPS
-
 def export_nic_throughput(NICName, QueueID, avg_size, BPS, PPS, measurement):
+    create_client()
     json_body = [
         {
             "measurement": measurement,
@@ -37,6 +35,7 @@ def export_nic_throughput(NICName, QueueID, avg_size, BPS, PPS, measurement):
 
 ################## tcp_connection ###################
 def export_tcp_connection(data, ip):
+    create_client()
     direction = "accept" if data.direction==0 else "connect"
     if ip==4:
         daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
@@ -64,6 +63,7 @@ def export_tcp_connection(data, ip):
 
 ################## tcp_bytes ###################
 def export_tcp_bytes(data, send_bytes, recv_bytes):
+    create_client()
     json_body = [
         {
             "measurement": "tcp_bytes",
@@ -86,6 +86,7 @@ def export_tcp_bytes(data, send_bytes, recv_bytes):
 
 ################## tcp_inerrs ###################
 def export_tcp_inerrs(data, ip, reason, state):
+    create_client()
     if ip==4:
         daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
         saddr = inet_ntop(AF_INET, pack("I", data.saddr)).encode()
@@ -113,6 +114,7 @@ def export_tcp_inerrs(data, ip, reason, state):
 
 ################## delay_analysis_in ###################
 def export_delay_analysis_in(data):
+    create_client()
     daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
     saddr = inet_ntop(AF_INET, pack("I", data.saddr)).encode()
     json_body = [
@@ -137,6 +139,7 @@ def export_delay_analysis_in(data):
 
 ################## delay_analysis_in_v6 ###################
 def export_delay_analysis_in_v6(data):
+    create_client()
     daddr = inet_ntop(AF_INET6, data.daddr).encode()
     saddr = inet_ntop(AF_INET6, data.saddr).encode()
     json_body = [
@@ -161,6 +164,7 @@ def export_delay_analysis_in_v6(data):
 
 ################## delay_analysis_out ###################
 def export_delay_analysis_out(data):
+    create_client()
     daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
     saddr = inet_ntop(AF_INET, pack("I", data.saddr)).encode()
     json_body = [
@@ -185,6 +189,7 @@ def export_delay_analysis_out(data):
 
 ################## delay_analysis_out_v6 ###################
 def export_delay_analysis_out_v6(data):
+    create_client()
     daddr = inet_ntop(AF_INET6, data.daddr).encode()
     saddr = inet_ntop(AF_INET6, data.saddr).encode()
     json_body = [
@@ -209,6 +214,7 @@ def export_delay_analysis_out_v6(data):
 
 ################## tcp_flow ###################
 def export_tcp_flow(data, state, flag):
+    create_client()
     daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
     saddr = inet_ntop(AF_INET, pack("I", data.saddr)).encode()
     json_body = [
@@ -235,6 +241,7 @@ def export_tcp_flow(data, state, flag):
 
 ################## tcp_flow_v6 ###################
 def export_tcp_flow_v6(data, state, flag):
+    create_client()
     daddr = inet_ntop(AF_INET6, data.daddr).encode()
     saddr = inet_ntop(AF_INET6, data.saddr).encode()
     json_body = [
