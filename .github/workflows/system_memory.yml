@@ -1,4 +1,4 @@
-name: memory
+name: Memory Subsystem
 
 on:
   push:
@@ -6,11 +6,13 @@ on:
       - "*"
     paths:
       - 'eBPF_Supermarket/Memory_Subsystem/**'
+      - '.github/workflows/system_memory.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/Memory_Subsystem/**'
+      - '.github/workflows/system_memory.yml'
 
 jobs:
   build-and_tast:
