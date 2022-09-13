@@ -62,6 +62,8 @@ RX
     [可选] 指定源端口
 -r, --direction
     [可选] 仅输出方向为connect或accept的连接
+-c, --count
+    [可选] 输出条数，默认为99999999
 -4, --ipv4
     [可选] 仅输出IPv4连接
 -6, --ipv6
@@ -100,6 +102,8 @@ TIME      PID     TASK         IP SADDR:SPORT                                DAD
     [可选] 指定进程
 -i, --interval
     [可选] 输出时间间隔，默认为1s
+-c, --count
+    [可选] 输出条数，默认为99999999
 -4, --ipv4
     [可选] 仅输出IPv4连接
 -6, --ipv6
@@ -141,6 +145,8 @@ PID     COMM            SADDR6:SPORT                           DADDR6:DPORT     
 ```
 -P，--pid
     [可选] 指定进程
+-c, --count
+    [可选] 输出条数，默认为99999999
 -4, --ipv4
     [可选] 仅输出IPv4连接
 -6, --ipv6
@@ -186,6 +192,8 @@ inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和t
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
+-c, --count
+    [可选] 输出条数，默认为99999999
 --print
     [可选] 在命令行打印结果
 --visual
@@ -230,6 +238,8 @@ SADDR:SPORT                                DADDR:DPORT                          
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
+-c, --count
+    [可选] 输出条数，默认为99999999
 --print
     [可选] 在命令行打印结果
 --visual
@@ -262,7 +272,7 @@ SADDR:SPORT                                DADDR:DPORT                          
 ```
 
 
-### 2.7 tcp_flow/tcp_flow_v6
+### 2.7 tcp_flow
 
 实时输出各tcp数据流的统计信息，包括：状态、标志位、拥塞窗口、接收窗口、重传、超时、快重传、平滑往返时间等参数。
 
@@ -274,6 +284,8 @@ SADDR:SPORT                                DADDR:DPORT                          
     [可选] 指定目标端口
 -s, --sample
     [可选] 随机选包进行输出
+-c, --count
+    [可选] 输出条数，默认为99999999
 --print
     [可选] 在命令行打印结果
 --visual
@@ -285,31 +297,19 @@ SADDR:SPORT                                DADDR:DPORT                          
 sudo python tcp_flow.py --print             # tcp flow statistics
 sudo python tcp_flow.py --print --dport 181 # only trace dport 181
 sudo python tcp_flow.py --print -s          # print random packets
+sudo python tcp_flow.py --print -4          # trace IPv4 family only
+sudo python tcp_flow.py --print -6          # trace IPv6 family only
 ```
 
-输出样例-ipv4
+输出样例
 ``` shell
-SADDR:SPORT            DADDR:DPORT            SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION
-xxx.xxx.80.116:5787    xxx.xxx.226.109:2222   4289328689 1517436636 38529    10       ESTABLISHED  (ACK      ) 1967793286084852
-xxx.xxx.0.1:50276      xxx.xxx.0.1:8086       3069571858 2113352096 11       10       ESTABLISHED  (PSH|ACK  ) 1967793286973630
-xxx.xxx.0.1:50276      xxx.xxx.0.1:8086       3069572362 2113352350 11       10       ESTABLISHED  (PSH|ACK  ) 1967793290606337
-xxx.xxx.0.1:50276      xxx.xxx.0.1:8086       3069572857 2113352604 11       10       ESTABLISHED  (PSH|ACK  ) 1967793292603883
-```
-
-输出样例-ipv6
-``` shell
-SADDR:SPORT                         -> DADDR:DPORT                           SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION    
-7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:34a3:41780          3207675940 1227745636 755      10       ESTABLISHED  (ACK      ) 1089829523332328
-7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:3ca3:41788          3236972446 845593229  610      10       ESTABLISHED  (ACK      ) 1089830024368853
-7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:e2b2:45794          633889857  1632505163 1045     10       ESTABLISHED  (ACK      ) 1089830525273321
-7f00:6:xx:xx:xx:xx:a00:140:443      -> ::xx:xx:xx:xx:1bb:e2b2:45794          633889857  1632505163 970      10       ESTABLISHED  (PSH|ACK  ) 1089830784653289
-
 SADDR:SPORT                                DADDR:DPORT                                SEQ        ACK        RTT(us)  CWnd     STATE        (FLAGS    ) DURATION
-2402:f000:xx:xx:xx:xx:ae03:a462:443        2402:f000:xx:xx:xx:xx:8:149:47676          1521586220 2385524185 511      10       ESTABLISHED  (ACK      ) 1968155502990169
-2402:f000:xx:xx:xx:xx:ae03:a462:443        2402:f000:xx:xx:xx:xx:8:149:57238          1325360876 1513984909 2691     10       ESTABLISHED  (ACK      ) 1968156003146672
-::xx:xx:xx:0.6:53416                       ::xx:xx:xx:0.1:8086                        3243751202 2191205767 24       10       ESTABLISHED  (PSH|ACK  ) 1968155504483466
-::xx:xx:xx:0.6:53416                       ::xx:xx:xx:0.1:8086                        3243752250 2191206275 27       10       ESTABLISHED  (PSH|ACK  ) 1968155510192720
+2402:f000:xx:xx:xx:xx:ae03:a462:443        2402:f000:xx:xx:xx:xx:8:149:58230          3279403148 3752340864 854      10       ESTABLISHED  (ACK      ) 2066736550134762
+xxx.xxx.226.109:4226                       xxx.xxx.80.116:2222                        2652781974 3020686912 36548    10       ESTABLISHED  (ACK      ) 2066736613815177
+xxx.xxx.1.5:443                            xxx.xxx.193.104:36186                      2636216057 447398489  0        10       SYN_SENT     (SYN|ACK  ) 2066736647411306
+2402:f000:xx:xx:xx:xx:ae03:a462:443        2402:f000:xx:xx:xx:xx:8:149:38236          4268349827 1370032259 27239    10       ESTABLISHED  (PSH|ACK  ) 2066736692171207
 ```
+
 
 ## 3. 可视化
 python-influxdb-grafana

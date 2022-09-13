@@ -82,7 +82,6 @@ jobs:
         run: |
           cd eBPF_Supermarket/Network_Subsystem/tcp_flow
           sudo python tcp_flow.py -c 3
-          sudo python tcp_flow_v6.py -c 0
       
       - name: Run delay_analysis
         run: |

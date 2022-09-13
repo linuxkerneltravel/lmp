@@ -20,12 +20,12 @@ parser = argparse.ArgumentParser(description="Summarize TCP send/recv throughput
     formatter_class=argparse.RawDescriptionHelpFormatter,)
 parser.add_argument("-P", "--pid", help="trace this PID only")
 parser.add_argument("-i", "--interval", type=float, default=1)
-group = parser.add_mutually_exclusive_group()
-group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family only")
-group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
 parser.add_argument("-c", "--count", type=int, default=99999999, help="count of outputs")
 parser.add_argument("--print", action="store_true", help="print results to terminal")
 parser.add_argument("--visual", action="store_true", help="enable visualization with influxdb-grafana")
+group = parser.add_mutually_exclusive_group()
+group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family only")
+group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
 args = parser.parse_args()
 
 print_interval = args.interval + 0.0

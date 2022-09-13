@@ -213,10 +213,14 @@ def export_delay_analysis_out_v6(data):
 
 
 ################## tcp_flow ###################
-def export_tcp_flow(data, state, flag):
+def export_tcp_flow(data, ip, state, flag):
     create_client()
-    daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
-    saddr = inet_ntop(AF_INET, pack("I", data.saddr)).encode()
+    if ip==4:
+        daddr = inet_ntop(AF_INET, pack("I", data.daddr)).encode()
+        saddr = inet_ntop(AF_INET, pack("I", data.saddr)).encode()
+    else:
+        daddr = inet_ntop(AF_INET6, data.daddr).encode()
+        saddr = inet_ntop(AF_INET6, data.saddr).encode()
     json_body = [
         {
             "measurement": "tcp_flow",
@@ -237,30 +241,4 @@ def export_tcp_flow(data, state, flag):
         }
     ]
     client.write_points(json_body)
-    
 
-################## tcp_flow_v6 ###################
-def export_tcp_flow_v6(data, state, flag):
-    create_client()
-    daddr = inet_ntop(AF_INET6, data.daddr).encode()
-    saddr = inet_ntop(AF_INET6, data.saddr).encode()
-    json_body = [
-        {
-            "measurement": "tcp_flow_v6",
-            "fields": {
-                "SADDR": saddr,
-                "SPORT": data.sport,
-                "DADDR": daddr,
-                "DPORT": data.dport,
-                "SEQ": data.seq,
-                "ACK": data.ack,
-                "RTT(us)": data.srtt >> 3,
-                "STATE": state,
-                "TCPFLAGS": flag,
-                "SND_CWnd": data.snd_cwnd,
-                "RCV_CWnd": data.rcv_wnd,
-                "DURATION": data.duration
-            }
-        }
-    ]
-    client.write_points(json_body)
