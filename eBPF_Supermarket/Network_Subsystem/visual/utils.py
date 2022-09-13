@@ -17,18 +17,18 @@ class NICThroughput:
         self.BPS = BPS
         self.PPS = PPS
 
-def export_nic_throughput(data, measurement):
+def export_nic_throughput(NICName, QueueID, avg_size, BPS, PPS, measurement):
     json_body = [
         {
             "measurement": measurement,
             "tags": {
-                "NICName": data.NICName,
-                "QueueID": data.QueueID
+                "NICName": NICName,
+                "QueueID": QueueID
             },
             "fields": {
-                "avg_size": float(data.avg_size),
-                "BPS": float(data.BPS),
-                "PPS": float(data.PPS)
+                "avg_size": float(avg_size),
+                "BPS": float(BPS),
+                "PPS": float(PPS)
             }
         }
     ]
