@@ -29,7 +29,7 @@ group.add_argument("-4", "--ipv4", action="store_true", help="trace IPv4 family 
 group.add_argument("-6", "--ipv6", action="store_true", help="trace IPv6 family only")
 args = parser.parse_args()
 
-bpf_text = open('tcp_flow_all.c').read()
+bpf_text = open('tcp_flow.c').read()
 
 # -------- code substitutions --------
 if args.sport:
