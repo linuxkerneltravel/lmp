@@ -42,6 +42,7 @@ jobs:
           sudo apt-get install -y linux-headers-$(uname -r)
           sudo apt-get install -y python-is-python3
           sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
+          pip install influxdb
           sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
 
       - name: Build BCC
