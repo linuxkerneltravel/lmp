@@ -72,8 +72,9 @@ b["ipv6_events"].open_perf_buffer(print_ipv6_event)
 count = 0
 
 while 1:
+    
     count += 1
-    if count >= args.count:
+    if count > args.count:
         break
     
     try:

@@ -102,11 +102,12 @@ b["ipv4_events"].open_perf_buffer(print_ipv4_event)
 count = 0
 
 while 1:
+
+    count += 1
+    if count > args.count:
+        break
+
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
         exit()
-    
-    count += 1
-    if count >= args.count:
-        break

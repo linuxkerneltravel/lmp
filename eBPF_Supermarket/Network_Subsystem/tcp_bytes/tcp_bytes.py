@@ -71,6 +71,11 @@ ipv6_recv = b["ipv6_recv"]
 count = 0
 
 while 1:
+
+    count += 1
+    if count > args.count:
+        break
+
     try:
         sleep(args.interval)
     except KeyboardInterrupt:
@@ -138,7 +143,4 @@ while 1:
                     int(recv_bytes / 1024), int(send_bytes / 1024)))
             if args.visual:
                 export_tcp_bytes(k, send_bytes, recv_bytes)
-    
-    count += 1
-    if count >= args.count:
-        break
+

@@ -79,14 +79,19 @@ jobs:
       - name: Run tcp_inerrs
         run: |
           cd eBPF_Supermarket/Network_Subsystem/tcp_inerrs
-          sudo python tcp_inerrs.py -c 1
+          sudo python tcp_inerrs.py -c 0
+      
+      - name: Run tcp_flow
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/tcp_flow
+          sudo python tcp_flow.py -c 3
+          sudo python tcp_flow_v6.py -c 0
       
       - name: Run delay_analysis
         run: |
           cd eBPF_Supermarket/Network_Subsystem/delay_analysis
           sudo python delay_analysis_in.py -c 3
-          sudo python delay_analysis_in_v6.py -c 1
+          sudo python delay_analysis_in_v6.py -c 0
           sudo python delay_analysis_out.py -c 3
-          sudo python delay_analysis_out_v6.py -c 1
-          sudo python tcp_flow.py -c 3
-          sudo python tcp_flow_v6.py -c 1
+          sudo python delay_analysis_out_v6.py -c 0
+   

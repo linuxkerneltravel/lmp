@@ -144,6 +144,11 @@ devname_map[0] = _name
 count = 0
 
 while 1:
+
+    count += 1
+    if count > args.count:
+        break
+
     try:
         sleep(print_interval)
     except KeyboardInterrupt:
@@ -157,6 +162,3 @@ while 1:
     print_table(b['rx_q'], rx_num, "RX")
     b['rx_q'].clear()
     
-    count += 1
-    if count >= args.count:
-        break
