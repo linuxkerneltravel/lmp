@@ -4,9 +4,8 @@
 
 本目录基于eBPF机制对Linux系统网络子系统关键性能参数进行监测。
 
-bpftrace_application 是一些 Bpftrace 构建的例程，需要预装 bpftrace，其特点是代码简单，能很快上手，缺点是不能支撑高复杂性的 eBPF 应用。
+`nic_throughput`, `tcp_connection`, `tcp_bytes`, `tcp_inerrs`, `delay_analysis`, `tcp_flow`文件夹下是用Python+eBPF构建的网络监测小工具。
 
-其余以 go_ 开头的各个文件夹是用 go语言 + eBPF 构建的eBPF例程，使用了开源的cilium/eBPF库，可以支撑高复杂性、模块化的 eBPF 应用。
 
 ## 1. 准备工作
 
