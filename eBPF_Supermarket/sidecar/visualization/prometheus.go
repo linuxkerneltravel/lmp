@@ -42,7 +42,7 @@ func GetNewCounterVec(name string, help string, constLabels map[string]string, l
 		labelNames)
 }
 
-func Vis() {
+func StratExporter() {
 	http.Handle("/metrics", promhttp.Handler())
 	fmt.Println("Exporter at: http://0.0.0.0:" + VisPort)
 	http.ListenAndServe("0.0.0.0:"+VisPort, nil)
