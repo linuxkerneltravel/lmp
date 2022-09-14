@@ -39,6 +39,7 @@ jobs:
           sudo apt-get install -y linux-headers-$(uname -r)
           sudo apt-get install -y python-is-python3
           sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
+          sudo pip install influxdb
           sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
 
       - name: Build BCC
@@ -75,14 +76,18 @@ jobs:
       - name: Run tcp_inerrs
         run: |
           cd eBPF_Supermarket/Network_Subsystem/tcp_inerrs
-          sudo python tcp_inerrs.py -c 1
+          sudo python tcp_inerrs.py -c 0
+      
+      - name: Run tcp_flow
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/tcp_flow
+          sudo python tcp_flow.py -c 3
       
       - name: Run delay_analysis
         run: |
           cd eBPF_Supermarket/Network_Subsystem/delay_analysis
           sudo python delay_analysis_in.py -c 3
-          sudo python delay_analysis_in_v6.py -c 1
+          sudo python delay_analysis_in_v6.py -c 0
           sudo python delay_analysis_out.py -c 3
-          sudo python delay_analysis_out_v6.py -c 1
-          sudo python tcp_flow.py -c 3
-          sudo python tcp_flow_v6.py -c 1
+          sudo python delay_analysis_out_v6.py -c 0
+   

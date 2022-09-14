@@ -68,7 +68,7 @@ int kprobe__tcp_validate_incoming(struct pt_regs *ctx, struct sock *sk, struct s
     }
     
     u16 dport;
-    bpf_probe_read_kernel(&dport, sizeof(dport),&sk->__sk_common.skc_dport);
+    bpf_probe_read_kernel(&dport, sizeof(dport), &sk->__sk_common.skc_dport);
 
     if (family == AF_INET) {
         struct ipv4_data_t data4 = {.pid=pid, .ip=4, .reason=0};

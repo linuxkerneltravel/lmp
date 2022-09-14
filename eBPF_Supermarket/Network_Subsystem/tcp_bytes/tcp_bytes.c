@@ -45,7 +45,7 @@ static int tcp_sendstat(int size) {
     u16 family, dport;
     bpf_probe_read_kernel(&family, sizeof(family), &skp->__sk_common.skc_family);
     ##FILTER_FAMILY##
-    bpf_probe_read_kernel(&dport, sizeof(dport),&skp->__sk_common.skc_dport);
+    bpf_probe_read_kernel(&dport, sizeof(dport), &skp->__sk_common.skc_dport);
     
     if (family == AF_INET) {
         struct ipv4_data_t data4 = {.pid = pid};
