@@ -348,7 +348,7 @@ sudo python delay_analysis_out.py --visual
 sudo python tcp_flow.py --visual
 ```
 
-**4.数据展示**
+**5.数据展示**
 对于按照一定时间间隔输出的数据，可以将数据画为点线图：
 
 ![tcp_bytes工具可视化](./docs/images/tcp_bytes.png)
