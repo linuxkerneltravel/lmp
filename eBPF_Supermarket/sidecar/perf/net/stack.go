@@ -9,8 +9,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/eswzy/podstat/bpf/podnet"
-	"github.com/eswzy/podstat/visualization"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/podnet"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 )
 
 var TimeOffset = time.Now()
