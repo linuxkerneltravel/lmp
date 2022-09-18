@@ -7,9 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
-	"github.com/eswzy/podstat/bpf/tcpaccept"
-	"github.com/eswzy/podstat/bpf/tcpconnect"
-	"github.com/eswzy/podstat/visualization"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/tcpaccept"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/tcpconnect"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 )
 
 type SidecarAcceptEvent tcpaccept.Event

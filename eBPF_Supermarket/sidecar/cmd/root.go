@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/eswzy/podstat/cmd/monitor"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/cmd/monitor"
 )
 
 var rootCmd = &cobra.Command{

@@ -11,7 +11,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/eswzy/podstat/tools"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 )
 
 const MapsPinPath = "/sys/fs/bpf/sock_ops_map"

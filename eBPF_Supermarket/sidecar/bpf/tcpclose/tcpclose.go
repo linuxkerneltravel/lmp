@@ -11,8 +11,8 @@ import (
 
 	"github.com/iovisor/gobpf/bcc"
 
-	"github.com/eswzy/podstat/bpf"
-	"github.com/eswzy/podstat/tools"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 )
 
 import "C"

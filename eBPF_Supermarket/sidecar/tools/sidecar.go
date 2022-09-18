@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/eswzy/podstat/policy"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/policy"
 )
 
 func GetSidecarBinaryPath(containerID string, runtime string) (string, error) {

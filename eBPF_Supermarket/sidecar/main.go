@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/eswzy/podstat/cmd"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/cmd"
 )
 
 //go:embed VERSION

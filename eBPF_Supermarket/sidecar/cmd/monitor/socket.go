@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/eswzy/podstat/k8s"
-	"github.com/eswzy/podstat/perf/net"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/perf/net"
 )
 
 func NewMonitorSocketCmd() *cobra.Command {
