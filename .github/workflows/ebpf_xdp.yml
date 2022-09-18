@@ -35,11 +35,9 @@ jobs:
           tar -zxvf bcc-src-with-submodule.tar.gz
           mkdir bcc/build; cd bcc/build
           cmake ..
-          make -j `cat /proc/cpuinfo | grep processor| wc -l`
           sudo make install
           cmake -DPYTHON_CMD=python3 .. # build python3 binding
           pushd src/python/
-          make -j `cat /proc/cpuinfo | grep processor| wc -l`
           sudo make install
           popd
          
