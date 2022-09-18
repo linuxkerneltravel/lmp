@@ -15,7 +15,7 @@ if(args.mode == 0):
 if(args.mode == 1):
     mode = BPF.XDP_FLAGS_DRV_MODE
 
-b = BPF(src_file = "bpf2.c")
+b = BPF(src_file = "forward.bpf.c")
 
 b.attach_xdp(dev=args.interface, fn=b.load_func("xdp_fwd", BPF.XDP),flags=mode)
 print("attached")
