@@ -30,7 +30,20 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get install bpfcc-tools linux-headers-$(uname -r)
+          sudo apt update
+          sudo apt install -y bison build-essential cmake flex git libedit-dev libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils 
+          git clone https://github.com/iovisor/bcc.git
+          cd bcc
+          git checkout v0.24.0
+          mkdir build; cd build
+          cmake ..
+          make
+          sudo make install
+          cmake -DPYTHON_CMD=python3 .. # build python3 binding
+          pushd src/python/
+          make
+          sudo make install
+          popd
          
       - name: Run xdp_filter
         run: |
