@@ -54,54 +54,28 @@ netfilter/iptables 内核实现：[kernel_implement.md](./docs/iptables_netfilte
 
 本项目借助位图(bitmap)以及BPF HASH，实现了类O(1)匹配，具体实现原理介绍：[match.md](./docs/design/match.md)
 
-#### 借助 eBPF XDP 实现 iptables 的部分功能，提升 kube-proxy / istio 流量劫持的性能
-
-- 当前 kube-proxy 包转发路径：
-
-<img src = './docs/proxy/images/flow-with-kube-proxy.png'></img>
-
-- istio 流量劫持(以Bookinfo为例)：[2]
-
-<img src = './docs/proxy/images/istio-iptables.svg'></img>
-
-productpage 访问 reviews Pod，入站流量处理过程对应于图示上的步骤：1、2、3、4、Envoy Inbound Handler、5、6、7、8、应用容器。
-
-reviews Pod 访问 rating 服务的出站流量处理过程对应于图示上的步骤是：9、10、11、12、Envoy Outbound Handler、13、14、15。
-
-- 计划使用 eBPF XDP 以及 TC 实现代替 iptables 的部分能力，并且是对应用透明的。
-
-在搜索相关内容时，找到了一个在今年三月开源的工具：Merbridge。
-
-> Merbridge 专为服务网格设计，使用 eBPF 代替传统的 iptables 劫持流量，能够让服务网格的流量拦截和转发能力更加高效。相比传统的 iptables 流量劫持技术，基于 eBPF 的 Merbridge 可以绕过很多内核模块，缩短边车和服务间的数据路径，从而加速网络。Merbridge 没有对现有的 Istio 作出任何修改，原有的逻辑依然畅通。这意味着，如果您不想继续使用 eBPF，直接删除相关的 DaemonSet 就能恢复为传统的 iptables 方式，不会出现任何问题。[3]
-
-该项目主要借助的是 eBPF 的 sockops 和 redir 能力，缩短了数据路径，类似于[4]的实现。
-
-<img src="./docs/proxy/images/sameNode_eBPF_path.png"> </img>
-
-对于同一 Node 内，不同 Pod 之间的通信，绕过了内核网络协议栈，提高了性能。
-
-借助 XDP (native mode)，在不同 Node 之间的通信，也可以绕过 iptables 的部分功能，从而提高性能。
-
 #### 运行
 
-- XDP Filter
-
-编写规则文件` ./src/xdp_filter/rules.txt`
-
 ```
-sudo python3 ./src/xdp_filter/filter.py
+sudo python3 src/xdp_filter/filter.py -i YOUR_IFNAME -t LIMIT_RUNING_TIME -m XDP_MODE
 ```
 
-- eBPF XDP Proxy
+### XDP Fast Forward
 
-> 编写中...
+XDP 在路由方面有着先天的优势，可以在驱动层（native模式）进行转发，不需要进入内核网络协议栈以降低开销。
+
+#### 思路
+
+eBPF Helpers函数中，`bpf_fib_lookup(void *ctx, struct bpf_fib_lookup *params, int
+       plen, u32 flags)`
+具有查询内核路由表的能力，可以根据传入的`params`进行查询，并返回下一跳。之后再使用另一个 Helpers 函数`bpf_redirect`即可进行转发到指定的网卡。
+
+每次使用`bpf_fib_lookup`进行查询开销依然会很大，所以可以在BPF MAP中维护一张表，用来缓存查询到的结果，下一次查询时就可以直接从该表中读取，无需再通过内核网络协议栈查找，从而进一步提升转发速度。
+
+#### 验证
+
+使用 KVM 创建三台虚拟机，分别为Host 1、Host 2、Host 3。并创建两个桥接网络，分别为 br1 、br2。Host 1添加两张网卡，分别连接 br1 、br2。Host 2、Host 3分别添加一张网卡，并分别连接 br1 、 br2（网卡类型均为 virtio ）。在Host 2、Host 3上分别添加静态路由 `route add default gw`，网关地址设为Host 1所对应的地址。在 Host 1 上启动 XDP 程序，分别挂在到两个网卡上。在 Host 2 启动 iperf 服务器端程序，并在 Host 3 上启动 iperf 客户端程序，进行测试。初步实验得到的结果是，使用 XDP 进行转发性能略有提升，但差距很小。
 
 ### Ref
 
 [1] [字节跳动技术团队 —— eBPF技术实践：高性能ACL](https://blog.csdn.net/ByteDanceTech/article/details/106632252)  
-
-[2] [Istio 中的 Sidecar 注入、透明流量劫持及流量路由过程详解](https://jimmysong.io/blog/sidecar-injection-iptables-and-traffic-routing)
-
-[3] [MERBRIDGE](https://merbridge.io/)
-
-[4] [利用 ebpf sockmap/redirection 提升 socket 性能](https://arthurchiao.art/blog/socket-acceleration-with-ebpf-zh/)

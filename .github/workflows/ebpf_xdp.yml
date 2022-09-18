@@ -47,3 +47,8 @@ jobs:
         run: |
           cd eBPF_Supermarket/XDP_Res-Application/
           sudo python3 src/xdp_filter/filter.py -t 5 -i lo -m 0
+
+      - name: Run xdp_fast_forward
+        run: |
+          cd eBPF_Supermarket/XDP_Res-Application/
+          sudo python3 src/xdp_fast_forward/forward.py -t 5 -i lo -m 0
