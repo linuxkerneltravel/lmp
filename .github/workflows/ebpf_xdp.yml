@@ -34,7 +34,7 @@ jobs:
           wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
           tar -zxvf bcc-src-with-submodule.tar.gz
           cd bcc
-          git checkout v0.24.0
+          git checkout v0.25.0
           mkdir build; cd build
           cmake ..
           sudo make install
