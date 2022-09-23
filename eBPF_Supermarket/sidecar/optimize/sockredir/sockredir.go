@@ -7,7 +7,7 @@ import (
 
 	"github.com/cilium/ebpf"
 
-	"github.com/eswzy/podstat/bpf/sockops"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/sockops"
 )
 
 func EnableSockOpsRedirect(ipList []int) {
