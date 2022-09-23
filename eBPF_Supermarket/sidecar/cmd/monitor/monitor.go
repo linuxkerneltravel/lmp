@@ -9,11 +9,11 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/spf13/cobra"
 
-	"github.com/eswzy/podstat/k8s"
-	"github.com/eswzy/podstat/optimize/sockredir"
-	"github.com/eswzy/podstat/perf/net"
-	"github.com/eswzy/podstat/tools"
-	"github.com/eswzy/podstat/visualization"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/optimize/sockredir"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/perf/net"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 )
 
 var startedMinikubeStatus = `host: Running

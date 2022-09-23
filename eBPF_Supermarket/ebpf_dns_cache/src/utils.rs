@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::io;
 use std::net::Ipv4Addr;
 
 use anyhow::bail;
@@ -27,7 +28,7 @@ macro_rules! skip_err {
 }
 pub(crate) use skip_err;
 
-#[derive(Debug, PartialEq, Eq, Hash,Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Addr {
     smac: [u8; 6],
     dmac: [u8; 6],
@@ -57,14 +58,17 @@ impl Addr {
 }
 
 pub fn extract_domain(packet: &dns_parser::Packet) -> Option<String> {
-    packet.questions.iter().filter_map(|q| {
-        if q.qtype == QueryType::A {
-            Some(q.qname.to_string())
-        }else{
-            None
-        }
-        
-    }).next()
+    packet
+        .questions
+        .iter()
+        .filter_map(|q| {
+            if q.qtype == QueryType::A {
+                Some(q.qname.to_string())
+            } else {
+                None
+            }
+        })
+        .next()
 }
 
 pub fn parse_raw_packet(buf: &[u8]) -> Result<(Addr, Packet)> {
@@ -118,6 +122,10 @@ pub fn open_socket(interface: &Option<String>) -> Result<i32> {
             (libc::ETH_P_ALL as u16).to_be().into(),
         );
 
+        if sock == -1 {
+            bail!("Failed to create socket")
+        }
+
         let interface = if let Some(interface) = interface {
             interface
         } else {
@@ -127,7 +135,6 @@ pub fn open_socket(interface: &Option<String>) -> Result<i32> {
         let mut sll = std::mem::zeroed::<libc::sockaddr_ll>();
         sll.sll_family = libc::AF_PACKET as u16;
         let ciface = std::ffi::CString::new(&**interface)?;
-        sll.sll_ifindex = libc::if_nametoindex(ciface.as_ptr()) as i32;
         sll.sll_ifindex = libc::if_nametoindex(ciface.as_ptr()) as i32;
         if sll.sll_ifindex == 0 {
             libc::close(sock);
@@ -143,10 +150,6 @@ pub fn open_socket(interface: &Option<String>) -> Result<i32> {
         {
             libc::close(sock);
             bail!("failed to bind interface");
-        }
-
-        if sock == -1 {
-            bail!("Failed to create socket")
         }
 
         Ok(sock)
@@ -205,13 +208,13 @@ pub fn extract_ip_from_dns_reply(packet: &Packet) -> Option<Vec<Ipv4Addr>> {
     }
 }
 
-pub fn build_raw_dns_reply(
+pub fn build_raw_dns_reply<T: io::Write + Sized>(
     id: u16,
     domain: &str,
     ips: &[Ipv4Addr],
     to: &Addr,
-    ref mut buf: &mut [u8],
-) -> Option<usize> {
+    writer: &mut T,
+) -> Result<usize> {
     use etherparse::PacketBuilder;
 
     let builder = PacketBuilder::ethernet2(to.smac, to.dmac)
@@ -219,15 +222,13 @@ pub fn build_raw_dns_reply(
         .udp(to.sport, to.dport);
 
     let payload = build_dns_reply(id, domain, ips)?;
-
     let size = builder.size(payload.len());
+    builder.write(writer, &payload)?;
 
-    builder.write(buf, &payload).ok()?;
-
-    Some(size)
+    Ok(size)
 }
 
-fn build_dns_reply(id: u16, domain: &str, ips: &[Ipv4Addr]) -> Option<Vec<u8>> {
+fn build_dns_reply(id: u16, domain: &str, ips: &[Ipv4Addr]) -> Result<Vec<u8>> {
     use simple_dns::rdata::*;
     use simple_dns::*;
     let question = Question::new(Name::new_unchecked(domain), QTYPE::A, QCLASS::IN, false);
@@ -239,7 +240,7 @@ fn build_dns_reply(id: u16, domain: &str, ips: &[Ipv4Addr]) -> Option<Vec<u8>> {
 
     let mut packet = PacketBuf::new(header, false);
 
-    packet.add_question(&question).ok()?;
+    packet.add_question(&question)?;
 
     for ip in ips {
         let answer = ResourceRecord::new(
@@ -253,5 +254,5 @@ fn build_dns_reply(id: u16, domain: &str, ips: &[Ipv4Addr]) -> Option<Vec<u8>> {
         packet.add_answer(&answer).ok();
     }
 
-    Some(packet.to_vec())
+    Ok(packet.to_vec())
 }

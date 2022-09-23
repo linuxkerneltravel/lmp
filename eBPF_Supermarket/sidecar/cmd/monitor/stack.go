@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/eswzy/podstat/k8s"
-	"github.com/eswzy/podstat/perf/net"
-	"github.com/eswzy/podstat/tools"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/perf/net"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 )
 
 func NewMonitorStackCmd() *cobra.Command {

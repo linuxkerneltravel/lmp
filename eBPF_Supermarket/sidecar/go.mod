@@ -1,4 +1,4 @@
-module github.com/eswzy/podstat
+module github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar
 
 go 1.18
 

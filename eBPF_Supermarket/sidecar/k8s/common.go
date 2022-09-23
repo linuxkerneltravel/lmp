@@ -6,8 +6,8 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/eswzy/podstat/policy"
-	"github.com/eswzy/podstat/tools"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/policy"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 )
 
 // PreflightCheck does preflight checks before interacting with k8s
