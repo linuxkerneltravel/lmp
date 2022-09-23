@@ -8,13 +8,14 @@
 
 #define IPV6_FLOWINFO_MASK              cpu_to_be32(0x0FFFFFFF)
 
-struct route_v4 {
+struct route_item {
 	int ifindex; 
 	char eth_src[ETH_ALEN]; 
 	char eth_dest[ETH_ALEN];
 };
 
-BPF_HASH(route_cache_v4,int,struct route_v4);
+BPF_HASH(route_cache_v4,int,struct route_item);
+BPF_HASH(route_cache_v6,struct in6_addr,struct route_item);
 
 static __always_inline int ip_decrease_ttl(struct iphdr *iph)
 {
@@ -26,7 +27,7 @@ static __always_inline int ip_decrease_ttl(struct iphdr *iph)
 }
 
 static __always_inline int record_to_cache_v4(int ip_daddr,struct bpf_fib_lookup *fib_params){
-    struct route_v4 item;
+    struct route_item item;
 	memset(&item, 0, sizeof(item));
 	memcpy(&item.eth_dest, fib_params->dmac, ETH_ALEN);
 	memcpy(&item.eth_src, fib_params->smac, ETH_ALEN);
@@ -34,8 +35,21 @@ static __always_inline int record_to_cache_v4(int ip_daddr,struct bpf_fib_lookup
     return route_cache_v4.update(&ip_daddr, &item);
 }
 
+
+static __always_inline int record_to_cache_v6(struct in6_addr  *p_ipv6_daddr,struct bpf_fib_lookup *fib_params){
+	struct route_item item;
+	struct in6_addr ipv6_daddr;
+	memset(&item, 0, sizeof(item));
+	memcpy(&item.eth_dest, fib_params->dmac, ETH_ALEN);
+	memcpy(&item.eth_src, fib_params->smac, ETH_ALEN);
+	item.ifindex = fib_params->ifindex;
+	memcpy(&ipv6_daddr, p_ipv6_daddr, sizeof(struct in6_addr));
+	return route_cache_v6.update(&ipv6_daddr, &item);
+}
+
+
 static __always_inline int match_cache_v4(int ip_daddr,struct ethhdr *eth){
-    struct route_v4 *pitem = NULL;
+    struct route_item *pitem = NULL;
     pitem = route_cache_v4.lookup(&ip_daddr);
     if(pitem){
 		memcpy(eth->h_dest, pitem->eth_dest, ETH_ALEN);
@@ -44,6 +58,19 @@ static __always_inline int match_cache_v4(int ip_daddr,struct ethhdr *eth){
     }
     return -1;
 }
+
+
+static __always_inline int match_cache_v6(struct in6_addr  *p_ipv6_daddr,struct ethhdr *eth){
+	struct route_item *pitem = NULL;
+    pitem = route_cache_v6.lookup(p_ipv6_daddr);
+	 if(pitem){
+		memcpy(eth->h_dest, pitem->eth_dest, ETH_ALEN);
+		memcpy(eth->h_source, pitem->eth_src, ETH_ALEN);
+        return pitem->ifindex;
+    }
+    return -1;
+}
+
 
 int xdp_fwd(struct xdp_md *ctx)
 {
@@ -87,7 +114,8 @@ int xdp_fwd(struct xdp_md *ctx)
 		fib_params.tot_len	= ntohs(iph->tot_len);
 		fib_params.ipv4_src	= iph->saddr;
 		fib_params.ipv4_dst	= iph->daddr;
-	} else if (h_proto == htons(ETH_P_IPV6)) {
+	} 
+	else if (h_proto == htons(ETH_P_IPV6)) {
 		struct in6_addr *src = (struct in6_addr *) fib_params.ipv6_src;
 		struct in6_addr *dst = (struct in6_addr *) fib_params.ipv6_dst;
 
@@ -97,6 +125,14 @@ int xdp_fwd(struct xdp_md *ctx)
 
 		if (ip6h->hop_limit <= 1)
 			return XDP_PASS;
+
+		
+		int match_if = match_cache_v6(&ip6h->daddr,eth);
+        if(match_if >0){
+            ip6h->hop_limit--; 
+            return bpf_redirect(match_if,0);
+        }
+		
 
 		fib_params.family	= AF_INET6;
 		fib_params.flowinfo	= *(__be32 *)ip6h & IPV6_FLOWINFO_MASK;
@@ -120,8 +156,10 @@ int xdp_fwd(struct xdp_md *ctx)
             record_to_cache_v4(iph->daddr,&fib_params);
             bpf_trace_printk("src:%d,dst:%d",ctx->ingress_ifindex,fib_params.ifindex);
         }
-		else if (h_proto == htons(ETH_P_IPV6))
-			ip6h->hop_limit--;
+		else if (h_proto == htons(ETH_P_IPV6)){
+			ip6h->hop_limit--; //like ipv4 ttl-
+			record_to_cache_v6(&ip6h->daddr,&fib_params);
+		}
 
 		memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
 		memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
