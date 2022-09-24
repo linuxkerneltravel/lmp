@@ -89,12 +89,10 @@ jobs:
           cd eBPF_Supermarket/sidecar/
           go build -o pmoas .
           go build -v ./...
-
       - name: Test
         run: |
           cd eBPF_Supermarket/sidecar/
           sudo go test ./...
-
   integration-test-with-minikube-and-istio:
     runs-on: ubuntu-22.04
     steps:
@@ -118,7 +116,6 @@ jobs:
           istioctl install --set profile=demo -y
           kubectl label namespace default istio-injection=enabled
           kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-
       - name: Build BCC
         run: |
           sudo apt install -y bison build-essential cmake flex git libclang-12-dev libedit-dev \
@@ -141,7 +138,6 @@ jobs:
           ./pmoas version
           ./pmoas monitor
           ./pmoas monitor --help
-
       - name: Wait for istio
         run: |
           kubectl get nodes
