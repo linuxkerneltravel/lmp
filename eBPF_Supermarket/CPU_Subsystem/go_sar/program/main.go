@@ -255,8 +255,8 @@ func main() {
 			printTableHead(cnt_cpu)
 		}
 
-		// if actualTime == 5 {
-		// 	break
-		// }
+		if actualTime == 5 {
+			break
+		}
 	}
 }
