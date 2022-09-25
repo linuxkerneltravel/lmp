@@ -12,22 +12,21 @@ import (
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/cluster_utils"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/http2_tracing"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/http_kprobe"
 )
 
-func NewMonitorUserAllCmd() *cobra.Command {
+func NewMonitorUserGRPCCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "all",
-		Short:   "Monitor pod by all provided user tools.",
+		Use:     "grpc",
+		Short:   "Starts monitor for pod by GRPC probes.",
 		Long:    "",
-		Example: "kupod monitor user all --pod sidecar-demo ",
-		RunE:    MonitorUserAll,
+		Example: "kupod monitor user http --pod sidecar-demo",
+		RunE:    MonitorUserGRPC,
 	}
 
 	return cmd
 }
 
-func MonitorUserAll(cmd *cobra.Command, args []string) error {
+func MonitorUserGRPC(cmd *cobra.Command, args []string) error {
 
 	//1.与集群连接
 	// use the current context in kubeconfig
@@ -51,26 +50,7 @@ func MonitorUserAll(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("There are %d pods in the cluster in wyw namespace\n", len(pods.Items))
 
-	//3.http协议
-	/*******kprobe on pod************/
-	p, err := clientset.CoreV1().Pods(data.NameSpace).Get(context.TODO(), data.PodName, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		fmt.Printf("Pod %s in namespace %s not found\n", data.PodName, data.NameSpace)
-	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
-		fmt.Printf("Error getting pod %s in namespace %s: %v\n",
-			data.PodName, data.NameSpace, statusError.ErrStatus.Message)
-	} else if err != nil {
-		panic(err.Error())
-	} else {
-		fmt.Printf("Found pod %s in namespace %s\n", data.PodName, data.NameSpace)
-		res, _ := cluster_utils.GetAllPodProcess(clientset, data.NodeName, data.NameSpace, data.PodName, p.Status.ContainerStatuses, data.ImageName)
-		for k, v := range res {
-			fmt.Printf("get pod %s Pid and Attach Kprobe\n", k.Name)
-			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), data.PodName, data.PrometheusIP)
-		}
-	}
-
-	//4.http2协议
+	//3.http2协议
 	/*******uprobe on pod************/
 	binaryPath := "/go/src/grpc_server/main"
 	p2, err := clientset.CoreV1().Pods(data.NameSpace).Get(context.TODO(), data.GrpcPodName, metav1.GetOptions{})

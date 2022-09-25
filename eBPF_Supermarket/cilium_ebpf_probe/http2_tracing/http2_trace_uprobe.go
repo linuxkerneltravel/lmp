@@ -91,6 +91,7 @@ var (
 	endch               chan endTimeEvent
 	pn                  string
 	requestSlice        map[int32][]formatedHeaderevent
+	prometheusIP        string
 	histogramRegistered = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "grpc_spend",
@@ -114,18 +115,18 @@ func parseToSturctFromChannel(m *PerStatusWithLock) {
 				perTimeStatus{Statuscode: ev.StatusCode, SpendTime: (ev.Ns - bv.Ns) / 1000}) // /1000 is ns
 			//to histogram
 			histogramRegistered.Observe(float64((ev.Ns - bv.Ns) / 1000))
-			if err := push.New("http://10.10.103.122:9091", "GRPCSpend"). // push.New("pushgateway地址", "job名称")
-											Collector(histogramRegistered).                            //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
-											Grouping("podname", pn).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
-											Push(); err != nil {
+			if err := push.New("http://"+prometheusIP+":9091", "GRPCSpend"). // push.New("pushgateway地址", "job名称")
+												Collector(histogramRegistered).                            //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+												Grouping("podname", pn).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
+												Push(); err != nil {
 				fmt.Println("Could not push completion time to Pushgateway:", err)
 			}
 			// to gauge
 			Gauge.Add(1)
-			if err := push.New("http://10.10.103.122:9091", "GRPCStatus"). // push.New("pushgateway地址", "job名称")
-											Collector(Gauge).                                                                           //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
-											Grouping("podname", pn).Grouping("instance", "statuscode").Grouping("gRpcStatusCode", "0"). // 给指标添加标签，可以添加多个
-											Push(); err != nil {
+			if err := push.New("http://"+prometheusIP+":9091", "GRPCStatus"). // push.New("pushgateway地址", "job名称")
+												Collector(Gauge).                                                                           //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
+												Grouping("podname", pn).Grouping("instance", "statuscode").Grouping("gRpcStatusCode", "0"). // 给指标添加标签，可以添加多个
+												Push(); err != nil {
 				fmt.Println("Could not push completion time to Pushgateway:", err)
 			}
 		}
@@ -160,13 +161,13 @@ func PrintStaticsNumber(m *PerStatusWithLock) {
 	}
 }
 
-func GetHttp2ViaUprobe(binaryProg string, podname string) {
+func GetHttp2ViaUprobe(binaryProg string, podname string, exporterIP string) {
 	//flag.Parse()
 	if len(binaryProg) == 0 {
 		panic("Argument --binary needs to be specified")
 	}
 	pn = podname
-
+	prometheusIP = exporterIP
 	prometheus.Register(histogramRegistered)
 	requestSlice = make(map[int32][]formatedHeaderevent)
 	fmt.Println("Attach 1 uprobe on ", binaryProg)
