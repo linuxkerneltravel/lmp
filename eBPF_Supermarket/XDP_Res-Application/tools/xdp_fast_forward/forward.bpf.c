@@ -8,6 +8,8 @@
 
 #define IPV6_FLOWINFO_MASK              cpu_to_be32(0x0FFFFFFF)
 
+#define DEBUG_PRINT
+
 struct route_item {
 	int ifindex; 
 	char eth_src[ETH_ALEN]; 
@@ -83,27 +85,33 @@ int xdp_fwd(struct xdp_md *ctx)
 	u16 h_proto;
 	u64 nh_off;
 	int rc;
+	int match_if = -1;
+	int err_code = 0;
 
 	nh_off = sizeof(*eth);
-	if (data + nh_off > data_end)
-		return XDP_DROP;
+	if (data + nh_off > data_end){
+		goto drop;
+	}
 
-	__builtin_memset(&fib_params, 0, sizeof(fib_params));
+	memset(&fib_params, 0, sizeof(fib_params));
 
 	h_proto = eth->h_proto;
-	if (h_proto == htons(ETH_P_IP)) {
+
+	if (h_proto == htons(ETH_P_IP)) { //ipv4
 		iph = data + nh_off;
 
-		if ((void *)iph + sizeof(struct iphdr) > data_end)
-			return XDP_DROP;
+		if ((void *)iph + sizeof(struct iphdr) > data_end){
+			goto drop;
+		}
         
-		if (iph->ttl <= 1)
-			return XDP_PASS;
+		if (iph->ttl <= 1){
+			goto pass;
+		}
 
-        int match_if = match_cache_v4(iph->daddr,eth);
+        match_if = match_cache_v4(iph->daddr,eth);
         if(match_if >0){
             ip_decrease_ttl(iph);
-            return bpf_redirect(match_if,0);
+            goto redirect;
         }
         
 		fib_params.family	= AF_INET;
@@ -115,22 +123,23 @@ int xdp_fwd(struct xdp_md *ctx)
 		fib_params.ipv4_src	= iph->saddr;
 		fib_params.ipv4_dst	= iph->daddr;
 	} 
-	else if (h_proto == htons(ETH_P_IPV6)) {
+	else if (h_proto == htons(ETH_P_IPV6)) { //ipv6
 		struct in6_addr *src = (struct in6_addr *) fib_params.ipv6_src;
 		struct in6_addr *dst = (struct in6_addr *) fib_params.ipv6_dst;
 
 		ip6h = data + nh_off;
 		if ((void *)ip6h + sizeof(struct ipv6hdr) > data_end)
-			return XDP_DROP;
+			goto drop;
 
-		if (ip6h->hop_limit <= 1)
-			return XDP_PASS;
+		if (ip6h->hop_limit <= 1){
+			goto pass;
+		}
 
 		
-		int match_if = match_cache_v6(&ip6h->daddr,eth);
+		match_if = match_cache_v6(&ip6h->daddr,eth);
         if(match_if >0){
             ip6h->hop_limit--; 
-            return bpf_redirect(match_if,0);
+            goto redirect;
         }
 		
 
@@ -142,8 +151,9 @@ int xdp_fwd(struct xdp_md *ctx)
 		fib_params.tot_len	= ntohs(ip6h->payload_len);
 		*src			= ip6h->saddr;
 		*dst			= ip6h->daddr;
-	} else {
-		return XDP_PASS;
+	} 
+	else {
+		goto pass;
 	}
 
 	fib_params.ifindex = ctx->ingress_ifindex;
@@ -154,17 +164,44 @@ int xdp_fwd(struct xdp_md *ctx)
 		if (h_proto == htons(ETH_P_IP)){
 		    ip_decrease_ttl(iph);
             record_to_cache_v4(iph->daddr,&fib_params);
-            bpf_trace_printk("src:%d,dst:%d",ctx->ingress_ifindex,fib_params.ifindex);
+            //bpf_trace_printk("src:%d,dst:%d",ctx->ingress_ifindex,fib_params.ifindex);
         }
 		else if (h_proto == htons(ETH_P_IPV6)){
-			ip6h->hop_limit--; //like ipv4 ttl-
+			ip6h->hop_limit--; 
 			record_to_cache_v6(&ip6h->daddr,&fib_params);
 		}
 
 		memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
 		memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
-		return bpf_redirect(fib_params.ifindex, 0);
+		match_if = fib_params.ifindex;
+		goto redirect;
+	}
+	else{
+		err_code = rc;
+		#ifdef DEBUG_PRINT
+			bpf_trace_printk("[XDP_FWD] error:%d when do bpf_fib_lookup",err_code);
+		#endif
+		goto pass;
 	}
 
-	return XDP_PASS;
+	pass:
+		return XDP_PASS;
+	
+	redirect:
+		if(match_if > 0){
+			#ifdef DEBUG_PRINT
+			bpf_trace_printk("[XDP_FWD] from=%d,to:%d",ctx->ingress_ifindex,match_if);
+			#endif
+			if(h_proto == htons(ETH_P_IP)){
+				ip_decrease_ttl(iph);
+			}
+			else if(h_proto == htons(ETH_P_IPV6)){
+				ip6h->hop_limit--;
+			}
+			return bpf_redirect(match_if,0);
+		}
+		else
+			goto pass;
+	drop:
+		return XDP_DROP;
 }
