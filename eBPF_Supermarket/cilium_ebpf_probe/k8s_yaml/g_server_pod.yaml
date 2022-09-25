@@ -4,7 +4,6 @@ metadata:
   name: grpcserver
   namespace: wyw
 spec:
-  nodeName: k8s-node2
   containers:
     - image: wyuei/grpc_server
       name: grpcserver

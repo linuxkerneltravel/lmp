@@ -4,7 +4,6 @@ metadata:
   name: httpserver
   namespace: wyw
 spec:
-  nodeName: k8s-node2
   containers:
     - image: wyuei/http_server:v2.0
       name: httpserver

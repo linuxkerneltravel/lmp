@@ -10,11 +10,6 @@ var (
 	Kubeconfig   string
 	ExporterPort string
 	JaegerAgent  string
-	ImageName    string
-
-	//for grpc
-	GrpcPodName   string
-	GrpcImageName string
 
 	// control words
 	ForceMinikube bool
@@ -22,6 +17,5 @@ var (
 	SidecarMode   string
 
 	// intermediate variables
-	NodeName     string
-	PrometheusIP string
+	NodeName string
 )

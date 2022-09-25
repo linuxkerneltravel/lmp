@@ -73,7 +73,7 @@ func main() {
 		res, _ := cluster_utils.GetAllPodProcess(clientset, *nodename, *namespace, *pod, p.Status.ContainerStatuses, *imagename)
 		for k, v := range res {
 			fmt.Printf("get pod %s Pid and Attach Kprobe\n", k.Name)
-			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), *pod, "10.10.103.122")
+			go http_kprobe.GetHttpViaKprobe(int(v[0].Pid), *pod)
 		}
 	}
 
@@ -92,7 +92,7 @@ func main() {
 		res, _ := cluster_utils.GetPodELFPath(clientset, *nodename, *namespace, *poduprobe, p2.Status.ContainerStatuses, *imagename2)
 		for k, v := range res {
 			fmt.Printf("get pod %s Merge Path and Attach Uprobe\n", k.Name)
-			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, *poduprobe, "10.10.103.122")
+			go http2_tracing.GetHttp2ViaUprobe(v+binaryPath, *poduprobe)
 		}
 	}
 	select {}
