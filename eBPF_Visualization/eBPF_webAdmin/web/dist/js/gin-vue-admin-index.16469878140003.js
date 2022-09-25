@@ -1,0 +1,4 @@
+/*! 
+ Build based on gin-vue-admin 
+ Time : 1646987814000 */
+import{_ as a}from"../gva/gin-vue-admin-index.1646987814000.js";import{k as e,o as t,i as d,j as n,u as l,G as r,H as s,s as o}from"./gin-vue-admin-vendor.1646987814000.js";const u={name:"About"},i=a=>(r("data-v-7c68badd"),a=a(),s(),a),c=i((()=>o("div",null,"LMP介绍",-1))),v=i((()=>o("div",null," LMP是一个基于BCC(BPF Compiler Collection)的Linux系统性能数据实时展示的web工具，它使用BPF(Berkeley Packet Filters)，也叫eBPF，目前LMP在ubuntu18.04上测试通过，内核版本4.15.0。 ",-1)));var m=a(u,[["render",function(a,r,s,o,u,i){const m=e("el-card"),p=e("el-col"),f=e("el-row");return t(),d("div",null,[n(f,{gutter:10},{default:l((()=>[n(p,{span:12},{default:l((()=>[n(m,{style:{"margin-top":"20px"}},{header:l((()=>[c])),default:l((()=>[v])),_:1})])),_:1})])),_:1})])}],["__scopeId","data-v-7c68badd"]]);export{m as default};

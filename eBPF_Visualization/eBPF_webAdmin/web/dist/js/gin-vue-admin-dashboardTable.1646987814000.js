@@ -1,0 +1,4 @@
+/*! 
+ Build based on gin-vue-admin 
+ Time : 1646987814000 */
+import{_ as a}from"../gva/gin-vue-admin-index.1646987814000.js";import{o as s,i as e,s as l,L as i,M as o,t,D as d,G as m,H as n}from"./gin-vue-admin-vendor.1646987814000.js";const f={name:"DashboardTable"},r={class:"commit-table"},v=(a=>(m("data-v-0fa16309"),a=a(),n(),a))((()=>l("div",{class:"commit-table-title"}," 更新日志 ",-1))),c={class:"log"},x={class:"flex-1 flex key-box"},g={class:"flex-5 flex message"},p={class:"flex-3 flex form"};var u=a(f,[["render",function(a,m,n,f,u,b){return s(),e("div",r,[v,l("div",c,[(s(!0),e(i,null,o(a.dataTimeline,((a,i)=>(s(),e("div",{key:i,class:"log-item"},[l("div",x,[l("span",{class:t(["key",i<3&&"top"])},d(i+1),3)]),l("div",g,d(a.message),1),l("div",p,d(a.from),1)])))),128))])])}],["__scopeId","data-v-0fa16309"]]);export{u as default};

@@ -1,0 +1,4 @@
+/*! 
+ Build based on gin-vue-admin 
+ Time : 1646987814000 */
+import e from"./gin-vue-admin-menuItem.1646987814000.js";import n from"./gin-vue-admin-asyncSubmenu.1646987814000.js";import{g as r,k as o,o as t,I as i,u,i as s,M as a,L as d,v as f,J as m,x as l}from"./gin-vue-admin-vendor.1646987814000.js";import"../gva/gin-vue-admin-index.1646987814000.js";const c={name:"AsideComponent"},p=Object.assign(c,{props:{routerInfo:{type:Object,default:()=>null}},setup(c){const p=c,I=r((()=>p.routerInfo.children&&p.routerInfo.children.filter((e=>!e.hidden)).length?n:e));return(e,n)=>{const r=o("AsideComponent");return c.routerInfo.hidden?f("",!0):(t(),i(m(l(I)),{key:0,"router-info":c.routerInfo},{default:u((()=>[c.routerInfo.children&&c.routerInfo.children.length?(t(!0),s(d,{key:0},a(c.routerInfo.children,(e=>(t(),i(r,{key:e.name,"router-info":e},null,8,["router-info"])))),128)):f("",!0)])),_:1},8,["router-info"]))}}});export{p as default};

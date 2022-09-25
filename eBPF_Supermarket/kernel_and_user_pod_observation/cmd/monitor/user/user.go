@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+//外面的monitor调用是这里
 func NewMonitorUserCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "user",
@@ -32,5 +33,5 @@ func addCommand(cmd *cobra.Command) {
 	cmd.AddCommand(NewMonitorUserAllCmd())
 	cmd.AddCommand(NewMonitorUserHttpCmd())
 	// 在这里添加更多你的子命令
-
+	cmd.AddCommand(NewMonitorUserGRPCCmd)
 }
