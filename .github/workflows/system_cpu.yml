@@ -63,7 +63,7 @@ jobs:
 
       - name: Run BCC_sar(Per Process)
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src
+          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src/sar
           # find the process which runs for the longest time
           TARGET=$(ps -eo pid --sort -time | sed -n "2p" | awk '{print $1}')
           echo target=$TARGET
