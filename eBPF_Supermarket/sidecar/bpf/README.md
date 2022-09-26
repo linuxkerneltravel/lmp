@@ -7,7 +7,7 @@ This directory is all about BPF programs and management. It includes:
 - [TCP Accept Event Probe](tcpaccept): captures TCP accept event information. With time, pid, address and port information.
 - [TCP Connect Event Probe](tcpconnect): captures TCP connect event information. With time, pid, address and port information.
 - [TCP Close Event Probe](tcpclose): captures TCP close event information. With basic info and traffic statistics.
-- [Network Subsystem Probe](podnet): traces key network event in host, for most scenarios in this project, in-pod network stack.
+- [Network Subsystem Probe](podnet): traces key network event in host, for most scenarios in this project, network stack events around the pod.
 - [TCP Socket Redirect](sockops): attaches sockops and SK_MSG programs to **cgroup v2**, and redirect local TCP connection (both sidecar and pods on the same host) to bypass TCP/IP protocol stack.
 - [BPF Header Files](headers): provides minimal BPF dependency header files, in order to compile
 
