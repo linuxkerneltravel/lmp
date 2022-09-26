@@ -141,6 +141,13 @@ struct bpf_map_def SEC("maps") runqlen = {
 	.max_entries = 1,
 };
 
+struct bpf_map_def SEC("maps") nr_unintr = {
+	.type        = BPF_MAP_TYPE_PERCPU_ARRAY,
+	.key_size    = sizeof(u32),
+	.value_size  = sizeof(int64_t),
+	.max_entries = 1,
+};
+
 // 获取运行队列长度
 SEC("kprobe/update_rq_clock")
 int update_rq_clock(struct pt_regs *ctx) {
@@ -154,9 +161,12 @@ int update_rq_clock(struct pt_regs *ctx) {
 	}
 
 	bpf_probe_read_kernel(p_rq, sizeof(struct rq), (void *)PT_REGS_PARM1(ctx));
-	u64 val = p_rq->nr_running;
+	u64 runq = p_rq->nr_running;
+	int64_t unintr = (int64_t)(p_rq->nr_uninterruptible); // long int, 在64位系统中是64位的，u64可以包打32/64
 
-	bpf_map_update_elem(&runqlen, &key, &val, BPF_ANY);
+	bpf_map_update_elem(&runqlen, &key, &runq, BPF_ANY);
+	bpf_map_update_elem(&nr_unintr, &key, &unintr, BPF_ANY);
+	// 直接访问nr_unintr可能造成同步性问题，可能需要加锁()
 
 	return 0;
 }
@@ -256,5 +266,62 @@ int softirq_exit(struct __softirq_info *info) {
 			*valp += last_time;
 		}
 	}
+	return 0;
+}
+
+struct migrate_value {
+	u64 time;
+	pid_t pid;
+	int prio;
+	int orig_cpu;
+	int dest_cpu;
+};
+
+struct bpf_map_def SEC("maps") queue = {
+	.type        = BPF_MAP_TYPE_HASH,
+	// QUEUE不需要key
+	.key_size	 = sizeof(u32),
+	.value_size  = sizeof(struct migrate_value),
+	.max_entries = 4096,
+};
+
+struct bpf_map_def SEC("maps") migrateCount = {
+	.type			= BPF_MAP_TYPE_ARRAY,
+	.key_size		= sizeof(u32),
+	.value_size		= sizeof(u64),
+	.max_entries	= 1,
+};
+
+struct migrate_info {
+	u64 pad;
+	char comm[16];
+	pid_t pid;
+	int prio;
+	int orig_cpu;
+	int dest_cpu;
+};
+
+SEC("tracepoint/sched/sched_migrate_task")
+int sched_migrate_task(struct migrate_info *info) {
+	u32 key = 0;
+	u64 initval = 1, *valp;
+
+	valp = bpf_map_lookup_elem(&migrateCount, &key);
+	if (!valp) {
+		// 没有找到表项
+		bpf_map_update_elem(&migrateCount, &key, &initval, BPF_ANY);
+		return 0;
+	}
+
+	__sync_fetch_and_add(valp, 1);
+
+	u64 time = bpf_ktime_get_ns();
+	struct migrate_value val;
+	val.time = time;
+	val.pid = info->pid;
+	val.prio = info->prio;
+	val.orig_cpu = info->orig_cpu;
+	val.dest_cpu = info->dest_cpu;
+	bpf_map_update_elem(&queue, valp, &val, BPF_ANY); // 写入migrate值结构体
 	return 0;
 }
