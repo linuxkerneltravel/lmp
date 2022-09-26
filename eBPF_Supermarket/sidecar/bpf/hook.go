@@ -8,7 +8,7 @@ import (
 
 // GetAllHooks gets all hooks
 func GetAllHooks(pattern string) ([]string, error) {
-	resRaw, err := exec.Command("sudo", "bpftrace", "-l", pattern).Output()
+	resRaw, err := exec.Command("bpftrace", "-l", pattern).Output()
 	if err != nil {
 		return nil, fmt.Errorf("get hooks failed for pattern %s, because %s", pattern, err)
 	}

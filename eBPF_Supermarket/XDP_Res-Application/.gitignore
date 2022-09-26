@@ -1,3 +1,0 @@
-.vscode
-src/xdp_filter/__pycache__
-src/ebpf_xdp_proxy/__pycache__

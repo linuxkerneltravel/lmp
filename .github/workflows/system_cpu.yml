@@ -55,7 +55,7 @@ jobs:
 
       - name: Run BCC_sar
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src
+          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src/sar
           sudo python3 sar.py -h
           sudo python3 sar.py -t time -c 3
           sudo python3 sar.py -t percent -c 5
@@ -63,7 +63,7 @@ jobs:
 
       - name: Run BCC_sar(Per Process)
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src
+          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src/sar
           # find the process which runs for the longest time
           TARGET=$(ps -eo pid --sort -time | sed -n "2p" | awk '{print $1}')
           echo target=$TARGET

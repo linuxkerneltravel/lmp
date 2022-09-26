@@ -9,8 +9,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/eswzy/podstat/bpf/podnet"
-	"github.com/eswzy/podstat/visualization"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/podnet"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 )
 
 var TimeOffset = time.Now()
@@ -249,39 +249,41 @@ func monitorLoopInPod(heap *map[ConnectIdType]InPodConnectionOverall, timeout ti
 					},
 				)
 
-				dataTransferSpan := t.StartSpan(
-					"Data Transfer",
-					opentracing.ChildOf(allSpan.Context()),
-					opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)),
-				)
+				if len(conn.Dt.req) > 0 {
+					dataTransferSpan := t.StartSpan(
+						"Data Transfer",
+						opentracing.ChildOf(allSpan.Context()),
+						opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)),
+					)
 
-				reqSpan := t.StartSpan(
-					"Request from Sidecar to Service",
-					opentracing.ChildOf(dataTransferSpan.Context()),
-					opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)),
-				)
-				reqSpan.FinishWithOptions(
-					opentracing.FinishOptions{
-						FinishTime: TimeOffset.Add(conn.Dt.req[len(conn.Dt.req)-1].Time),
-					},
-				)
+					reqSpan := t.StartSpan(
+						"Request from Sidecar to Service",
+						opentracing.ChildOf(dataTransferSpan.Context()),
+						opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)),
+					)
+					reqSpan.FinishWithOptions(
+						opentracing.FinishOptions{
+							FinishTime: TimeOffset.Add(conn.Dt.req[len(conn.Dt.req)-1].Time),
+						},
+					)
 
-				resSpan := t.StartSpan(
-					"Response from Sidecar to Service",
-					opentracing.ChildOf(dataTransferSpan.Context()),
-					opentracing.StartTime(TimeOffset.Add(conn.Dt.res[0].Time)),
-				)
-				resSpan.FinishWithOptions(
-					opentracing.FinishOptions{
-						FinishTime: TimeOffset.Add(conn.Dt.res[len(conn.Dt.res)-1].Time),
-					},
-				)
+					resSpan := t.StartSpan(
+						"Response from Sidecar to Service",
+						opentracing.ChildOf(dataTransferSpan.Context()),
+						opentracing.StartTime(TimeOffset.Add(conn.Dt.res[0].Time)),
+					)
+					resSpan.FinishWithOptions(
+						opentracing.FinishOptions{
+							FinishTime: TimeOffset.Add(conn.Dt.res[len(conn.Dt.res)-1].Time),
+						},
+					)
 
-				dataTransferSpan.FinishWithOptions(
-					opentracing.FinishOptions{
-						FinishTime: TimeOffset.Add(conn.Dt.ack[len(conn.Dt.ack)-1].Time),
-					},
-				)
+					dataTransferSpan.FinishWithOptions(
+						opentracing.FinishOptions{
+							FinishTime: TimeOffset.Add(conn.Dt.ack[len(conn.Dt.ack)-1].Time),
+						},
+					)
+				}
 
 				connectionTerminationSpan := t.StartSpan(
 					"Connection Termination",
@@ -402,38 +404,40 @@ func monitorLoopOutPod(heap *map[ConnectIdType]OutPodConnectionOverall, timeout 
 					},
 				)
 
-				dataTransferSpan := t.StartSpan(
-					"Data Transfer",
-					opentracing.ChildOf(allSpan.Context()),
-					opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)))
+				if len(conn.Dt.req) > 0 {
+					dataTransferSpan := t.StartSpan(
+						"Data Transfer",
+						opentracing.ChildOf(allSpan.Context()),
+						opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)))
 
-				reqSpan := t.StartSpan(
-					"Request from Caller to Pod",
-					opentracing.ChildOf(dataTransferSpan.Context()),
-					opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)),
-				)
-				reqSpan.FinishWithOptions(
-					opentracing.FinishOptions{
-						FinishTime: TimeOffset.Add(conn.Dt.req[len(conn.Dt.req)-1].Time),
-					},
-				)
+					reqSpan := t.StartSpan(
+						"Request from Caller to Pod",
+						opentracing.ChildOf(dataTransferSpan.Context()),
+						opentracing.StartTime(TimeOffset.Add(conn.Dt.req[0].Time)),
+					)
+					reqSpan.FinishWithOptions(
+						opentracing.FinishOptions{
+							FinishTime: TimeOffset.Add(conn.Dt.req[len(conn.Dt.req)-1].Time),
+						},
+					)
 
-				resSpan := t.StartSpan(
-					"Response from Pod to Caller",
-					opentracing.ChildOf(dataTransferSpan.Context()),
-					opentracing.StartTime(TimeOffset.Add(conn.Dt.res[0].Time)),
-				)
-				resSpan.FinishWithOptions(
-					opentracing.FinishOptions{
-						FinishTime: TimeOffset.Add(conn.Dt.res[len(conn.Dt.res)-1].Time),
-					},
-				)
+					resSpan := t.StartSpan(
+						"Response from Pod to Caller",
+						opentracing.ChildOf(dataTransferSpan.Context()),
+						opentracing.StartTime(TimeOffset.Add(conn.Dt.res[0].Time)),
+					)
+					resSpan.FinishWithOptions(
+						opentracing.FinishOptions{
+							FinishTime: TimeOffset.Add(conn.Dt.res[len(conn.Dt.res)-1].Time),
+						},
+					)
 
-				dataTransferSpan.FinishWithOptions(
-					opentracing.FinishOptions{
-						FinishTime: TimeOffset.Add(conn.Dt.resAck[len(conn.Dt.resAck)-1].Time),
-					},
-				)
+					dataTransferSpan.FinishWithOptions(
+						opentracing.FinishOptions{
+							FinishTime: TimeOffset.Add(conn.Dt.resAck[len(conn.Dt.resAck)-1].Time),
+						},
+					)
+				}
 
 				connectionTerminationSpan := t.StartSpan(
 					"Connection Termination",
@@ -485,18 +489,19 @@ func monitorLoopOutPod(heap *map[ConnectIdType]OutPodConnectionOverall, timeout 
 
 // GetKernelNetworkEvent is an entrance to monitor network events
 func GetKernelNetworkEvent(pidList []int, sidecarOpt SidecarOpt, podName string) {
+	fmt.Printf("[INFO] got pod IP: %s, host IP: %s\n", sidecarOpt.PodIp, sidecarOpt.NodeIp)
 	podIp := sidecarOpt.PodIp
 	ch := make(chan podnet.Event, 100000)
 	heartBeatInPod := make(chan bool)
 	heartBeatOutPod := make(chan bool)
-	// outSpanPairId := make(chan string) // TODO: outSpanPairId is used to pair the outer network span with inner pod span
+	outSpanPairId := make(chan string) // TODO: outSpanPairId is used to pair the outer network span with inner pod span
 	allInPodEventHeap := make(map[ConnectIdType]InPodConnectionOverall)
 	allOutPodEventHeap := make(map[ConnectIdType]OutPodConnectionOverall)
 
 	go podnet.Probe(pidList, false, "", ch)   // probes inner pod events
 	go podnet.Probe(pidList, true, podIp, ch) // probes outer pod events
-	// go monitorLoopInPod(&allInPodEventHeap, time.Second, podName, heartBeatInPod, outSpanPairId)
-	// go monitorLoopOutPod(&allOutPodEventHeap, time.Second, podName, heartBeatOutPod, outSpanPairId)
+	go monitorLoopInPod(&allInPodEventHeap, time.Second, podName, heartBeatInPod, outSpanPairId)
+	go monitorLoopOutPod(&allOutPodEventHeap, time.Second, podName, heartBeatOutPod, outSpanPairId)
 
 	for {
 		event := <-ch

@@ -10,3 +10,4 @@ temp_data/
 */test/pthread
 
 */temp
+**/event.txt

@@ -7,6 +7,7 @@
 #define ETH_HLEN 14
 #define IP_PROTO_OFF offsetof(struct iphdr, protocol)
 #define QDCOUNT_OFF 4
+#define DNS_PORT 53
 
 SEC("socket")
 int dns_queries(struct __sk_buff *skb) {
@@ -19,15 +20,9 @@ int dns_queries(struct __sk_buff *skb) {
     return 0;
   if (ip4.ihl != 5 || ip4.protocol != IPPROTO_UDP)
     return 0;
-
-  // load qdcount
-  __be16 QDCOUNT = 0;
-  if (bpf_skb_load_bytes(skb, ETH_HLEN + sizeof(ip4) + sizeof(udp) + QDCOUNT_OFF, &QDCOUNT, sizeof(QDCOUNT)) < 0)
+  if (bpf_skb_load_bytes(skb, ETH_HLEN + sizeof(ip4), &udp, sizeof(udp)) < 0)
     return 0;
-  
-  QDCOUNT = bpf_ntohs(QDCOUNT);
-
-  if (QDCOUNT == 1)
+  if ((bpf_ntohs(udp.source) == DNS_PORT) || (bpf_ntohs(udp.dest) == DNS_PORT))
     return -1;
 
   return 0;

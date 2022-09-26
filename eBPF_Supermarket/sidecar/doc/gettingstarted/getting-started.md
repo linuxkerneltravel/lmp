@@ -106,6 +106,13 @@ And then, just like a native Kubernetes cluster:
 sudo go run main.go --pod sidecar-demo
 ```
 
+In another terminal, you must start a new pod to send requests to the pod you are monitoring.
+
+```shell
+kubectl run tomcat --image tomcat
+kubectl exec tomcat -- curl 172.17.0.2  # 172.17.0.2 is the IP of sidecar-demo pod
+```
+
 ## Set up Visualization Components
 
 See also: [Visualization Components Docs](../../visualization/components)

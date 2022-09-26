@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dns_parser::Packet;
 use flume::Receiver;
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
@@ -69,24 +69,19 @@ async fn main() -> Result<()> {
 
     loop {
         let mut buf = vec![0; BUF_SIZE];
-        skip_err!(filter.read(&mut buf).await);
-        skip_err!(rx.send_async(buf).await);
+        let size = skip_err!(filter.read(&mut buf).await);
+        skip_err!(rx.send_async((buf,size)).await);
     }
 }
 
-async fn serve(tx: Receiver<Vec<u8>>) {
+async fn serve(tx: Receiver<(Vec<u8>,usize)>) {
     let mut sender = AsyncFd::try_from(open_socket(&CONFIG.global.interface).unwrap()).unwrap();
-    let reply = &mut [0; BUF_SIZE];
 
-    while let Ok(buf) = tx.recv_async().await {
-        let (mut addr, dns) = skip_err!(parse_raw_packet(&buf));
+    while let Ok((buf,size)) = tx.recv_async().await {
+        let (mut addr, dns) = skip_err!(parse_raw_packet(&buf[..size]));
 
         if dns.header.query {
-            if let Some(size) = process_query(addr, dns, reply) {
-                if size != 0 {
-                    sender.write(&reply[..size]).await.unwrap();
-                }
-            }
+            skip_err!(process_query(addr, dns, &mut sender).await);
         } else {
             addr.swap();
             process_reply(addr, dns);
@@ -94,28 +89,31 @@ async fn serve(tx: Receiver<Vec<u8>>) {
     }
 }
 
-fn process_query(mut addr: Addr, dns: Packet<'_>, reply: &mut [u8]) -> Option<usize> {
-    let domain = extract_domain(&dns)?;
+async fn process_query(mut addr: Addr, dns: Packet<'_>, sender: &mut AsyncFd) -> Result<()> {
+    let mut reply = vec![];
+    let domain = extract_domain(&dns).with_context(|| "failed to extract domain from dns query")?;
     let id = dns.header.id;
 
     if is_need_inject() {
         if let Some(ip) = CACHE.get(&domain) {
             debug!("hit cache {domain} -> {ip:?}");
-            let size = build_raw_dns_reply(dns.header.id, &domain, &ip, addr.swap(), reply)?;
-            MATCHED.insert((addr,id,Instant::now()), (domain, ip));
-            return Some(size);
+            let size = build_raw_dns_reply(dns.header.id, &domain, &ip, addr.swap(), &mut reply)?;
+            sender.write_all(&reply[..size]).await?;
+
+            MATCHED.insert((addr, id, Instant::now()), (domain, ip));
+            return Ok(());
         }
     }
 
     debug!("query: id {id}  {addr}  {domain}");
-    MATCHING.insert((addr,id), (domain.clone(), Instant::now()));
+    MATCHING.insert((addr, id), (domain.clone(), Instant::now()));
 
-    Some(0)
+    Ok(())
 }
 
 fn process_reply(addr: Addr, dns: Packet) -> Option<()> {
     let id = dns.header.id;
-    let addr_id = &(addr.clone(),id);
+    let addr_id = &(addr.clone(), id);
     let (domain, instant) = MATCHING.get(addr_id)?;
     MATCHING.invalidate(addr_id);
     let ip = extract_ip_from_dns_reply(&dns)?;
@@ -124,18 +122,14 @@ fn process_reply(addr: Addr, dns: Packet) -> Option<()> {
         "reply: cost {:?}  id {id} {addr}  {domain} -> {ip:?}",
         instant.elapsed()
     );
-    MATCHED.insert((addr,id, instant), (domain.clone(), ip.clone()));
+    MATCHED.insert((addr, id, instant), (domain.clone(), ip.clone()));
     CACHE.insert(domain, ip);
 
     Some(())
 }
 
 fn is_need_inject() -> bool {
-    if calc_loss() >= CONFIG.global.loss {
-        return true;
-    }
-
-    false
+    calc_loss() >= CONFIG.global.loss
 }
 
 fn calc_loss() -> f64 {
@@ -150,21 +144,17 @@ fn calc_loss() -> f64 {
     0.0
 }
 
-fn clean_timeout(k: Arc<(Addr,u16)>, (domain, instant): (String, Instant), cause: RemovalCause) {
-    match cause {
-        RemovalCause::Expired => {
-            let (addr,id) = k.as_ref();
-            debug!("timeout:  id {id}  {addr} {domain}");
-            UNMATCHED.insert((k, instant), domain);
-        }
-        _ => {}
+fn clean_timeout(k: Arc<(Addr, u16)>, (domain, instant): (String, Instant), cause: RemovalCause) {
+    if cause == RemovalCause::Expired {
+        let (addr, id) = k.as_ref();
+        debug!("timeout:  id {id}  {addr} {domain}");
+        UNMATCHED.insert((k, instant), domain);
     }
 }
 
 fn manage_cache(k: Arc<String>, v: Vec<Ipv4Addr>, cause: RemovalCause) {
-    match cause {
-        RemovalCause::Expired => debug!("delete cache {k} -> {v:?}"),
-        _ => {}
+    if cause == RemovalCause::Expired {
+        debug!("delete cache {k} -> {v:?}")
     }
 }
 
