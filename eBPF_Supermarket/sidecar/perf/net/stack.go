@@ -489,6 +489,7 @@ func monitorLoopOutPod(heap *map[ConnectIdType]OutPodConnectionOverall, timeout 
 
 // GetKernelNetworkEvent is an entrance to monitor network events
 func GetKernelNetworkEvent(pidList []int, sidecarOpt SidecarOpt, podName string) {
+	fmt.Printf("[INFO] got pod IP: %s, host IP: %s\n", sidecarOpt.PodIp, sidecarOpt.NodeIp)
 	podIp := sidecarOpt.PodIp
 	ch := make(chan podnet.Event, 100000)
 	heartBeatInPod := make(chan bool)
