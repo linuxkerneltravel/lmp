@@ -55,8 +55,8 @@ struct dns_hdr {
   __u16 arcount;
 };
 
-static __u64 (*bpf_get_current_pid_tgid)() = (void *)
-    BPF_FUNC_get_current_pid_tgid;
+static __u64 (*bpf_tail_call)(void *ctx, struct bpf_elf_map *prog_array_map,
+                              __u32 index) = (void *)BPF_FUNC_tail_call;
 static __u64 (*bpf_get_current_uid_gid)() = (void *)
     BPF_FUNC_get_current_uid_gid;
 static void (*bpf_trace_printk)(const char *fmt, int fmt_size,

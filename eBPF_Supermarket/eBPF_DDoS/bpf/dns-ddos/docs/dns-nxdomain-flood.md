@@ -64,7 +64,7 @@ dig @localhost gateway.example.com +retry=0
 
 3. 配置错误阈值
 ```sh
-make fail-threshold value=3
+make fail-threshold value=3 # bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 0 value 3 0 0 0
 ```
 这意味着在60s内（默认），最多允许一个ip发出3次域名不存在的请求
 
@@ -89,18 +89,29 @@ make clean-test
 ```
 
 ### 使用说明
+运行相关的参数都使用bpf map的方式动态配置
 
-#### 配置刷新间隔
-例：将刷新间隔设置为100s
+|  key |  value |  说明  |
+| :------------: | :------------|:------------|
+| 0  |  连续域名错误阈值（每个源ip） | 超过阈值后，该ip发出的请求会被直接丢弃 |
+|  1 |  请求次数阈值（每个源ip） | 超过阈值后，该ip发出的请求会被直接丢弃 |
+|  2 |  ANY查询阈值（每个源ip） | 超过阈值后，该ip发出的请求会被直接丢弃 |
+|  3 |  ANY查询阈值（全局） | 超过阈值后，服务器将拒绝接收ANY查询 |
+| 4  |  域名错误阈值（全局） | 超过阈值后，将自动强制使用TCP |
+| 200  | 刷新间隔时间（s）  | 统计数据的刷新间隔，默认为60s |
+| 201  |  是否强制使用TCP | 0/未设置代表否，非0代表是 |
+
+
+#### 例：将刷新间隔设置为100s
 ```sh
-make interval value=100
+make interval value=100 # bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 200 value 100 0 0 0
 ```
 这意味着每过100s，会刷新所有ip的计数值
 
-#### 配置请求阈值
+#### 例：将请求阈值设置为200
 例：将请求阈值设置为200
 ```sh
-make count-threshold value=200
+make count-threshold value=200 # bpftool map update pinned /sys/fs/bpf/xdp/globals/configuration key 1 value 200 0 0 0
 ```
 这意味着在刷新间隔时间内，每个ip最多允许发出200次请求
 

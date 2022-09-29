@@ -19,6 +19,21 @@ struct bpf_elf_map __section("maps") counter = {
     .pinning = PIN_GLOBAL_NS,
 };
 
+struct bpf_elf_map __section("maps") ddos_programs = {
+    .type = BPF_MAP_TYPE_PROG_ARRAY,
+    .size_key = sizeof(__u32),
+    .size_value = sizeof(__u32),
+    .max_elem = 63,
+    .pinning = PIN_GLOBAL_NS,
+};
+
+static __u32 next_prog_idx = 0;
+
+static __always_inline int pass(void *ctx) {
+  bpf_tail_call(ctx, &ddos_programs, next_prog_idx);
+  return XDP_PASS;
+}
+
 __section("xdp") int catch_dns(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
@@ -27,7 +42,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     return XDP_DROP;
   }
   if (bpf_htons(eth->h_proto) != ETH_P_IP) {
-    return XDP_PASS;
+    return pass(ctx);
   }
 
   struct iphdr *iph = (struct iphdr *)(eth + 1);
@@ -62,7 +77,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
   }
 
   if (iph->protocol != IPPROTO_UDP) {
-    return XDP_PASS;
+    return pass(ctx);
   }
 
   struct udphdr *udph = (struct udphdr *)(iph + 1);
@@ -70,7 +85,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     return XDP_DROP;
   }
   if (udph->dest != bpf_htons(53)) {
-    return XDP_PASS;
+    return pass(ctx);
   }
 
   struct dns_hdr *dnsh = (struct dns_hdr *)(udph + 1);
@@ -81,7 +96,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
   __u16 flags = bpf_htons(dnsh->flags);
   if ((flags >> 15) != 0) {
     // not a request.
-    return XDP_PASS;
+    return pass(ctx);
   }
 
   __u8 enforce_tcp_key = 201;
@@ -197,7 +212,7 @@ __section("xdp") int catch_dns(struct xdp_md *ctx) {
     bpf_map_update_elem(&counter, &src_ip, &rec, BPF_ANY);
   }
 
-  return XDP_PASS;
+  return pass(ctx);
 }
 
 char ____license[] __section("license") = "GPL";

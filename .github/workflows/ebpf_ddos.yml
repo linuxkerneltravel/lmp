@@ -22,7 +22,7 @@ jobs:
 
     - name: test
       run: |
-        cd eBPF_Supermarket/eBPF_DDoS/dns-ddos
+        cd eBPF_Supermarket/eBPF_DDoS/bpf/dns-ddos
         make builder
         docker run -d -m 128m -v `pwd`/test/config:/etc/coredns --name dwq-coredns burkeazbill/docker-coredns -conf /etc/coredns/Corefile
         docker run --privileged -d --name dwq-ddos-test --network=container:dwq-coredns \

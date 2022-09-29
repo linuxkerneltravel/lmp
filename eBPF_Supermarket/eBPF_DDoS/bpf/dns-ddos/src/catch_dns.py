@@ -2,6 +2,7 @@ import sys
 from bcc import BPF
 from threading import Thread
 import time
+import os
 import logging
 import ctypes
 import constants
@@ -133,8 +134,7 @@ def clean_map(config, counter, metrics):
 b = BPF(src_file="catch_dns.c")
 sk_filter = b.load_func("catch_dns", BPF.SOCKET_FILTER)
 
-# TODO: make it configurable
-interface = "eth0"
+interface = os.getenv(constants.DDOS_INTERFACE,default="eth0")
 BPF.attach_raw_socket(sk_filter, interface)
 
 # start cleaner
