@@ -46,18 +46,16 @@ BPF_HASH(tx_q, u16, struct queue_data, MAX_QUEUE_NUM);
 BPF_HASH(rx_q, u16, struct queue_data, MAX_QUEUE_NUM);
 
 static inline int name_filter(struct sk_buff* skb){
-    // /* get device name from skb */
-    // union name_buf real_devname;
-    // struct net_device *dev;
+    /* get device name from skb */
+    union name_buf real_devname;
+    struct net_device *dev;
 
-    // // source/include/linux/netdevice.h#L172 struct net_device_stats
+    bpf_probe_read(&dev, sizeof(skb->dev), ((char *)skb+offsetof(struct sk_buff, dev)));
+    bpf_probe_read(&real_devname.name, IFNAMSIZ, dev->name);
 
-    // bpf_probe_read(&dev, sizeof(skb->dev), ((char *)skb+offsetof(struct sk_buff, dev)));
-    // bpf_probe_read(&real_devname, IFNAMSIZ, dev->name);
-
-    // if(name_input.name_int.hi != real_devname.name_int.hi || name_input.name_int.lo != real_devname.name_int.lo){
-    //     return 0;
-    // }
+    if(name_input.name_int.hi != real_devname.name_int.hi || name_input.name_int.lo != real_devname.name_int.lo){
+        return 0;
+    }
 
     return 1;
 }
@@ -134,6 +132,40 @@ func (e Event) Print() {
 	fmt.Println("╚======TCP connect end======╝")
 }
 
+
+func getEventFromData(dir string, table *bcc.Table, interval float32) Event {
+	var tBPS, tPPS, tAVG, tpkt, tlen float32 = 0, 0, 0, 0, 0
+	var data queueData
+
+	for iter := table.Iter(); iter.Next(); {
+		err := binary.Read(bytes.NewBuffer(iter.Leaf()), bcc.GetHostByteOrder(), &data)
+		if err != nil {
+			fmt.Printf("failed to decode received data: %s\n", err)
+			continue
+		}
+		tlen += float32(data.Total_pkt_len)
+		tpkt += float32(data.Num_pkt)
+	}
+
+	tBPS = tlen / interval
+	tPPS = tpkt / interval
+
+	if tpkt != 0 {
+		tAVG = tlen / tpkt
+	}
+
+	goEvent := Event{
+		Time: time.Now(),
+		Dir:  dir,
+		Avg:  tAVG,
+		BPS:  tBPS,
+		PPS:  tPPS,
+	}
+
+	return goEvent
+}
+
+
 func Probe(vethName string, ch chan<- Event) {
 
 	sourceBpf := source
@@ -155,46 +187,26 @@ func Probe(vethName string, ch chan<- Event) {
 	}
 
 	tableTX := bcc.NewTable(m.TableId("tx_q"), m)
+	tableRX := bcc.NewTable(m.TableId("rx_q"), m)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
 	var interval int = 1
-	var tBPS, tPPS, tAVG, tpkt, tlen float32
-	var data queueData
 
 	fmt.Println("NIC Throughput started!")
 	go func() {
 		for {
 			time.Sleep(time.Duration(interval) * time.Second)
-			tBPS, tPPS, tAVG, tpkt, tlen = 0, 0, 0, 0, 0
-			for iter := tableTX.Iter(); iter.Next(); {
-				// key := binary.LittleEndian.Uint16(iter.Key())
-				err := binary.Read(bytes.NewBuffer(iter.Leaf()), bcc.GetHostByteOrder(), &data)
-				if err != nil {
-					fmt.Printf("failed to decode received data: %s\n", err)
-					continue
-				}
-				tlen += float32(data.Total_pkt_len)
-				tpkt += float32(data.Num_pkt)
-			}
 
-			tBPS = tlen / float32(interval)
-			tPPS = tpkt / float32(interval)
+			txEvent := getEventFromData("TX", tableTX, float32(interval))
+			rxEvent := getEventFromData("RX", tableRX, float32(interval))
 
-			if tpkt != 0 {
-				tAVG = tlen / tpkt
-			}
+			ch <- txEvent
+			ch <- rxEvent
 
-			goEvent := Event{
-				Time: time.Now(),
-				Dir:  "TX",
-				Avg:  tAVG,
-				BPS:  tBPS,
-				PPS:  tPPS,
-			}
-			ch <- goEvent
 			tableTX.DeleteAll()
+			tableRX.DeleteAll()
 		}
 	}()
 
