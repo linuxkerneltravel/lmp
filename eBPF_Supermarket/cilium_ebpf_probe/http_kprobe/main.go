@@ -186,6 +186,7 @@ func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtim
 		Histogram_Push(podname, msgInfo.Time_ns, msgInfo.GoTime)
 		Gauge_Push(podname, resp.StatusCode, msgInfo.GoTime)
 	}
+	fmt.Println("resp:   ", resp)
 	body := resp.Body
 	b, _ := ioutil.ReadAll(body)
 	body.Close()

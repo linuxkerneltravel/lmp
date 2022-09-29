@@ -36,3 +36,13 @@ make rm
 ```
 
 It will stop all containers and delete it, but not the images.
+
+After deploying all visualization components, you can see the data collection status of all components in the targets page of Prometheus.
+
+![Prometheus Targets](../../doc/img/prometheus-targets.png)
+
+If all components work properly, you can [import data source](https://grafana.com/docs/grafana/latest/datasources/add-a-data-source/) and configure dashboards on the Grafana page. 
+
+As one of the visualization functions, this project also provides a dashboard to display system resource information, pod working status, and sidecar-related performance indicators. [The dashboard is saved as JSON](./sidecar-grafana-dashboard.json), and you can also import the dashboard into Grafana. The effect is as follows.
+
+![Dashboard](../../doc/img/sidecar-metrics-dashboard.png)
