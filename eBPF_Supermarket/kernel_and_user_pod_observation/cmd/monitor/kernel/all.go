@@ -12,6 +12,7 @@ import (
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/perf/kernel"
 )
 
 func NewMonitorAllCmd() *cobra.Command {
@@ -42,7 +43,7 @@ func MonitorKernelAll(cmd *cobra.Command, args []string) error {
 	var servicePid []int
 	var portList = []int{15006, 9080, 80, 8000}
 
-	go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, data.PodName, data.VEthName)
+	go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, data.PodName)
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -65,6 +66,7 @@ func MonitorKernelAll(cmd *cobra.Command, args []string) error {
 	}
 
 	go net.GetKernelNetworkEvent(pidList, so, data.PodName)
+	go kernel.GetNicThroughputMetric(data.VEthName)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)

@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/bpf/nic_throughput"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/tcpaccept"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/bpf/tcpconnect"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
@@ -116,18 +115,9 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 	sidecarTime := visualization.GetNewSummaryVec("sidecar_process_request_duration", "", map[string]string{}, processLabel)
 	sidecarToServiceTime := visualization.GetNewSummaryVec("sidecar_to_service_container_duration", "", map[string]string{}, processLabel)
 	longConnectionCount := visualization.GetNewCounterVec("long_connection_counter", "", map[string]string{}, processLabel)
-
-	nicLabel := []string{"dir"}
-	nic_AVG := visualization.GetNewGaugeVec("nic_AVG", "", map[string]string{}, nicLabel)
-	nic_BPS := visualization.GetNewGaugeVec("nic_BPS", "", map[string]string{}, nicLabel)
-	nic_PPS := visualization.GetNewGaugeVec("nic_PPS", "", map[string]string{}, nicLabel)
-
 	prometheus.MustRegister(sidecarTime)
 	prometheus.MustRegister(sidecarToServiceTime)
 	prometheus.MustRegister(longConnectionCount)
-	prometheus.MustRegister(nic_AVG)
-	prometheus.MustRegister(nic_BPS)
-	prometheus.MustRegister(nic_PPS)
 
 	sidecarAcceptAndConnectEventPairMap := make(map[SidecarAcceptAndSidecarConnectKey]SidecarAcceptAndSidecarConnectValue)
 	sidecarConnectAndServiceAcceptEventPairMap := make(map[SidecarConnectAndServiceAcceptKey]SidecarConnectAndServiceAcceptValue)
@@ -137,8 +127,6 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 	go tcpaccept.Probe(pidList, portList, protocolList, acceptChan)
 	connectChan := make(chan tcpconnect.Event, 10000)
 	go tcpconnect.Probe(pidList, portList, protocolList, connectChan)
-	nicChan := make(chan nic_throughput.Event, 10000)
-	go nic_throughput.Probe(vethName, nicChan)
 
 	for {
 		select {
@@ -221,14 +209,6 @@ func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, port
 			} else {
 				fmt.Println("You can not reach here. Ignoring connect event:", v2)
 			}
-		case v3 := <-nicChan:
-			// got NicThroughputEvent
-			fmt.Println("got NicThroughput Event:", v3)
-			// process event
-			updateMetric(nic_AVG, map[string]string{"dir": v3.Dir}, v3.Avg)
-			updateMetric(nic_BPS, map[string]string{"dir": v3.Dir}, v3.BPS)
-			updateMetric(nic_PPS, map[string]string{"dir": v3.Dir}, v3.PPS)
-			// fmt.Println("NicThroughputEvent done")
 		}
 	}
 }
