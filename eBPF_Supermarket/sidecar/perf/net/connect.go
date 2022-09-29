@@ -107,7 +107,7 @@ func updateCountMetric(vec *prometheus.CounterVec, labels map[string]string) {
 	}
 }
 
-func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, portList []int, podName string, vethName string) {
+func GetRequestOverSidecarEvent(sidecarPidList []int, servicePidList []int, portList []int, podName string) {
 	var pidList = append(sidecarPidList, servicePidList...)
 	var protocolList []string
 
