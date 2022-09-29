@@ -42,7 +42,7 @@ func MonitorKernelAll(cmd *cobra.Command, args []string) error {
 	var servicePid []int
 	var portList = []int{15006, 9080, 80, 8000}
 
-	go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, data.PodName)
+	go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, data.PodName, data.VEthName)
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))

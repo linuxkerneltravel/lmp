@@ -10,6 +10,7 @@ var (
 	Kubeconfig   string
 	ExporterPort string
 	JaegerAgent  string
+	VEthName	 string
 
 	// control words
 	ForceMinikube bool
