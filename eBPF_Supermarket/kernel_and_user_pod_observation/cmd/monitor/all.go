@@ -29,13 +29,13 @@ func addMonitorAllCommand(cmd *cobra.Command) {
 }
 
 func DoMonitorAll(cmd *cobra.Command, args []string) error {
-	//go func() {
-	//	err := kernel.MonitorKernelAll(cmd, args)
-	//	if err != nil {
-	//		fmt.Printf("[ERROR] in MonitorKernelAll: %s\n", err)
-	//		os.Exit(1)
-	//	}
-	//}()
+	go func() {
+		err := kernel.MonitorKernelAll(cmd, args)
+		if err != nil {
+			fmt.Printf("[ERROR] in MonitorKernelAll: %s\n", err)
+			os.Exit(1)
+		}
+	}()
 
 	go func() {
 		err := user.MonitorUserAll(cmd, args)
