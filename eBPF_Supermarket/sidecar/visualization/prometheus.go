@@ -42,6 +42,16 @@ func GetNewCounterVec(name string, help string, constLabels map[string]string, l
 		labelNames)
 }
 
+func GetNewGaugeVec(name string, help string, constLabels map[string]string, labelNames []string) *prometheus.GaugeVec {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        name,
+			Help:        help,
+			ConstLabels: constLabels,
+		},
+		labelNames)
+}
+
 func StratExporter() {
 	http.Handle("/metrics", promhttp.Handler())
 	fmt.Println("Exporter at: http://0.0.0.0:" + VisPort)
