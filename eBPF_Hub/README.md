@@ -2,10 +2,23 @@
 
 This folder contains projects for eBPF_hub.
 
-Tools are expected to follow a simple naming convention:
-  - <tool>.bpf.c contains BPF C code, which gets compiled into `package.json`
-  - <tool>.bpf.h can optionally contain types exported to userspace through pref event or ring buffer
-  - <tool>.h can optionally contain any types and constants, shared by both BPF and userspace sides of a tool.
+## index
+
+- [bindsnoop](bindsnoop) Trace bind syscalls.
+- [bootstrap](bootstrap) an example of a simple (but realistic) BPF application
+- [fentry-link](fentry-link) an example that uses fentry and fexit BPF programs for tracing
+- [kprobe-link](kprobe-link) an example of dealing with kernel-space entry and exit (return) probes
+- [mdflush](mdflush) Trace md flush events.
+- [lsm-connect](lsm-connect) BPF LSM program (on socket_connect hook) that prevents any connection towards 1.1.1.1 to happen
+- [minimal](minimal) a minimal example of a BPF application
+- [mountsnoop](mountsnoop) Trace mount syscalls.
+- [opensnoop](opensnoop) traces the open() syscall system-wide
+- [sigsnoop](sigsnoop) Trace signal syscalls.
+- [template](template) a template for new eunomia-bpf eBPF programs
+- [tcpconnlat](tcpconnlat) Trace TCP connects and show connection latency.
+- [statsnoop](statsnoop) Trace stat syscalls.
+
+> FIXME: auto generated index
 
 ## Pre-requisites for use eBPF_hub
 
@@ -58,10 +71,15 @@ The project can be a dir or a git submodule, with at lease the following files:
 - a `README,md`
 - a `config.json`
 
-If you use eunomia-bpf, the project will be build automaticly. The following files should exists:
+If you use eunomia-bpf, the project will be build automaticly. 
 
-- <tool>.bpf.c contains BPF C code, which gets compiled into `package.json`
-- <tool>.bpf.h can optionally contain types exported to userspace through pref event or ring buffer
+Tools are expected to follow a simple naming convention:
+
+  - <tool>.bpf.c contains BPF C code, which gets compiled into `package.json`
+  - <tool>.bpf.h can optionally contain types exported to userspace through pref event or ring buffer
+  - <tool>.h can optionally contain any types and constants, shared by both BPF and userspace sides of a tool.
+
+You can check the [template](template) project for more details.
 
 ## reference
 
@@ -69,3 +87,5 @@ Most codes come from:
 
 - libbpf-tools: https://github.com/iovisor/bcc/tree/master/libbpf-tools
 - libbpf-bootstrap: https://github.com/libbpf/libbpf-bootstrap/tree/master/examples/c
+- eunomia-bpf: https://github.com/eunomia-bpf
+- documentations: https://eunomia-bpf.github.io/

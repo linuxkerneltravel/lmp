@@ -1,5 +1,6 @@
 ## mountsnoop
 
+Trace mount syscalls.
 
 ## result
 
