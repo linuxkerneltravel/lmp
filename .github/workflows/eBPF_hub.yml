@@ -4,7 +4,19 @@ name: Deploy eBPF hub Pages
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: ["master", "main"]
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Hub/**'
+      - 'lib/**'
+      - '.github/workflows/eBPF_hub.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Hub/**'
+      - 'lib/**'
+      - '.github/workflows/eBPF_hub.yml'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
