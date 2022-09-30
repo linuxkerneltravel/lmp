@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/kernel"
 	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user"
 )
 

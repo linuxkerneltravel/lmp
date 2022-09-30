@@ -45,7 +45,7 @@ func addResetFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&data.ImageName, "imagename", "wyuei/http_server:v2.0", "The docker in Pod to be monitored with which image")
 	cmd.PersistentFlags().StringVar(&data.GrpcPodName, "grpcpod", "grpcserver", "The pod to be monitored for grpc")
 	cmd.PersistentFlags().StringVar(&data.GrpcImageName, "grpcimagename", "wyuei/grpc_server:latest", "The docker in Pod to be monitored with which image for grpc")
-	cmd.PersistentFlags().StringVar(&data.PrometheusIP, "prometheus", "10.10.103.122", "where the prometheus and push-gateway running on")
+	cmd.PersistentFlags().StringVar(&data.PrometheusIP, "prometheus", "10.10.103.122:9091", "where the prometheus and push-gateway running on")
 	cmd.PersistentFlags().StringVar(&data.NodeName, "nodename", "k8s-node2", "The node where the pods running on")
 }
 
