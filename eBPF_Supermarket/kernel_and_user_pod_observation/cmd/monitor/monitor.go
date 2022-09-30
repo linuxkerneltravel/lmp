@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
 
@@ -31,8 +32,12 @@ func addResetFlags(cmd *cobra.Command) {
 	// Define flags and configuration settings.
 	cmd.PersistentFlags().StringVar(&data.PodName, "pod", "", "The pod to be monitored")
 	cmd.PersistentFlags().StringVar(&data.NameSpace, "namespace", "default", "The namespace of pod to be monitored")
+
 	cmd.PersistentFlags().StringVar(&data.PodLabel, "pod-label", "", "The label of pod to be monitored")
 	cmd.PersistentFlags().StringVar(&data.Kubeconfig, "kubeconfig", "/etc/kubernetes/admin.conf", "The kubeconfig of k8s cluster")
+
+	cmd.PersistentFlags().StringVar(&data.Kubeconfig, "kubeconfig", "", "The kubeconfig of k8s cluster")
+	cmd.PersistentFlags().StringVar(&data.VEthName, "veth", "", "The VETH name of pod to be monitored")
 
 	cmd.PersistentFlags().StringVar(&data.ExporterPort, "exporter-port", "8765", "The exporter port of this monitor")
 	cmd.PersistentFlags().StringVar(&data.JaegerAgent, "jaeger-agent", "", "Jaeger agent endpoint")

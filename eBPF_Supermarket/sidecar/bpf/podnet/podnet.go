@@ -2,10 +2,9 @@ package podnet
 
 import (
 	"bytes"
-	"embed"
+	_ "embed"
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -22,8 +21,6 @@ import (
 import "C"
 
 //go:embed podnet.c
-var content embed.FS
-
 var source string
 
 const FUNCNAME_MAX_LEN = 64
@@ -219,14 +216,6 @@ func Probe(pidList []int, reverse bool, podIp string, ch chan<- Event) {
 		}
 	}
 
-	file, err := content.Open("podnet.c")
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-	sourceContent, _ := ioutil.ReadAll(file)
-
-	source = string(sourceContent[:])
 	sourceBpf := source
 	sourceBpf = strings.Replace(sourceBpf, "/*FILTER_PID*/", pidFg.Generate(), 1)
 

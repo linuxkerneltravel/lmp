@@ -11,6 +11,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
+
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 )
 

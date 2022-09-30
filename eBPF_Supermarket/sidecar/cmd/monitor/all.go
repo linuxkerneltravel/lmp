@@ -33,15 +33,15 @@ func NewMonitorAllCmd() *cobra.Command {
 			var sidecarPid []int
 			var servicePid []int
 			var portList = []int{15006, 9080, 80, 8000}
-
-			go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, podName)
-
 			for i := 0; i < len(sidecarProcesses); i++ {
 				sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
 			}
 			for i := 0; i < len(serviceProcesses); i++ {
 				servicePid = append(servicePid, int(serviceProcesses[i].Pid))
 			}
+
+			go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, podName)
+
 			var pidList []int
 			pidList = append(pidList, sidecarPid...)
 			pidList = append(pidList, servicePid...)

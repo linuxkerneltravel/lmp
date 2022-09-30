@@ -10,11 +10,14 @@ var (
 	Kubeconfig   string
 	ExporterPort string
 	JaegerAgent  string
+
 	ImageName    string
 
 	//for grpc
 	GrpcPodName   string
 	GrpcImageName string
+	VEthName	 string
+
 
 	// control words
 	ForceMinikube bool
