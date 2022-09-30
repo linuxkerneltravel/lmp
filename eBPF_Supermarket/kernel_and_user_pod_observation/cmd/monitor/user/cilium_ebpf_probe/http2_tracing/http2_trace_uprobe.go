@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/iovisor/gobpf/bcc"
-	"github.com/xuri/excelize/v2"
 	"os"
 	"os/signal"
 	"strconv"
@@ -14,8 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fatih/color"
+	"github.com/iovisor/gobpf/bcc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
+	"github.com/xuri/excelize/v2"
 )
 
 const headerFieldStrSize = 128
