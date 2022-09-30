@@ -3,24 +3,30 @@ package user
 import (
 	"context"
 	"fmt"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
-	"github.com/spf13/cobra
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/cluster_utils"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/http_kprobe"
+	"github.com/spf13/cobra"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user/cilium_ebpf_probe/cluster_utils"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user/cilium_ebpf_probe/http_kprobe"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
 )
 
 func NewMonitorUserHttpCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "http",
 		Short:   "Starts monitor for pod by HTTP probes.",
-		Long:    "",
+		Long:    "User HTTP",
 		Example: "kupod monitor user http --pod sidecar-demo",
-		RunE:    MonitorUserHTTP,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := MonitorUserHTTP(cmd, args); err != nil {
+				fmt.Printf("error http")
+				return err
+			}
+			return nil
+		},
 	}
 
 	return cmd
@@ -69,7 +75,8 @@ func MonitorUserHTTP(cmd *cobra.Command, args []string) error {
 		}
 	}
 	//waiting for datas
-	//select {}
+
+	select {}
 
 	return nil
 }

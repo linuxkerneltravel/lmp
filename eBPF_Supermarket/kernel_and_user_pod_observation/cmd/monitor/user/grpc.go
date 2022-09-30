@@ -3,15 +3,15 @@ package user
 import (
 	"context"
 	"fmt"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
-	"github.com/spf13/cobra
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/cluster_utils"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/cilium_ebpf_probe/http2_tracing"
+	"github.com/spf13/cobra"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user/cilium_ebpf_probe/cluster_utils"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user/cilium_ebpf_probe/http2_tracing"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
 )
 
 func NewMonitorUserGRPCCmd() *cobra.Command {
@@ -71,7 +71,7 @@ func MonitorUserGRPC(cmd *cobra.Command, args []string) error {
 	}
 
 	//waiting for datas
-	//select {}
+	select {}
 
 	return nil
 }

@@ -7,8 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/kernel"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user"
 )
 
 func NewMonitorAllCmd() *cobra.Command {
@@ -30,13 +29,13 @@ func addMonitorAllCommand(cmd *cobra.Command) {
 }
 
 func DoMonitorAll(cmd *cobra.Command, args []string) error {
-	go func() {
-		err := kernel.MonitorKernelAll(cmd, args)
-		if err != nil {
-			fmt.Printf("[ERROR] in MonitorKernelAll: %s\n", err)
-			os.Exit(1)
-		}
-	}()
+	//go func() {
+	//	err := kernel.MonitorKernelAll(cmd, args)
+	//	if err != nil {
+	//		fmt.Printf("[ERROR] in MonitorKernelAll: %s\n", err)
+	//		os.Exit(1)
+	//	}
+	//}()
 
 	go func() {
 		err := user.MonitorUserAll(cmd, args)

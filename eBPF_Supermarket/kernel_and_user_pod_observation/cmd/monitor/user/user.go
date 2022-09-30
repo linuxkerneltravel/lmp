@@ -11,8 +11,9 @@ func NewMonitorUserCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "user",
 		Short:   "Starts monitor for pod from user mode.",
-		Long:    "",
+		Long:    "For User Mode Monitor",
 		Example: "kupod monitor user all --pod sidecar-demo",
+
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("\"kupod monitor user\" requires 1 argument.\nSee 'kupod monitor user --help'.")
 			return nil
@@ -33,5 +34,5 @@ func addCommand(cmd *cobra.Command) {
 	cmd.AddCommand(NewMonitorUserAllCmd())
 	cmd.AddCommand(NewMonitorUserHttpCmd())
 	// 在这里添加更多你的子命令
-	cmd.AddCommand(NewMonitorUserGRPCCmd)
+	cmd.AddCommand(NewMonitorUserGRPCCmd())
 }
