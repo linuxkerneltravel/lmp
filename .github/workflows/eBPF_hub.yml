@@ -58,9 +58,12 @@ jobs:
           source: ./eBPF_Hub
           destination: ./_site
       - name: Setup Pages
+        if: ${{ inputs.push == 'true' && github.event_name != 'pull_request' }}
         uses: actions/configure-pages@v1
       - name: Upload artifact
+        if: ${{ inputs.push == 'true' && github.event_name != 'pull_request' }}
         uses: actions/upload-pages-artifact@v1
       - name: Deploy to GitHub Pages
         id: deployment
+        if: ${{ inputs.push == 'true' && github.event_name != 'pull_request' }}
         uses: actions/deploy-pages@main
