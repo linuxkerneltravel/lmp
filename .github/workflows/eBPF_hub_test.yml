@@ -1,11 +1,16 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy eBPF hub Pages
+name: Test eBPF hub Projects
 
 on:
-  # Runs on pushes targeting the develop branch
   push:
     branches:
-      - "develop"
+      - "*"
+    paths:
+      - 'eBPF_Hub/**'
+      - 'lib/**'
+      - '.github/workflows/eBPF_hub.yml'
+  pull_request:
+    branches:
+      - "*"
     paths:
       - 'eBPF_Hub/**'
       - 'lib/**'
@@ -14,23 +19,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-# Allow one concurrent deployment
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
 # In that case do the job 'make_and_deploy_doxygen'
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  ebpf-project-build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -50,10 +41,3 @@ jobs:
         with:
           source: ./eBPF_Hub
           destination: ./_site
-      - name: Setup Pages
-        uses: actions/configure-pages@v1
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@main
