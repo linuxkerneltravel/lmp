@@ -87,6 +87,19 @@ sudo go run .
 
 BCC_sar是使用BCC构建的模仿sar进行动态CPU指标监测的程序，其位置在BCC_sar/下。此基于BCC的构建是由之前基于go+cilium的实现转化而来的，用于解决一些go+cilium组合无法解决的问题。目前，此程序能捕获sar工具能捕获的大多数参数。
 
+使用方法:
+```sh
+定位到./CPU_Subsystem/BCC_sar/src/sar目录
+sudo python3 sar.py -h # 获取帮助信息
+sudo python3 sar.py -t time # 以时间形式打印各状态占用CPU时间
+sudo python3 sar.py -t percent # 以时间占用率形式打印各状态占用CPU时间
+sudo python3 sar.py -t percent -i 2 -c 100
+# 每隔2s打印一次，持续100次后终止程序
+sudo python3 sar.py -t percent -p 1234
+# 绑定到1234进程上，显示1234进程的各状态占用率信息
+```
+
+以下是sudo python3 sar.py -t time的部分输出：
 ```txt
   time   proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms
 15:40:52     18      616        2          86        3426     2274        1470      108        64
@@ -123,7 +136,23 @@ BCC_sar是使用BCC构建的模仿sar进行动态CPU指标监测的程序，其�
 
 由于实际场景的复杂性，因此有些参数实际上是综合使用多种方法实现的。
 
-#### 2.4 实用工具
+#### 2.4 调度监测程序(wakeup.py)
+思路：研究通用调度器调度过程，得到调度转换时机的发生点，包括进程上下文切换、睡眠和唤醒、等待与等待结束和进程退出。在此过程中，关注CPU、进程PID、调用栈等信息的记录。最后可用以下几种方法展示调度过程：
+
+* 单纯的进程调度事件记录
+* 单个进程的调度特征（数值）
+* 单个进程的生命周期图示
+* 在具体某个CPU核上进程的切换状况
+
+使用方法：
+```sh
+sudo python3 wakeup.py -h # 显示帮助信息
+sudo python3 -t time -p 1234 # 显示1234进程的调度特征，其数据包括运行时间占比、睡眠时间占比、等待时间占比、单次睡眠时间、单个时间片长度、每周期时间片长度等
+sudo python3 -t event -o event.txt # 记录进程切换的全量信息，并写入到文件event.txt中
+sudo python3 -t lifeline -p 1234 -o event.txt # 记录1234进程的生命周期事件
+```
+
+#### 2.5 实用工具
 
 tools/TracepointHelp.sh：用于查看tracepoint列表和特定tracepoint接收参数类型等。其优点是简化了tracepoint的查询过程。
 
