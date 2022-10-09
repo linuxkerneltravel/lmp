@@ -7,7 +7,7 @@ import (
 
 import (
 	_ "embed"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd"
 )
 
 //go:embed VERSION

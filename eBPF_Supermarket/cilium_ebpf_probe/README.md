@@ -192,20 +192,20 @@ HTTP2 from grpcserver [2](stream id:3)::method:POST,:scheme:http,:path:/greet.Gr
 
 ```go
 var histogramRegistered = prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "http_spend",
-			Help:    "A histogram of normally distributed http spend time(us).",
-			Buckets: prometheus.LinearBuckets(0, 800, 20), //start,width,count
-		},
-	)
+prometheus.HistogramOpts{
+Name:    "http_spend",
+Help:    "A histogram of normally distributed http spend time(us).",
+Buckets: prometheus.LinearBuckets(0, 800, 20), //start,width,count
+},
+)
 func Histogram_Push(podname string, spendtime int64, gotime int64) {
-	histogramRegistered.Observe(float64(spendtime / 1000 / 1000)) //ns/1000/1000
-	if err := push.New("http://10.10.103.122:9091", "HTTPSpend"). // push.New("pushgateway地址", "job名称")
-									Collector(histogramRegistered).      
-									Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
-									Push(); err != nil {
-		fmt.Println("Could not push completion time to Pushgateway:", err)
-	}
+histogramRegistered.Observe(float64(spendtime / 1000 / 1000)) //ns/1000/1000
+if err := push.New("http://10.10.103.122:9091", "HTTPSpend"). // push.New("pushgateway地址", "job名称")
+Collector(histogramRegistered).
+Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
+Push(); err != nil {
+fmt.Println("Could not push completion time to Pushgateway:", err)
+}
 }
 ```
 
@@ -219,18 +219,18 @@ func Histogram_Push(podname string, spendtime int64, gotime int64) {
 var statusMap map[int]prometheus.Gauge
 statusMap = make(map[int]prometheus.Gauge)
 statusMap[200] = prometheus.NewGauge(prometheus.GaugeOpts{
-  Name: "http_status_code_200",
-  Help: "Current status of the http protocol.",
+Name: "http_status_code_200",
+Help: "Current status of the http protocol.",
 })
 ...
 func Gauge_Push(podname string, statuscode int, gotime int64) {
-	statusMap[statuscode].Add(1)
-	if err := push.New("http://10.10.103.122:9091", "HTTPStatus"). // push.New("pushgateway地址", "job名称")
-									Collector(statusMap[statuscode]). 
-									Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("StatusCode", strconv.Itoa(statuscode)). 
-									Push(); err != nil {
-		fmt.Println("Could not push completion time to Pushgateway:", err)
-	}
+statusMap[statuscode].Add(1)
+if err := push.New("http://10.10.103.122:9091", "HTTPStatus"). // push.New("pushgateway地址", "job名称")
+Collector(statusMap[statuscode]).
+Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("StatusCode", strconv.Itoa(statuscode)).
+Push(); err != nil {
+fmt.Println("Could not push completion time to Pushgateway:", err)
+}
 }
 ```
 
@@ -366,6 +366,7 @@ Format Time series
 -------cilium_ebpf_probe                                                              
    |---- cluster_utils            cluster Helper函数     
    |---- Dockerfile               server端镜像Dockerfile文件
+   |---- cuprobe									uprobe for c example
    |---- grpc_client              grpc客户端              
    |---- grpc_server              grpc服务端              
    |---- http2_tracing            http2 uprobe部分       
@@ -391,6 +392,52 @@ Format Time series
 1. 目前本项目针对gRPC协议，只进行了HTTP2标头的追踪，而不是数据帧。对于跟踪数据帧，需要识别接受数据帧作为参数的其他Golang net/http2 库函数，并确定相关数据结构的内存布局。
 2. 目前本项目只针对golang启动的gRPC服务器完成报文头的uprobe点追踪。对于Java、C语言，由于用户态实现方式不同，需要进行重新寻找uprobe点、确定不同编程语言的函数传参方式等工作。
 3. 目前本项目只针对原生Kubernetes完成了Uprobe点、Kprobe点的添加，对于以Minikube、Kind等其他形式部署的集群，由于存在不同命名空间内Pid映射、文件挂载位置迁移等问题，有待继续完善开发。
+
+## Tips
+
+​	在cuprobe文件夹下，有一个简单的使用gobpf为C程序test添加uprobe、获取其中的函数`hello`第一个参数的example。
+
+1. 对其中的test.c，一个简单的C程序，使用`gcc test.c -o test`将C程序编译为可执行文件。
+
+```C
+#include "stdio.h"
+static int hello(int a,int b){
+  ...
+}
+int main(int argc,char *argv[])
+{
+		...
+    c=hello(a,b);
+  	...
+}
+```
+
+2. 使用`objdump -t test` 或者`nm test`命令，对可执行文件中的symbol进行验证，确认想要Attach Uprobe的`hello`函数symbol确实可以被搜寻到。
+
+```cmake
+0000000000000000 l    df *ABS*	0000000000000000              test.c
+0000000000401136 l     F .text	0000000000000014              hello
+0000000000000000 l    df *ABS*	0000000000000000              crtstuff.c
+000000000040217c l     O .eh_frame	0000000000000000              __FRAME_END__
+0000000000000000 l    df *ABS*	0000000000000000
+0000000000403e20 l       .init_array	0000000000000000              __init_array_end
+0000000000403e28 l     O .dynamic	0000000000000000              _DYNAMIC
+0000000000403e18 l       .init_array	0000000000000000              _
+```
+
+3. 运行trace uprobe程序，使用指令`go run trace.go --binary binaryProg`，其中`binaryProg`为当前可执行文件到绝对地址。并同时运行test文件。添加uprobe成功。
+
+```bash
+#ssh1
+[root@k8s-node2 cuprobe]# ./test
+first 1 second 2 result 3
+#ssh2
+[root@k8s-node2 cuprobe]# go run trace.go
+uprobe for C begin...
+Value = 1
+```
+
+​	为C语言grpc服务器添加uprobe诸如以上流程，欢迎感兴趣的同学加入开发。
 
 # 参考引用
 
