@@ -28,7 +28,7 @@ jobs:
       - name: Build BCC
         run: |
           sudo apt update
-          sudo apt remove libllvm12
+          sudo apt remove libllvm12 libllvm13
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
           git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
@@ -123,7 +123,7 @@ jobs:
       - name: Build BCC
         run: |
           sudo apt update
-          sudo apt remove libllvm12
+          sudo apt remove libllvm12 libllvm13
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
           git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
@@ -195,7 +195,7 @@ jobs:
       - name: Build BCC
         run: |
           sudo apt update
-          sudo apt remove libllvm12
+          sudo apt remove libllvm12 libllvm13
           sudo apt install -y bison build-essential cmake flex git libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
           git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git

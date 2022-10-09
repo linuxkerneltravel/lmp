@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor"
+	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor"
 )
 
 var rootCmd = &cobra.Command{
@@ -13,6 +13,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute(version string) error {
+
 	currentVersion = version
 	if err := rootCmd.Execute(); err != nil {
 		return err

@@ -11,11 +11,20 @@ var (
 	ExporterPort string
 	JaegerAgent  string
 
+	ImageName    string
+
+	//for grpc
+	GrpcPodName   string
+	GrpcImageName string
+	VEthName	 string
+
+
 	// control words
 	ForceMinikube bool
 	WithSockops   bool
 	SidecarMode   string
 
 	// intermediate variables
-	NodeName string
+	NodeName     string
+	PrometheusIP string
 )

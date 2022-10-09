@@ -16,8 +16,9 @@
 
 |            |                    | 一句话介绍                                     |
 | ---------- | ------------------ |-------------------------------------------|
-| eBPF 超级市场  | eBPF_Supermarket   | eBPF工具   |
-| eBPF 可视化观测 | eBPF_Visualization | 为 eBPF 程序管理而开发的 web 管理系统，聚焦eBPF数据可视化和内核可视化。 |
+| eBPF 超级市场  | eBPF_Supermarket   | eBPF 工具   |
+| eBPF Hub | eBPF_Hub   | 规范化的 eBPF 程序库，可以随时下载运行   |
+| eBPF 可视化观测 | eBPF_Visualization | 为 eBPF 程序管理而开发的 web 管理系统，聚焦 eBPF 数据可视化和内核可视化。 |
 | eBPF 学习资料  | eBPF_Documentation | 社区收集、梳理和原创的 eBPF 相关资料和文档                  |
 
 ### eBPF_Supermarket：eBPF超级市场

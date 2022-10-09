@@ -58,6 +58,7 @@ var (
 	podname             string
 	count               int
 	prome               bool
+	prometheusIP        string
 	histogramRegistered = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "http_spend",
@@ -82,7 +83,7 @@ type RequestMap struct {
 
 func Histogram_Push(podname string, spendtime int64, gotime int64) {
 	histogramRegistered.Observe(float64(spendtime / 1000 / 1000))
-	if err := push.New("http://10.10.103.122:9091", "HTTPSpend"). // push.New("pushgateway地址", "job名称")
+	if err := push.New("http://"+prometheusIP, "HTTPSpend"). // push.New("pushgateway地址", "job名称")
 									Collector(histogramRegistered).                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
 									Grouping("podname", podname).Grouping("instance", "spendtime"). // 给指标添加标签，可以添加多个
 									Push(); err != nil {
@@ -93,7 +94,7 @@ func Histogram_Push(podname string, spendtime int64, gotime int64) {
 
 func Gauge_Push(podname string, statuscode int, gotime int64) {
 	statusMap[statuscode].Add(1)
-	if err := push.New("http://10.10.103.122:9091", "HTTPStatus"). // push.New("pushgateway地址", "job名称")
+	if err := push.New("http://"+prometheusIP, "HTTPStatus"). // push.New("pushgateway地址", "job名称")
 									Collector(statusMap[statuscode]).                                                                                 //gotime.Format("2006-01-02 15:04:05")                                                                                                  // Collector(completionTime) 给指标赋值
 									Grouping("podname", podname).Grouping("instance", "statuscode").Grouping("StatusCode", strconv.Itoa(statuscode)). // 给指标添加标签，可以添加多个
 									Push(); err != nil {
@@ -186,6 +187,7 @@ func parseAndPrintMessage(msgInfo *MessageInfo, requestMap *RequestMap, spendtim
 		Histogram_Push(podname, msgInfo.Time_ns, msgInfo.GoTime)
 		Gauge_Push(podname, resp.StatusCode, msgInfo.GoTime)
 	}
+	fmt.Println("resp:   ", resp)
 	body := resp.Body
 	b, _ := ioutil.ReadAll(body)
 	body.Close()
@@ -246,9 +248,10 @@ func PrintStatisticsNumber(requestMap *RequestMap, spendtimeMap *SpendTimeMap) {
 	}
 }
 
-func GetHttpViaKprobe(tracePID int, p string) {
+func GetHttpViaKprobe(tracePID int, p string, exporterip string) {
 	flag.Parse()
 	podname = p
+	prometheusIP = exporterip
 	count = 0
 	prome = true
 	exceli = 1
