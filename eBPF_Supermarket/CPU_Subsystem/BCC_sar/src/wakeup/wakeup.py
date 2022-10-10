@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 
 from __future__ import print_function
-from cmath import pi
 from os import getpid
 from time import sleep, time
 from bcc import BPF, PerfType, PerfSWConfig
 import bpfutil, ctypes, argparse
+import json
+import sys
+import os
 
 from wakeup_utils import get_sleep_func, deltaTimeMgr, MetricsAverager
 
@@ -238,10 +240,15 @@ if __name__ == "__main__":
             if pid not in pidEvent:
                 pidEvent[pid] = []
 
-            pid_str = "#{} pid:{} {} type:{} waker:{} {} time:{}\n{}\n\n" \
-                .format(cnt, pid, comm, typeNameMap[event.type], 
-                event.waker, waker_comm, int(event.time / 1000), 
-                stack_str)
+            # if typeNameMap[event.type] not in ["End_Sleep", "End_Run", "End_Wait"]:
+            try:
+                pid_str = "#%d pid:%d %s type:%s waker:%d %s time:%dus\n%s\n\n" \
+                    % (cnt, pid, comm, typeNameMap[event.type], 
+                    event.waker, waker_comm, int(event.time / 1000), 
+                    stack_str)
+            except Exception as e:
+                print(e)
+                os._exit(0)
 
             # 如果配置了pid项，那么只打印与该pid有关的事件
             if args.pid != 0:
@@ -383,6 +390,44 @@ if __name__ == "__main__":
             if time() - start > args.time:
                 break
 
+    elif args.type == "json":
+        f = open("/home/zrp/node_exporter/python_exporter/metrics.json", "w")
+        waker_comm = ""
+        jsonMap = []
+
+        def flame_record(cpu, data, size):
+            global waker_comm
+            # 成员：pid, comm, type, stackid, waker, waker_comm, time
+            event = bpf["events"].event(data)
+            if event.pid != args.pid: return
+
+            nowtime = time() + event.time / 1000000000
+
+            if event.type == BEGIN_RUN:
+                jsonMap.append({"time": nowtime, "state": "run", "pid": args.pid})
+
+            elif event.type == BEGIN_SLEEP:
+                wchan = get_sleep_func(bpf, event.stackid)
+                jsonMap.append({"time": nowtime, "state": "sleep-%s" % (wchan,), "pid": args.pid})
+
+            elif event.type == BEGIN_WAIT:
+                jsonMap.append({"time": nowtime, "state": "wait-%s" % (waker_comm,), "pid": args.pid})
+
+            elif event.type == END_SLEEP:
+                waker_comm = event.waker_comm.decode('utf-8')
+
+        bpf["events"].open_perf_buffer(flame_record, page_cnt=128)
+        start = time()
+        while 1:
+            bpf.perf_buffer_poll()
+            sleep(1)
+            if time() - start > args.time:
+                break
+
+        json_str = json.dumps(jsonMap)
+        f.write(json_str)
+        f.close()
+    
     '''
     # perf缓冲区的用法(previous)
     def print_event(cpu, data, size):

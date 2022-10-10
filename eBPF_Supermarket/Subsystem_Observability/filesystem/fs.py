@@ -49,13 +49,13 @@ if args.open:
 
 if args.read:
     print("Tracing read syscall...")
-    os.chmod("./tools/read.py", stat.S_IXUSR)
-    os.system("./tools/read.py")
+    os.chmod("./tools/rw.py", stat.S_IXUSR)
+    os.system("./tools/rw.py")
     
 if args.write:
     print("Tracing write syscall...")
-    os.chmod("./tools/write.py", stat.S_IXUSR)
-    os.system("./tools/write.py")
+    os.chmod("./tools/rw.py", stat.S_IXUSR)
+    os.system("./tools/rw.py")
     
 # if args.create:
 #     print("Tracing create syscall...")
