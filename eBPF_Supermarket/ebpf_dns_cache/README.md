@@ -1,5 +1,3 @@
-# README
-
 # 基于eBPF的DNS Cache实现
 
 # 背景
@@ -40,7 +38,8 @@ docker run --privileged=true --net=host -v /path/to/config.toml:/config.toml ebp
 
 ```bash
 # 使用 Ubuntu 系统
-apt-get -y install clang-14 libelf-dev zlib1g-dev make libbpf-dev git pkg-configcurl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+apt-get -y install clang-14 libelf-dev zlib1g-dev make libbpf-dev git pkg-config
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 git clone https://github.com/linuxkerneltravel/lmp.git
 cd lmp/eBPF_Supermarket/ebpf_dns_cache
 cargo build --release
@@ -64,13 +63,13 @@ docker run -d --net host --name grafana grafana/grafana-enterprise:8.2.0
 
 `/info` API 主要用来呈现 `cache` `matching` `matched` `unmatched` 这四章表的内容
 
-![截图 2022-10-13 23-08-51.png](images/%25E6%2588%25AA%25E5%259B%25BE_2022-10-13_23-08-51.png)
+![截图 2022-10-13 23-08-51.png](images/2022-10-13_23-08-51.png)
 
-![截图 2022-10-13 23-07-39.png](images/%25E6%2588%25AA%25E5%259B%25BE_2022-10-13_23-07-39.png)
+![截图 2022-10-13 23-07-39.png](images/2022-10-13_23-07-39.png)
 
-![截图 2022-10-13 23-07-29.png](images/%25E6%2588%25AA%25E5%259B%25BE_2022-10-13_23-07-29.png)
+![截图 2022-10-13 23-07-29.png](images/2022-10-13_23-07-29.png)
 
-![截图 2022-10-13 23-07-23.png](images/%25E6%2588%25AA%25E5%259B%25BE_2022-10-13_23-07-23.png)
+![截图 2022-10-13 23-07-23.png](images/2022-10-13_23-07-23.png)
 
 # 性能对比
 
