@@ -22,6 +22,7 @@ pub struct Global {
     pub log: String,
     pub worker: usize,
     pub loss: f64,
+    pub api_listen_at: String,
     #[serde(with = "humantime_serde")]
     pub report_interval: Duration,
 }
