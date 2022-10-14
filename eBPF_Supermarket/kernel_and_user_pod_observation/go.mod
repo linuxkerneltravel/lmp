@@ -1,4 +1,4 @@
-module lmp/eBPF_Supermarket/kernel_and_user_pod_observation
+module github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation
 
 go 1.18
 
@@ -6,8 +6,7 @@ require (
 	github.com/docker/docker v20.10.18+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/iovisor/gobpf v0.2.0
-	github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation v0.0.0-20220929123842-c65fce976bef
-	github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar v0.0.0-20220929123842-c65fce976bef
+	github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar v0.0.0-20220930025803-b7349a833321
 	github.com/prometheus/client_golang v1.13.0
 	github.com/shirou/gopsutil/v3 v3.22.8
 	github.com/spf13/cobra v1.5.0
