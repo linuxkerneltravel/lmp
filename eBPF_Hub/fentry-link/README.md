@@ -2,7 +2,7 @@
 layout: post
 title: fentry-link
 date: 2022-10-10 16:18
-category: bpftools
+category: examples
 author: yunwei37
 tags: [bpftools, examples, fentry, no-output]
 summary: an example that uses fentry and fexit BPF programs for tracing a file is deleted

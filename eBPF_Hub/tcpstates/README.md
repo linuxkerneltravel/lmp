@@ -4,7 +4,7 @@ title: tcpstates
 date: 2022-10-10 16:18
 category: bpftools
 author: yunwei37
-tags: [bpftools, syscall]
+tags: [bpftools, syscall, network]
 summary: Tcpstates prints TCP state change information, including the duration in each state as milliseconds
 ---
 
