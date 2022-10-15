@@ -1,3 +1,13 @@
+---
+layout: post
+title: fentry-link
+date: 2022-10-10 16:18
+category: examples
+author: yunwei37
+tags: [bpftools, examples, fentry, no-output]
+summary: an example that uses fentry and fexit BPF programs for tracing a file is deleted
+---
+
 ## Fentry
 
 `fentry` is an example that uses fentry and fexit BPF programs for tracing. It
@@ -35,16 +45,16 @@ $ sudo cat /sys/kernel/debug/tracing/trace_pipe
 
 ## Run
 
-(just replace the path as yours)
+ 
 
 Compile:
 
 ```console
-docker run -it -v /path/to/fentry-link:/src yunwei37/ebpm
+docker run -it -v `pwd`/:/src/ yunwei37/ebpm:latest
 ```
 
 Run:
 
 ```console
-sudo ./ecli run fentry-link
+sudo ecli/build/bin/Release/ecli run examples/bpftools/fentry-link/package.json
 ```

@@ -1,4 +1,13 @@
-## Minimal
+---
+layout: post
+title: minimal
+date: 2022-10-10 16:18
+category: examples
+author: yunwei37
+tags: [bpftools, tracepoint, example, syscall]
+summary: a minimal example of a BPF application installs a tracepoint handler which is triggered by write syscall
+---
+
 
 `minimal` is just that – a minimal practical BPF application example. It
 doesn't use or require BPF CO-RE, so should run on quite old kernels. It
@@ -15,18 +24,18 @@ $ sudo cat /sys/kernel/debug/tracing/trace_pipe
 `minimal` is great as a bare-bones experimental playground to quickly try out
 new ideas or BPF features.
 
-## Run
+## Compile and Run
 
-(just replace the path as yours)
+ 
 
 Compile:
 
 ```console
-docker run -it -v /path/to/minimal:/src yunwei37/ebpm
+docker run -it -v `pwd`/:/src/ yunwei37/ebpm:latest
 ```
 
 Run:
 
 ```console
-sudo ./ecli run minimal
+sudo ecli ./package.json
 ```
