@@ -1,4 +1,13 @@
-## Bootstrap
+---
+layout: post
+title: bootstrap
+date: 2022-10-10 16:18
+category: bpftools
+author: yunwei37
+tags: [bpftools, examples, tracepoint, ringbuf]
+summary: an example of a simple (but realistic) BPF application tracks process starts (`exec()` family of syscalls, to be precise) and exits
+---
+
 
 `bootstrap` is an example of a simple (but realistic) BPF application. It
 tracks process starts (`exec()` family of syscalls, to be precise) and exits
@@ -8,7 +17,7 @@ minimum duration of the process to log. In such mode process start
 (technically, `exec()`) events are not output (see example output below).
 
 `bootstrap` was created in the similar spirit as
-[libbpf-tools](https://github.com/iovisor/bcc/tree/master/libbpf-tools) from
+[libbpf-tools: bootstrap](https://github.com/libbpf/libbpf-bootstrap/blob/master/examples/c/bootstrap.bpf.c) from
 BCC package, but is designed to be more stand-alone and with simpler Makefile
 to simplify adoption to user's particular needs. It demonstrates the use of
 typical BPF features:
@@ -44,19 +53,24 @@ running and waiting for the ebpf events...
 ...
 ```
 
+## System requirements:
+
+- Linux kernel > 5.5
+- Eunomia's [ecli](https://github.com/eunomia-bpf/eunomia-bpf/tree/master/ecli) installed
+
+
 
 ## Run
-
-(just replace the path as yours)
 
 Compile:
 
 ```shell
-docker run -it -v /path/to/bootstrap:/src yunwei37/ebpm
+git clone https://github.com/eunomia-bpf/eunomia-bpf.git
+docker run -it -v `pwd`/:/src/ yunwei37/ebpm:latest
 ```
 
 Run:
 
 ```shell
-sudo ./ecli run bootstrap
+sudo ./ecli run eunomia-bpf/examples/bpftools/bootstrap/package.json
 ```

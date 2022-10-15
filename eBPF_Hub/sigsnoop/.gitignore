@@ -1,2 +1,6 @@
 .vscode
 package.json
+*.wasm
+ewasm-skel.h
+ecli
+ewasm
