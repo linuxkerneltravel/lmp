@@ -274,15 +274,16 @@ int trace_sched_switch(struct cswch_args *ctx) {
     begin_run(ctx->next_pid, ctx->next_comm, ctx);
     end_run(ctx->prev_pid, ctx->prev_comm, ctx);
 
-    if ( (ts->state & TASK_INTERRUPTIBLE) || (ts->state & TASK_UNINTERRUPTIBLE) ) {
+    // state 在新版的linux内核中被改成了_state
+    if ( (ts->__state & TASK_INTERRUPTIBLE) || (ts->__state & TASK_UNINTERRUPTIBLE) ) {
         // 进入睡眠状态
-        sr.state = ts->state;
+        sr.state = ts->__state;
         sr.in_sleep = 1;
         sr.start = time;
         sleepBegin.update(&prev, &sr);
 
         begin_sleep((struct pt_regs *)ctx);
-    } else if (ts->state == TASK_RUNNING) {
+    } else if (ts->__state == TASK_RUNNING) {
         // 开始等待
         waitBegin.update(&prev, &time);
         begin_wait(ctx->prev_pid, ctx->prev_comm, ctx);
@@ -400,7 +401,7 @@ int tick_update() {
 int kprobe_try_to_wake_up(struct pt_regs *ctx) {
     struct task_struct *p = PT_REGS_PARM1(ctx);
     struct task_struct *curr = bpf_get_current_task();
-    bpf_trace_printk("try_to_wake_up %d, which state = %x", p->pid, p->state);
+    bpf_trace_printk("try_to_wake_up %d, which state = %x", p->pid, p->__state);
 
     return 0;
 }

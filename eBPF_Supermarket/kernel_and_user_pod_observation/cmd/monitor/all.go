@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/kernel"
-	"lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/kernel"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/cmd/monitor/user"
 )
 
 func NewMonitorAllCmd() *cobra.Command {

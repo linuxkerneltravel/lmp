@@ -1,4 +1,13 @@
-## Kprobe
+---
+layout: post
+title: kprobe-link
+date: 2022-10-10 16:18
+category: examples
+author: yunwei37
+tags: [bpftools, examples, kprobe, no-output]
+summary: an example of dealing with kernel-space entry and exit (return) probes, `kprobe` and `kretprobe` in libbpf lingo
+---
+
 
 `kprobe` is an example of dealing with kernel-space entry and exit (return)
 probes, `kprobe` and `kretprobe` in libbpf lingo. It attaches `kprobe` and
@@ -26,16 +35,16 @@ $ sudo cat /sys/kernel/debug/tracing/trace_pipe
 
 ## Run
 
-(just replace the path as yours)
+ 
 
 Compile:
 
 ```console
-docker run -it -v /path/to/kprobe-link:/src yunwei37/ebpm
+docker run -it -v `pwd`/:/src/ yunwei37/ebpm:latest
 ```
 
 Run:
 
 ```console
-sudo ./ecli run kprobe-link
+sudo ecli/build/bin/Release/ecli run examples/bpftools/kprobe-link/package.json
 ```

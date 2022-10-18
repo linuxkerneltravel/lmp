@@ -30,12 +30,12 @@ pub(crate) use skip_err;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Addr {
-    smac: [u8; 6],
-    dmac: [u8; 6],
-    saddr: Ipv4Addr,
-    daddr: Ipv4Addr,
-    sport: u16,
-    dport: u16,
+    pub smac: [u8; 6],
+    pub dmac: [u8; 6],
+    pub saddr: Ipv4Addr,
+    pub daddr: Ipv4Addr,
+    pub sport: u16,
+    pub dport: u16,
 }
 
 impl Display for Addr {
