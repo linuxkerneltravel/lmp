@@ -6,13 +6,13 @@ on:
       - "*"
     paths:
       - 'eBPF_Supermarket/cilium_ebpf_probe/**'
-      - '.github/workflows/monitor_pod.yml'
+      - '.github/workflows/monitor_pod_user.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/cilium_ebpf_probe/**'
-      - '.github/workflows/monitor_pod.yml'
+      - '.github/workflows/monitor_pod_user.yml'
 
 jobs:
    build:
@@ -47,6 +47,7 @@ jobs:
         
     - name: build BCC
       run: |
+          sudo apt remove libllvm12 libllvm13
           sudo apt install -y bison build-essential cmake flex git libclang-12-dev libedit-dev \
           libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
           git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
