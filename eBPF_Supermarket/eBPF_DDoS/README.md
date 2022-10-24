@@ -57,7 +57,7 @@ Use "lmpddos [command] --help" for more information about a command.
 ### 添加新插件
 DDoS攻击有很多种，用户可以开发自己的DDoS防御工具，以插件的形式集成到lmpddos中：
 
-![](https://files.catbox.moe/n4mn98.jpg)
+![](./bpf/dns-ddos/docs/images/ddos-plugin.jpg)
 
 1. 将新插件的eBPF程序（内核态+用户态）添加到`bpf/xxx`目录下
 

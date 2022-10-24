@@ -4,7 +4,7 @@
 简单来说，DNS放大攻击是攻击者向DNS服务器发送大量请求，这些请求会尽可能多地查询区域信息，使响应的大小“膨胀”数倍。这样，攻击者就能够以少量的请求流量导致巨大的响应流量，淹没正常的通信链路。
 > 所有放大攻击都利用攻击者和目标 Web 资源之间的带宽消耗差异。当消耗差异经过多次请求而被放大时，所产生的流量可导致网络基础设施中断。通过发送小型请求来导致大规模响应，恶意用户就能达到四两拨千斤的效果。当通过某个僵尸网络中的每个自动程序都发出类似请求来使这种放大效果倍增时，攻击者既能躲避检测，又能收获攻击流量大增的好处。
 
-![ddos](https://cf-assets.www.cloudflare.com/slt3lc6tev37/2JmKP07Mi6jYbACILN84VI/9a91d91ecc1f414aa89ae001dbfce393/Learning_Center_DDoS_Diagrams_clean.png)
+![ddos](./images/amplification-attack.png)
 
 ### 检测DNS放大攻击
 在DNS放大攻击中，攻击者为了尽可能地“放大”响应，通常会将查询类型设置为ANY
@@ -15,15 +15,15 @@
 #### DNS查询类型
 DNS报文的格式如下：
 
-![format](https://s1.ax1x.com/2022/07/28/v9ZRrn.png)
+![format](./images/dns-packet.png)
 
 查询的类型在Question中，Question的结构如下：
 
-![question](https://s1.ax1x.com/2022/07/28/v9ZOq1.png)
+![question](./images/dns-query.png)
 
 其中QTYPE即代表此次查询的类型，表示此次响应的状态：
 
-![qtype](https://s1.ax1x.com/2022/07/28/v9ZxIK.png)
+![qtype](./images/dns-qtype.png)
 
 对于ANY类型的查询，QTYPE值为255
 
