@@ -43,7 +43,6 @@ func addResetFlags(cmd *cobra.Command) {
 
 	cmd.PersistentFlags().BoolVar(&data.ForceMinikube, "force-minikube", false, "Ignore Minikube checks and force Minikube mode")
 	cmd.PersistentFlags().BoolVar(&data.WithSockops, "with-sockops", false, "Start monitor with sockops optimization")
-	cmd.PersistentFlags().StringVar(&data.SidecarMode, "sidecar-mode", "blur", "Specify the kind of sidecar: envoy, demo, or blur for now")
 
 	//for user mode
 	cmd.PersistentFlags().StringVar(&data.ImageName, "imagename", "wyuei/http_server:v2.0", "The docker in Pod to be monitored with which image")
