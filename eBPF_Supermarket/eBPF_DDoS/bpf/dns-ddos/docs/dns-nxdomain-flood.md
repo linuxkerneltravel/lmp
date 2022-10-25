@@ -10,11 +10,11 @@ DNS NXDOMAIN Flood的特点是出现大量域名不存在的请求，所以在�
 #### DNS报文格式
 DNS报文的格式如下：
 
-![format](https://s1.ax1x.com/2022/07/28/v9ZRrn.png)
+![format](./images/dns-packet.png)
 
 其中“域名不存在”的错误信息在header中，DNS header的结构如下：
 
-![rcode](https://s1.ax1x.com/2022/07/28/v9Z4aV.png)
+![rcode](./images/dns-header.png)
 
 其中的RCODE（Response code）是检测的关键，它只在响应中设置，表示此次响应的状态，其值对应的含义如下：
 - 0 请求成功
