@@ -242,4 +242,4 @@ jobs:
           env
           docker ps -a
           ps axjf
-          sudo -E timeout 300 ./kupod monitor kernel all --pod 'kernel_and_user_pod_observation-demo' --namespace default || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
+          sudo -E timeout 300 ./kupod monitor kernel all --pod 'sidecar-demo' --namespace default || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi

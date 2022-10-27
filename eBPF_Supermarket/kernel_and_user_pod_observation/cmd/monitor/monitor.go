@@ -34,7 +34,7 @@ func addResetFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&data.NameSpace, "namespace", "default", "The namespace of pod to be monitored")
 
 	cmd.PersistentFlags().StringVar(&data.PodLabel, "pod-label", "", "The label of pod to be monitored")
-	cmd.PersistentFlags().StringVar(&data.Kubeconfig, "kubeconfig", "/etc/kubernetes/admin.conf", "The kubeconfig of k8s cluster")
+	cmd.PersistentFlags().StringVar(&data.Kubeconfig, "kubeconfig", "", "The kubeconfig of k8s cluster")
 
 	cmd.PersistentFlags().StringVar(&data.VEthName, "veth", "", "The VETH name of pod to be monitored")
 

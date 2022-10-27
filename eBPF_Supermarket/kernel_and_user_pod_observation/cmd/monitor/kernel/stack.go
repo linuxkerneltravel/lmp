@@ -8,10 +8,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/perf/net"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/perf/kernel"
 )
 
 func NewMonitorStackCmd() *cobra.Command {
@@ -52,9 +52,9 @@ func MonitorKernelStack(cmd *cobra.Command, args []string) error {
 	pidList = append(pidList, sidecarPid...)
 	pidList = append(pidList, servicePid...)
 
-	targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), data.PodName, data.NameSpace)
+	targetPod, err := tools.LocateTargetPod(data.Kubeconfig, data.PodName, data.NameSpace)
 
-	so := net.SidecarOpt{
+	so := kernel.SidecarOpt{
 		SidecarPort: 8000,
 		ServicePort: 80,
 		LocalIP:     "127.0.0.1", // for Envoy, 127.0.0.6
@@ -62,7 +62,7 @@ func MonitorKernelStack(cmd *cobra.Command, args []string) error {
 		NodeIp:      targetPod.Status.HostIP,
 	}
 
-	go net.GetKernelNetworkEvent(pidList, so, data.PodName)
+	go kernel.GetKernelNetworkEvent(pidList, so, data.PodName)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
