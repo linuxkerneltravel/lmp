@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/perf/net"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
@@ -43,7 +42,7 @@ func MonitorKernelAll(cmd *cobra.Command, args []string) error {
 	var servicePid []int
 	var portList = []int{15006, 9080, 80, 8000}
 
-	go net.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, data.PodName)
+	go kernel.GetRequestOverSidecarEvent(sidecarPid, servicePid, portList, data.PodName)
 
 	for i := 0; i < len(sidecarProcesses); i++ {
 		sidecarPid = append(sidecarPid, int(sidecarProcesses[i].Pid))
@@ -57,7 +56,7 @@ func MonitorKernelAll(cmd *cobra.Command, args []string) error {
 
 	targetPod, err := tools.LocateTargetPod(tools.GetDefaultKubeConfig(), data.PodName, data.NameSpace)
 
-	so := net.SidecarOpt{
+	so := kernel.SidecarOpt{
 		SidecarPort: 8000,
 		ServicePort: 80,
 		LocalIP:     "127.0.0.1", // for Envoy, 127.0.0.6
@@ -65,8 +64,10 @@ func MonitorKernelAll(cmd *cobra.Command, args []string) error {
 		NodeIp:      targetPod.Status.HostIP,
 	}
 
-	go net.GetKernelNetworkEvent(pidList, so, data.PodName)
-	go kernel.GetNicThroughputMetric(data.VEthName)
+	go kernel.GetKernelNetworkEvent(pidList, so, data.PodName)
+	if data.VEthName != "" {
+		go kernel.GetNicThroughputMetric(data.VEthName)
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
