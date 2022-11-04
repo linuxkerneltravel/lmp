@@ -162,6 +162,7 @@ __always_inline static void begin_sleep(struct pt_regs *ctx) {
     data.pid = pid;
     data.type = BEGIN_SLEEP;
     data.waker = 0;
+    // u64 bpf_ktime_get_ns(void) Description Return the time elapsed since system boot, in nanoseconds.
     data.time = bpf_ktime_get_ns();
     data.preempt_count = 0;
 

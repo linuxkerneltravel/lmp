@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from __future__ import print_function
+import datetime
 from os import getpid
 from time import sleep, time
 from bcc import BPF, PerfType, PerfSWConfig
@@ -8,6 +9,7 @@ import bpfutil, ctypes, argparse
 import json
 import sys
 import os
+import psutil
 
 from wakeup_utils import get_sleep_func, deltaTimeMgr, MetricsAverager
 
@@ -393,27 +395,33 @@ if __name__ == "__main__":
     # 生成进程的状态切换JSON文件，写入到python_exporter目录下
     elif args.type == "json":
         print("Monitoring process pid = %d" % args.pid)
-        f = open("/home/zrp/node_exporter/python_exporter/metrics.json", "w")
+        f = open("../../exporter/metrics.json", "w") # 写死的输出路径，之后可以改
         waker_comm = ""
         jsonMap = []
+        boot_time = psutil.boot_time()  # 系统启动时间戳
+        curState = "run"
 
         def flame_record(cpu, data, size):
-            global waker_comm
+            global waker_comm, curState
             # 成员：pid, comm, type, stackid, waker, waker_comm, time
             event = bpf["events"].event(data)
             if event.pid != args.pid: return
+            # event.time是相对于系统启动时间的时间戳
 
-            nowtime = time() + event.time / 1000000000
+            nowtime = boot_time + event.time / 1000000000
 
             if event.type == BEGIN_RUN:
-                jsonMap.append({"time": nowtime, "state": "run", "pid": args.pid})
+                curState = "run"
+                jsonMap.append({"time": nowtime, "state": "run-cpu%d" % cpu, "pid": args.pid, "evt_time": event.time})
 
             elif event.type == BEGIN_SLEEP:
+                curState = "sleep"
                 wchan = get_sleep_func(bpf, event.stackid)
-                jsonMap.append({"time": nowtime, "state": "sleep-%s" % (wchan,), "pid": args.pid})
+                jsonMap.append({"time": nowtime, "state": "sleep-%s" % (wchan,), "pid": args.pid, "evt_time": event.time})
 
             elif event.type == BEGIN_WAIT:
-                jsonMap.append({"time": nowtime, "state": "wait-%s" % (waker_comm,), "pid": args.pid})
+                info = "" if curState == "run" else waker_comm
+                jsonMap.append({"time": nowtime, "state": "wait-%s" % (info,), "pid": args.pid, "evt_time": event.time})
 
             elif event.type == END_SLEEP:
                 waker_comm = event.waker_comm.decode('utf-8')
@@ -429,6 +437,7 @@ if __name__ == "__main__":
         json_str = json.dumps(jsonMap)
         f.write(json_str)
         f.close()
+        print("Produce %d Records." % len(jsonMap))
     
     '''
     # perf缓冲区的用法(previous)
