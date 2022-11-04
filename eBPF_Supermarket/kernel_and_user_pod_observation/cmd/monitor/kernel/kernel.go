@@ -11,11 +11,11 @@ import (
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/optimize/sockredir"
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/perf/net"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/perf/kernel"
 )
 
 func NewMonitorKernelCmd() *cobra.Command {
@@ -72,7 +72,7 @@ func PreRunMonitorKernel(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	net.TimeOffset = net.TimeOffset.Add(-time.Duration(uptime * 1000000000))
+	kernel.TimeOffset = kernel.TimeOffset.Add(-time.Duration(uptime * 1000000000))
 
 	// start metrics exporter
 	visualization.VisPort = data.ExporterPort

@@ -8,7 +8,7 @@ DDoS发起者为了隐藏自己的身份/冒充其他合法用户，篡改数据
 ### 防御伪造源ip的DNS DDoS
 伪造源ip的行为在UDP协议的DDoS攻击中很容易实现，因为UDP没有TCP的三次握手建立连接的过程，攻击者只需“无脑”修改源ip并发送，导致接收端难以验证源ip的真实性。
 
-![tcp](https://s1.ax1x.com/2022/08/11/vGpKyj.jpg)
+![tcp](./images/spoof.jpg)
 
 DNS使用的正是UDP协议，所以也面临伪造源ip的问题。
 
@@ -29,10 +29,10 @@ DNS是支持这种机制的
 
 DNS报文的格式如下：
 
-![format](https://s1.ax1x.com/2022/07/28/v9ZRrn.png)
+![format](./images/dns-packet.png)
 
 在Header中，有一个字段TC（Truncated），代表此次响应是否被截断：
-![tc](https://s1.ax1x.com/2022/08/11/v8v3GQ.jpg)
+![tc](./images/dns-tc.jpg)
 
 如果TC为1，则代表此次响应被截断（大于512字节），客户端在收到响应后，如果发现TC为1，需要将传输协议切换为TCP重新发送刚才的请求
 > When a DNS client receives a reply with TC set, it should ignore that response, and query again, using a mechanism, such as a TCP connection, that will permit larger replies.

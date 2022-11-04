@@ -9,13 +9,13 @@ import (
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 )
 
-func updateMetric(vec *prometheus.SummaryVec, labels map[string]string, value float64) {
+func updateMetric(vec *prometheus.GaugeVec, labels map[string]string, value float64) {
 	if value < 0 {
 		return
 	}
 	summary, err := vec.GetMetricWith(labels)
 	if err == nil {
-		summary.Observe(value)
+		summary.Set(value)
 	} else {
 		fmt.Println(err)
 	}
@@ -39,9 +39,9 @@ func GetNicThroughputMetric(vethName string) {
 		// got NicThroughputEvent
 		fmt.Println("got NicThroughput Event:", v)
 		// process event
-		updateMetric(nic_AVG, map[string]string{"dir": v.Dir}, v.Avg)
-		updateMetric(nic_BPS, map[string]string{"dir": v.Dir}, v.BPS)
-		updateMetric(nic_PPS, map[string]string{"dir": v.Dir}, v.PPS)
+		updateMetric(nic_AVG, map[string]string{"dir": v.Dir}, float64(v.Avg))
+		updateMetric(nic_BPS, map[string]string{"dir": v.Dir}, float64(v.BPS))
+		updateMetric(nic_PPS, map[string]string{"dir": v.Dir}, float64(v.PPS))
 		// fmt.Println("NicThroughputEvent done")
 	}
 }

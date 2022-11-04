@@ -2,36 +2,23 @@
 
 This folder contains projects for eBPF_hub.
 
-## index
-
-- [bindsnoop](bindsnoop) Trace bind syscalls.
-- [bootstrap](bootstrap) an example of a simple (but realistic) BPF application
-- [fentry-link](fentry-link) an example that uses fentry and fexit BPF programs for tracing
-- [kprobe-link](kprobe-link) an example of dealing with kernel-space entry and exit (return) probes
-- [mdflush](mdflush) Trace md flush events.
-- [lsm-connect](lsm-connect) BPF LSM program (on socket_connect hook) that prevents any connection towards 1.1.1.1 to happen
-- [minimal](minimal) a minimal example of a BPF application
-- [mountsnoop](mountsnoop) Trace mount syscalls.
-- [opensnoop](opensnoop) traces the open() syscall system-wide
-- [sigsnoop](sigsnoop) Trace signal syscalls.
-- [template](template) a template for new eunomia-bpf eBPF programs
-- [tcpconnlat](tcpconnlat) Trace TCP connects and show connection latency.
-- [statsnoop](statsnoop) Trace stat syscalls.
-
-> FIXME: auto generated index
+see <https://github.com/linuxkerneltravel/lmp_docs> for how to generate website and usage.
 
 ## Pre-requisites for use eBPF_hub
 
 Re-compiling your Kernel with CONFIG_DEBUG_INFO_BTF=y
 -----------------------------------------------------
+
 libbpf probes to see if your sys fs exports the file `/sys/kernel/btf/vmlinux` (from Kernel 5.5+) or if you have the ELF version in your system [`code`](https://github.com/libbpf/libbpf/blob/master/src/btf.c)
 Please note the ELF file could exist without the BTF info in it. Your Kconfig should contain the options below
 
 1. Compile options
-```code
-CONFIG_DEBUG_INFO_BTF=y
-CONFIG_DEBUG_INFO=y
-```
+
+  ```code
+  CONFIG_DEBUG_INFO_BTF=y
+  CONFIG_DEBUG_INFO=y
+  ```
+
 2. Also, make sure that you have pahole 1.13 (or preferably 1.16+) during the
 kernel build (it comes from dwarves package). Without it, BTF won't be
 generated, and on older kernels you'd get only warning, but still would
@@ -69,23 +56,38 @@ make ENABLE_MIN_CORE_BTFS=1 BTF_HUB_ARCHIVE=<path_to_btfhub-archive> -j$(nproc)
 The project can be a dir or a git submodule, with at lease the following files:
 
 - a `README,md`
-- a `config.json`
 
-If you use eunomia-bpf, the project will be build automaticly. 
+If you use eunomia-bpf, the project will be build automatically.
 
 Tools are expected to follow a simple naming convention:
 
-  - <tool>.bpf.c contains BPF C code, which gets compiled into `package.json`
-  - <tool>.bpf.h can optionally contain types exported to userspace through pref event or ring buffer
-  - <tool>.h can optionally contain any types and constants, shared by both BPF and userspace sides of a tool.
+- tool.bpf.c contains BPF C code, which gets compiled into `package.json`
+- tool.bpf.h can optionally contain types exported to userspace through pref event or ring buffer
+- tool.h can optionally contain any types and constants, shared by both BPF and userspace sides of a tool.
 
-You can check the [template](template) project for more details.
+You can check the [template](template) project for more details. all posts should have headers in the first 10 lines like this:
+
+```markdown
+---
+layout: post
+title: sigsnoop
+date: 2022-10-10 16:18
+category: bpftools
+author: yunwei37
+tags: [bpftools, syscall, kprobe, tracepoint]
+summary: Trace signals generated system wide, from syscalls and others.
+---
+
+
+```
+
+left 2 lines blank after the header.
 
 ## reference
 
 Most codes come from:
 
-- libbpf-tools: https://github.com/iovisor/bcc/tree/master/libbpf-tools
-- libbpf-bootstrap: https://github.com/libbpf/libbpf-bootstrap/tree/master/examples/c
-- eunomia-bpf: https://github.com/eunomia-bpf
-- documentations: https://eunomia-bpf.github.io/
+- libbpf-tools: <https://github.com/iovisor/bcc/tree/master/libbpf-tools>
+- libbpf-bootstrap: <https://github.com/libbpf/libbpf-bootstrap/tree/master/examples/c>
+- eunomia-bpf: <https://github.com/eunomia-bpf>
+- documentations: <https://eunomia-bpf.github.io/>
