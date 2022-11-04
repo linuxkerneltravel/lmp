@@ -9,12 +9,12 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/spf13/cobra"
 
-	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/k8s"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/optimize/sockredir"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/tools"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar/visualization"
 
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/data"
+	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/k8s"
 	"github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_observation/perf/kernel"
 )
 
