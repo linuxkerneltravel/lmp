@@ -390,7 +390,9 @@ if __name__ == "__main__":
             if time() - start > args.time:
                 break
 
+    # 生成进程的状态切换JSON文件，写入到python_exporter目录下
     elif args.type == "json":
+        print("Monitoring process pid = %d" % args.pid)
         f = open("/home/zrp/node_exporter/python_exporter/metrics.json", "w")
         waker_comm = ""
         jsonMap = []
