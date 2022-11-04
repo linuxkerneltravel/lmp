@@ -11,3 +11,7 @@ temp_data/
 
 */temp
 **/event.txt
+**/metrics.json
+**/FlameGraph
+BCC_sar/src/flameGraphGenerater/perf_generator
+BCC_sar/src/flameGraphGenerater/sched_generator
