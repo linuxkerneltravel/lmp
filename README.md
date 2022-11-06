@@ -2,7 +2,7 @@
 
 # Linux Microscope (LMP)
 
-## LMP 目标：
+## LMP 项目目标：
 
 1. 面向 eBPF 初学者和爱好者，提供 eBPF 学习资料、程序/项目案例，构建 eBPF 学习社区
 2. 成为 eBPF 工具集散地，我们相信每一位 eBPF 初学者和爱好者都有无限的创造力
