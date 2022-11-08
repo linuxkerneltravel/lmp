@@ -24,12 +24,6 @@ eBPF工具集散地
 | 基于 eBPF 的 XDP 研究与应用 | XDP_Res-Application                                 | 基于eBPF XDP机制打造一个工具使系统性能得到提升        | [@byxzone](https://github.com/byxzone) |
 | 基于 eBPF 的Linux系统性能监测工具-CPU子系统 | CPU_Subsystem                                                    | 基于eBPF监测CPU各种状态的时间占比，以及进程调度的指标 | 张仁鹏 |
 | 基于 eBPF 的 容器行为监控工具 | ContXRay                                 | 监控容器使用的系统调用,网络互访,文件访问等行为        | [@byxzone](https://github.com/byxzone) [@dxlearn](https://github.com/dxlearn)[@microff](https://gitee.com/microff) |
-|  | CPU_Subsystem                                                    |                                    |  |
-|  | eBPF_DDos                                                        |                                    |  |
 | 基于 eBPF 的 DNS Cache | eBPF_dns_cache                                                   |      缓存 DNS 查询结果，并在需要时构造并注入 DNS 响应                              | [@7rah](https://github.com/7rah) |
-|  | CPU_Subsystem                                                    |                                    |  |
-|  | Filesystem_Subsystem                                             |                                    |  |
-|  | LSM_BPF                                                          |                                    |  |
-|  | Memory_Subsystem                                                 |                                    |  |
 | 基于 eBPF 和 XDP 的 tcp ping |eBPF_TCP_Ping|基于 eBPF 的 tcp ping，通过 kprobe 在内核态计算 RTT。并提供 XDP 来加速回包|[@IfanTsai](https://github.com/IfanTSai)|
 
