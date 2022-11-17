@@ -5,7 +5,7 @@ date: 2022-11-17 19:57
 category: bpftools
 author: yunwei37
 tags: [bpftools, syscall]
-summary: execsnoop traces the execsnoop() syscall system-wide, and prints various details.
+summary: execsnoop traces the exec() syscall system-wide, and prints various details.
 ---
 
 ## origin
