@@ -1,4 +1,4 @@
-![](./eBPF_Documentation/static/imgs/LMP-logo.png)
+![](./eBPF_Documentation/static/imgs/LMP-logo.png)(lyy)
 
 # Linux Microscope (LMP)
 
