@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause) */
 #ifndef __EXECSNOOP_H
-
+#define __EXECSNOOP_H
 
 #define ARGSIZE  128
 #define TASK_COMM_LEN 16
