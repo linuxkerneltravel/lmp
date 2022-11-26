@@ -1,6 +1,6 @@
 ## 文档系统环境
 
-本文档系统使用 hugo 建设，可以在这里下载：https://github.com/gohugoio/hugo/releases。
+本文档系统使用 hugo 建设，可以在这里下载：[https://github.com/gohugoio/hugo/releases](https://github.com/gohugoio/hugo/releases)。
 
 >我们使用 `exrended` 的版本，请直接下载使用这个版本。
 
