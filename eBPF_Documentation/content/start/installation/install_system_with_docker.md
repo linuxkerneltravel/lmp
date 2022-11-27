@@ -339,9 +339,9 @@ root@ubuntu:~# curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg
 ```
 root@ubuntu:~# apt-key fingerprint 0EBFCD88
 root@ubuntu:~# add-apt-repository \
-  "deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/" \
+  "deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/ \
  $(lsb_release -cs) \
- stable
+ stable"
 root@ubuntu:~# apt-get update
 root@ubuntu:~# apt-get install docker-ce docker-ce-cli containerd.io
 ```
