@@ -342,6 +342,17 @@ root@ubuntu:~# add-apt-repository \
   "deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/ \
  $(lsb_release -cs) \
  stable"
+ 
+ 如果报错“Temporary failure resolving 'mirrors.ustc.edu.cn“
+ 解决办法：
+ $sudo vim /etc/resolv.conf
+ 修改nameserver后的ip地址；
+ 加入下面两行：
+ nameserver 8.8.8.8
+ nameserver 8.8.4.4
+ 重启网络
+ systemctl restart networking.service
+ 
 root@ubuntu:~# apt-get update
 root@ubuntu:~# apt-get install docker-ce docker-ce-cli containerd.io
 ```
