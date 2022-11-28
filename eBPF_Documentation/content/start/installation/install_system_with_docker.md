@@ -370,7 +370,7 @@ root@ubuntu:~# docker run hello-world
 #### docker镜像
 
 ```
-root@ubuntu:~# docker pull grafana/Grafana
+root@ubuntu:~# docker pull grafana/grafana
 
 root@ubuntu:~# docker pull influxdb:1.8
 ```
