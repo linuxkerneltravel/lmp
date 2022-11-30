@@ -341,7 +341,7 @@ root@ubuntu:~# apt-key fingerprint 0EBFCD88
 root@ubuntu:~# add-apt-repository \
   "deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/ \
  $(lsb_release -cs) \
- stable
+ stable"
 root@ubuntu:~# apt-get update
 root@ubuntu:~# apt-get install docker-ce docker-ce-cli containerd.io
 ```
@@ -372,6 +372,10 @@ BCC目前不再维护package：
 ```
 https://github.com/iovisor/bcc/issues/3220
 ```
+
+按照此教程，以及对应的ubuntu18.04版本。需要使用bcc0.24.0及以下版本。使用bcc-0.25.0版本，编译时会报错。
+
+0.25.0版本，需要llvm-9及以上
 
 安装参考https://blog.csdn.net/weixin_44395686/article/details/106712543
 
