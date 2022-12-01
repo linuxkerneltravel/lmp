@@ -206,15 +206,15 @@ root@ubuntu:/usr/local# cd mysql5.7.34/support-files/
 root@ubuntu:/usr/local/mysql5.7.34/support-files# vim my_default.cnf
 
 [mysqld]
-\#设置mysql的安装目录
+#设置mysql的安装目录
 
 basedir =/usr/local/mysql5.7.34
 
-\#设置mysql数据库的数据存放目录
+#设置mysql数据库的数据存放目录
 
 datadir = /usr/local/mysql5.7.34/data
 
-\#设置端口
+#设置端口
 
 port = 3306
 
@@ -222,21 +222,21 @@ port = 3306
 
 socket = /tmp/mysql.sock
 
-\#设置字符集
+#设置字符集
 
 character-set-server=utf8
 
-\#日志存放目录
+#日志存放目录
 
 log-error = /usr/local/mysql5.7.34/data/mysqld.log
 
 pid-file = /usr/local/mysql5.7.34/data/mysqld.pid
 
-\#允许时间类型的数据为零(去掉NO_ZERO_IN_DATE,NO_ZERO_DATE)
+#允许时间类型的数据为零(去掉NO_ZERO_IN_DATE,NO_ZERO_DATE)
 
 sql_mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 
-\#ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+#ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 ```
 
 
