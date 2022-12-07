@@ -5,7 +5,7 @@ date: 2022-10-10 16:18
 category: bpftools
 author: yunwei37
 tags: [bpftools, syscall]
-summary: opensnoop traces IPv4 and IPv6 listen syscalls, and prints various details.
+summary: solisten traces IPv4 and IPv6 listen syscalls, and prints various details.
 ---
 
 ## origin
@@ -43,7 +43,7 @@ sudo ./ecli run examples/bpftools/solisten/package.json
 Demonstrations of solisten, the Linux eBPF/bcc version.
 
 
-opensnoop traces IPv4 and IPv6 listen syscalls, and prints various details.
+solisten traces IPv4 and IPv6 listen syscalls, and prints various details.
 
 Example trigger:
 ```console
