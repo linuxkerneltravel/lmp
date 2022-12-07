@@ -1,0 +1,9 @@
+"Trace IPv4 and IPv6 listen syscalls.\n"
+"\n"
+"USAGE: solisten [-h] [-t] [-p PID]\n"
+"\n"
+"EXAMPLES:\n"
+"    solisten           # trace listen syscalls\n"
+"    solisten -t        # output with timestamp\n"
+"    solisten -p 1216   # only trace PID 1216\n";
+
