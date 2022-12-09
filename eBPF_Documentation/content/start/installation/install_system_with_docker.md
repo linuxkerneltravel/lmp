@@ -206,15 +206,15 @@ root@ubuntu:/usr/local# cd mysql5.7.34/support-files/
 root@ubuntu:/usr/local/mysql5.7.34/support-files# vim my_default.cnf
 
 [mysqld]
-\#设置mysql的安装目录
+#设置mysql的安装目录
 
 basedir =/usr/local/mysql5.7.34
 
-\#设置mysql数据库的数据存放目录
+#设置mysql数据库的数据存放目录
 
 datadir = /usr/local/mysql5.7.34/data
 
-\#设置端口
+#设置端口
 
 port = 3306
 
@@ -222,21 +222,21 @@ port = 3306
 
 socket = /tmp/mysql.sock
 
-\#设置字符集
+#设置字符集
 
 character-set-server=utf8
 
-\#日志存放目录
+#日志存放目录
 
 log-error = /usr/local/mysql5.7.34/data/mysqld.log
 
 pid-file = /usr/local/mysql5.7.34/data/mysqld.pid
 
-\#允许时间类型的数据为零(去掉NO_ZERO_IN_DATE,NO_ZERO_DATE)
+#允许时间类型的数据为零(去掉NO_ZERO_IN_DATE,NO_ZERO_DATE)
 
 sql_mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 
-\#ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+#ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 ```
 
 
@@ -331,7 +331,7 @@ software-properties-common
 添加 Docker 的官方 GPG 密钥：
 
 ```
-root@ubuntu:~# curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg | sudo apt-key add –
+root@ubuntu:~# curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
 ```
 
 9DC8 5822 9FC7 DD38 854A E2D8 8D81 803C 0EBF CD88 通过搜索指纹的后8个字符，验证现在是否拥有带有指纹的密钥：
@@ -341,7 +341,18 @@ root@ubuntu:~# apt-key fingerprint 0EBFCD88
 root@ubuntu:~# add-apt-repository \
   "deb [arch=amd64] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/ \
  $(lsb_release -cs) \
- stable
+ stable"
+ 
+ 如果报错“Temporary failure resolving 'mirrors.ustc.edu.cn“
+ 解决办法：
+ $sudo vim /etc/resolv.conf
+ 修改nameserver后的ip地址；
+ 加入下面两行：
+ nameserver 8.8.8.8
+ nameserver 8.8.4.4
+ 重启网络
+ systemctl restart networking.service
+ 
 root@ubuntu:~# apt-get update
 root@ubuntu:~# apt-get install docker-ce docker-ce-cli containerd.io
 ```
@@ -359,7 +370,7 @@ root@ubuntu:~# docker run hello-world
 #### docker镜像
 
 ```
-root@ubuntu:~# docker pull grafana/Grafana
+root@ubuntu:~# docker pull grafana/grafana
 
 root@ubuntu:~# docker pull influxdb:1.8
 ```
