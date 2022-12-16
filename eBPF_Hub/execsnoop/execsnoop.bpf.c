@@ -2,7 +2,7 @@
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
-#include "execsnoop.bpf.h"
+#include "execsnoop.h"
 
 const volatile bool filter_cg = false;
 const volatile bool ignore_failed = true;

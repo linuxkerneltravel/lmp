@@ -6,22 +6,16 @@
 
 typedef unsigned int u32;
 typedef int pid_t;
+const pid_t pid_filter = 0;
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
-/* Create an array with 1 entry instead of a global variable
- * which does not work with older kernels */
-struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__uint(max_entries, 1);
-	__type(key, u32);
-	__type(value, pid_t);
-} my_pid_map SEC(".maps");
 
 SEC("tp/syscalls/sys_enter_write")
 int handle_tp(void *ctx)
 {
 	pid_t pid = bpf_get_current_pid_tgid() >> 32;
+	if (pid_filter && pid != pid_filter)
+		return 0;
 	bpf_printk("BPF triggered from PID %d.\n", pid);
 	return 0;
 }
