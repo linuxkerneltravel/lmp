@@ -2,3 +2,5 @@
 package.json
 eunomia-exporter
 ecli
+*.o
+*.json
