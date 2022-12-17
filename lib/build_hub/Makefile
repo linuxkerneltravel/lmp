@@ -14,7 +14,7 @@ ecli:
 	wget https://aka.pw/bpf-ecli -O ./ecli && chmod +x ./ecli
 
 ecc:
-	wget https://github.com/eunomia-bpf/eunomia-bpf/releases/latest/download/ecc && chmod +x ./ecli
+	wget https://github.com/eunomia-bpf/eunomia-bpf/releases/latest/download/ecc && chmod +x ./ecc
 
 clone_and_install_deps: ecli ecc
 
