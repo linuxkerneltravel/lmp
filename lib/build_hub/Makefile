@@ -10,17 +10,20 @@ install-deps: ## install deps
 	sudo apt update
 	sudo apt-get install libcurl4-openssl-dev libelf-dev clang llvm ## libgtest-dev
 
-clone_and_install_deps:
-	wget https://github.com/eunomia-bpf/eunomia-bpf/releases/latest/download/eunomia.tar.gz
-	tar -xvf eunomia.tar.gz -C ~
+ecli:
 	wget https://aka.pw/bpf-ecli -O ./ecli && chmod +x ./ecli
+
+ecc:
+	wget https://github.com/eunomia-bpf/eunomia-bpf/releases/latest/download/ecc && chmod +x ./ecli
+
+clone_and_install_deps: ecli ecc
 
 # test with the files in eunomia-bpf
 TEST_CASES_DIRS=$(shell ls -l ../../eBPF_Hub/ | grep ^d | awk '{print $$9}')
-test: $(TEST_CASES_DIRS)
+test: $(TEST_CASES_DIRS) ecli ecc
 
 TEST_TIME ?= 2
-ECC_BIN ?= ~/.eunomia/bin/ecc
+ECC_BIN ?= ./ecc
 
 .PHONY:$(TEST_CASES_DIRS)
 # build the test cases
