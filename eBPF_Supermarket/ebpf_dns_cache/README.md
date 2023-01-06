@@ -31,7 +31,7 @@ git clone https://github.com/linuxkerneltravel/lmp.git
 cd lmp/eBPF_Supermarket/ebpf_dns_cache
 docker build . -t ebpf-dns-cache
 # config.toml 的设置可以参考当前目录下 config.toml
-docker run --privileged=true --net=host -v /path/to/config.toml:/config.toml ebpf-dns-cache:latest 
+docker run --privileged=true --net=host -v /path/to/config.toml:/root/config.toml ebpf-dns-cache:latest 
 ```
 
 1. 在本地自行编译
