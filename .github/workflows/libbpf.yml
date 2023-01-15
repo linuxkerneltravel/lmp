@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/CPU_Subsystem/libbpf_minimal/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cs delay/libbpf_cs delay/**'
       - '.github/workflows/libbpf.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/CPU_Subsystem/libbpf_minimal/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cs delay/libbpf_cs delay/**'
       - '.github/workflows/libbpf.yml'
 
 jobs:
@@ -26,11 +26,11 @@ jobs:
           sudo apt install linux-tools-5.15.0-53-generic	
           sudo apt install linux-cloud-tools-5.15.0-53-generic
 
-      - name: Run minimal
+      - name: Run cs_delay
         run: |
-          clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -I. -c minimal.bpf.c -o minimal.bpf.o
-          sudo bpftool gen skeleton minimal.bpf.o > minimal.skel.h
-          clang -g -O2 -Wall -I . -c minimal.c -o minimal.o
-          clang -Wall -O2 -g minimal.o -static -lbpf -lelf -lz -o minimal
-          sudo ./minimal
-          sudo cat /sys/kernel/debug/tracing/trace_pipe
+          sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+          clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -I. -c cs_delay.bpf.c -o cs_delay.bpf.o
+          sudo bpftool gen skeleton cs_delay.bpf.o > cs_delay.skel.h
+          clang -g -O2 -Wall -I . -c cs_delay.c -o cs_delay.o
+          clang -Wall -O2 -g cs_delay.o -static -lbpf -lelf -lz -o cs_delay
+          sudo ./cs_delay

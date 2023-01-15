@@ -230,22 +230,20 @@ Tracing for Data's... Ctrl-C to end
    1048576 -> 2097151    : 1        |                                        |
 ```
 
-#### 2.7 libbpf_minimal
+#### 2.7 libbpf_cs schedule
 
-minimal只是一个最小的实用BPF应用程序示例。它不使用或要求BPF CO-RE，所以应该运行在相当老的内核上。它安装一个跟踪点处理程序，每秒触发一次。它使用bpf_printk() BPF助手与外界通信。要查看它的输出，将/sys/kernel/debug/tracing/trace_pipe文件作为根文件。
+libbpf_cs schedule是利用libbpf对内核函数context_switch()的执行时长进行测试的工具，该工具使用了BPF环形缓冲区（ringbuf），避免了BPF性能缓冲区（perfbuf）导致的内存使用效率低和事件重新排序等问题。
 
 运行结果：
 
 ```
-         minimal-2670    [003] d...1   109.507119: bpf_trace_printk: BPF triggered from PID 2670.
-
-         minimal-2670    [003] d...1   109.507137: bpf_trace_printk: BPF triggered from PID 2670.
-
-         minimal-2670    [003] d...1   110.507559: bpf_trace_printk: BPF triggered from PID 2670.
-
-         minimal-2670    [003] d...1   111.508808: bpf_trace_printk: BPF triggered from PID 2670.
-
-         minimal-2670    [003] d...1   112.530062: bpf_trace_printk: BPF triggered from PID 2670.
+pid:172      t1:171243387  t2:171271527  delay:28140
+pid:40       t1:171271535  t2:171495785  delay:224250
+pid:2267     t1:171495831  t2:171596934  delay:101103
+pid:2267     t1:171596999  t2:171697558  delay:100559
+pid:2717     t1:171697606  t2:171797790  delay:100184
+pid:2267     t1:171797836  t2:171844026  delay:46190
+pid:434      t1:171844135  t2:171845222  delay:1087
 ```
 
 ### 3. 调研及实现过程的文档
