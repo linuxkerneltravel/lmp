@@ -1,0 +1,36 @@
+name: libbpf
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/CPU_Subsystem/libbpf_minimal/**'
+      - '.github/workflows/libbpf.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/CPU_Subsystem/libbpf_minimal/**'
+      - '.github/workflows/libbpf.yml'
+
+jobs:
+  libbpf-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Install dependencies
+        run: |
+          sudo apt install clang libelf1 libelf-dev zlib1g-dev
+          sudo apt install libbpf-dev
+          sudo apt install linux-tools-5.15.0-53-generic	
+          sudo apt install linux-cloud-tools-5.15.0-53-generic
+
+      - name: Run minimal
+        run: |
+          clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -I. -c minimal.bpf.c -o minimal.bpf.o
+          sudo bpftool gen skeleton minimal.bpf.o > minimal.skel.h
+          clang -g -O2 -Wall -I . -c minimal.c -o minimal.o
+          clang -Wall -O2 -g minimal.o -static -lbpf -lelf -lz -o minimal
+          sudo ./minimal
+          sudo cat /sys/kernel/debug/tracing/trace_pipe
