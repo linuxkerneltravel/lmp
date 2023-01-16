@@ -86,7 +86,7 @@ int main(int argc, char **argv)
 			break;
 		}
 		
-		//注意：使用该程序时将其注释掉 
+		//注意：使用该程序时将该行代码注释掉 
 		//原因：该行代码为了能使程序运行结束，成功提交至Github仓库 
 		exiting = true;
 		
