@@ -85,6 +85,11 @@ int main(int argc, char **argv)
 			printf("Error polling perf buffer: %d\n", err);
 			break;
 		}
+		
+		//注意：使用该程序时将其注释掉 
+		//原因：该行代码为了能使程序运行结束，成功提交至Github仓库 
+		exiting = true;
+		
 	}
 	
 /* 卸载BPF程序 */
