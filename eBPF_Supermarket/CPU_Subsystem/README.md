@@ -197,9 +197,9 @@ tools/TracepointHelp.sh：用于查看tracepoint列表和特定tracepoint接收�
 
 注：由于对tracepoint信息的访问需要root权限，所以脚本内含有sudo，在执行脚本时可能需要输入用户密码来验证。这是正常操作。
 
-#### 2.6 BCC_cs_schedule
+#### 2.6 BCC_cs_delay
 
-BCC_cs_schedule是利用bcc对内核函数context_switch()的执行时长进行测试的工具，此工具可以对事件进行汇总后再输出，打印为以2为幂的直方图。
+BCC_cs_delay是利用bcc对内核函数context_switch()的执行时长进行测试的工具，此工具可以对事件进行汇总后再输出，打印为以2为幂的直方图。
 
 以下是sudo python3 cs.py的运行结果：
 
@@ -230,9 +230,9 @@ Tracing for Data's... Ctrl-C to end
    1048576 -> 2097151    : 1        |                                        |
 ```
 
-#### 2.7 libbpf_cs_schedule
+#### 2.7 libbpf_cs_delay
 
-libbpf_cs_schedule是利用libbpf对内核函数context_switch()的执行时长进行测试的工具，该工具使用了BPF环形缓冲区（ringbuf），避免了BPF性能缓冲区（perfbuf）导致的内存使用效率低和事件重新排序等问题。
+libbpf_cs_delay是利用libbpf对内核函数context_switch()的执行时长进行测试的工具，该工具使用了BPF环形缓冲区（ringbuf），避免了BPF性能缓冲区（perfbuf）导致的内存使用效率低和事件重新排序等问题。
 
 运行结果：
 
