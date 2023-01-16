@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/CPU_Subsystem/cs delay/libbpf_cs delay/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay/**'
       - '.github/workflows/libbpf.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/CPU_Subsystem/cs delay/libbpf_cs delay/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay/**'
       - '.github/workflows/libbpf.yml'
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run cs_delay
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cs delay/libbpf_cs delay
+          cd eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay
           sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -I. -c cs_delay.bpf.c -o cs_delay.bpf.o
           sudo bpftool gen skeleton cs_delay.bpf.o > cs_delay.skel.h
