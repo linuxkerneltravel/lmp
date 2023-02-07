@@ -1,9 +1,14 @@
+/* 
+    ×¢Òâ£ºÊ¹ÓÃ¸Ã³ÌĞòÊ±,½«µÚ94ĞĞ´úÂë×¢ÊÍµô 
+    Ô­Òò£º¸ÃĞĞ´úÂëÎªÁËÄÜÊ¹³ÌĞòÔËĞĞ½áÊø£¬³É¹¦Ìá½»ÖÁGithub²Ö¿â 
+*/ 
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include <signal.h>
-#include "cs_delay.skel.h"	//åŒ…å«äº† BPF å­—èŠ‚ç å’Œç›¸å…³çš„ç®¡ç†å‡½æ•°
+#include "cs_delay.skel.h"	//°üº¬ÁË BPF ×Ö½ÚÂëºÍÏà¹ØµÄ¹ÜÀíº¯Êı
 #include "cs_delay.h"
 
 static volatile bool exiting = false;
@@ -34,48 +39,48 @@ int main(int argc, char **argv)
 	int err;
 
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-	/* è®¾ç½®libbpfé”™è¯¯å’Œè°ƒè¯•ä¿¡æ¯å›è°ƒ */
+	/* ÉèÖÃlibbpf´íÎóºÍµ÷ÊÔĞÅÏ¢»Øµ÷ */
 	libbpf_set_print(libbpf_print_fn);
 
-	/* æ›´å¹²å‡€åœ°å¤„ç†Ctrl-C
-	   SIGINTï¼šç”±Interrupt Keyäº§ç”Ÿï¼Œé€šå¸¸æ˜¯CTRL+Cæˆ–è€…DELETEã€‚å‘é€ç»™æ‰€æœ‰ForeGround Groupçš„è¿›ç¨‹
-       SIGTERMï¼šè¯·æ±‚ä¸­æ­¢è¿›ç¨‹ï¼Œkillå‘½ä»¤å‘é€
+	/* ¸ü¸É¾»µØ´¦ÀíCtrl-C
+	   SIGINT£ºÓÉInterrupt Key²úÉú£¬Í¨³£ÊÇCTRL+C»òÕßDELETE¡£·¢ËÍ¸øËùÓĞForeGround GroupµÄ½ø³Ì
+       SIGTERM£ºÇëÇóÖĞÖ¹½ø³Ì£¬killÃüÁî·¢ËÍ
 	*/
-	signal(SIGINT, sig_handler);		//signalè®¾ç½®æŸä¸€ä¿¡å·çš„å¯¹åº”åŠ¨ä½œ
+	signal(SIGINT, sig_handler);		//signalÉèÖÃÄ³Ò»ĞÅºÅµÄ¶ÔÓ¦¶¯×÷
 	signal(SIGTERM, sig_handler);
 
-	/* æ‰“å¼€BPFåº”ç”¨ç¨‹åº */
+	/* ´ò¿ªBPFÓ¦ÓÃ³ÌĞò */
 	skel = cs_delay_bpf__open();
 	if (!skel) {
 		fprintf(stderr, "Failed to open BPF skeleton\n");
 		return 1;
 	}
 	
-	/* åŠ è½½å¹¶éªŒè¯BPFç¨‹åº */
+	/* ¼ÓÔØ²¢ÑéÖ¤BPF³ÌĞò */
 	err = cs_delay_bpf__load(skel);
 	if (err) {
 		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 		goto cleanup;
 	}
 	
-	/* é™„åŠ è·Ÿè¸ªç‚¹å¤„ç†ç¨‹åº */
+	/* ¸½¼Ó¸ú×Ùµã´¦Àí³ÌĞò */
 	err = cs_delay_bpf__attach(skel);
 	if (err) {
 		fprintf(stderr, "Failed to attach BPF skeleton\n");
 		goto cleanup;
 	}
 	
-	/* è®¾ç½®ç¯å½¢ç¼“å†²åŒºè½®è¯¢ */
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);	//ring_buffer__new() APIï¼Œå…è®¸åœ¨ä¸ä½¿ç”¨é¢å¤–é€‰é¡¹æ•°æ®ç»“æ„ä¸‹æŒ‡å®šå›è°ƒ
+	/* ÉèÖÃ»·ĞÎ»º³åÇøÂÖÑ¯ */
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);	//ring_buffer__new() API£¬ÔÊĞíÔÚ²»Ê¹ÓÃ¶îÍâÑ¡ÏîÊı¾İ½á¹¹ÏÂÖ¸¶¨»Øµ÷
 	if (!rb) {
 		err = -1;
 		fprintf(stderr, "Failed to create ring buffer\n");
 		goto cleanup;
 	}
 	
-	/* å¤„ç†äº‹ä»¶ */
+	/* ´¦ÀíÊÂ¼ş */
 	while (!exiting) {
-		err = ring_buffer__poll(rb, 100 /* timeout, ms */);		//ring_buffer__poll(),è½®è¯¢æ‰“å¼€ringbufç¼“å†²åŒºã€‚å¦‚æœæœ‰äº‹ä»¶ï¼Œhandle_eventå‡½æ•°ä¼šæ‰§è¡Œ
+		err = ring_buffer__poll(rb, 100 /* timeout, ms */);		//ring_buffer__poll(),ÂÖÑ¯´ò¿ªringbuf»º³åÇø¡£Èç¹ûÓĞÊÂ¼ş£¬handle_eventº¯Êı»áÖ´ĞĞ
 		/* Ctrl-C will cause -EINTR */
 		if (err == -EINTR) {
 			err = 0;
@@ -85,9 +90,12 @@ int main(int argc, char **argv)
 			printf("Error polling perf buffer: %d\n", err);
 			break;
 		}
+		
+		exiting = true;			//Ê¹ÓÃ¸Ã³ÌĞòÊ±,½«¸ÃĞĞ´úÂë×¢ÊÍµô 
+		
 	}
 	
-/* å¸è½½BPFç¨‹åº */
+/* Ğ¶ÔØBPF³ÌĞò */
 cleanup:
 	ring_buffer__free(rb);
 	cs_delay_bpf__destroy(skel);
