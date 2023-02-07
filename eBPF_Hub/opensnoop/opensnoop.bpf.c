@@ -3,16 +3,21 @@
 // Copyright (c) 2020 Netflix
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
-#include "opensnoop.bpf.h"
+#include "opensnoop.h"
 
 struct args_t {
 	const char *fname;
 	int flags;
 };
 
-const volatile pid_t targ_pid = 0;
-const volatile pid_t targ_tgid = 0;
-const volatile uid_t targ_uid = 0;
+/// Process ID to trace
+const volatile int pid_target = 0;
+/// Thread ID to trace
+const volatile int tgid_target = 0;
+/// @description User ID to trace
+const volatile int uid_target = 0;
+/// @cmdarg {"default": false, "short": "f", "long": "failed"}
+/// @description trace only failed events
 const volatile bool targ_failed = false;
 
 struct {
@@ -38,13 +43,13 @@ bool trace_allowed(u32 tgid, u32 pid)
 	u32 uid;
 
 	/* filters */
-	if (targ_tgid && targ_tgid != tgid)
+	if (tgid_target && tgid_target != tgid)
 		return false;
-	if (targ_pid && targ_pid != pid)
+	if (pid_target && pid_target != pid)
 		return false;
-	if (valid_uid(targ_uid)) {
+	if (valid_uid(uid_target)) {
 		uid = (u32)bpf_get_current_uid_gid();
-		if (targ_uid != uid) {
+		if (uid_target != uid) {
 			return false;
 		}
 	}
@@ -131,4 +136,5 @@ int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit* ctx)
 	return trace_exit(ctx);
 }
 
+/// Trace open family syscalls.
 char LICENSE[] SEC("license") = "GPL";

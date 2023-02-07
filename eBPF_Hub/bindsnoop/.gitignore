@@ -1,3 +1,5 @@
 .vscode
 package.json
 ecli
+*.o
+*.json
