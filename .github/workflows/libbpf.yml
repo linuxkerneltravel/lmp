@@ -36,3 +36,4 @@ jobs:
           clang -g -O2 -Wall -I . -c cs_delay.c -o cs_delay.o
           clang -Wall -O2 -g cs_delay.o -static -lbpf -lelf -lz -o cs_delay
           sudo ./cs_delay
+          sudo pkill cs_delay
