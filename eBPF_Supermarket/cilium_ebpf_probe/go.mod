@@ -7,9 +7,9 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/gorilla/mux v1.8.0
 	github.com/iovisor/gobpf v0.2.0
-	github.com/lixd/grpc-go-example v0.0.0-20210731030448-905cb5991806
 	github.com/prometheus/client_golang v1.7.1
 	github.com/shirou/gopsutil/v3 v3.22.7
+	github.com/xuri/excelize/v2 v2.6.1
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
 	k8s.io/api v0.24.3
@@ -27,7 +27,7 @@ require (
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
+	github.com/emicklei/go-restful v2.16.0+incompatible // indirect
 	github.com/go-logr/logr v1.2.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
@@ -65,7 +65,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/xuri/efp v0.0.0-20220603152613-6918739fd470 // indirect
-	github.com/xuri/excelize/v2 v2.6.1 // indirect
 	github.com/xuri/nfp v0.0.0-20220409054826-5e722a1d9e22 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20220817201139-bc19a97f63c8 // indirect
