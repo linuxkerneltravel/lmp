@@ -10,7 +10,7 @@ from ctypes import *
 from time import asctime, localtime, sleep, time
 
 from bcc import BPF
-from utils import export_nic_throughput
+
 
 
 ############## pre defines #################
@@ -48,6 +48,8 @@ if print_interval <= 0:
     print("print interval must stricly positive")
     exit()
 
+if args.visual:
+    from utils import export_nic_throughput
 
 ################## printer for results ###################
 def to_str(num):

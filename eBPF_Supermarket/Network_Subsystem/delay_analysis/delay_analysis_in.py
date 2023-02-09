@@ -10,7 +10,7 @@ from socket import inet_ntop, AF_INET
 from struct import pack
 
 from bcc import BPF
-from utils import export_delay_analysis_in
+
 
 
 ############## arguments #################
@@ -35,6 +35,9 @@ if args.dport:
     
 if args.sample:
     bpf_text = bpf_text.replace('##SAMPLING##', 'if (((pkt_tuple.seq + pkt_tuple.ack + skb->len) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+
+if args.visual:
+    from utils import export_delay_analysis_in
 
 bpf_text = bpf_text.replace('##FILTER_SPORT##', '')
 bpf_text = bpf_text.replace('##FILTER_DPORT##', '')
