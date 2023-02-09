@@ -12,7 +12,7 @@ from time import sleep, localtime, asctime, time
 
 from bcc import BPF
 from collections import namedtuple, defaultdict
-from utils import export_tcp_bytes
+
 
 
 ############## arguments #################
@@ -43,6 +43,9 @@ if args.ipv4:
     bpf_text = bpf_text.replace('##FILTER_FAMILY##', 'if (family != AF_INET) { return 0; }')
 elif args.ipv6:
     bpf_text = bpf_text.replace('##FILTER_FAMILY##', 'if (family != AF_INET6) { return 0; }')
+
+if args.visual:
+    from utils import export_tcp_bytes
 
 bpf_text = bpf_text.replace('##FILTER_PID##', '')
 bpf_text = bpf_text.replace('##FILTER_FAMILY##', '')

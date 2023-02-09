@@ -12,7 +12,7 @@ import ctypes as ct
 
 from bcc import BPF
 from bcc import tcp
-from utils import export_tcp_flow
+
 
 
 ################## printer for results ###################
@@ -45,6 +45,9 @@ if args.ipv4:
 elif args.ipv6:
     bpf_text = bpf_text.replace('##FILTER_FAMILY##', 'if (family != AF_INET6) { return 0; }')
     bpf_text = bpf_text.replace('##FILTER_FAMILY6##', 'return 0;')
+
+if args.visual:
+    from utils import export_tcp_flow
 
 bpf_text = bpf_text.replace('##FILTER_SPORT##', '')
 bpf_text = bpf_text.replace('##FILTER_DPORT##', '')

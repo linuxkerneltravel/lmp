@@ -11,7 +11,7 @@ from struct import pack
 from time import strftime
 
 from bcc import BPF
-from utils import export_tcp_connection
+
 
 
 ############## arguments #################
@@ -53,6 +53,9 @@ if args.direction:
         bpf_text = bpf_text.replace('##FILTER_DIRECTION##', 'return 0;')
     if(dir=='connect'):
         bpf_text = bpf_text.replace('##FILTER_DIRECTION##', 'return 0;')
+
+if args.visual:
+    from utils import export_tcp_connection
 
 bpf_text = bpf_text.replace('##FILTER_PID##', '')
 bpf_text = bpf_text.replace('##FILTER_PORT##', '')
