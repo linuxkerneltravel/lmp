@@ -1,3 +1,8 @@
+/* 
+    注意：使用该程序时,将第94行代码注释掉 
+    原因：该行代码为了能使程序运行结束，成功提交至Github仓库 
+*/ 
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/resource.h>
@@ -86,9 +91,7 @@ int main(int argc, char **argv)
 			break;
 		}
 		
-		//注意：使用该程序时将该行代码注释掉 
-		//原因：该行代码为了能使程序运行结束，成功提交至Github仓库 
-		exiting = true;
+		exiting = true;			//使用该程序时,将该行代码注释掉 
 		
 	}
 	
