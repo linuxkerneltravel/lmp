@@ -8,7 +8,7 @@ require (
 	github.com/casbin/gorm-adapter/v3 v3.0.2
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/fvbock/endless v0.0.0-20170109170031-447134032cb6
-	github.com/gin-gonic/gin v1.7.0
+	github.com/gin-gonic/gin v1.7.7
 	github.com/go-openapi/spec v0.20.6 // indirect
 	github.com/go-openapi/swag v0.22.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.0
