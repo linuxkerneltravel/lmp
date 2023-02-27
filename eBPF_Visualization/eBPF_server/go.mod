@@ -38,7 +38,7 @@ require (
 	github.com/unrolled/secure v1.0.7
 	github.com/urfave/cli v1.20.0
 	go.uber.org/zap v1.16.0
-	golang.org/x/image v0.0.0-20210220032944-ac19c3e999fb // indirect
+	golang.org/x/image v0.5.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	gopkg.in/ini.v1 v1.55.0 // indirect
