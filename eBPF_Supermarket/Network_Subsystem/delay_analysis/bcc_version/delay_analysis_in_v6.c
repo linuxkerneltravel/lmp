@@ -92,7 +92,7 @@ int kprobe__eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb){
     return 0;
 }
 
-int kprobe__ip6_rcv_core(struct pt_regs *ctx, struct sk_buff *skb){
+int kernel_kprobe_ip6_rcv_core(struct pt_regs *ctx, struct sk_buff *skb){
     if (skb == NULL){
         return 0;
     }
