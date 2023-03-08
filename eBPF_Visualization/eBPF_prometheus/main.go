@@ -1,13 +1,15 @@
 package main
 
 import (
-	"example.com/m/v2/register"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"ebpf-prom/register"
 )
 
 func main() {
