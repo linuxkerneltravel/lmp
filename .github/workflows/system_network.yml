@@ -85,7 +85,7 @@ jobs:
       
       - name: Run delay_analysis
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/delay_analysis
+          cd eBPF_Supermarket/Network_Subsystem/delay_analysis/bcc_version
           sudo python delay_analysis_in.py -c 3
           sudo python delay_analysis_in_v6.py -c 0
           sudo python delay_analysis_out.py -c 3

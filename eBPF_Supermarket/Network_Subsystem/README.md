@@ -181,6 +181,8 @@ inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和t
 
 ### 2.5 delay_analysis_in/delay_analysis_in_v6
 
+#### bcc_version
+
 实时输出所有接收包信息及内核各层处理过程所花费的时间。
 
 
@@ -225,10 +227,20 @@ SADDR:SPORT                                DADDR:DPORT                          
 2402:f000:xx:xx:xx:xx:8:149:443            2402:f000:xx:xx:xx:xx:ae03:a462:60062      1677555872   2546935387   1966205.462547       40         2          2          35
 ```
 
+#### libbpf_version
+
+参数与输出结果基本与bcc_version一致，但增加了指定输出收包/发包方向结果的参数
+
+```
+-D,  --dir
+    [可选] 收发包方向（收包1，发包0），默认为收包方向（1）
+```
 
 ### 2.6 delay_analysis_out/delay_analysis_out_v6
 
 实时输出所有发送包信息及内核各层处理过程所花费的时间。
+
+#### bcc_version
 
 参数如下：
 ```
@@ -271,6 +283,14 @@ SADDR:SPORT                                DADDR:DPORT                          
 2402:f000:xx:xx:xx:xx:ae03:a462:52910      2402:f000:xx:xx:xx:xx:8:149:443            3170200051   715482039    1967082553342.146973 12         2          7          3
 ```
 
+#### libbpf_version
+
+参数与输出结果基本与bcc_version一致，但增加了指定输出收包/发包方向结果的参数
+
+```
+-D,  --dir
+    [可选] 收发包方向（收包1，发包0），默认为收包方向（1）
+```
 
 ### 2.7 tcp_flow
 
