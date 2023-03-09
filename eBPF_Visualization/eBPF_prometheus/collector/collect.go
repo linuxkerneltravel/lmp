@@ -1,9 +1,11 @@
 package collector
 
 import (
-	"example.com/m/v2/connect_sql"
-	"github.com/prometheus/client_golang/prometheus"
 	"log"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"ebpf-prom/connect_sql"
 )
 
 type ClusterManager struct {
@@ -17,7 +19,7 @@ func (c *ClusterManager) GetDataFromSqlite() (
 ) {
 	var vfsstatdata = map[string]int64{}
 	var results = []map[string]int64{}
-	if err := connect_sql.SqlConnect("/home/yuemeng/lmp/eBPF_Visualization/eBPF_server/model/data_collector/dao/tables/ebpfplugin.db"); err != nil {
+	if err := connect_sql.SqlConnect("ebpfplugin.db"); err != nil {
 		log.Println("连接数据库失败")
 	}
 	rows, err := connect_sql.GLOBALDB.Table("vfsstat").Rows()

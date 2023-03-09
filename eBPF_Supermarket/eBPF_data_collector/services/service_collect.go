@@ -3,8 +3,6 @@ package services
 import (
 	"bufio"
 	"fmt"
-	"github.com/lmp/eBPF_Visualization/core_service/globalver"
-	"github.com/lmp/eBPF_Visualization/core_service/utils"
 	"io"
 	"os"
 	"os/exec"
@@ -12,9 +10,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/urfave/cli"
+
+	"github.com/lmp/eBPF_Visualization/core_service/utils"
 	"github.com/lmp/eBPF_Visualization/core_service/common"
 	"github.com/lmp/eBPF_Visualization/core_service/dao"
-	"github.com/urfave/cli"
 )
 
 func init() {
@@ -117,7 +117,6 @@ func listenToSystemSignals(cmd *exec.Cmd, tableInfo *common.TableInfo, exportFil
 				fmt.Println("collect finished")
 			}
 
-			globalver.DB.Close()
 			os.Exit(1)
 		}
 	}

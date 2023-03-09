@@ -1,8 +1,9 @@
 package register
 
 import (
-	"example.com/m/v2/collector"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"ebpf-prom/collector"
 )
 
 func Register() *prometheus.Registry {

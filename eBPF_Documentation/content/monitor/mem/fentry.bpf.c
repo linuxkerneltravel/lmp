@@ -42,8 +42,11 @@ struct {
 SEC("tracepoint/kmem/kmalloc")
 int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)	
 {
+<<<<<<< HEAD
 	u64 ip[20];
 	int i, stack_size;
+=======
+>>>>>>> 911802811c19d44d0a9cc50991a44cc1f78ef524
 	struct whole_alloc_info *pre_info, info={0};
 	struct alloc_info ai={0};
 
@@ -59,10 +62,14 @@ int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)
 
 	if(addr != 0) {
 		ai.times = bpf_ktime_get_ns();
+<<<<<<< HEAD
 
 		ai.stack_id = bpf_get_stackid(ctx, &stack_traces, 0);
 
 		//ai.stack_id = bpf_get_stackid(ctx, &stack_traces, BPF_F_USER_STACK);
+=======
+		ai.stack_id = bpf_get_stackid(ctx, &stack_traces, BPF_F_REUSE_STACKID);
+>>>>>>> 911802811c19d44d0a9cc50991a44cc1f78ef524
 		bpf_map_update_elem(&allocs, &addr, &ai, BPF_ANY);
 
 		pre_info = bpf_map_lookup_elem(&whole_allocs, &(ai.stack_id));
@@ -74,6 +81,7 @@ int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)
 		bpf_map_update_elem(&whole_allocs, &(ai.stack_id), &info, BPF_ANY);
 	
 //		bpf_printk("fentry: pid = %d, size = %ld\n", pid, size);
+<<<<<<< HEAD
 		bpf_printk("tack = %x\n", ai.stack_id);
 	}
 
@@ -84,6 +92,9 @@ int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)
 	for(i = 0; i < 20; i++) 
 		bpf_printk("tack = %x, stack_size = %d, addr = %lx\n", ai.stack_id, stack_size, ip[i]);
 		
+=======
+	}
+>>>>>>> 911802811c19d44d0a9cc50991a44cc1f78ef524
 		return 0;
 }
 
@@ -113,8 +124,11 @@ int tracepoint__kmem__kfree(struct trace_event_raw_kfree* ctx)
 	else
 		info.size -=ai.single_size;
 
+<<<<<<< HEAD
 	bpf_printk("pid = %d, sizes = %ld\n", pid, info.size);
 
+=======
+>>>>>>> 911802811c19d44d0a9cc50991a44cc1f78ef524
 	if(info.number_allocs > 0)
 		info.number_allocs -= 1;
 

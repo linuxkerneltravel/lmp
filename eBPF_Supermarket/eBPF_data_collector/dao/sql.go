@@ -1,17 +1,12 @@
 package dao
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/lmp/eBPF_Visualization/core_service/common"
 	"github.com/lmp/eBPF_Visualization/core_service/globalver"
 	"github.com/lmp/eBPF_Visualization/core_service/utils"
-
-	"github.com/gwenn/yacr"
 )
 
 const (
@@ -26,7 +21,7 @@ func CreateTableByTableInfo(tableInfo *common.TableInfo) {
 	);
 	`, tableInfo.TableName, tableInfo.TableName)
 
-	err := globalver.DB.Exec(sql)
+	_, err := globalver.DB.Exec(sql).Rows()
 	utils.CheckNormalError(err)
 }
 
@@ -36,7 +31,7 @@ func AddIndex2Table(tableInfo *common.TableInfo) error {
 		ALTER TABLE %s ADD COLUMN %s %s;
 		`, tableInfo.TableName, tableInfo.Indexes[k], tableInfo.INdexesInfo[v])
 
-		err := globalver.DB.Exec(sql)
+		_, err := globalver.DB.Exec(sql).Rows()
 		utils.CheckNormalError(err)
 	}
 
@@ -77,6 +72,7 @@ func SaveData(tableInfo *common.TableInfo, line string) error {
 }
 
 func GenerateCsvFile(tableInfo *common.TableInfo) {
+	/*
 	// TODO: break while < 5
 	var b bytes.Buffer
 	w := yacr.NewWriter(&b, ',', true)
@@ -100,4 +96,5 @@ func GenerateCsvFile(tableInfo *common.TableInfo) {
 	if err != nil {
 		return
 	}
+	*/
 }

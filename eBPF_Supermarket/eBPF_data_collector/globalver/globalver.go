@@ -1,9 +1,11 @@
 package globalver
 
-import sqlite "github.com/gwenn/gosqlite"
+import (
+	"gorm.io/gorm"
+)
 
 const ()
 
 var (
-	DB *sqlite.Conn
+	DB *gorm.DB
 )
