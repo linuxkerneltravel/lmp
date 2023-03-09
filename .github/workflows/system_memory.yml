@@ -22,7 +22,7 @@ jobs:
     
     - name: build libbpf
       run: |
-       sudo apt-get install llvm clong
+       sudo apt-get install llvm clang
        #构建环境过程存在部分错误
        #
        
