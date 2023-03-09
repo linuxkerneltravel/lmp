@@ -42,6 +42,8 @@ struct {
 SEC("tracepoint/kmem/kmalloc")
 int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)	
 {
+	u64 ip[20];
+	u64 i, stack_size, stack;
 	struct whole_alloc_info *pre_info, info={0};
 	struct alloc_info ai={0};
 
@@ -57,7 +59,10 @@ int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)
 
 	if(addr != 0) {
 		ai.times = bpf_ktime_get_ns();
-		ai.stack_id = bpf_get_stackid(ctx, &stack_traces, BPF_F_REUSE_STACKID);
+
+//		ai.stack_id = bpf_get_stackid(ctx, &stack_traces, 0);
+
+		ai.stack_id = bpf_get_stackid(ctx, &stack_traces, BPF_F_USER_STACK);
 		bpf_map_update_elem(&allocs, &addr, &ai, BPF_ANY);
 
 		pre_info = bpf_map_lookup_elem(&whole_allocs, &(ai.stack_id));
@@ -68,14 +73,28 @@ int tracepoint__kmem__kmalloc(struct trace_event_raw_kmem_alloc* ctx)
 		info.number_allocs += 1;
 		bpf_map_update_elem(&whole_allocs, &(ai.stack_id), &info, BPF_ANY);
 	
-//		bpf_printk("fentry: pid = %d, size = %ld\n", pid, size);
 	}
+
+	bpf_printk("========================kmalloc==========================");
+
+	stack_size = bpf_get_stack(ctx, ip, sizeof(ip), 0);
+	if(stack_size < 0)
 		return 0;
+
+	stack = stack_size / sizeof(ip[0]);
+	for(i = 1; i < (20 & stack); i++) 
+		bpf_printk("tack = %x, stack_size = %d, addr = %lx\n", ai.stack_id, stack_size, ip[i]);
+
+	bpf_printk("pid = %d, size = %ld, addr = %p\n", pid, size, addr);
+	
+	return 0;
 }
 
 SEC("tracepoint/kmem/kfree")
 int tracepoint__kmem__kfree(struct trace_event_raw_kfree* ctx)
 {
+	u64 ip[20];
+	u64 i, stack_size, stack;
 	pid_t pid;
 	struct alloc_info *ai_info, ai = {0};
 	struct whole_alloc_info *pre_info, info={0};
@@ -104,6 +123,18 @@ int tracepoint__kmem__kfree(struct trace_event_raw_kfree* ctx)
 
 	bpf_map_update_elem(&whole_allocs, &(ai.stack_id), &info, BPF_ANY);
 
-	bpf_printk("fexit: pid = %d, addr = %p, size = %ld\n", pid, addr, ai.single_size);
+	stack_size = bpf_get_stack(ctx, ip, sizeof(ip), 0);
+	if(stack_size < 0)
+		return 0;
+
+	bpf_printk("========================kfree==========================");
+
+	stack = stack_size / sizeof(ip[0]);
+	for(i = 1; i < (20 & stack); i++) 
+		bpf_printk("tack = %x, stack_size = %d, addr = %lx\n", ai.stack_id, stack_size, ip[i]);	
+
+	bpf_printk("fexit: pid = %d, addr = %p", pid, addr);
+	bpf_printk("size = %ld, sizes = %ld\n", ai.single_size, info.size);
+
 	return 0;
 }
