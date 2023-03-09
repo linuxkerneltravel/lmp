@@ -11,7 +11,8 @@ import (
 	"github.com/lmp/eBPF_Visualization/core_service/services"
 	"github.com/lmp/eBPF_Visualization/core_service/utils"
 
-	sqlite "github.com/gwenn/gosqlite"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 	"github.com/urfave/cli"
 )
 
@@ -52,7 +53,7 @@ func main() {
 func doBeforeJob(ctx *cli.Context) (err error) {
 	// ":memory:" for memory db, "" for temp file db
 	os.Remove(dao.DBNAME)
-	globalver.DB, err = sqlite.Open(dao.DBNAME)
+	globalver.DB, err = gorm.Open(sqlite.Open(dao.DBNAME), &gorm.Config{})
 	utils.CheckNormalError(err)
 
 	return nil
