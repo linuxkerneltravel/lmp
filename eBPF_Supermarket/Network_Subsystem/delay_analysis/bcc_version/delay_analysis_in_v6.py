@@ -25,6 +25,8 @@ args = parser.parse_args()
 
 bpf_text = open('delay_analysis_in_v6.c').read()
 
+
+
 # -------- code substitutions --------
 if args.sport:
     bpf_text = bpf_text.replace('##FILTER_SPORT##', 'if (pkt_tuple.sport != %s) { return 0; }' % args.sport)
@@ -64,6 +66,7 @@ def print_event(cpu, data, size):
 
 ################## start tracing ##################
 b = BPF(text=bpf_text)
+b.attach_kprobe(event_re="^ip6_rcv_core$|^ip6_rcv_core\.isra\.\d$", fn_name="kernel_kprobe_ip6_rcv_core")
 
 if args.print:
     # -------- print header --------

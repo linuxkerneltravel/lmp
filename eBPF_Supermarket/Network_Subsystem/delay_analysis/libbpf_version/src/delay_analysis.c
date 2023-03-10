@@ -14,7 +14,8 @@ static volatile bool exiting = false;
 int count = 0;
 int count_i = 0;
 bool verbose = false;
-int dir = 1;
+int _is_send = 0; 	/** default is receive path */
+int _is_ipv6 = 0; 	/** default is ipv4 */
 
 int sport,dport,sampling;
 
@@ -26,7 +27,8 @@ static const struct argp_option opts[] = {
     { "dport", 'd', "DPORT", 0, "trace this destination port only" },
     { "sample", 'S', "SAMPLING", 0, "Trace sampling" },
 	{ "count", 'c', "COUNT", 0, "count of outputs"},
-    { "dir", 'D', "DIRECTION", 0, "in/out(1/0),default is in"},
+    { "Out", 'O', "OUT", 0, "in/out(1/0),default is in"},
+	{"ipv6", '6', "IPV6", 0, "0:ipv4, 1:ipv6, ipv4 is default"},
 	{},
 };
 
@@ -49,9 +51,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'c':
 			count = strtoul(arg,&end,10);
 			break;
-		case 'D':
-			dir = strtoul(arg,&end,10);
+		case 'O':
+			_is_send = strtoul(arg,&end,10);
 			break;
+		case '6':
+			_is_ipv6 = strtoul(arg, &end, 10);
+			break; 
         default:
 		    return ARGP_ERR_UNKNOWN;
     }
@@ -83,18 +88,62 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     const struct data_t *d = data;
     char s_str[INET_ADDRSTRLEN];
 	char d_str[INET_ADDRSTRLEN];
+
+	char s_str_v6[INET6_ADDRSTRLEN];
+	char d_str_v6[INET6_ADDRSTRLEN];
     struct in_addr src;
 	struct in_addr dst;
-    src.s_addr = d->saddr;
-    dst.s_addr = d->daddr;
-    char s_ipv4_port_str[INET_ADDRSTRLEN+6];
-    char d_ipv4_port_str[INET_ADDRSTRLEN+6];
-    sprintf(s_ipv4_port_str,"%s:%d",inet_ntop(AF_INET, &src, s_str, sizeof(s_str)),d->sport);
-    sprintf(d_ipv4_port_str,"%s:%d",inet_ntop(AF_INET, &dst, d_str, sizeof(d_str)),d->dport);
-	if(d->dir){
-		printf("%-22s %-22s %-12u %-12u %-20f %-8u %-5u %-5u %-5u\n",
+	char s_ipv4_port_str[INET_ADDRSTRLEN+6];
+	char d_ipv4_port_str[INET_ADDRSTRLEN+6];
+
+	char s_ipv6_port_str[INET6_ADDRSTRLEN+6];
+	char d_ipv6_port_str[INET6_ADDRSTRLEN+6];
+	if (!_is_ipv6) {
+		/** ipv4 */
+		src.s_addr = d->saddr;
+		dst.s_addr = d->daddr;
+		sprintf(s_ipv4_port_str,"%s:%d",inet_ntop(AF_INET, &src, s_str, sizeof(s_str)),d->sport);
+		sprintf(d_ipv4_port_str,"%s:%d",inet_ntop(AF_INET, &dst, d_str, sizeof(d_str)),d->dport);
+		if (!_is_send) {
+			// in ipv4 
+			printf("%-22s %-22s %-12u %-12u %-20f %-8u %-5u %-5u %-5u\n",
+				s_ipv4_port_str,
+				d_ipv4_port_str,
+				d->seq,
+				d->ack,
+				d->mac_timestamp*1e-9,
+				(unsigned int)(d->total_time/1000),
+				(unsigned int)(d->mac_time/1000),
+				(unsigned int)(d->ip_time/1000),
+				(unsigned int)(d->tcp_time/1000)
+			);
+		}
+		else {
+			// out ipv4
+			printf("%-22s %-22s %-12u %-12u %-20f %-8u %-8u %-5u %-5u\n",
 			s_ipv4_port_str,
 			d_ipv4_port_str,
+			d->seq,
+			d->ack,
+			d->qdisc_timestamp*1e-9,
+			(unsigned int)(d->total_time/1000),     // ms
+			(unsigned int)(d->qdisc_time/1000),
+			(unsigned int)(d->ip_time/1000),
+			(unsigned int)(d->tcp_time/1000)
+			);
+		}
+	}
+	/** ipv6 */
+	else {
+		src.s_addr = d->saddr_v6;
+		dst.s_addr = d->daddr_v6;
+		sprintf(s_ipv6_port_str,"%s:%d",inet_ntop(AF_INET6, &src, s_str_v6, sizeof(s_str_v6)),d->sport);
+    	sprintf(d_ipv6_port_str,"%s:%d",inet_ntop(AF_INET6, &dst, d_str_v6, sizeof(d_str_v6)),d->dport);
+		if (!_is_send) {
+			// in ipv6 
+			printf("%-42s %-42s %-12u %-12u %-20f %-8u %-5u %-5u %-5u\n",
+			s_ipv6_port_str,
+			d_ipv6_port_str,
 			d->seq,
 			d->ack,
 			d->mac_timestamp*1e-9,
@@ -102,20 +151,22 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 			(unsigned int)(d->mac_time/1000),
 			(unsigned int)(d->ip_time/1000),
 			(unsigned int)(d->tcp_time/1000)
-		);
-	}
-	else{
-		printf("%-22s %-22s %-12u %-12u %-20f %-8u %-5u %-5u %-5u\n",
-			s_ipv4_port_str,
-			d_ipv4_port_str,
+			);
+		}
+		else {
+			// out ipv6
+			 printf("%-42s %-42s %-12u %-12u %-20f %-8u %-8u %-5u %-5u\n",
+			s_ipv6_port_str,
+			d_ipv6_port_str,
 			d->seq,
 			d->ack,
-			d->qdisc_timestamp*1e-3,
-			(unsigned int)(d->total_time/1000),
+			d->qdisc_timestamp*1e-9,
+			(unsigned int)(d->total_time/1000),     // ms
 			(unsigned int)(d->qdisc_time/1000),
 			(unsigned int)(d->ip_time/1000),
 			(unsigned int)(d->tcp_time/1000)
-		);
+			);
+		}
 	}
 	count_i++;
     return 0;
@@ -151,6 +202,8 @@ int main(int argc, char **argv)
     skel->rodata->filter_dport = dport;
     skel->rodata->filter_sport = sport;
     skel->rodata->sampling = sampling;
+	skel->rodata->_is_ipv6 = _is_ipv6;
+	skel->rodata->_is_send = _is_send;
 
     /* Load & verify BPF programs */
 	err = delay_analysis_bpf__load(skel);
@@ -175,14 +228,28 @@ int main(int argc, char **argv)
 	}
 
 	/* Process events */
-	if(dir){
-		printf("%-22s %-22s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
-        	"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP");
+	if (_is_ipv6) {
+		if(_is_send){
+			printf("%-42s %-42s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
+			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "QDisc", "IP", "TCP");
+		}
+		else{
+			printf("%-42s %-42s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
+			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP");
+		}
 	}
-	else{
-		printf("%-22s %-22s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
-        	"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "QDisc", "IP", "TCP");
+	else {
+		if(_is_send){
+			printf("%-22s %-22s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
+			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "QDisc", "IP", "TCP");
+		}
+		else{
+			printf("%-22s %-22s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
+			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP");
+		}
+
 	}
+
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
