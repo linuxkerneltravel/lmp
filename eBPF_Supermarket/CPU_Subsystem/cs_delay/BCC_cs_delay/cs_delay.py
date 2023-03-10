@@ -3,7 +3,7 @@ from bcc import BPF
 from time import sleep
 
 # load BPF program
-b = BPF(src_file="cs.c")
+b = BPF(src_file="cs_delay.c")
 b.attach_kprobe(event="schedule", fn_name="do_entry")
 b.attach_kretprobe(event="schedule", fn_name="do_return")
 

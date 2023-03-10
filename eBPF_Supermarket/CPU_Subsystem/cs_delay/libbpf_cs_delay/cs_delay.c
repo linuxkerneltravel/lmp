@@ -21,7 +21,7 @@ static void sig_handler(int sig)
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct event *e = data;
-	printf("pid:%-7d  t1:%lu  t2:%lu  delay:%lu\n",e->pid,e->t1,e->t2,e->delay);
+	printf("t1:%lu  t2:%lu  delay:%lu\n",e->t1,e->t2,e->delay);
 	
 	return 0;
 }
