@@ -9,6 +9,7 @@
 #include <bpf/libbpf.h>
 #include <signal.h>
 #include "cs_delay.skel.h"	//包含了 BPF 字节码和相关的管理函数
+#include "cs_delay.h"
 
 static volatile bool exiting = false;
 
