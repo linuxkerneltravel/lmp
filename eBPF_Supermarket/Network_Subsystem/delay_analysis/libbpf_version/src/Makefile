@@ -19,7 +19,7 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = delay_analysis
+APPS = delay_analysis end2end
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
