@@ -40,6 +40,11 @@ const volatile int _is_send  = 0;   // default is receive path
 #define FILTER_DPORT if(filter_dport){if (pkt_tuple.dport != filter_dport) { return 0; }}
 #define FILTER_SPORT if(filter_sport){if (pkt_tuple.sport != filter_sport) { return 0; }}
 
+static struct tcp_sock *tcp_sk(const struct sock *sk)
+{
+	return (struct tcp_sock *)sk;
+}
+
 static struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb){
     return (struct tcphdr *)((BPF_CORE_READ(skb,head) + BPF_CORE_READ(skb,transport_header)));
 }
@@ -317,6 +322,7 @@ int BPF_KPROBE(skb_copy_datagram_iter,struct sk_buff *skb){
         data->dport = pkt_tuple.dport;
         data->seq = pkt_tuple.seq;
         data->ack = pkt_tuple.ack;
+        data->srtt = tinfo->srtt;
         if (!_is_ipv6) {
             data->saddr = pkt_tuple.saddr;
             data->daddr = pkt_tuple.daddr;
@@ -329,6 +335,37 @@ int BPF_KPROBE(skb_copy_datagram_iter,struct sk_buff *skb){
         bpf_ringbuf_submit(data, 0);
     }
     return 0;
+}
+
+SEC("kprobe/tcp_rcv_established")
+int BPF_KPROBE(tcp_rcv_established, struct sock *sk,struct sk_buff *skb)
+{
+    if (!_is_send) {
+        if (!_is_ipv6) {
+            if (skb == NULL)
+                return 0;
+            struct iphdr *ip = skb_to_iphdr(skb);
+            struct tcphdr *tcp = skb_to_tcphdr(skb);
+            struct packet_tuple pkt_tuple = {};
+            get_pkt_tuple(&pkt_tuple, ip, tcp);
+
+            SAMPLING
+            FILTER_DPORT
+            FILTER_SPORT
+            
+            struct ktime_info *tinfo;
+            if ((tinfo = bpf_map_lookup_elem(&in_timestamps,&pkt_tuple)) == NULL){
+                return 0;
+            }
+            struct tcp_sock *ts;
+            u32 srtt;
+	        ts = (struct tcp_sock *)(sk);
+	        srtt = BPF_CORE_READ(ts, srtt_us);
+            tinfo->srtt = srtt;
+        }
+    }   
+    return 0;
+
 }
 /***************************************** end of receive path ****************************************/
 
@@ -621,6 +658,7 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb)
         data->dport = pkt_tuple.dport;
         data->seq = pkt_tuple.seq;
         data->ack = pkt_tuple.ack;
+        data->srtt = tinfo->srtt;
 
         //data->nat_saddr = BPF_CORE_READ(ip, saddr);
         data->nat_sport = __bpf_ntohs(nat_sport);

@@ -106,7 +106,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		sprintf(d_ipv4_port_str,"%s:%d",inet_ntop(AF_INET, &dst, d_str, sizeof(d_str)),d->dport);
 		if (!_is_send) {
 			// in ipv4 
-			printf("%-22s %-22s %-12u %-12u %-20f %-8u %-5u %-5u %-5u\n",
+			printf("%-22s %-22s %-12u %-12u %-20f %-8u %-5u %-5u %-5u %-10u\n",
 				s_ipv4_port_str,
 				d_ipv4_port_str,
 				d->seq,
@@ -115,7 +115,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 				(unsigned int)(d->total_time/1000),
 				(unsigned int)(d->mac_time/1000),
 				(unsigned int)(d->ip_time/1000),
-				(unsigned int)(d->tcp_time/1000)
+				(unsigned int)(d->tcp_time/1000),
+				(unsigned int)(d->srtt)
 			);
 		}
 		else {
@@ -244,8 +245,8 @@ int main(int argc, char **argv)
 			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "QDisc", "IP", "TCP");
 		}
 		else{
-			printf("%-22s %-22s %-12s %-12s %-20s %-8s %-5s %-5s %-5s\n" ,
-			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP");
+			printf("%-22s %-22s %-12s %-12s %-20s %-8s %-5s %-5s %-5s %-10s\n" ,
+			"SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME", "TOTAL", "MAC", "IP", "TCP","SRTT");
 		}
 
 	}

@@ -20,10 +20,7 @@
 
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
-static struct tcp_sock *tcp_sk(const struct sock *sk)
-{
-	return (struct tcp_sock *)sk;
-}
+
 
 struct packet_tuple {
     unsigned __int128 saddr_v6;
@@ -42,6 +39,7 @@ struct ktime_info {
     u64 ip_time;
     u64 tcp_time;
     u64 app_time;
+    u32 srtt;
 };
 
 struct data_t {
@@ -55,6 +53,7 @@ struct data_t {
     /* receive path*/
     u64 mac_timestamp;
     u64 mac_time;
+    u32 srtt;
     /* send path */
     u64 qdisc_timestamp;
     u64 qdisc_time;
