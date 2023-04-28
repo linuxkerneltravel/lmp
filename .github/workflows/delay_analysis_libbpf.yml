@@ -20,9 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install dependencies and Init Env
         run: |
           sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          cd eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/src
+          make clean
 
       - name: Build&Run delay_analysis
         run: |
