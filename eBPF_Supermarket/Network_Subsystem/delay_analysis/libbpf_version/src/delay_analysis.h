@@ -10,8 +10,14 @@
 #define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
 #define ETH_P_IPV6	0x86DD		/* IPv6 over bluebook		*/
 
+#ifndef AF_INET
 #define AF_INET		2
+#endif 
+
+#ifndef AF_INET6
 #define AF_INET6	10	/* IP version 6	*/
+#endif 
+
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
 static struct tcp_sock *tcp_sk(const struct sock *sk)

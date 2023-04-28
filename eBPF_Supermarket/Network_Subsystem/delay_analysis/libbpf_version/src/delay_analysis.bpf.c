@@ -160,7 +160,7 @@ int BPF_KPROBE(eth_type_trans, struct sk_buff *skb){
 }
 
 /** in only ipv4 */
-SEC("kprobe/ip_rcv_core.isra.0")
+SEC("kprobe/ip_rcv_core")
 int BPF_KPROBE(ip_rcv_core,struct sk_buff *skb){
     if (!_is_send) {
         if (!_is_ipv6) {
@@ -212,7 +212,7 @@ int BPF_KPROBE(tcp_v4_rcv,struct sk_buff *skb){
 }
 
 /** in only ipv6 */
-SEC("kprobe/ip6_rcv_core.isra.0")
+SEC("kprobe/ip6_rcv_core")
 int BPF_KPROBE(ip6_rcv_core,struct sk_buff *skb){
     if (!_is_send) {
         if (_is_ipv6) {
@@ -518,8 +518,8 @@ int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb)
 * \brief: 获取数据包进入数据链路层时刻的时间戳
     out ipv4 && ipv6
 */
-SEC("kprobe/dev_queue_xmit")
-int BPF_KPROBE(dev_queue_xmit, struct sk_buff *skb)
+SEC("kprobe/__dev_queue_xmit")
+int BPF_KPROBE(__dev_queue_xmit, struct sk_buff *skb)
 {
     if (_is_send) {
         struct tcphdr *tcp = skb_to_tcphdr(skb);
