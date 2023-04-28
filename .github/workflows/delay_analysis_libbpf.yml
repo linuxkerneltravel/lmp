@@ -23,10 +23,10 @@ jobs:
       - name: Install dependencies and Init Env
         run: |
           sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
-          cd eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/src
           make clean
 
-      - name: Build&Run delay_analysis
+      - name: Build and Run
         run: |
+          cd eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/src
           make delay_analysis
           sudo ./delay_analysis -c 5
