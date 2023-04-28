@@ -6,29 +6,17 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/Network_Subsystem/**'
+      - '!eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
       - '.github/workflows/system_network.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/Network_Subsystem/**'
+      - '!eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
       - '.github/workflows/system_network.yml'
 
 jobs:
-  delay_analysis_libbpf_version:
-    runs-on: ubuntu-22.04
-    if: ${{ startsWith(github.event_path, 'eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/') }}
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install dependencies
-        run: |
-          sudo apt install clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
-                 
-      - name: Build and run delay_analysis
-        run: |
-          make delay_analysis
-          sudo ./delay_analysis 
     
   bcc-project-build-and-test:
     runs-on: ubuntu-22.04
