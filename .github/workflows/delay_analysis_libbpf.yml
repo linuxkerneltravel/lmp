@@ -23,7 +23,6 @@ jobs:
       - name: Install dependencies and Init Env
         run: |
           sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
-          make clean
 
       - name: Build and Run
         run: |
