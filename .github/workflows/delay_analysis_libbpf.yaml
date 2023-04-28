@@ -6,7 +6,7 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
-      - '.github/workflows/libbpf.yml'
+      - '.github/workflows/delay_analysis_libbpf.yml'
   pull_request:
     branches:
       - "*"
