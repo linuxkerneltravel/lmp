@@ -1,0 +1,30 @@
+name: delay_analysis_libbpf
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
+      - '.github/workflows/libbpf.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
+      - '.github/workflows/delay_analysis_libbpf.yml'
+
+jobs:
+  libbpf-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+
+      - name: Build&Run delay_analysis
+        run: |
+          make delay_analysis
+          sudo ./delay_analysis -c 5
