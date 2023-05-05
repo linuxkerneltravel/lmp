@@ -6,15 +6,18 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/Network_Subsystem/**'
+      - '!eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
       - '.github/workflows/system_network.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/Network_Subsystem/**'
+      - '!eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
       - '.github/workflows/system_network.yml'
 
 jobs:
+    
   bcc-project-build-and-test:
     runs-on: ubuntu-22.04
     steps:
