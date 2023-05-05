@@ -8,7 +8,7 @@ require (
 	github.com/casbin/gorm-adapter/v3 v3.0.2
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/fvbock/endless v0.0.0-20170109170031-447134032cb6
-	github.com/gin-gonic/gin v1.7.7
+	github.com/gin-gonic/gin v1.9.0
 	github.com/go-openapi/spec v0.20.6 // indirect
 	github.com/go-openapi/swag v0.22.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.0
@@ -16,7 +16,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.3.0
 	github.com/gookit/color v1.3.6
 	github.com/gorilla/websocket v1.4.2
-	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/mitchellh/mapstructure v1.2.2 // indirect
 	github.com/mojocn/base64Captcha v1.3.1
 	github.com/natefinch/lumberjack v2.0.0+incompatible
@@ -31,7 +30,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.7.0
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/gin-swagger v1.3.0
 	github.com/swaggo/swag v1.8.4
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
@@ -39,7 +38,6 @@ require (
 	github.com/urfave/cli v1.20.0
 	go.uber.org/zap v1.16.0
 	golang.org/x/image v0.5.0 // indirect
-	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
