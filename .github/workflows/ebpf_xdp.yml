@@ -14,8 +14,6 @@ on:
       - 'eBPF_Supermarket/XDP_Res-Application/**'
       - '.github/workflows/ebpf_xdp.yml'
       
-  pull_request_review:
-  workflow_dispatch:
 
 jobs:
   bcc-project-build-and-test:
