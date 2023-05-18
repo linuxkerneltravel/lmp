@@ -1,4 +1,4 @@
-name: delay_analysis_libbpf
+name: net_libbpf
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
-      - '.github/workflows/delay_analysis_libbpf.yml'
+      - '.github/workflows/net_libbpf.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
-      - '.github/workflows/delay_analysis_libbpf.yml'
+      - '.github/workflows/net_libbpf.yml'
 
 jobs:
   libbpf-project-build-and-test:
@@ -27,6 +27,6 @@ jobs:
 
       - name: Build and Run
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/src
+          cd eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/
           make delay_analysis
           sudo ./delay_analysis -c 5
