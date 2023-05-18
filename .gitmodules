@@ -3,4 +3,4 @@
 	url = https://github.com/eunomia-bpf/ebpm-template
 [submodule "eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap"]
 	path = eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap
-	url = https://github.com/libbpf/libbpf-bootstrap.git
+	url = https://github.com/libbpf/libbpf-bootstrap
