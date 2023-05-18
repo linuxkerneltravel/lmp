@@ -1,12 +1,6 @@
 [submodule "eBPF_Hub/template"]
 	path = eBPF_Hub/template
 	url = https://github.com/eunomia-bpf/ebpm-template
-[submodule "eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/blazesym"]
-	path = eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/blazesym
-	url = https://github.com/libbpf/blazesym.git
-[submodule "eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/bpftool"]
-	path = eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/bpftool
-	url = https://github.com/libbpf/bpftool.git
-[submodule "eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/libbpf"]
-	path = eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/libbpf
-	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap"]
+	path = eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap
+	url = https://github.com/libbpf/libbpf-bootstrap.git
