@@ -5,15 +5,21 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Network_Subsystem/**'
-      - '!eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
+      - 'eBPF_Supermarket/Network_Subsystem/nic_throughput/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_bytes/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_connection/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_flow/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_inerrs/**'
       - '.github/workflows/system_network.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/**'
-      - '!eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/**'
+      - 'eBPF_Supermarket/Network_Subsystem/nic_throughput/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_bytes/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_connection/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_flow/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_inerrs/**'
       - '.github/workflows/system_network.yml'
 
 jobs:
