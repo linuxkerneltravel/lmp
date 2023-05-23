@@ -26,7 +26,7 @@ mkdir yourdir
 ```
 ## 查看是否挂载成功
 ```sh
-df -T //查看OS的文件系统类型
+df -T yourdir//查看OS的文件系统类型
 ```
 ## 卸载
 ```sh
