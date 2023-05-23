@@ -8,7 +8,7 @@ version='%(prog)s version : v0.01 '
 
 # usage = """
 # Usage: 
-#     fs.py [-h] [-o] [-r] [-w] [-v] [-p] [-d]
+#     fs.py [-h] [-O] [-R] [-W] [-V] [-P] [-D]
 # """
 
 parser = argparse.ArgumentParser(
