@@ -8,7 +8,7 @@ version='%(prog)s version : v0.01 '
 
 # usage = """
 # Usage: 
-#     fs.py [-h] [-o] [-r] [-w] [-v] [-p] [-d]
+#     fs.py [-h] [-O] [-R] [-w] [-V] [-P] [-D]
 # """
 
 parser = argparse.ArgumentParser(
@@ -22,7 +22,7 @@ parser.add_argument("-O", "--open", action="store_true",
 parser.add_argument("-R", "--read", action="store_true",
     help="Print all read syscall")
 
-parser.add_argument("-W", "--write", action="store_true",
+parser.add_argument("-w", "--write", action="store_true",
     help="Print all write syscall")
 
 parser.add_argument("-V", "--vfs_func", action="store_true",
