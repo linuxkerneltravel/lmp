@@ -32,14 +32,20 @@ jobs:
 
       - name: Build and Run
         run: |
+          pushd ./
           cd eBPF_Supermarket/Network_Subsystem/delay_analysis/libbpf_version/
           make delay_analysis
           sudo ./delay_analysis -c 5
+          popd
           
+          pushd ./
           cd eBPF_Supermarket/Network_Subsystem/tcp_win/
-          make tcp_backlog
-          sudo ./tcp_win -c 5
-          
-          cd eBPF_Supermarket/Network_Subsystem/tcp_backlog/
           make tcp_win
+          sudo ./tcp_win -c 5
+          popd
+          
+          pushd ./
+          cd eBPF_Supermarket/Network_Subsystem/tcp_backlog/
+          make tcp_backlog
           sudo ./tcp_backlog -c 5
+          popd
