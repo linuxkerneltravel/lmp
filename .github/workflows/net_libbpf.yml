@@ -47,5 +47,6 @@ jobs:
           pushd ./
           cd eBPF_Supermarket/Network_Subsystem/tcp_backlog/
           make tcp_backlog
-          sudo ./tcp_backlog -c 5
+          sudo ./tcp_backlog &
+          sudo tail /sys/kernel/debug/tracing/trace
           popd
