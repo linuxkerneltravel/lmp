@@ -29,16 +29,7 @@ jobs:
       - name: Build and Run
         run: |
           pushd ./
-          cd eBPF_Supermarket/XDP_Res-Application/tools/lib/
-          pushd ./
-          cd xdp-tools/lib
+          cd eBPF_Supermarket/XDP_Res-Application/tools/
           make
-          popd
-          make
-          popd
-        
-          pushd ./
-          cd eBPF_Supermarket/XDP_Res-Application/tools/xdp_ping/
-          make 
-          sudo ./xdp_ping_user -d lo
+          sudo ./xdp_ping/xdp_ping_user -d lo
           popd
