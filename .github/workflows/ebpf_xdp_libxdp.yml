@@ -30,6 +30,7 @@ jobs:
         run: |
           pushd ./
           cd eBPF_Supermarket/XDP_Res-Application/tools/xdp_ping/
+          pwd && ls -alh
           make 
           sudo ./xdp_ping_user -d lo
           popd
