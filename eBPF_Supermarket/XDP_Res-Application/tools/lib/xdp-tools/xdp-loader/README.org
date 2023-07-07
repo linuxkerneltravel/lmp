@@ -1,0 +1,202 @@
+#+EXPORT_FILE_NAME: xdp-loader
+#+TITLE: xdp-loader
+#+OPTIONS: ^:nil
+#+MAN_CLASS_OPTIONS: :section-id "8\" \"DATE\" \"VERSION\" \"XDP program loader"
+# This file serves both as a README on github, and as the source for the man
+# page; the latter through the org-mode man page export support.
+# .
+# To export the man page, simply use the org-mode exporter; (require 'ox-man) if
+# it's not available. There's also a Makefile rule to export it.
+
+* xdp-loader - an XDP program loader
+
+XDP-loader is a simple loader for XDP programs with support for attaching
+multiple programs to the same interface. To achieve this it exposes the same
+load and unload semantics exposed by the libxdp library. See the =libxdp(3)= man
+page for details of how this works, and what kernel features it relies on.
+
+** Running xdp-loader
+The syntax for running xdp-loader is:
+
+#+begin_src sh
+xdp-loader COMMAND [options]
+
+Where COMMAND can be one of:
+       load        - load an XDP program on an interface
+       unload      - unload an XDP program from an interface
+       status      - show current XDP program status
+       clean       - clean up detached program links in XDP bpffs directory
+       help        - show the list of available commands
+#+end_src
+
+Each command, and its options are explained below. Or use =xdp-loader COMMAND
+--help= to see the options for each command.
+
+* The LOAD command
+The =load= command loads one or more XDP programs onto an interface.
+
+The syntax for the =load= command is:
+
+=xdp-loader load [options] <ifname> <programs>=
+
+Where =<ifname>= is the name of the interface to load the programs onto, and the
+=<programs>= is one or more file names containing XDP programs. The programs
+will be loaded onto the interface in the order of their preference, as
+specified by the program metadata (see *libxdp(3)*).
+
+The supported options are:
+
+** -m, --mode <mode>
+Specifies which mode to load the XDP program to be loaded in. The valid values
+are 'native', which is the default in-driver XDP mode, 'skb', which causes the
+so-called /skb mode/ (also known as /generic XDP/) to be used, 'hw' which causes
+the program to be offloaded to the hardware, or 'unspecified' which leaves it up
+to the kernel to pick a mode (which it will do by picking native mode if the
+driver supports it, or generic mode otherwise). Note that using 'unspecified'
+can make it difficult to predict what mode a program will end up being loaded
+in. For this reason, the default is 'native'.
+
+** -p, --pin-path <path>
+This specifies a root path under which to pin any maps that define the 'pinning'
+attribute in their definitions. This path must be located on a =bpffs= file
+system. If not set, maps will not be pinned, even if they specify pinning in
+their definitions. When pinning maps, if the pinned location for a map already
+exist, the map pinned there will be reused if it is compatible with the type of
+the map being loaded.
+
+** -s, --section <section>
+Specify which ELF section to load the XDP program(s) from in each file. The
+default is to use the first program in each file. If this option is set, it
+applies to all programs being loaded.
+
+** -n, --prog-name <prog_name>
+Specify which BPF program with the name to load the XDP program(s) from in each
+file. The default is to use the first program in each file. Only one of
+--section and --prog-name may be specified. If this option is set, it applies to
+all programs being loaded.
+
+** -v, --verbose
+Enable debug logging. Specify twice for even more verbosity.
+
+** -h, --help
+Display a summary of the available options
+
+* The UNLOAD command
+The =unload= command is used for unloading programs from an interface.
+
+The syntax for the =unload= command is:
+
+=xdp-loader unload [options] <ifname>=
+
+Where =<ifname>= is the name of the interface to load the programs onto. Either
+the =--all= or =--id= options must be used to specify which program(s) to unload.
+
+The supported options are:
+
+** -i, --id <id>
+Unload a single program from the interface by ID. Use =xdp-loader status= to
+obtain the ID of the program being unloaded. If this program is the last program
+loaded on the interface, the dispatcher program will also be removed, which
+makes the operation equivalent to specifying =--all=.
+
+** -a, --all
+Unload all XDP programs on the interface, as well as the multi-program
+dispatcher.
+
+** -v, --verbose
+Enable debug logging. Specify twice for even more verbosity.
+
+** -h, --help
+Display a summary of the available options
+
+* The STATUS command
+The =status= command displays a list of interfaces in the system, and the XDP
+program(s) loaded on each interface. For each interface, a list of programs are
+shown, with the run priority and "chain actions" for each program. See the
+section on program metadata for the meaning of this metadata.
+
+** -v, --verbose
+Enable debug logging. Specify twice for even more verbosity.
+
+** -h, --help
+Display a summary of the available options
+
+* The CLEAN command
+
+The syntax for the =clean= command is:
+
+=xdp-loader clean [options] [ifname]=
+
+The =clean= command cleans up any detached program links in the XDP bpffs
+directory.  When a network interface disappears, any programs loaded in software
+mode (e.g. skb, native) remain pinned in the bpffs directory, but become
+detached from the interface. These need to be unlinked from the filesystem. The
+=clean= command takes an optional interface parameter to only unlink detached
+programs corresponding to the interface.  By default, all detached programs for
+all interfaces are unlinked.
+
+The supported options are:
+
+** -v, --verbose
+Enable debug logging. Specify twice for even more verbosity.
+
+** -h, --help
+Display a summary of the available options
+
+* Examples
+
+To load an XDP program on the eth0 interface simply do:
+
+#+begin_src sh
+# xdp-loader load eth0 xdp_drop.o
+# xdp-loader status
+
+CURRENT XDP PROGRAM STATUS:
+
+Interface        Prio  Program name     Mode     ID   Tag               Chain actions
+-------------------------------------------------------------------------------------
+lo               <no XDP program>
+eth0                   xdp_dispatcher   native   50   d51e469e988d81da
+ =>              50    xdp_drop                  55   57cd311f2e27366b  XDP_PASS
+
+#+end_src
+
+Which shows that a dispatcher program was loaded on the interface, and the
+xdp_drop program was installed as the first (and only) component program after
+it. In this instance, the program does not specify any of the metadata above, so
+the defaults (priority 50 and XDP_PASS as its chain call action) was used.
+
+To use the automatic map pinning, include the =pinning= attribute into the map
+definition in the program, something like:
+
+#+begin_src c
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 10);
+	__type(key, __u32);
+	__type(value, __u64);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+} my_map SEC(".maps");
+#+end_src
+
+And load it with the =--pin-path= attribute:
+
+#+begin_src sh
+# xdp-loader load eth0 my_prog.o --pin-path /sys/fs/bpf/my-prog
+#+end_src
+
+This will pin the map at =/sys/fs/bpf/my-prog/my_map=. If this already exists,
+the pinned map will be reused instead of creating a new one, which allows
+different BPF programs to share the map.
+
+* SEE ALSO
+=libxdp(3)= for details on the XDP loading semantics and kernel compatibility
+requirements.
+
+* BUGS
+
+Please report any bugs on Github: https://github.com/xdp-project/xdp-tools/issues
+
+* AUTHOR
+
+xdp-loader and this man page were written by Toke Høiland-Jørgensen.

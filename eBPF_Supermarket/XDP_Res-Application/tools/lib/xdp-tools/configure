@@ -1,0 +1,404 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0
+# This is not an autoconf generated configure
+#
+
+# Output file which is input to Makefile
+CONFIG_FINAL=config.mk
+CONFIG=".${CONFIG}.tmp"
+
+# Make a temp directory in build tree.
+TMPDIR=$(mktemp -d config.XXXXXX)
+trap 'status=$?; rm -rf $TMPDIR; rm -f $CONFIG; exit $status' EXIT HUP INT QUIT TERM
+
+check_opts()
+{
+    : ${PRODUCTION:=0}
+    : ${DYNAMIC_LIBXDP:=0}
+    : ${MAX_DISPATCHER_ACTIONS:=10}
+    : ${BPF_TARGET:=bpf}
+    echo "PRODUCTION:=${PRODUCTION}" >>$CONFIG
+    echo "DYNAMIC_LIBXDP:=${DYNAMIC_LIBXDP}" >>$CONFIG
+    echo "MAX_DISPATCHER_ACTIONS:=${MAX_DISPATCHER_ACTIONS}" >>$CONFIG
+    echo "BPF_TARGET:=${BPF_TARGET}" >>$CONFIG
+}
+
+check_toolchain()
+{
+    local emacs_version
+    local clang_version
+
+    : ${PKG_CONFIG:=pkg-config}
+    : ${CC=gcc}
+    : ${LD=ld}
+    : ${OBJCOPY=objcopy}
+    : ${CLANG=clang}
+    : ${LLC=llc}
+    : ${M4=m4}
+    : ${EMACS=emacs}
+    : ${ARCH_INCLUDES=}
+
+    for TOOL in $PKG_CONFIG $CC $LD $OBJCOPY $CLANG $LLC $M4; do
+        if [ ! $(command -v ${TOOL} 2>/dev/null) ]; then
+            echo "*** ERROR: Cannot find tool ${TOOL}" ;
+            exit 1;
+        fi;
+    done
+
+    clang_version=$($CLANG --version | grep -Po '(?<=clang version )[[:digit:]]+')
+    echo "Found clang binary '$CLANG' with version $clang_version (from '$($CLANG --version | head -n 1)')"
+    if [ "$clang_version" -lt "10" ]; then
+        echo "*** ERROR: Need LLVM version 10+, '$CLANG' is version $clang_version"
+        [ -n "$RELAXED_LLVM_VERSION" ] || exit 1
+    fi
+
+    if ! command -v $EMACS >/dev/null 2>&1; then
+        EMACS=""
+    else
+        emacs_version=$($EMACS --version 2>/dev/null | head -n 1)
+        if echo $emacs_version | grep -Eq 'GNU Emacs 2[6789]'; then
+            echo "using emacs: $emacs_version"
+        else
+            echo "not using emacs: $emacs_version"
+            EMACS=""
+        fi
+    fi
+
+    if [ -z "$EMACS" ] && [ "${FORCE_EMACS:-0}" -eq "1" ]; then
+        echo "FORCE_EMACS is set, but no usable emacs found on system"
+        rm -f "$CONFIG"
+        exit 1
+    fi
+
+    if [ -z "$ARCH_INCLUDES" ]; then
+        for dir in $(echo | $CC -Wp,-v -E - 2>&1 | grep '^ '); do
+            local idir
+            idir="${dir}/$(uname -m)-linux-gnu/"
+            [ -d "$idir" ] && ARCH_INCLUDES="-I${idir} $ARCH_INCLUDES"
+        done
+    fi
+
+    echo "PKG_CONFIG:=${PKG_CONFIG}" >>$CONFIG
+    echo "CC:=${CC}" >>$CONFIG
+    echo "LD:=${LD}" >>$CONFIG
+    echo "OBJCOPY:=${OBJCOPY}" >>$CONFIG
+    echo "CLANG:=${CLANG}" >>$CONFIG
+    echo "LLC:=${LLC}" >>$CONFIG
+    echo "M4:=${M4}" >>$CONFIG
+    echo "EMACS:=${EMACS}" >>$CONFIG
+    echo "ARCH_INCLUDES:=$ARCH_INCLUDES" >> $CONFIG
+}
+
+check_zlib()
+{
+    if ${PKG_CONFIG} zlib --exists; then
+        echo "HAVE_ZLIB:=y" >>$CONFIG
+        echo "yes"
+
+        echo 'CFLAGS += -DHAVE_ZLIB' `${PKG_CONFIG} zlib --cflags` >> $CONFIG
+        echo 'LDLIBS += ' `${PKG_CONFIG} zlib --libs` >>$CONFIG
+    else
+        echo "missing - this is required"
+        return 1
+    fi
+}
+
+check_elf()
+{
+    if ${PKG_CONFIG} libelf --exists; then
+        echo "HAVE_ELF:=y" >>$CONFIG
+        echo "yes"
+
+        echo 'CFLAGS += -DHAVE_ELF' `${PKG_CONFIG} libelf --cflags` >> $CONFIG
+        echo 'LDLIBS += ' `${PKG_CONFIG} libelf --libs` >>$CONFIG
+    else
+        echo "missing - this is required"
+        return 1
+    fi
+}
+
+check_pcap()
+{
+    local libpcap_err
+
+    if ${PKG_CONFIG} libpcap --exists; then
+        LIBPCAP_CFLAGS=$(${PKG_CONFIG} libpcap --cflags)
+        LIBPCAP_LDLIBS=$(${PKG_CONFIG} libpcap --libs)
+    else
+        LIBPCAP_CFLAGS=""
+        LIBPCAP_LDLIBS="-lpcap"
+    fi
+
+    cat >$TMPDIR/libpcaptest.c <<EOF
+#define PCAP_DONT_INCLUDE_PCAP_BPF_H
+#include <pcap/dlt.h>
+#include <pcap/pcap.h>
+int main(int argc, char **argv) {
+    pcap_t *pcap = pcap_open_live("ifname", 100, 1, 1000, NULL);
+    return 0;
+}
+EOF
+    libpcap_err=$($CC -o $TMPDIR/libpcaptest $TMPDIR/libpcaptest.c  $LIBPCAP_CFLAGS $LIBPCAP_LDLIBS 2>&1)
+    if [ "$?" -eq "0" ]; then
+        echo "HAVE_PCAP:=y" >>$CONFIG
+        [ -n "$LIBPCAP_CFLAGS" ] && echo 'CFLAGS += ' $LIBPCAP_CFLAGS >> $CONFIG
+        echo "yes"
+    else
+        echo "missing - this is required"
+        echo "error: $libpcap_err"
+        return 1
+    fi
+}
+
+
+check_libbpf_function()
+{
+    local FUNCTION_NAME
+    local FUNCTION_ARGS
+    local LIBBPF_CFLAGS
+    local LIBBPF_LDLIBS
+    local config_var
+    FUNCTION_NAME="$1"
+    FUNCTION_ARGS="$2"
+    LIBBPF_CFLAGS="$3"
+    LIBBPF_LDLIBS="$4"
+
+    config_var="LIBBPF_$(echo $FUNCTION_NAME | tr 'a-z' 'A-Z')"
+
+    echo -n "  $FUNCTION_NAME support: "
+
+    # If LIBBPF_LDLIBS is empty that means we're using the submodule version of
+    # libbpf. We know it does support all the APIs we're testing for, so we hard
+    # code it as supported. We can't actually run the check as the embedded
+    # libbpf.a has not been built at configure time.
+    if [ -z "$LIBBPF_LDLIBS" ]; then
+        echo "HAVE_FEATURES+=${config_var}" >>"$CONFIG"
+        echo "yes (submodule)"
+        return 0;
+    fi
+
+    # If this is set we don't try to link against libbpf, as it may be in a
+    # different submodule and have not been built yet. Instead, we'll copy over
+    # the header files from the libbpf sources so those are used first,
+    # triggering a compile error if the function we are testing for is missing.
+    if [ -n "$LIBBPF_UNBUILT" ]; then
+        LIBBPF_LDLIBS="-Xlinker --unresolved-symbols=ignore-in-object-files"
+        LIBBPF_CFLAGS="-I$TMPDIR/include"
+        mkdir -p "$TMPDIR/include/bpf"
+        cp "$LIBBPF_DIR"/src/bpf.h "$LIBBPF_DIR"/src/btf.h "$LIBBPF_DIR"/src/libbpf*.h "$TMPDIR/include/bpf"
+        [ "$?" -eq 0 ] || return
+    fi
+
+    cat >$TMPDIR/libbpftest.c <<EOF
+#include <bpf/libbpf.h>
+#include <bpf/bpf.h>
+#include <bpf/btf.h>
+int main(int argc, char **argv) {
+    ${FUNCTION_NAME}${FUNCTION_ARGS};
+    return 0;
+}
+EOF
+    compile_cmd="$CC -o $TMPDIR/libbpftest $TMPDIR/libbpftest.c -Werror $LIBBPF_CFLAGS $LIBBPF_LDLIBS"
+    libbpf_err=$($compile_cmd 2>&1)
+    if [ "$?" -eq "0" ]; then
+        echo "HAVE_FEATURES+=${config_var}" >>"$CONFIG"
+        echo "yes"
+    else
+        echo "no"
+    fi
+    if [ -n "$DEBUG_CONFIGURE" ]; then
+        echo "    $compile_cmd"
+        echo "${libbpf_err}" | sed 's/^/    /gm'
+    fi
+}
+
+check_libbpf_functions()
+{
+    local LIBBPF_CFLAGS
+    local LIBBPF_LDLIBS
+    LIBBPF_CFLAGS="$1"
+    LIBBPF_LDLIBS="$2"
+
+    check_libbpf_function "perf_buffer__consume" "(NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "btf__load_from_kernel_by_id" "(0)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "btf__type_cnt" "(0)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "bpf_object__next_map" "(NULL, NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "bpf_object__next_program" "(NULL, NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "bpf_program__insn_cnt" "(NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "bpf_map_create" "(0, NULL, 0, 0, 0, NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "perf_buffer__new_raw" "(0, 0, NULL, NULL, NULL, NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+    check_libbpf_function "bpf_xdp_attach" "(0, 0, 0, NULL)" "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+}
+
+get_libbpf_version()
+{
+    local libbpf_dir
+    local version
+    libbpf_dir="$1"
+
+    if [ -f "${libbpf_dir}/libbpf.map" ]; then
+        version=$(grep -oE '^LIBBPF_([0-9.]+)' "${libbpf_dir}/libbpf.map" | sort -rV | head -n1 | cut -d'_' -f2)
+    else
+        version=unknown
+    fi
+
+    echo $version
+}
+
+check_libbpf()
+{
+    local libbpf_err
+
+    if [ "${FORCE_SUBDIR_LIBBPF:-0}" -ne "1" ] && ${PKG_CONFIG} libbpf --exists && [ -z "$LIBBPF_DIR" ]; then
+
+        LIBBPF_CFLAGS=$(${PKG_CONFIG} libbpf --cflags)
+        LIBBPF_LDLIBS=$(${PKG_CONFIG} libbpf --libs)
+        LIBBPF_VERSION=$(${PKG_CONFIG} libbpf --modversion)
+
+        cat >$TMPDIR/libbpftest.c <<EOF
+#include <bpf/libbpf.h>
+#include <bpf/bpf.h>
+#include <bpf/btf.h>
+int main(int argc, char **argv) {
+    void *ptr;
+    DECLARE_LIBBPF_OPTS(bpf_object_open_opts, opts, .pin_root_path = "/path");
+    DECLARE_LIBBPF_OPTS(bpf_link_create_opts, lopts, .target_btf_id = 0);
+    (void) bpf_object__open_file("file", &opts);
+    (void) bpf_program__name(ptr);
+    (void) bpf_map__set_initial_value(ptr, ptr, 0);
+    return 0;
+}
+EOF
+
+        libbpf_err=$($CC -o $TMPDIR/libbpftest $TMPDIR/libbpftest.c -Werror $LIBBPF_CFLAGS $LIBBPF_LDLIBS 2>&1)
+        if [ "$?" -eq "0" ]; then
+            echo "SYSTEM_LIBBPF:=y" >>$CONFIG
+            echo "LIBBPF_VERSION=$LIBBPF_VERSION" >>$CONFIG
+            echo 'CFLAGS += ' $LIBBPF_CFLAGS >> $CONFIG
+            echo 'LDLIBS += ' $LIBBPF_LDLIBS >>$CONFIG
+            echo 'OBJECT_LIBBPF = ' >>$CONFIG
+            echo "system v$LIBBPF_VERSION"
+
+            check_libbpf_functions "$LIBBPF_CFLAGS" "$LIBBPF_LDLIBS"
+            return 0
+        fi
+    else
+        libbpf_err="${PKG_CONFIG} couldn't find libbpf"
+    fi
+
+    if [ "${FORCE_SYSTEM_LIBBPF:-0}" -eq "1" ]; then
+        echo "FORCE_SYSTEM_LIBBPF is set, but no usable libbpf found on system"
+        echo "error: $libbpf_err"
+        rm -f "$CONFIG"
+        exit 1
+    fi
+
+    if [ -n "$LIBBPF_DIR" ]; then
+        [ -z "$LIBBPF_INCLUDE_DIR" ] && LIBBPF_INCLUDE_DIR="$(readlink -m ${LIBBPF_DIR}/include)"
+        [ -z "$LIBBPF_LIB_DIR" ] && LIBBPF_LIB_DIR="$(readlink -m ${LIBBPF_DIR}/src)"
+        LIBBPF_VERSION=$(get_libbpf_version "$LIBBPF_DIR/src")
+        OBJECT_LIBBPF=
+        echo "custom v$LIBBPF_VERSION"
+        check_libbpf_functions "-I${LIBBPF_INCLUDE_DIR}" "-L${LIBBPF_LIB_DIR} -l:libbpf.a"
+    else
+        if ! [ -d "lib/libbpf/src" ] && [ -f ".gitmodules" ] && [ -e ".git" ]; then
+            git submodule init && git submodule update
+        fi
+
+        LIBBPF_VERSION=$(get_libbpf_version "lib/libbpf/src")
+        LIBBPF_INCLUDE_DIR='$(LIB_DIR)/libbpf/src/root/usr/include'
+        LIBBPF_LIB_DIR='$(LIB_DIR)/libbpf/src'
+        OBJECT_LIBBPF="${LIBBPF_LIB_DIR}/libbpf.a"
+        echo "submodule v$LIBBPF_VERSION"
+        check_libbpf_functions "" ""
+    fi
+
+    echo "SYSTEM_LIBBPF:=n" >> $CONFIG
+    echo "LIBBPF_VERSION=$LIBBPF_VERSION" >>$CONFIG
+    echo "CFLAGS += -I${LIBBPF_INCLUDE_DIR}" >>$CONFIG
+    echo "BPF_CFLAGS += -I${LIBBPF_INCLUDE_DIR}" >>$CONFIG
+    echo "LDFLAGS += -L${LIBBPF_LIB_DIR}" >>$CONFIG
+    echo 'LDLIBS += -l:libbpf.a' >>$CONFIG
+    echo "OBJECT_LIBBPF = ${OBJECT_LIBBPF}" >>$CONFIG
+
+    echo -n "zlib support: "
+    check_zlib || exit 1
+
+    echo -n "ELF support: "
+    check_elf || exit 1
+
+    echo -n "pcap support: "
+    check_pcap || exit 1
+
+}
+
+check_secure_getenv()
+{
+    cat >$TMPDIR/secure_getenv.c <<EOF
+#define _GNU_SOURCE
+#include <stdlib.h>
+int main(int argc, char **argv) {
+	secure_getenv("test");
+    return 0;
+}
+EOF
+    secure_getenv_err=$($CC -o $TMPDIR/secure_getenv $TMPDIR/secure_getenv.c 2>&1)
+    if [ "$?" -eq "0" ]; then
+        echo "HAVE_FEATURES += SECURE_GETENV" >>"$CONFIG"
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+quiet_config()
+{
+    cat <<EOF
+# user can control verbosity similar to kernel builds (e.g., V=1)
+ifeq ("\$(origin V)", "command line")
+  VERBOSE = \$(V)
+endif
+ifndef VERBOSE
+  VERBOSE = 0
+endif
+ifeq (\$(VERBOSE),1)
+  Q =
+else
+  Q = @
+endif
+ifeq (\$(VERBOSE),0)
+MAKEFLAGS += --no-print-directory
+endif
+
+
+ifeq (\$(VERBOSE), 0)
+    QUIET_CC       = @echo '    CC       '\$@;
+    QUIET_CLANG    = @echo '    CLANG    '\$@;
+    QUIET_LLC      = @echo '    LLC      '\$@;
+    QUIET_LINK     = @echo '    LINK     '\$@;
+    QUIET_INSTALL  = @echo '    INSTALL  '\$@;
+    QUIET_M4       = @echo '    M4       '\$@;
+    QUIET_GEN      = @echo '    GEN      '\$@;
+endif
+EOF
+}
+
+echo "# Generated config" >$CONFIG
+quiet_config >> $CONFIG
+
+check_opts
+check_toolchain
+
+echo -n "libbpf support: "
+check_libbpf
+
+echo -n "secure_getenv support: "
+check_secure_getenv
+
+if [ -n "$KERNEL_HEADERS" ]; then
+    echo "kernel headers: $KERNEL_HEADERS"
+    echo "CFLAGS += -I$KERNEL_HEADERS" >>$CONFIG
+    echo "BPF_CFLAGS += -I$KERNEL_HEADERS" >>$CONFIG
+fi
+
+mv $CONFIG $CONFIG_FINAL

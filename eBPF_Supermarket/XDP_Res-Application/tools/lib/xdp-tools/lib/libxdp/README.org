@@ -1,0 +1,437 @@
+#+EXPORT_FILE_NAME: libxdp
+#+TITLE: libxdp
+#+OPTIONS: ^:nil
+#+MAN_CLASS_OPTIONS: :section-id "3\" \"DATE\" \"VERSION\" \"libxdp - library for loading XDP programs"
+# This file serves both as a README on github, and as the source for the man
+# page; the latter through the org-mode man page export support.
+# .
+# To export the man page, simply use the org-mode exporter; (require 'ox-man) if
+# it's not available. There's also a Makefile rule to export it.
+
+* libxdp - library for attaching XDP programs and using AF_XDP sockets
+
+This directory contains the files for the =libxdp= library for
+attaching XDP programs to network interfaces and using AF_XDP
+sockets. The library is fairly lightweight and relies on =libbpf= to
+do the heavy lifting for processing eBPF object files etc.
+
+=Libxdp= provides two primary features on top of =libbpf=. The first is
+the ability to load multiple XDP programs in sequence on a single
+network device (which is not natively supported by the kernel). This
+support relies on the =freplace= functionality in the kernel, which
+makes it possible to attach an eBPF program as a replacement for a
+global function in another (already loaded) eBPF program. The second
+main feature is helper functions for configuring AF_XDP sockets as
+well as reading and writing packets from these sockets.
+
+Some of the functionality provided by libxdp depends on particular kernel
+features; see the "Kernel feature compatibility" section below for details.
+
+** Using libxdp from an application
+
+Basic usage of libxdp from an application is quite straight forward. The
+following example loads, then unloads, an XDP program from the 'lo' interface:
+
+#+begin_src C
+#define IFINDEX 1
+
+struct xdp_program *prog;
+int err;
+
+prog = xdp_program__open_file("my-program.o", "section_name", NULL);
+err = xdp_program__attach(prog, IFINDEX, XDP_MODE_NATIVE, 0);
+
+if (!err)
+    xdp_program__detach(prog, IFINDEX, XDP_MODE_NATIVE, 0);
+
+xdp_program__close(prog);
+#+end_src
+
+The =xdp_program= structure is an opaque structure that represents a single XDP
+program. =libxdp= contains functions to create such a struct either from a BPF
+object file on disk, from a =libbpf= BPF object, or from an identifier of a
+program that is already loaded into the kernel:
+
+#+begin_src C
+struct xdp_program *xdp_program__from_bpf_obj(struct bpf_object *obj,
+					      const char *section_name);
+struct xdp_program *xdp_program__find_file(const char *filename,
+					   const char *section_name,
+					   struct bpf_object_open_opts *opts);
+struct xdp_program *xdp_program__open_file(const char *filename,
+					   const char *section_name,
+					   struct bpf_object_open_opts *opts);
+struct xdp_program *xdp_program__from_fd(int fd);
+struct xdp_program *xdp_program__from_id(__u32 prog_id);
+struct xdp_program *xdp_program__from_pin(const char *pin_path);
+#+end_src
+
+The functions that open a BPF object or file need the function name of the XDP
+program as well as the file name or object, since an ELF file can contain
+multiple XDP programs. The =xdp_program__find_file()= function takes a filename
+without a path, and will look for the object in =LIBXDP_OBJECT_PATH= which
+defaults to =/usr/lib/bpf= (or =/usr/lib64/bpf= on systems using a split library
+path). This is convenient for applications shipping pre-compiled eBPF object
+files.
+
+The =xdp_program__attach()= function will attach the program to an interface,
+building a dispatcher program to execute it. Multiple programs can be attached
+at once with =xdp_program__attach_multi()=; they will be sorted in order of
+their run priority, and execution from one program to the next will proceed
+based on the chain call actions defined for each program (see the *Program
+metadata* section below). Because the loading process involves modifying the
+attach type of the program, the attach functions only work with =struct
+xdp_program= objects that have not yet been loaded into the kernel.
+
+When using the attach functions to attach to an interface that already has an
+XDP program loaded, libxdp will attempt to add the program to the list of loaded
+programs. However, this may fail, either due to missing kernel support, or
+because the already-attached program was not loaded using a dispatcher
+compatible with libxdp. If the kernel support for incremental attach (merged in
+kernel 5.10) is missing, the only way to actually run multiple programs on a
+single interface is to attach them all at the same time with
+=xdp_program__attach_multi()=. If the existing program is not an XDP dispatcher,
+that program will have to be detached from the interface before libxdp can
+attach a new one. This can be done by calling =xdp_program__detach()= with a
+reference to the loaded program; but note that this will of course break any
+application relying on that other XDP program to be present.
+
+* Program metadata
+
+To support multiple XDP programs on the same interface, libxdp uses two pieces
+of metadata for each XDP program: Run priority and chain call actions.
+
+*** Run priority
+This is the priority of the program and is a simple integer used
+to sort programs when loading multiple programs onto the same interface.
+Programs that wish to run early (such as a packet filter) should set low values
+for this, while programs that want to run later (such as a packet forwarder or
+counter) should set higher values. Note that later programs are only run if the
+previous programs end with a return code that is part of its chain call actions
+(see below). If not specified, the default priority value is 50.
+
+*** Chain call actions
+These are the program return codes that the program indicate for packets that
+should continue processing. If the program returns one of these actions, later
+programs in the call chain will be run, whereas if it returns any other action,
+processing will be interrupted, and the XDP dispatcher will return the verdict
+immediately. If not set, this defaults to just XDP_PASS, which is likely the
+value most programs should use.
+
+*** Specifying metadata
+The metadata outlined above is specified as BTF information embedded in the ELF
+file containing the XDP program. The =xdp_helpers.h= file shipped with libxdp
+contains helper macros to include this information, which can be used as
+follows:
+
+#+begin_src C
+#include <bpf/bpf_helpers.h>
+#include <xdp/xdp_helpers.h>
+
+struct {
+	__uint(priority, 10);
+	__uint(XDP_PASS, 1);
+	__uint(XDP_DROP, 1);
+} XDP_RUN_CONFIG(my_xdp_func);
+#+end_src
+
+This example specifies that the XDP program in =my_xdp_func= should have
+priority 10 and that its chain call actions are =XDP_PASS= and =XDP_DROP=.
+In a source file with multiple XDP programs in the same file, a definition like
+the above can be included for each program (main XDP function). Any program that
+does not specify any config information will use the default values outlined
+above.
+
+*** Inspecting and modifying metadata
+
+=libxdp= exposes the following functions that an application can use to inspect
+and modify the metadata on an XDP program. Modification is only possible before
+a program is attached on an interface. These functions won't modify the BTF
+information itself, but the new values will be stored as part of the program
+attachment.
+
+#+begin_src C
+unsigned int xdp_program__run_prio(const struct xdp_program *xdp_prog);
+int xdp_program__set_run_prio(struct xdp_program *xdp_prog,
+                              unsigned int run_prio);
+bool xdp_program__chain_call_enabled(const struct xdp_program *xdp_prog,
+				     enum xdp_action action);
+int xdp_program__set_chain_call_enabled(struct xdp_program *prog,
+                                        unsigned int action,
+                                        bool enabled);
+int xdp_program__print_chain_call_actions(const struct xdp_program *prog,
+					  char *buf,
+					  size_t buf_len);
+#+end_src
+
+* The dispatcher program
+To support multiple non-offloaded programs on the same network interface,
+=libxdp= uses a *dispatcher program* which is a small wrapper program that will
+call each component program in turn, expect the return code, and then chain call
+to the next program based on the chain call actions of the previous program (see
+the *Program metadata* section above).
+
+While applications using =libxdp= do not need to know the details of the
+dispatcher program to just load an XDP program unto an interface, =libxdp= does
+expose the dispatcher and its attached component programs, which can be used to
+list the programs currently attached to an interface.
+
+The structure used for this is =struct xdp_multiprog=, which can only be
+constructed from the programs loaded on an interface based on ifindex. The API
+for getting a multiprog reference and iterating through the attached programs
+looks like this:
+
+#+begin_src C
+struct xdp_multiprog *xdp_multiprog__get_from_ifindex(int ifindex);
+struct xdp_program *xdp_multiprog__next_prog(const struct xdp_program *prog,
+					     const struct xdp_multiprog *mp);
+void xdp_multiprog__close(struct xdp_multiprog *mp);
+int xdp_multiprog__detach(struct xdp_multiprog *mp, int ifindex);
+enum xdp_attach_mode xdp_multiprog__attach_mode(const struct xdp_multiprog *mp);
+struct xdp_program *xdp_multiprog__main_prog(const struct xdp_multiprog *mp);
+struct xdp_program *xdp_multiprog__hw_prog(const struct xdp_multiprog *mp);
+bool xdp_multiprog__is_legacy(const struct xdp_multiprog *mp);
+#+end_src
+
+If a non-offloaded program is attached to the interface which =libxdp= doesn't
+recognise as a dispatcher program, an =xdp_multiprog= structure will still be
+returned, and =xdp_multiprog__is_legacy()= will return true for that program
+(note that this also holds true if only an offloaded program is loaded). A
+reference to that (regular) XDP program can be obtained by
+=xdp_multiprog__main_prog()=. If the program attached to the interface *is* a
+dispatcher program, =xdp_multiprog__main_prog()= will return a reference to the
+dispatcher program itself, which is mainly useful for obtaining other data about
+that program (such as the program ID). A reference to an offloaded program can
+be acquired using =xdp_multiprog_hw_prog()=. Function
+=xdp_multiprog__attach_mode()= returns the attach mode of the non-offloaded
+program, whether an offloaded program is attached should be checked through
+=xdp_multiprog_hw_prog()=.
+
+** Pinning in bpffs
+The kernel will automatically detach component programs from the dispatcher once
+the last reference to them disappears. To prevent this from happening, =libxdp=
+will pin the component program references in =bpffs= before attaching the
+dispatcher to the network interface. The pathnames generated for pinning is as
+follows:
+
+- /sys/fs/bpf/xdp/dispatch-IFINDEX-DID - dispatcher program for IFINDEX with BPF program ID DID
+- /sys/fs/bpf/xdp/dispatch-IFINDEX-DID/prog0-prog - component program 0, program reference
+- /sys/fs/bpf/xdp/dispatch-IFINDEX-DID/prog0-link - component program 0, bpf_link reference
+- /sys/fs/bpf/xdp/dispatch-IFINDEX-DID/prog1-prog - component program 1, program reference
+- /sys/fs/bpf/xdp/dispatch-IFINDEX-DID/prog1-link - component program 1, bpf_link reference
+- etc, up to ten component programs
+
+If set, the =LIBXDP_BPFFS= environment variable will override the location of
+=bpffs=, but the =xdp= subdirectory is always used. If no =bpffs= is mounted,
+libxdp will consult the environment variable =LIBXDP_BPFFS_AUTOMOUNT=. If this
+is set to =1=, libxdp will attempt to automount a bpffs. If not, libxdp will
+fall back to loading a single program without a dispatcher, as if the kernel did
+not support the features needed for multiprog attachment.
+
+* Using AF_XDP sockets
+
+Libxdp implements helper functions for configuring AF_XDP sockets as
+well as reading and writing packets from these sockets. AF_XDP sockets
+can be used to redirect packets to user-space at high rates from an
+XDP program. Note that this functionality used to reside in libbpf,
+but has now been moved over to libxdp as it is a better fit for this
+library. As of the 1.0 release of libbpf, the AF_XDP socket support
+will be removed and all future development will be performed
+in libxdp instead.
+
+For an overview of AF_XDP sockets, please refer to this Linux Plumbers
+paper
+(http://vger.kernel.org/lpc_net2018_talks/lpc18_pres_af_xdp_perf-v3.pdf)
+and the documentation in the Linux kernel
+(Documentation/networking/af_xdp.rst or
+https://www.kernel.org/doc/html/latest/networking/af_xdp.html).
+
+For an example on how to use the interface, take a look at the AF_XDP-example
+and AF_XDP-forwarding programs in the bpf-examples repository:
+https://github.com/xdp-project/bpf-examples.
+
+** Control path
+
+Libxdp provides helper functions for creating and destroying umems and
+sockets as shown below. The first thing that a user generally wants to
+do is to create a umem area. This is the area that will contain all
+packets received and the ones that are going to be sent. After that,
+AF_XDP sockets can be created tied to this umem. These can either be
+sockets that have exclusive ownership of that umem through
+xsk_socket__create() or shared with other sockets using
+xsk_socket__create_shared. There is one option called
+XSK_LIBBPF_FLAGS__INHIBIT_PROG_LOAD that can be set in the
+libxdp_flags field (also called libbpf_flags for compatibility
+reasons). This will make libxdp not load any XDP program or set and
+BPF maps which is a must if users want to add their own XDP program.
+
+#+begin_src C
+int xsk_umem__create(struct xsk_umem **umem,
+		     void *umem_area, __u64 size,
+		     struct xsk_ring_prod *fill,
+		     struct xsk_ring_cons *comp,
+		     const struct xsk_umem_config *config);
+int xsk_socket__create(struct xsk_socket **xsk,
+		       const char *ifname, __u32 queue_id,
+		       struct xsk_umem *umem,
+		       struct xsk_ring_cons *rx,
+		       struct xsk_ring_prod *tx,
+		       const struct xsk_socket_config *config);
+int xsk_socket__create_shared(struct xsk_socket **xsk_ptr,
+			      const char *ifname,
+			      __u32 queue_id, struct xsk_umem *umem,
+			      struct xsk_ring_cons *rx,
+			      struct xsk_ring_prod *tx,
+			      struct xsk_ring_prod *fill,
+			      struct xsk_ring_cons *comp,
+			      const struct xsk_socket_config *config);
+int xsk_umem__delete(struct xsk_umem *umem);
+void xsk_socket__delete(struct xsk_socket *xsk);
+#+end_src
+
+There are also two helper function to get the file descriptor of a
+umem or a socket. These are needed when using standard Linux syscalls
+such as poll(), recvmsg(), sendto(), etc.
+
+#+begin_src C
+int xsk_umem__fd(const struct xsk_umem *umem);
+int xsk_socket__fd(const struct xsk_socket *xsk);
+#+end_src
+
+The control path also provides two APIs for setting up AF_XDP sockets when the
+process that is going to use the AF_XDP socket is non-privileged. These two
+functions perform the operations that require privileges and can be executed
+from some form of control process that has the necessary privileges. The
+xsk_socket__create executed on the non-privileged process will then skip these
+two steps. For an example on how to use these, please take a look at the
+AF_XDP-example program in the bpf-examples repository:
+https://github.com/xdp-project/bpf-examples/tree/master/AF_XDP-example.
+
+#+begin_src C
+int xsk_setup_xdp_prog(int ifindex, int *xsks_map_fd);
+int xsk_socket__update_xskmap(struct xsk_socket *xsk, int xsks_map_fd);
+#+end_src
+
+** Data path
+
+For performance reasons, all the data path functions are static inline
+functions found in the xsk.h header file so they can be optimized into
+the target application binary for best possible performance. There are
+four FIFO rings of two main types: producer rings (fill and Tx) and
+consumer rings (Rx and completion). The producer rings use
+xsk_ring_prod functions and consumer rings use xsk_ring_cons
+functions. For producer rings, you start with =reserving= one or more
+slots in a producer ring and then when they have been filled out, you
+=submit= them so that the kernel will act on them. For a consumer
+ring, you =peek= if there are any new packets in the ring and if so
+you can read them from the ring. Once you are done reading them, you
+=release= them back to the kernel so it can use them for new
+packets. There is also a =cancel= operation for consumer rings if the
+application does not want to consume all packets received with the
+peek operation.
+
+#+begin_src C
+__u32 xsk_ring_prod__reserve(struct xsk_ring_prod *prod, __u32 nb, __u32 *idx);
+void xsk_ring_prod__submit(struct xsk_ring_prod *prod, __u32 nb);
+__u32 xsk_ring_cons__peek(struct xsk_ring_cons *cons, __u32 nb, __u32 *idx);
+void xsk_ring_cons__cancel(struct xsk_ring_cons *cons, __u32 nb);
+void xsk_ring_cons__release(struct xsk_ring_cons *cons, __u32 nb);
+#+end_src
+
+The functions below are used for reading and writing the descriptors
+of the rings. xsk_ring_prod__fill_addr() and xsk_ring_prod__tx_desc()
+*writes* entries in the fill and Tx rings respectively, while
+xsk_ring_cons__comp_addr and xsk_ring_cons__rx_desc *reads* entries from
+the completion and Rx rings respectively. The =idx= is the parameter
+returned in the xsk_ring_prod__reserve or xsk_ring_cons__peek
+calls. To advance to the next entry, simply do =idx++=.
+
+#+begin_src C
+__u64 *xsk_ring_prod__fill_addr(struct xsk_ring_prod *fill, __u32 idx);
+struct xdp_desc *xsk_ring_prod__tx_desc(struct xsk_ring_prod *tx, __u32 idx);
+const __u64 *xsk_ring_cons__comp_addr(const struct xsk_ring_cons *comp, __u32 idx);
+const struct xdp_desc *xsk_ring_cons__rx_desc(const struct xsk_ring_cons *rx, __u32 idx);
+#+end_src
+
+The xsk_umem functions are used to get a pointer to the packet data
+itself, always located inside the umem. In the default aligned mode,
+you can get the addr variable straight from the Rx descriptor. But in
+unaligned mode, you need to use the three last function below as the
+offset used is carried in the upper 16 bits of the addr. Therefore,
+you cannot use the addr straight from the descriptor in the unaligned
+case.
+
+#+begin_src C
+void *xsk_umem__get_data(void *umem_area, __u64 addr);
+__u64 xsk_umem__extract_addr(__u64 addr);
+__u64 xsk_umem__extract_offset(__u64 addr);
+__u64 xsk_umem__add_offset_to_addr(__u64 addr);
+#+end_src
+
+There is one more function in the data path and that checks if the
+need_wakeup flag is set. Use of this flag is highly encouraged and
+should be enabled by setting =XDP_USE_NEED_WAKEUP= bit in the
+=xdp_bind_flags= field that is provided to the
+xsk_socket_create_[shared]() calls. If this function returns true,
+then you need to call =recvmsg()=, =sendto()=, or =poll()= depending on the
+situation. =recvmsg()= if you are *receiving*, or =sendto()= if you are
+*sending*. =poll()= can be used for both cases and provide the ability to
+sleep too, as with any other socket. But note that poll is a slower
+operation than the other two.
+
+#+begin_src C
+int xsk_ring_prod__needs_wakeup(const struct xsk_ring_prod *r);
+#+end_src
+
+For an example on how to use all these APIs, take a look at the AF_XDP-example
+and AF_XDP-forwarding programs in the bpf-examples repository:
+https://github.com/xdp-project/bpf-examples.
+
+* Kernel and BPF program feature compatibility
+
+The features exposed by libxdp relies on certain kernel versions and BPF
+features to work. To get the full benefit of all features, libxdp needs to be
+used with kernel 5.10 or newer, unless the commits mentioned below have been
+backported. However, libxdp will probe the kernel and transparently fall back to
+legacy loading procedures, so it is possible to use the library with older
+versions, although some features will be unavailable, as detailed below.
+
+The ability to attach multiple BPF programs to a single interface relies on the
+kernel "BPF program extension" feature which was introduced by commit
+be8704ff07d2 ("bpf: Introduce dynamic program extensions") in the upstream
+kernel and first appeared in kernel release 5.6. To *incrementally* attach
+multiple programs, a further refinement added by commit 4a1e7c0c63e0 ("bpf:
+Support attaching freplace programs to multiple attach points") is needed; this
+first appeared in the upstream kernel version 5.10. The functionality relies on
+the "BPF trampolines" feature which is unfortunately only available on the
+x86_64 architecture. In other words, kernels before 5.6 can only attach a single
+XDP program to each interface, kernels 5.6+ can attach multiple programs if they
+are all attached at the same time, and kernels 5.10 have full support for XDP
+multiprog on x86_64. On other architectures, only a single program can be
+attached to each interface.
+
+To load AF_XDP programs, kernel support for AF_XDP sockets needs to be included
+and enabled in the kernel build. In addition, when using AF_XDP sockets, an XDP
+program is also loaded on the interface. The XDP program used for this by libxdp
+requires the ability to do map lookups into XSK maps, which was introduced with
+commit fada7fdc83c0 ("bpf: Allow bpf_map_lookup_elem() on an xskmap") in kernel
+5.3. This means that the minimum required kernel version for using AF_XDP is
+kernel 5.3; however, for the AF_XDP XDP program to co-exist with other programs,
+the same constraints for multiprog applies as outlined above.
+
+Note that some Linux distributions backport features to earlier kernel versions,
+especially in enterprise kernels; for instance, Red Hat Enterprise Linux kernels
+include everything needed for libxdp to function since RHEL 8.5.
+
+Finally, XDP programs loaded using the multiprog facility must include type
+information (using the BPF Type Format, BTF). To get this, compile the programs
+with a recent version of Clang/LLVM (version 10+), and enable debug information
+when compiling (using the =-g= option).
+
+* BUGS
+Please report any bugs on Github: https://github.com/xdp-project/xdp-tools/issues
+
+* AUTHORS
+libxdp and this man page were written by Toke
+Høiland-Jørgensen. AF_XDP support and documentation was contributed by
+Magnus Karlsson.
