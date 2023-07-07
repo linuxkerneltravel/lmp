@@ -16,7 +16,7 @@ on:
       - '.github/workflows/ebpf_xdp_libxdp.yml'
     
 jobs:
-  libbpf-project-build-and-test:
+  libbpf-libxdp-project-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -31,7 +31,6 @@ jobs:
           pushd ./
           cd eBPF_Supermarket/XDP_Res-Application/tools/lib/
           make
-          sudo make install
           popd
         
           pushd ./
