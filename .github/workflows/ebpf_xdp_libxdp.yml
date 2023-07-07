@@ -30,6 +30,10 @@ jobs:
         run: |
           pushd ./
           cd eBPF_Supermarket/XDP_Res-Application/tools/lib/
+          pushd ./
+          cd xdp-tools/lib
+          make
+          popd
           make
           popd
         
