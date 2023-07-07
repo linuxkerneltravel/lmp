@@ -1,5 +1,0 @@
-*.so.*
-*.a
-*.pc
-sharedobjs/
-staticobjs/
