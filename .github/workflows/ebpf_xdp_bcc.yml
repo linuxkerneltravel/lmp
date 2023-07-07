@@ -5,14 +5,16 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/XDP_Res-Application/**'
-      - '.github/workflows/ebpf_xdp.yml'
+      - 'eBPF_Supermarket/XDP_Res-Application/tools/xdp_fast_forward/**'
+      - 'eBPF_Supermarket/XDP_Res-Application/tools/xdp_filter/**'
+      - '.github/workflows/ebpf_xdp_bcc.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/XDP_Res-Application/**'
-      - '.github/workflows/ebpf_xdp.yml'
+      - 'eBPF_Supermarket/XDP_Res-Application/tools/xdp_fast_forward/**'
+      - 'eBPF_Supermarket/XDP_Res-Application/tools/xdp_filter/**'
+      - '.github/workflows/ebpf_xdp_bcc.yml'
       
 
 jobs:
