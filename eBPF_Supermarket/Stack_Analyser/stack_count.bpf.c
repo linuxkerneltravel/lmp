@@ -22,7 +22,7 @@ int do_stack(void *ctx) {
     if(!pid)
         return -1;
     int32_t sid = stack_trace.get_stackid(ctx, WHICH_STACK);
-    if(sid < 0)
+    if(SIDFALSE)
         return -1;
     
     u32 tgid = _pid_tgid;
