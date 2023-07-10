@@ -3,7 +3,7 @@
 
 typedef struct {
     u32 pid;
-    int32_t sid;
+    int32_t ksid, usid;
 } psid;
 
 typedef struct {
@@ -11,31 +11,29 @@ typedef struct {
 } comm;
 
 BPF_HASH(pid_tgid, u32, u32, DATA_SIZE);
-BPF_STACK_TRACE(stack_trace, DATA_SIZE);
+BPF_STACK_TRACE(stack_trace, STACK_STORAGE_SIZE);
 BPF_HASH(psid_count, psid, u32, DATA_SIZE);
 BPF_HASH(tgid_comm, u32, comm, DATA_SIZE);
 
 int do_stack(void *ctx) {
-    u64 _pid_tgid = bpf_get_current_pid_tgid();
-
-    u32 pid = _pid_tgid >> 32;
-    if(!pid)
-        return -1;
-    int32_t sid = stack_trace.get_stackid(ctx, WHICH_STACK);
-    if(SIDFALSE)
+    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
+    if(THREAD_FILTER || STATE_FILTER)
         return -1;
     
-    u32 tgid = _pid_tgid;
+    u32 pid = curr->pid;
+    u32 tgid = curr->tgid;
     pid_tgid.update(&pid, &tgid);
-    psid apsid;
-    apsid.pid = pid;
-    apsid.sid = sid;
+    psid apsid = {
+        .pid = pid,
+        .ksid = KERNEL_STACK_GET,
+        .usid = USER_STACK_GET,
+    };
     psid_count.increment(apsid);
 
     comm *p = tgid_comm.lookup(&tgid);
     if(!p) {
         comm name;
-        bpf_get_current_comm(&name, TASK_COMM_LEN);
+        bpf_probe_read_kernel_str(&name, TASK_COMM_LEN, curr->comm);
         tgid_comm.update(&tgid, &name);
     }
     return 0;

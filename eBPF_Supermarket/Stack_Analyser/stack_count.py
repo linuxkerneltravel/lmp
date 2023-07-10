@@ -1,58 +1,210 @@
 #!/bin/python
 from bcc import BPF, PerfType, PerfSWConfig
-import sys
+from sys import stderr
 from time import sleep
 from psutil import Process
 from pyod.models.knn import KNN
+from pyod.models.lof import LOF
+from pyod.models.cblof import CBLOF
+from pyod.models.loci import LOCI
+from pyod.models.abod import ABOD
+from pyod.models.hbos import HBOS
+from pyod.models.sos import SOS
+from pyod.models.deep_svdd import DeepSVDD
 from json import dumps, JSONEncoder
-from signal import signal
+from signal import signal, SIG_IGN
+import argparse
+from subprocess import Popen
 # from pyod.models.deep_svdd import DeepSVDD
 clf_name = 'KNN'
-clf = KNN()
+clf = DeepSVDD()
+
+# arguments
+examples = """examples:
+    ./stack_count             # trace on-CPU stack time until Ctrl-C
+    ./stack_count 5           # trace for 5 seconds only
+    ./stack_count -f 5        # 5 seconds, and output in folded format
+    ./stack_count -s 5        # 5 seconds, and show symbol offsets
+    ./stack_count -p 185      # only trace threads for PID 185
+    ./stack_count -t 188      # only trace thread 188
+    ./stack_count -c cmdline  # only trace threads of cmdline
+    ./stack_count -u          # only trace user threads (no kernel)
+    ./stack_count -k          # only trace kernel threads (no user)
+    ./stack_count -U          # only show user space stacks (no kernel)
+    ./stack_count -K          # only show kernel space stacks (no user)
+"""
+
+
+def positive_int(val):
+    try:
+        ival = int(val)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be an integer")
+    if ival <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return ival
+
+
+parser = argparse.ArgumentParser(
+    description="Summarize on-CPU time by stack trace",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog=examples)
+thread_group = parser.add_mutually_exclusive_group()
+# Note: this script provides --pid and --tid flags but their arguments are
+# referred to internally using kernel nomenclature: TGID and PID.
+thread_group.add_argument("-p", "--pid", metavar="PID", dest="tgid",
+                          help="trace this PID only", type=positive_int)
+thread_group.add_argument("-t", "--tid", metavar="TID", dest="pid",
+                          help="trace this TID only", type=positive_int)
+thread_group.add_argument("-c", "--cmd", metavar="Command", dest='cmd',
+                          help="trace this command only", type=str)
+thread_group.add_argument("-u", "--user-threads-only", action="store_true",
+                          help="user threads only (no kernel threads)")
+thread_group.add_argument("-k", "--kernel-threads-only", action="store_true",
+                          help="kernel threads only (no user threads)")
+
+stack_group = parser.add_mutually_exclusive_group()
+stack_group.add_argument("-U", "--user-stacks-only", action="store_true",
+                         help="show stacks from user space only (no kernel space stacks)")
+stack_group.add_argument("-K", "--kernel-stacks-only", action="store_true",
+                         help="show stacks from kernel space only (no user space stacks)")
+parser.add_argument("-d", "--delimited", action="store_true",
+                    help="insert delimiter between kernel/user stacks")
+parser.add_argument("-f", "--folded", action="store_true",
+                    help="output folded format")
+parser.add_argument("-s", "--offset", action="store_true",
+                    help="show address offsets")
+parser.add_argument("--stack-storage-size", default=16384,
+                    type=positive_int,
+                    help="the number of unique stack traces that can be stored and "
+                    "displayed (default 16384)")
+parser.add_argument("duration", nargs="?", default=99999999,
+                    type=positive_int,
+                    help="duration of trace, in seconds")
+parser.add_argument("--state", type=positive_int,
+                    help="filter on this thread state bitmask (eg, 2 == TASK_UNINTERRUPTIBLE" +
+                    ") see include/linux/sched.h")
+parser.add_argument("--ebpf", action="store_true",
+                    help=argparse.SUPPRESS)
+args = parser.parse_args()
+folded = args.folded
+duration = int(args.duration)
+debug = 0
+
+# set thread filter
+pid = -1
+thread_context = ""
+thread_filter = '!(curr->pid)'
+if args.tgid is not None:
+    # thread_filter = '!(curr->tgid == %d)' % args.tgid
+    pid = args.tgid
+    thread_context = "PID " + str(pid)
+elif args.pid is not None:
+    thread_context = "TID %d" % args.pid
+    thread_filter = '!(curr->pid == %d)' % args.pid
+    pid = [args.pid]
+elif args.cmd is not None:
+    ps = Popen(args.cmd, shell=True)
+    ps.send_signal(19)
+    pid = ps.pid
+    thread_context = "PID " + str(pid)
+    # perf default attach children process
+elif args.user_threads_only:
+    thread_context = "user threads"
+    thread_filter += ' || !(curr->flags & PF_KTHREAD)'
+elif args.kernel_threads_only:
+    thread_context = "kernel threads"
+    thread_filter += ' || !(curr->flags & PF_KTHREAD)'
+else:
+    thread_context = "all threads"
+
+if args.state == 0:
+    state_filter = '!(curr->STATE_FIELD == 0)'
+elif args.state:
+    # these states are sometimes bitmask checked
+    state_filter = '!(curr->STATE_FIELD & %d)' % args.state
+else:
+    state_filter = '0'
 
 # stack data ebpf code
 with open('stack_count.bpf.c', encoding='utf-8') as f:
-    stack_code = f.read()
+    bpf_text = f.read()
 
-# parsing stack level
-kern = True
-if 'u' in sys.argv:
-    kern = False
-orin = stack_code.replace('WHICH_STACK', 'BPF_F_USER_STACK' if not kern else '0')
-orin = orin.replace('SIDFALSE', 'sid < 0')
+bpf_text = bpf_text.replace('THREAD_FILTER', thread_filter)
+bpf_text = bpf_text.replace('STATE_FILTER', state_filter)
+
+if BPF.kernel_struct_has_field(b'task_struct', b'__state') == 1:
+    bpf_text = bpf_text.replace('STATE_FIELD', '__state')
+else:
+    bpf_text = bpf_text.replace('STATE_FIELD', 'state')
+
+# set stack storage size
+bpf_text = bpf_text.replace('STACK_STORAGE_SIZE', str(args.stack_storage_size))
+
+# handle stack args
+kernel_stack_get = "stack_trace.get_stackid(ctx, 0)"
+user_stack_get = "stack_trace.get_stackid(ctx, BPF_F_USER_STACK)"
+stack_context = ""
+if args.user_stacks_only:
+    stack_context = "user"
+    kernel_stack_get = "-1"
+elif args.kernel_stacks_only:
+    stack_context = "kernel"
+    user_stack_get = "-1"
+else:
+    stack_context = "user + kernel"
+bpf_text = bpf_text.replace('USER_STACK_GET', user_stack_get)
+bpf_text = bpf_text.replace('KERNEL_STACK_GET', kernel_stack_get)
+
+need_delimiter = args.delimited and not (args.kernel_stacks_only or
+                                         args.user_stacks_only)
+
+if args.kernel_threads_only and args.user_stacks_only:
+    print("ERROR: Displaying user stacks for kernel threads " +
+          "doesn't make sense.", file=stderr)
+    exit(2)
+
+if debug or args.ebpf:
+    print(bpf_text)
+    if args.ebpf:
+        print("ERROR: Exiting")
+        exit(3)
+
+if args.folded and args.offset:
+    print("ERROR: can only use -f or -s. Exiting.")
+    exit()
+
+show_offset = False
+if args.offset:
+    show_offset = True
 
 # bpf parsing
-b = BPF(text=orin)
+b = BPF(text=bpf_text)
 print("eBPF initializing compelete.")
 
-# pid parsing
-pids = [-1]
-if 'pid' in sys.argv:
-    pid_str = sys.argv[sys.argv.index('pid')+1].split()
-    if '0' not in pid_str and '-' not in pid_str:
-        pids = []
-        for i in pid_str:
-            pid = int(i)
-            pids.append(pid)
-            try:
-                b.add_module(Process(pid).exe())
-            except:
-                print("no exe for %d" % pid)
-
+b.attach_perf_event(ev_type=PerfType.SOFTWARE,
+                    ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_stack",
+                    sample_period=0, sample_freq=99, pid=pid)
+print("attach %d." % pid)
 # add external sym
-for pid in pids:
-    b.attach_perf_event(ev_type=PerfType.SOFTWARE,
-        ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_stack",
-        sample_period=0, sample_freq=99, pid=pid)
+try:
+    b.add_module(Process(pid).exe())
+except:
+    print("failed to load syms of pid %d" % pid)
+
 
 def log():
-        psid_count = {psid_t(psid):n.value for psid,n in b["psid_count"].items()}
-        count = [[n] for n in psid_count.values()]
-        if len(count) > clf.n_neighbors:
-            clf.fit(count)
-            labels = clf.labels_
-            for (spid,n),label in zip(psid_count.items(), labels):
-                print('pid:%d\tsid:%d\tcount:%d\tlabel:%d' % (spid.pid, spid.sid, n, label))
+    psid_count = {psid_t(psid): n.value for psid, n in b["psid_count"].items()}
+    count = [[n] for n in psid_count.values()]
+    try:
+        clf.fit(count)
+        labels = clf.labels_
+        for (spid, n), label in zip(psid_count.items(), labels):
+            print('pid:%6d\tsid:(%6d,%6d)\tcount:%-6d\tlabel:%d' %
+                  (spid.pid, spid.ksid, spid.usid, n, label))
+    except:
+        pass
+
 
 class MyEncoder(JSONEncoder):
     def default(self, obj):
@@ -61,52 +213,70 @@ class MyEncoder(JSONEncoder):
         else:
             return super(MyEncoder, self).default(obj)
 
+
 stack_trace = b["stack_trace"]
+
 
 class psid_t:
     def __init__(self, psid) -> None:
         self.pid = psid.pid
-        self.sid = psid.sid
+        self.ksid = psid.ksid
+        self.usid = psid.usid
 
-def format_put(file=None, rate_comm:str=None, anomaly_detect=False):
-    psid_count = {psid_t(psid):count.value for psid,count in b["psid_count"].items()}
-    tgid_comm = {tgid.value:comm.str.decode() for tgid,comm in b["tgid_comm"].items()}
-    pid_tgid = {pid.value:tgid.value for pid,tgid in b["pid_tgid"].items()}
+
+def format_put(file=None, rate_comm: str = None, anomaly_detect=False):
+    psid_count = {psid_t(psid): count.value for psid,
+                  count in b["psid_count"].items()}
+    tgid_comm = {tgid.value: comm.str.decode()
+                 for tgid, comm in b["tgid_comm"].items()}
+    pid_tgid = {pid.value: tgid.value for pid, tgid in b["pid_tgid"].items()}
 
     tgids = {
-        tgid:{
-            'name':comm,
-            'pids':dict()
+        tgid: {
+            'name': comm,
+            'pids': dict()
         } for tgid, comm in tgid_comm.items()
     }
     count = [[n] for n in psid_count.values()]
-    labels = None
+    labels = dict()
     if anomaly_detect:
         try:
             clf.fit(count)
             labels = clf.labels_.astype(int).tolist()
         except:
             pass
-    if labels == None:
+    if labels == dict():
         labels = [None for i in range(len(count))]
 
     for (psid, n), label in zip(psid_count.items(), labels, strict=True):
-        tgids[pid_tgid[psid.pid]]['pids'][psid.pid] = {
-            psid.sid:{
-                'trace': [
-                    "%#08x:%s" % (j, (
-                            b.sym(j, psid.pid) if not kern
-                            else b.ksym(j)
-                    ).decode('utf-8', 'replace'))
-                    for j in stack_trace.walk(psid.sid)
-                ],
-                'count': n,
-                'label': label
-            }
+        pid_d = tgids[pid_tgid[psid.pid]]['pids'].setdefault(psid.pid, dict())
+        pid_d[str(psid.ksid)+','+str(psid.usid)] = {
+            'trace': (
+                (
+                    [
+                        "%#08x:%s" % (j, b.ksym(j).decode())
+                        for j in stack_trace.walk(psid.ksid)
+                    ] if psid.ksid >= 0
+                    else ['[Missed Kernel Stack]']
+                ) + (
+                    ['-'*50] if need_delimiter
+                    else []
+                ) + (
+                    [
+                        "%#08x:%s" % (
+                            j, b.sym(j, psid.pid, show_offset=show_offset).decode())
+                        for j in stack_trace.walk(psid.usid)
+                    ] if psid.usid >= 0
+                    else ['[Missed User Stack]']
+                )
+            ),
+            'count': n,
+            'label': label
         }
 
-    print(dumps(tgids, cls=MyEncoder,indent=2,ensure_ascii=True,sort_keys=False,separators=(',', ':')),file=file)
-    
+    print(dumps(tgids, cls=MyEncoder, indent=2, ensure_ascii=True,
+          sort_keys=False, separators=(',', ':')), file=file)
+
     if anomaly_detect and rate_comm != None:
         tp = fp = p = 0
         for tgd in tgids.values():
@@ -124,19 +294,38 @@ def format_put(file=None, rate_comm:str=None, anomaly_detect=False):
                         break
                 if f:
                     break
-        print("recall:%f%% precision:%f%%" % (tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
+        print("recall:%f%% precision:%f%%" %
+              (tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
 
-def int_handler(sig, frame):
+
+def int_handler(sig=None, frame=None):
     print("\b\bquit...")
-    b.detach_perf_event(ev_type=PerfType.SOFTWARE, ev_config=PerfSWConfig.CPU_CLOCK)
+    b.detach_perf_event(ev_type=PerfType.SOFTWARE,
+                        ev_config=PerfSWConfig.CPU_CLOCK)
     # system("tput rmcup")
-    with open("stack_count.log", "w") as file:
-        format_put(file=file, rate_comm='stress-ng', anomaly_detect=True)
+    print("save to stack_count.json...")
+    with open("stack_count.json", "w") as file:
+        format_put(file=file, rate_comm='stress-ng-cpu', anomaly_detect=True)
     exit()
 
-signal(2, int_handler)
-signal(1, int_handler)
+
 # system("tput -x smcup; clear")
-while 1:
-    sleep(5)
-    log()
+if args.cmd != None:
+    signal(2, lambda *_: ps.kill)
+    signal(1, lambda *_: ps.kill)
+    ps.send_signal(18)
+    d = 0
+    while ps.poll() == None and d <= duration:
+        sleep(5)
+        d += 5
+        log()
+    signal(2, SIG_IGN)
+    signal(1, SIG_IGN)
+    ps.kill()
+    int_handler()
+else:
+    signal(2, int_handler)
+    signal(1, int_handler)
+    for _ in range(duration//5):
+        sleep(5)
+        log()
