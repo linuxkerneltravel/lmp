@@ -41,10 +41,10 @@ pid_data = bpf["pid_data"]
 while True:
     try:
         time.sleep(5)
-        stackid = [(v.stackid,k.value) for k, v in pid_data.items()]
-        stackcount = {k.value:v.value for k, v in stack_count.items()}
-        piddata = {k.value:v.comm.decode() for k, v in pid_data.items()}
-        stacktrace = {k:stack_trace.walk(k) for k in stackcount.keys()}
+        stackid = [(v.stackid, k.value) for k, v in pid_data.items()]
+        stackcount = {k.value: v.value for k, v in stack_count.items()}
+        piddata = {k.value: v.comm.decode() for k, v in pid_data.items()}
+        stacktrace = {k: stack_trace.walk(k) for k in stackcount.keys()}
         stackid.sort()
         timestr = time.strftime("%H:%M:%S")
         if (l := len(stackid)) > 0:
@@ -54,12 +54,12 @@ while True:
                     print("_"*60)
                     for j in stacktrace[id]:
                         print("%#08x %s" % (j, bpf.ksym(j).decode()))
-                    print("%-10s %-6s %-6s %-16s" % 
-                        ("stackid", "count", "pid", "comm"))
+                    print("%-10s %-6s %-6s %-16s" %
+                          ("stackid", "count", "pid", "comm"))
                     print("%-10d %-6d" % (id, stackcount[id]))
                 id = stackid[i][1]
-                print("%-10s %-6s %-6d %-16s" % 
-                    ("", "", id, piddata[id]))
+                print("%-10s %-6s %-6d %-16s" %
+                      ("", "", id, piddata[id]))
             print("_"*26 + timestr + "_"*26)
             print()
     except KeyboardInterrupt:
@@ -70,10 +70,6 @@ while True:
                     file.write(bpf.ksym(i).decode()+"\n")
                 file.write("]: %d\n" % v)
         import os
-        os.system("/usr/share/bcc/FlameGraph/"
-            "stackcollapse-bpftrace.pl stack.bpf > stack.fg")
-        os.system("/usr/share/bcc/FlameGraph/"
-            "flamegraph.pl stack.fg > stack.svg")
+        os.system("FlameGraph/stackcollapse-bpftrace.pl stack.bpf | FlameGraph/flamegraph.pl > stack.svg")
         print("\b\bQuit...\n")
         exit()
-    

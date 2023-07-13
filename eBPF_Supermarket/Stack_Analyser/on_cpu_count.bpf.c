@@ -17,7 +17,7 @@ BPF_HASH(tgid_comm, u32, comm, DATA_SIZE);
 
 int do_stack(void *ctx) {
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    if(THREAD_FILTER || STATE_FILTER)
+    if(!((THREAD_FILTER) && (STATE_FILTER)))
         return -1;
     
     u32 pid = curr->pid;

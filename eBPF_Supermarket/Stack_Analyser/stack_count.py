@@ -4,12 +4,12 @@ from sys import stderr
 from time import sleep
 from psutil import Process
 from pyod.models.knn import KNN
-from pyod.models.lof import LOF
-from pyod.models.cblof import CBLOF
-from pyod.models.loci import LOCI
-from pyod.models.abod import ABOD
-from pyod.models.hbos import HBOS
-from pyod.models.sos import SOS
+# from pyod.models.lof import LOF
+# from pyod.models.cblof import CBLOF
+# from pyod.models.loci import LOCI
+# from pyod.models.abod import ABOD
+# from pyod.models.hbos import HBOS
+# from pyod.models.sos import SOS
 from pyod.models.deep_svdd import DeepSVDD
 from json import dumps, JSONEncoder
 from signal import signal, SIG_IGN
@@ -17,7 +17,7 @@ import argparse
 from subprocess import Popen
 # from pyod.models.deep_svdd import DeepSVDD
 clf_name = 'KNN'
-clf = DeepSVDD()
+clf = KNN()
 
 # arguments
 examples = """examples:
@@ -94,14 +94,14 @@ debug = 0
 # set thread filter
 pid = -1
 thread_context = ""
-thread_filter = '!(curr->pid)'
+thread_filter = 'curr->pid'
 if args.tgid is not None:
     # thread_filter = '!(curr->tgid == %d)' % args.tgid
     pid = args.tgid
     thread_context = "PID " + str(pid)
 elif args.pid is not None:
     thread_context = "TID %d" % args.pid
-    thread_filter = '!(curr->pid == %d)' % args.pid
+    thread_filter = 'curr->pid == %d' % args.pid
     pid = [args.pid]
 elif args.cmd is not None:
     ps = Popen(args.cmd, shell=True)
@@ -111,23 +111,23 @@ elif args.cmd is not None:
     # perf default attach children process
 elif args.user_threads_only:
     thread_context = "user threads"
-    thread_filter += ' || !(curr->flags & PF_KTHREAD)'
+    thread_filter += ' && curr->flags & PF_KTHREAD'
 elif args.kernel_threads_only:
     thread_context = "kernel threads"
-    thread_filter += ' || !(curr->flags & PF_KTHREAD)'
+    thread_filter += ' && curr->flags & PF_KTHREAD'
 else:
     thread_context = "all threads"
 
 if args.state == 0:
-    state_filter = '!(curr->STATE_FIELD == 0)'
+    state_filter = 'curr->STATE_FIELD == 0'
 elif args.state:
     # these states are sometimes bitmask checked
-    state_filter = '!(curr->STATE_FIELD & %d)' % args.state
+    state_filter = 'curr->STATE_FIELD & %d' % args.state
 else:
-    state_filter = '0'
+    state_filter = '1'
 
 # stack data ebpf code
-with open('stack_count.bpf.c', encoding='utf-8') as f:
+with open('on_cpu_count.bpf.c', encoding='utf-8') as f:
     bpf_text = f.read()
 
 bpf_text = bpf_text.replace('THREAD_FILTER', thread_filter)
@@ -223,8 +223,48 @@ class psid_t:
         self.ksid = psid.ksid
         self.usid = psid.usid
 
+max_deep = 0
+def get_deep(usid):
+    if(usid < 0):
+        return 0
+    global max_deep
+    deep=0
+    for _ in stack_trace.walk(usid):
+        deep+=1
+    if deep > max_deep:
+        max_deep = deep
+    return deep
 
-def format_put(file=None, rate_comm: str = None, anomaly_detect=False):
+def fla_text():
+    global max_deep
+    max_deep = 0
+    psid_count = {psid_t(psid): count.value for psid,
+                  count in b["psid_count"].items()}
+    deeps = [get_deep(psid.usid) for psid in psid_count.keys()]
+    lines = ''
+    for (psid, count),deep in zip(psid_count.items(),deeps):
+        lines += ''.join(
+            (
+                [
+                    "%s\n" % (b.ksym(j).decode())
+                    for j in stack_trace.walk(psid.ksid)
+                ] if psid.ksid >= 0 else []
+            ) + (
+                ['-'*32+'\n'] if need_delimiter else []
+            ) + (
+                [
+                    "%s\n" % (b.sym(j, psid.pid).decode())
+                    for j in stack_trace.walk(psid.usid)
+                ] + ['.\n'*(max_deep-deep)]
+                if psid.usid >= 0 else []
+            ) + [
+                str(count) + '\n'*2
+            ]
+        )
+    with open("stack_count.stk", "w") as file:
+        file.write(lines)
+
+def ad_json(rate_comm: str = None, anomaly_detect=False, flame_format=False):
     psid_count = {psid_t(psid): count.value for psid,
                   count in b["psid_count"].items()}
     tgid_comm = {tgid.value: comm.str.decode()
@@ -273,9 +313,9 @@ def format_put(file=None, rate_comm: str = None, anomaly_detect=False):
             'count': n,
             'label': label
         }
-
-    print(dumps(tgids, cls=MyEncoder, indent=2, ensure_ascii=True,
-          sort_keys=False, separators=(',', ':')), file=file)
+    with open("stack_count.json", "w") as file:
+        file.write(dumps(tgids, cls=MyEncoder, indent=2, ensure_ascii=True,
+            sort_keys=False, separators=(',', ':')))
 
     if anomaly_detect and rate_comm != None:
         tp = fp = p = 0
@@ -304,8 +344,10 @@ def int_handler(sig=None, frame=None):
                         ev_config=PerfSWConfig.CPU_CLOCK)
     # system("tput rmcup")
     print("save to stack_count.json...")
-    with open("stack_count.json", "w") as file:
-        format_put(file=file, rate_comm='stress-ng-cpu', anomaly_detect=True)
+    ad_json(rate_comm='stress-ng-cpu', anomaly_detect=True)
+    if folded:  
+        print("save to stack_count.stk...")
+        fla_text()
     exit()
 
 
