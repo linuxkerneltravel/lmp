@@ -10,7 +10,7 @@ from pyod.models.knn import KNN
 # from pyod.models.abod import ABOD
 # from pyod.models.hbos import HBOS
 # from pyod.models.sos import SOS
-from pyod.models.deep_svdd import DeepSVDD
+# from pyod.models.deep_svdd import DeepSVDD
 from json import dumps, JSONEncoder
 from signal import signal, SIG_IGN
 import argparse
@@ -18,20 +18,21 @@ from subprocess import Popen
 # from pyod.models.deep_svdd import DeepSVDD
 clf_name = 'KNN'
 clf = KNN()
+mode = 'on_cpu'
 
 # arguments
 examples = """examples:
-    ./stack_count             # trace on-CPU stack time until Ctrl-C
-    ./stack_count 5           # trace for 5 seconds only
-    ./stack_count -f 5        # 5 seconds, and output in folded format
-    ./stack_count -s 5        # 5 seconds, and show symbol offsets
-    ./stack_count -p 185      # only trace threads for PID 185
-    ./stack_count -t 188      # only trace thread 188
-    ./stack_count -c cmdline  # only trace threads of cmdline
-    ./stack_count -u          # only trace user threads (no kernel)
-    ./stack_count -k          # only trace kernel threads (no user)
-    ./stack_count -U          # only show user space stacks (no kernel)
-    ./stack_count -K          # only show kernel space stacks (no user)
+    sudo -E ./stack_count.py             # trace on-CPU stack time until Ctrl-C
+    sudo -E ./stack_count.py 5           # trace for 5 seconds only
+    sudo -E ./stack_count.py -f 5        # 5 seconds, and output in folded format
+    sudo -E ./stack_count.py -s 5        # 5 seconds, and show symbol offsets
+    sudo -E ./stack_count.py -p 185      # only trace threads for PID 185
+    sudo -E ./stack_count.py -t 188      # only trace thread 188
+    sudo -E ./stack_count.py -c cmdline  # only trace threads of cmdline
+    sudo -E ./stack_count.py -u          # only trace user threads (no kernel)
+    sudo -E ./stack_count.py -k          # only trace kernel threads (no user)
+    sudo -E ./stack_count.py -U          # only show user space stacks (no kernel)
+    sudo -E ./stack_count.py -K          # only show kernel space stacks (no user)
 """
 
 
@@ -99,6 +100,8 @@ if args.tgid is not None:
     # thread_filter = '!(curr->tgid == %d)' % args.tgid
     pid = args.tgid
     thread_context = "PID " + str(pid)
+    if mode != 'on_cpu':
+        thread_filter = 'curr->tgid == %d' % pid
 elif args.pid is not None:
     thread_context = "TID %d" % args.pid
     thread_filter = 'curr->pid == %d' % args.pid
@@ -108,6 +111,8 @@ elif args.cmd is not None:
     ps.send_signal(19)
     pid = ps.pid
     thread_context = "PID " + str(pid)
+    if mode != 'on_cpu':
+        thread_filter = 'curr->tgid == %d' % pid
     # perf default attach children process
 elif args.user_threads_only:
     thread_context = "user threads"
@@ -127,7 +132,7 @@ else:
     state_filter = '1'
 
 # stack data ebpf code
-with open('on_cpu_count.bpf.c', encoding='utf-8') as f:
+with open(mode+'_count.bpf.c', encoding='utf-8') as f:
     bpf_text = f.read()
 
 bpf_text = bpf_text.replace('THREAD_FILTER', thread_filter)
@@ -181,16 +186,24 @@ if args.offset:
 # bpf parsing
 b = BPF(text=bpf_text)
 print("eBPF initializing compelete.")
+match mode:
+    case 'on_cpu':
+        b.attach_perf_event(ev_type=PerfType.SOFTWARE,
+                            ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_stack",
+                            sample_period=0, sample_freq=99, pid=pid)
+    case 'off_cpu':
+        b.attach_kprobe(
+            event_re="^finish_task_switch$|^finish_task_switch\.isra\.\d$", fn_name='do_stack')
 
-b.attach_perf_event(ev_type=PerfType.SOFTWARE,
-                    ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_stack",
-                    sample_period=0, sample_freq=99, pid=pid)
-print("attach %d." % pid)
-# add external sym
-try:
-    b.add_module(Process(pid).exe())
-except:
-    print("failed to load syms of pid %d" % pid)
+if pid != -1:
+    print("attach %d." % pid)
+    # add external sym
+    try:
+        b.add_module(Process(pid).exe())
+    except:
+        print("failed to load syms of pid %d" % pid)
+else:
+    print("attach all processes")
 
 
 def log():
@@ -223,17 +236,21 @@ class psid_t:
         self.ksid = psid.ksid
         self.usid = psid.usid
 
+
 max_deep = 0
+
+
 def get_deep(usid):
-    if(usid < 0):
+    if (usid < 0):
         return 0
     global max_deep
-    deep=0
+    deep = 0
     for _ in stack_trace.walk(usid):
-        deep+=1
+        deep += 1
     if deep > max_deep:
         max_deep = deep
     return deep
+
 
 def fla_text():
     global max_deep
@@ -242,7 +259,7 @@ def fla_text():
                   count in b["psid_count"].items()}
     deeps = [get_deep(psid.usid) for psid in psid_count.keys()]
     lines = ''
-    for (psid, count),deep in zip(psid_count.items(),deeps):
+    for (psid, count), deep in zip(psid_count.items(), deeps):
         lines += ''.join(
             (
                 [
@@ -263,6 +280,7 @@ def fla_text():
         )
     with open("stack_count.stk", "w") as file:
         file.write(lines)
+
 
 def ad_json(rate_comm: str = None, anomaly_detect=False, flame_format=False):
     psid_count = {psid_t(psid): count.value for psid,
@@ -315,7 +333,7 @@ def ad_json(rate_comm: str = None, anomaly_detect=False, flame_format=False):
         }
     with open("stack_count.json", "w") as file:
         file.write(dumps(tgids, cls=MyEncoder, indent=2, ensure_ascii=True,
-            sort_keys=False, separators=(',', ':')))
+                         sort_keys=False, separators=(',', ':')))
 
     if anomaly_detect and rate_comm != None:
         tp = fp = p = 0
@@ -334,18 +352,19 @@ def ad_json(rate_comm: str = None, anomaly_detect=False, flame_format=False):
                         break
                 if f:
                     break
-        print("recall:%f%% precision:%f%%" %
-              (tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
+        print("%s recall:%f%% precision:%f%%" %
+              (rate_comm, tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
 
 
 def int_handler(sig=None, frame=None):
     print("\b\bquit...")
-    b.detach_perf_event(ev_type=PerfType.SOFTWARE,
-                        ev_config=PerfSWConfig.CPU_CLOCK)
+    if mode == 'on_cpu':
+        b.detach_perf_event(ev_type=PerfType.SOFTWARE,
+                            ev_config=PerfSWConfig.CPU_CLOCK)
     # system("tput rmcup")
     print("save to stack_count.json...")
     ad_json(rate_comm='stress-ng-cpu', anomaly_detect=True)
-    if folded:  
+    if folded:
         print("save to stack_count.stk...")
         fla_text()
     exit()
@@ -371,3 +390,6 @@ else:
     for _ in range(duration//5):
         sleep(5)
         log()
+    signal(2, SIG_IGN)
+    signal(1, SIG_IGN)
+    int_handler()
