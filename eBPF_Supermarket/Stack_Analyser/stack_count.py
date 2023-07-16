@@ -4,6 +4,7 @@ from sys import stderr
 from time import sleep
 from psutil import Process
 from pyod.models.knn import KNN
+import re
 # from pyod.models.lof import LOF
 # from pyod.models.cblof import CBLOF
 # from pyod.models.loci import LOCI
@@ -14,7 +15,7 @@ from pyod.models.knn import KNN
 from json import dumps, JSONEncoder
 from signal import signal, SIG_IGN
 import argparse
-from subprocess import Popen
+from subprocess import Popen, PIPE
 # from pyod.models.deep_svdd import DeepSVDD
 clf_name = 'KNN'
 clf = KNN()
@@ -24,7 +25,7 @@ mode = 'on_cpu'
 examples = """examples:
     sudo -E ./stack_count.py             # trace on-CPU stack time until Ctrl-C
     sudo -E ./stack_count.py 5           # trace for 5 seconds only
-    sudo -E ./stack_count.py -f 5        # 5 seconds, and output in folded format
+    sudo -E ./stack_count.py -f 5        # 5 seconds, and output as stack_count.svg in flame graph format
     sudo -E ./stack_count.py -s 5        # 5 seconds, and show symbol offsets
     sudo -E ./stack_count.py -p 185      # only trace threads for PID 185
     sudo -E ./stack_count.py -t 188      # only trace thread 188
@@ -107,7 +108,8 @@ elif args.pid is not None:
     thread_filter = 'curr->pid == %d' % args.pid
     pid = [args.pid]
 elif args.cmd is not None:
-    ps = Popen(args.cmd, shell=True)
+    cmd = args.cmd.split()
+    ps = Popen(args=cmd[1..end],executable=cmd[0])
     ps.send_signal(19)
     pid = ps.pid
     thread_context = "PID " + str(pid)
@@ -278,11 +280,15 @@ def fla_text():
                 str(count) + '\n'*2
             ]
         )
-    with open("stack_count.stk", "w") as file:
-        file.write(lines)
+    with open("stack_count.svg", "w") as file:
+        fle = Popen("FlameGraph/stackcollapse.pl | FlameGraph/flamegraph.pl", shell=True, stdin=PIPE, stdout=file)
+        fle.stdin.write(lines.encode())
+        fle.stdin.close()
+        fle.wait()
+        file.flush()
+    
 
-
-def ad_json(rate_comm: str = None, anomaly_detect=False, flame_format=False):
+def ad_json(rate_comm: callable, anomaly_detect=False, flame_format=False):
     psid_count = {psid_t(psid): count.value for psid,
                   count in b["psid_count"].items()}
     tgid_comm = {tgid.value: comm.str.decode()
@@ -338,22 +344,24 @@ def ad_json(rate_comm: str = None, anomaly_detect=False, flame_format=False):
     if anomaly_detect and rate_comm != None:
         tp = fp = p = 0
         for tgd in tgids.values():
-            if rate_comm in tgd['name']:
+            if rate_comm(tgd['name']):
                 p += 1
             for pd in tgd['pids'].values():
                 f = False
                 for sd in pd.values():
                     if sd['label'] == 1:
-                        if rate_comm in tgd['name']:
+                        if rate_comm(tgd['name']):
+                            print(tgd['name'])
                             tp += 1
                         else:
+                            print(tgd['name'])
                             fp += 1
                         f = True
                         break
                 if f:
                     break
-        print("%s recall:%f%% precision:%f%%" %
-              (rate_comm, tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
+        print("recall:%f%% precision:%f%%" %
+              (tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
 
 
 def int_handler(sig=None, frame=None):
@@ -363,7 +371,7 @@ def int_handler(sig=None, frame=None):
                             ev_config=PerfSWConfig.CPU_CLOCK)
     # system("tput rmcup")
     print("save to stack_count.json...")
-    ad_json(rate_comm='stress-ng-cpu', anomaly_detect=True)
+    ad_json(rate_comm=lambda x: re.match(r'stress-ng', x), anomaly_detect=True)
     if folded:
         print("save to stack_count.stk...")
         fla_text()
