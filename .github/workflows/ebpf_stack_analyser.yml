@@ -1,4 +1,4 @@
-name: XDP
+name: Stack_Analyser
 
 on:
   push:
@@ -59,12 +59,12 @@ jobs:
          
       - name: Install dependency
         run: |
-          pip install pyod --user
+          sudo python -m pip install pyod
 
       - name: Run stack_count
         run: |
           cd eBPF_Supermarket/Stack_Analyser/
-          sudo -E ./stack_count.py -d -f 5
+          sudo ./stack_count.py -d -f 5
 
       - name: Run load_monitor
         run: |
