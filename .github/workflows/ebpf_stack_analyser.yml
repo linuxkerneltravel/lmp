@@ -36,6 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          sudo python -m pip install pyod
           sudo apt-get install -y linux-headers-$(uname -r)
           sudo apt-get install -y python-is-python3
           sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
@@ -56,10 +57,6 @@ jobs:
         run: |
           cd bcc/build/
           sudo make install
-         
-      - name: Install dependency
-        run: |
-          sudo python -m pip install pyod
 
       - name: Run stack_count
         run: |
