@@ -11,7 +11,7 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/eBPF_TCP_Ping/**'
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_watch/**'
       - '.github/workflows/network_monitor.yml'
 
 jobs:
