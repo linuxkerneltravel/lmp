@@ -14,6 +14,9 @@ on:
       - 'eBPF_Supermarket/Network_Subsystem/tcp_watch/**'
       - '.github/workflows/network_monitor.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-and-run:
     runs-on: ubuntu-22.04
