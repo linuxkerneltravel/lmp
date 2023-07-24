@@ -1,0 +1,37 @@
+name: net_monitor
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_watch/**'
+      - '.github/workflows/network_monitor.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/tcp_watch/**'
+      - '.github/workflows/network_monitor.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies and Init Env
+        run: |
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          git submodule update --init --recursive
+
+      - name: Build and Run
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/tcp_watch/
+          make
+          # run
+          sudo timeout -s SIGINT 20 ./tcpwatch || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+        timeout-minutes: 5

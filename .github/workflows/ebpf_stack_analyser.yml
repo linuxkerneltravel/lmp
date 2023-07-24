@@ -1,18 +1,18 @@
-name: XDP
+name: Stack_Analyser
 
 on:
   push:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/XDP_Res-Application/**'
-      - '.github/workflows/ebpf_xdp.yml'
+      - 'eBPF_Supermarket/Stack_Analyser/**'
+      - '.github/workflows/ebpf_stack_analyser.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/XDP_Res-Application/**'
-      - '.github/workflows/ebpf_xdp.yml'
+      - 'eBPF_Supermarket/Stack_Analyser/**'
+      - '.github/workflows/ebpf_stack_analyser.yml'
       
 
 jobs:
@@ -36,6 +36,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          sudo python -m pip install pyod
+          sudo python -m pip install psutil
           sudo apt-get install -y linux-headers-$(uname -r)
           sudo apt-get install -y python-is-python3
           sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
@@ -56,13 +58,13 @@ jobs:
         run: |
           cd bcc/build/
           sudo make install
-         
-      - name: Run xdp_filter
-        run: |
-          cd eBPF_Supermarket/XDP_Res-Application/
-          sudo python3 tools/xdp_filter/filter.py -t 5 -i lo -m 0
 
-      - name: Run xdp_fast_forward
+      - name: Run stack_count
         run: |
-          cd eBPF_Supermarket/XDP_Res-Application/
-          sudo python3 tools/xdp_fast_forward/forward.py -t 5 -i lo -m 0
+          cd eBPF_Supermarket/Stack_Analyser/bcc
+          sudo ./stack_count.py -d -f 5
+
+      - name: Run load_monitor
+        run: |
+          cd eBPF_Supermarket/Stack_Analyser/bcc
+          sudo ./load_monitor.py -t 5
