@@ -1,4 +1,4 @@
-# stack_count
+# bcc/stack_count.py
 
 用于对调用栈进行计数，拥有对调用栈出现频次异常检测的能力。
 
@@ -43,7 +43,7 @@ python库：
 - psutil
 - pyod
 
-# load_monitor
+# bcc/load_monitor.py
 
 用于在计算机负载超过阈值时记录内核栈数量信息，每5s输出一次总记录。
 
