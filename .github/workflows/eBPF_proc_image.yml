@@ -1,18 +1,18 @@
-name: proc_image
+name: eBPF_proc_image
 
 on:
   push:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/proc_image/**'
-      - '.github/workflows/proc_image.yml'
+      - 'eBPF_Supermarket/eBPF_proc_image/**'
+      - '.github/workflows/eBPF_proc_image.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/proc_image/**'
-      - '.github/workflows/proc_image.yml'
+      - 'eBPF_Supermarket/eBPF_proc_image/**'
+      - '.github/workflows/eBPF_proc_image.yml'
 
 jobs:
   proc_image-project-build-and-test:
@@ -29,6 +29,6 @@ jobs:
 
       - name: Run proc_image
         run: |
-          cd eBPF_Supermarket/proc_image
+          cd eBPF_Supermarket/eBPF_proc_image
           sudo make
           sudo ./proc_image -t 1
