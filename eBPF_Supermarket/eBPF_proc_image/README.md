@@ -12,16 +12,16 @@ proc_image便是Linux进程生命周期画像工具，该工具由多个子功�
 
 ### 1. 进程的off_CPU_time
 
-目前该功能可由proc_image工具的-p参数去实现，需指定进程pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_A.c）进行了时间上的比对，准确性满足要求。示例如下：
+目前该功能可由proc_image工具的-p参数去实现，需指定进程pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_sleep.c）进行了时间上的比对，准确性满足要求。示例如下：
 
-终端1：./test_A
+终端1：./test_sleep
 
 ```
-test_A进程的PID：9063
+test_sleep进程的PID：9063
 输入任意数字继续程序的运行：
 ```
 
-终端2：现在已知test_A进程的PID为9063，执行指令sudo ./proc_image -p 9063进行跟踪
+终端2：现在已知test_sleep进程的PID为9063，执行指令sudo ./proc_image -p 9063进行跟踪
 
 终端1：输入任意数字继续程序的运行
 
@@ -29,7 +29,7 @@ test_A进程的PID：9063
 
 ```
 // 终端1
-test_A进程的PID：9063
+test_sleep进程的PID：9063
 输入任意数字继续程序的运行：1
 程序开始执行...
 sleep开始时间：2023-07-24 16:58:28
@@ -37,7 +37,7 @@ sleep结束时间：2023-07-24 16:58:31
 程序睡眠3s，执行完毕！
 
 //终端2
-pid:9063  comm:test_A  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  oncpu_time:5966883001411  sleeptime:3.000173
+pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  oncpu_time:5966883001411  sleeptime:3.000173
 ```
 
 目前由于统计到的数据量过少，可视化的意义并不大，所以准备在下一步的迭代过程中进行可视化。
