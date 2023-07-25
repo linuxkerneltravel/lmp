@@ -1,24 +1,11 @@
 #!/bin/python
-from bcc import BPF, PerfType, PerfSWConfig
-from sys import stderr
-from time import sleep
-from psutil import Process
-from pyod.models.knn import KNN
-import re
-# from pyod.models.lof import LOF
-# from pyod.models.cblof import CBLOF
-# from pyod.models.loci import LOCI
-# from pyod.models.abod import ABOD
-# from pyod.models.hbos import HBOS
-# from pyod.models.sos import SOS
-# from pyod.models.deep_svdd import DeepSVDD
-from json import dumps, JSONEncoder
+from my_format import *
 from signal import signal, SIG_IGN
-import argparse
+from time import sleep
+from bcc import BPF, PerfType, PerfSWConfig
+from argparse import ArgumentTypeError, ArgumentParser, RawDescriptionHelpFormatter, SUPPRESS
 from subprocess import Popen, PIPE
-# from pyod.models.deep_svdd import DeepSVDD
-clf_name = 'KNN'
-clf = KNN()
+
 mode = 'on_cpu'
 
 # arguments
@@ -34,6 +21,7 @@ examples = """examples:
     sudo -E ./stack_count.py -k          # only trace kernel threads (no user)
     sudo -E ./stack_count.py -U          # only show user space stacks (no kernel)
     sudo -E ./stack_count.py -K          # only show kernel space stacks (no user)
+    sudo -E ./stack_count.py -a          # anomaly detection for stack
 """
 
 
@@ -41,16 +29,17 @@ def positive_int(val):
     try:
         ival = int(val)
     except ValueError:
-        raise argparse.ArgumentTypeError("must be an integer")
+        raise ArgumentTypeError("must be an integer")
     if ival <= 0:
-        raise argparse.ArgumentTypeError("must be positive")
+        raise ArgumentTypeError("must be positive")
     return ival
 
 
-parser = argparse.ArgumentParser(
+parser = ArgumentParser(
     description="Summarize on-CPU time by stack trace",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
+    formatter_class=RawDescriptionHelpFormatter,
     epilog=examples)
+
 thread_group = parser.add_mutually_exclusive_group()
 # Note: this script provides --pid and --tid flags but their arguments are
 # referred to internally using kernel nomenclature: TGID and PID.
@@ -70,6 +59,10 @@ stack_group.add_argument("-U", "--user-stacks-only", action="store_true",
                          help="show stacks from user space only (no kernel space stacks)")
 stack_group.add_argument("-K", "--kernel-stacks-only", action="store_true",
                          help="show stacks from kernel space only (no user space stacks)")
+
+
+parser.add_argument("-a", "--auto", action="store_true",
+                    help="analyzing stacks automatically")
 parser.add_argument("-d", "--delimited", action="store_true",
                     help="insert delimiter between kernel/user stacks")
 parser.add_argument("-f", "--folded", action="store_true",
@@ -87,7 +80,7 @@ parser.add_argument("--state", type=positive_int,
                     help="filter on this thread state bitmask (eg, 2 == TASK_UNINTERRUPTIBLE" +
                     ") see include/linux/sched.h")
 parser.add_argument("--ebpf", action="store_true",
-                    help=argparse.SUPPRESS)
+                    help=SUPPRESS)
 args = parser.parse_args()
 folded = args.folded
 duration = int(args.duration)
@@ -109,7 +102,7 @@ elif args.pid is not None:
     pid = [args.pid]
 elif args.cmd is not None:
     cmd = args.cmd.split()
-    ps = Popen(args=cmd[1..end],executable=cmd[0])
+    ps = Popen(cmd)
     ps.send_signal(19)
     pid = ps.pid
     thread_context = "PID " + str(pid)
@@ -167,6 +160,7 @@ need_delimiter = args.delimited and not (args.kernel_stacks_only or
                                          args.user_stacks_only)
 
 if args.kernel_threads_only and args.user_stacks_only:
+    from sys import stderr
     print("ERROR: Displaying user stacks for kernel threads " +
           "doesn't make sense.", file=stderr)
     exit(2)
@@ -185,6 +179,17 @@ show_offset = False
 if args.offset:
     show_offset = True
 
+auto = False
+if args.auto:
+    auto = True
+    from my_ad import adc
+    ado = adc()
+
+
+ad = False
+if auto and not args.pid and not args.tgid and not args.cmd:
+    ad = True
+
 # bpf parsing
 b = BPF(text=bpf_text)
 print("eBPF initializing compelete.")
@@ -201,6 +206,7 @@ if pid != -1:
     print("attach %d." % pid)
     # add external sym
     try:
+        from psutil import Process
         b.add_module(Process(pid).exe())
     except:
         print("failed to load syms of pid %d" % pid)
@@ -208,175 +214,37 @@ else:
     print("attach all processes")
 
 
-def log():
-    psid_count = {psid_t(psid): n.value for psid, n in b["psid_count"].items()}
-    count = [[n] for n in psid_count.values()]
-    try:
-        clf.fit(count)
-        labels = clf.labels_
-        for (spid, n), label in zip(psid_count.items(), labels):
-            print('pid:%6d\tsid:(%6d,%6d)\tcount:%-6d\tlabel:%d' %
-                  (spid.pid, spid.ksid, spid.usid, n, label))
-    except:
-        pass
-
-
-class MyEncoder(JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, int):
-            return obj.value
-        else:
-            return super(MyEncoder, self).default(obj)
-
-
-stack_trace = b["stack_trace"]
-
-
-class psid_t:
-    def __init__(self, psid) -> None:
-        self.pid = psid.pid
-        self.ksid = psid.ksid
-        self.usid = psid.usid
-
-
-max_deep = 0
-
-
-def get_deep(usid):
-    if (usid < 0):
-        return 0
-    global max_deep
-    deep = 0
-    for _ in stack_trace.walk(usid):
-        deep += 1
-    if deep > max_deep:
-        max_deep = deep
-    return deep
-
-
-def fla_text():
-    global max_deep
-    max_deep = 0
-    psid_count = {psid_t(psid): count.value for psid,
-                  count in b["psid_count"].items()}
-    deeps = [get_deep(psid.usid) for psid in psid_count.keys()]
-    lines = ''
-    for (psid, count), deep in zip(psid_count.items(), deeps):
-        lines += ''.join(
-            (
-                [
-                    "%s\n" % (b.ksym(j).decode())
-                    for j in stack_trace.walk(psid.ksid)
-                ] if psid.ksid >= 0 else []
-            ) + (
-                ['-'*32+'\n'] if need_delimiter else []
-            ) + (
-                [
-                    "%s\n" % (b.sym(j, psid.pid).decode())
-                    for j in stack_trace.walk(psid.usid)
-                ] + ['.\n'*(max_deep-deep)]
-                if psid.usid >= 0 else []
-            ) + [
-                str(count) + '\n'*2
-            ]
-        )
-    with open("stack_count.svg", "w") as file:
-        fle = Popen("FlameGraph/stackcollapse.pl | FlameGraph/flamegraph.pl", shell=True, stdin=PIPE, stdout=file)
-        fle.stdin.write(lines.encode())
-        fle.stdin.close()
-        fle.wait()
-        file.flush()
-    
-
-def ad_json(rate_comm: callable, anomaly_detect=False, flame_format=False):
-    psid_count = {psid_t(psid): count.value for psid,
-                  count in b["psid_count"].items()}
-    tgid_comm = {tgid.value: comm.str.decode()
-                 for tgid, comm in b["tgid_comm"].items()}
-    pid_tgid = {pid.value: tgid.value for pid, tgid in b["pid_tgid"].items()}
-
-    tgids = {
-        tgid: {
-            'name': comm,
-            'pids': dict()
-        } for tgid, comm in tgid_comm.items()
-    }
-    count = [[n] for n in psid_count.values()]
-    labels = dict()
-    if anomaly_detect:
-        try:
-            clf.fit(count)
-            labels = clf.labels_.astype(int).tolist()
-        except:
-            pass
-    if labels == dict():
-        labels = [None for i in range(len(count))]
-
-    for (psid, n), label in zip(psid_count.items(), labels, strict=True):
-        pid_d = tgids[pid_tgid[psid.pid]]['pids'].setdefault(psid.pid, dict())
-        pid_d[str(psid.ksid)+','+str(psid.usid)] = {
-            'trace': (
-                (
-                    [
-                        "%#08x:%s" % (j, b.ksym(j).decode())
-                        for j in stack_trace.walk(psid.ksid)
-                    ] if psid.ksid >= 0
-                    else ['[Missed Kernel Stack]']
-                ) + (
-                    ['-'*50] if need_delimiter
-                    else []
-                ) + (
-                    [
-                        "%#08x:%s" % (
-                            j, b.sym(j, psid.pid, show_offset=show_offset).decode())
-                        for j in stack_trace.walk(psid.usid)
-                    ] if psid.usid >= 0
-                    else ['[Missed User Stack]']
-                )
-            ),
-            'count': n,
-            'label': label
-        }
-    with open("stack_count.json", "w") as file:
-        file.write(dumps(tgids, cls=MyEncoder, indent=2, ensure_ascii=True,
-                         sort_keys=False, separators=(',', ':')))
-
-    if anomaly_detect and rate_comm != None:
-        tp = fp = p = 0
-        for tgd in tgids.values():
-            if rate_comm(tgd['name']):
-                p += 1
-            for pd in tgd['pids'].values():
-                f = False
-                for sd in pd.values():
-                    if sd['label'] == 1:
-                        if rate_comm(tgd['name']):
-                            print(tgd['name'])
-                            tp += 1
-                        else:
-                            print(tgd['name'])
-                            fp += 1
-                        f = True
-                        break
-                if f:
-                    break
-        print("recall:%f%% precision:%f%%" %
-              (tp/p*100 if p else 0, tp/(tp+fp)*100 if tp+fp else 0))
-
-
 def int_handler(sig=None, frame=None):
     print("\b\bquit...")
     if mode == 'on_cpu':
         b.detach_perf_event(ev_type=PerfType.SOFTWARE,
                             ev_config=PerfSWConfig.CPU_CLOCK)
+    elif mode == 'off_cpu':
+        for tp in b.get_kprobe_functions(b"^finish_task_switch$|^finish_task_switch\.isra\.\d$"):
+            b.detach_kprobe(tp)
     # system("tput rmcup")
-    print("save to stack_count.json...")
-    ad_json(rate_comm=lambda x: re.match(r'stress-ng', x), anomaly_detect=True)
-    if folded:
-        print("save to stack_count.stk...")
-        fla_text()
-    exit()
+    if auto:
+        if not ad:
+            ado.auto_label(b)
+        ado.avg_mutant()
+        get_mutant = ado.get_mutant
+    else:
+        get_mutant = lambda _:0
 
+    tgids = map2dict(b, get_mutant, need_delimiter, show_offset)
+    print("save to stack_count.json...")
+    with open("stack_count.json", "w") as file:
+        file.write(dumps(tgids, cls=MyEncoder, indent=2, ensure_ascii=True,
+                         sort_keys=False, separators=(',', ':')))
+    if auto:
+        print("calc ad performance...")
+        from my_ad import rate
+        from re import match
+        rate(tgids, lambda x: match(r'stress-ng-.*', x))
+    if folded:
+        print("save to stack_count.svg...")
+        fla_text(b, need_delimiter)
+    exit()
 
 # system("tput -x smcup; clear")
 if args.cmd != None:
@@ -387,7 +255,8 @@ if args.cmd != None:
     while ps.poll() == None and d <= duration:
         sleep(5)
         d += 5
-        log()
+        if ad:
+            ado.ad_log(b)
     signal(2, SIG_IGN)
     signal(1, SIG_IGN)
     ps.kill()
@@ -397,7 +266,8 @@ else:
     signal(1, int_handler)
     for _ in range(duration//5):
         sleep(5)
-        log()
+        if ad:
+            ado.ad_log(b)
     signal(2, SIG_IGN)
     signal(1, SIG_IGN)
     int_handler()

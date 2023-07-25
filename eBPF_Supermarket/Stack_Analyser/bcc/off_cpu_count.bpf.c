@@ -18,9 +18,9 @@ BPF_HASH(psid_count, psid);
 BPF_HASH(start, u32);
 BPF_STACK_TRACE(stack_trace, STACK_STORAGE_SIZE);
 BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(tgid_comm, u32, comm);
+BPF_HASH(pid_comm, u32, comm);
 
-int do_stack(struct pt_regs *ctx, struct task_struct *curr, struct task_struct *next) {
+int do_stack(struct pt_regs *ctx, struct task_struct *curr) {
     u32 pid = curr->pid;
     u32 tgid = curr->tgid;
 
@@ -29,19 +29,26 @@ int do_stack(struct pt_regs *ctx, struct task_struct *curr, struct task_struct *
         start.update(&pid, &ts);
     }
 
+    struct task_struct *next = (struct task_struct *)bpf_get_current_task();
     pid = next->pid;
     u64 *tsp = start.lookup(&pid);
     if (tsp == 0) return 0;
 
     start.delete(&pid);
     u64 delta = bpf_ktime_get_ns() - *tsp;
-    delta /= 1000;
+    delta /= 10000000;
     if ((delta < MINBLOCK_US) || (delta > MAXBLOCK_US)) {
         return 0;
     }
     
     tgid = next->tgid;
     pid_tgid.update(&pid, &tgid);
+    comm *p = pid_comm.lookup(&pid);
+    if(!p) {
+        comm name;
+        bpf_probe_read_kernel_str(&name, TASK_COMM_LEN, next->comm);
+        pid_comm.update(&pid, &name);
+    }
     psid key = {
         .pid = pid,
         .usid = USER_STACK_GET,
@@ -49,11 +56,5 @@ int do_stack(struct pt_regs *ctx, struct task_struct *curr, struct task_struct *
     };
     psid_count.increment(key, delta);
 
-    comm *p = tgid_comm.lookup(&tgid);
-    if(!p) {
-        comm name;
-        bpf_probe_read_kernel_str(&name, TASK_COMM_LEN, next->comm);
-        tgid_comm.update(&tgid, &name);
-    }
     return 0;
 }

@@ -1,0 +1,9 @@
+.idea
+.vscode
+
+bpf/headers/vmlinux.h
+
+bpf/headers/bpf/*
+!bpf/headers/bpf/update.sh
+
+*.o
