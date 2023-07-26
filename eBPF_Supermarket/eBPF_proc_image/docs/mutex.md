@@ -111,15 +111,15 @@ int main()
 
 运行结果：
 
-<div align='center'><img src="../images/文件写入运行结果.png"></div>
+<div align='center'><img src="../images/HELLO_WORLD.png"></div>
 
-<div align='center'><img src="../images/strace运行结果.png"></div>
+<div align='center'><img src="../images/strace_result.png"></div>
 
 可以看到test.txt文件中成功写入HELLO WORLD，终端中并没有和pthread_mutex_*相关的系统调用，可见用户态的互斥锁在用户态通过原子操作即可完成上锁和解锁操作。
 
 ## 内核态互斥锁
 
-参考资料：《奔跑吧Linux内核》
+参考资料：《奔跑本Linux内核》
 
 ### 概念
 
@@ -230,13 +230,13 @@ __mutex_lock_slowpath() → __mutex_lock() → __mutex_lock_common()
 
 慢速通道申请互斥锁的流程如下：
 
-<div align='center'><img src="../images/慢速通道申请互斥锁流程.png"></div>
+<div align='center'><img src="../images/mutex_lock_slowpath.png"></div>
 
 ### 乐观自旋锁等待机制
 
 乐观自旋等待机待是互斥锁的一个新特性。乐观自旋等待机制其实就是判断锁持有者正在临界区执行时，可以断定锁持有者会很快退出临界区并且释放锁，与其进入睡眠队列，不如像自旋锁一样自旋等待，因为睡眠与唤醒的代价可能更高。乐观自旋等待机制主要实现在mutex_optimistic_spin()函数中，乐观自旋锁等待机制如下图所示：
 
-<div align='center'><img src="../images/乐观自旋锁等待机制.png"></div>
+<div align='center'><img src="../images/mutex_optimistic_spin.png"></div>
 
 - mutex_can_spin_on_owner()函数：判断当前进程是否应该进行乐观自旋等待
 -  __mutex_trylock_or_owner()函数：尝试获取锁
@@ -276,7 +276,7 @@ static __always_inline bool __mutex_unlock_fast(struct mutex *lock)
 
 假设系统有4个CPU （每个CPU—个线程）同时争用一个互斥锁，如下图所示：
 
-<div align='center'><img src="../images/互斥锁案例分析.png"></div>
+<div align='center'><img src="../images/mutex_case.png"></div>
 
 ### 小结
 
