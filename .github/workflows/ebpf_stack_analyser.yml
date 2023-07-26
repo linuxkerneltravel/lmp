@@ -61,10 +61,10 @@ jobs:
 
       - name: Run stack_count
         run: |
-          cd eBPF_Supermarket/Stack_Analyser/bcc
-          sudo ./stack_count.py -d -f 5
+          cd eBPF_Supermarket/Stack_Analyser/
+          sudo bcc/stack_count.py -d -f 5
 
       - name: Run load_monitor
         run: |
-          cd eBPF_Supermarket/Stack_Analyser/bcc
-          sudo ./load_monitor.py -t 5
+          cd eBPF_Supermarket/Stack_Analyser/
+          sudo bcc/load_monitor.py -t 5
