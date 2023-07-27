@@ -25,10 +25,10 @@
         __uint(max_entries, MAX_ENTRIES);  \
     } name SEC(".maps")
 
-#define BPF(type, name) ((struct type##_bpf *)name)
-#define bpf_open_load(type, name) name = type##_bpf__open_and_load()
-#define bpf_destroy(type, name) type##_bpf__destroy(name)
-#define bpf_attach(type, name) type##_bpf__attach(name)
+#define BPF(type, name) (struct type##_bpf *)name
+#define bpf_open_load(type, name) struct type##_bpf *name = type##_bpf__open_and_load()
+#define bpf_destroy(type, name) type##_bpf__destroy(BPF(type, name))
+#define bpf_attach(type, name) type##_bpf__attach(BPF(type, name))
 
 #define KERNEL_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP)
 #define USER_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
@@ -43,5 +43,12 @@ typedef struct
 {
     char str[COMM_LEN];
 } comm;
+
+typedef enum 
+{
+	MOD_ON_CPU,
+	MOD_OFF_CPU,
+	MOD_MEM,
+} MOD;
 
 #endif
