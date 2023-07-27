@@ -39,8 +39,8 @@ jobs:
           sudo make mutex_image
           sudo ./mutex_image -t 1
 
-      - name: Run mutex_image
+      - name: Run mutex_test1
         run: |
-          cd eBPF_Supermarket/eBPF_proc_image/docs/mutex
+          cd eBPF_Supermarket/eBPF_proc_image/test
           sudo make
           sudo insmod mutex_test1.ko

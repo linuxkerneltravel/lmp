@@ -70,7 +70,7 @@ eBPF程序用户态程序设计：
 
 ### 情形1
 
-为了验证eBPF程序的正确性，设计测试程序mutex_test1.c（./mutex_test1.c），测试程序逻辑如下：
+为了验证eBPF程序的正确性，设计测试程序mutex_test1.c（eBPF_Supermarket/eBPF_proc_image/test/mutex_test1.c），测试程序逻辑如下：
 
 ```
 ......

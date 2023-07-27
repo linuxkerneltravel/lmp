@@ -3,9 +3,6 @@
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
-#include <linux/fs.h>
-#include <linux/file.h>
-#include <linux/fs_struct.h>
 
 MODULE_LICENSE("GPL");
 
