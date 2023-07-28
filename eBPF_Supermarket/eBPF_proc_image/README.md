@@ -43,3 +43,11 @@ pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  o
 目前由于统计到的数据量过少，可视化的意义并不大，所以准备在下一步的迭代过程中进行可视化。
 
 下一步迭代计划：在统计到的事件里加入int型的flag字段，1代表one_cpu，0代表off_CPU，即可获得进程生命周期的动态数据，在宏观上实现进程的生命周期，以便后期加入更多的进程信息。
+
+## 三、mutex_image 工具
+
+mutex_image 工具目前只能完成下图情形1的进程互斥锁画像，后期会继续迭代。
+
+<div align='center'><img src="./docs/images/mutex_development.png"></div>
+
+该工具的详细文档见./docs/mutex。
