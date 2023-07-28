@@ -590,20 +590,7 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
         if (tinfo == NULL) {
             return 0;
         }
-        tinfo->app_time = bpf_ktime_get_ns() / 1000;
-    } else if (protocol == __bpf_htons(ETH_P_IPV6)) {
-        if (skb == NULL)
-            return 0;
-        struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
-        get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
-        tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
-        if (tinfo == NULL) {
-            return 0;
-        }
         tinfo->app_time = bpf_ktime_get_ns() / 1000;
     } else {
         return 0;
