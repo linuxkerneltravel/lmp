@@ -1,0 +1,4 @@
+build/
+vmlinux/vmlinux.h
+*.out
+*.data/

@@ -1,0 +1,8 @@
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 100
+PointerAlignment: Right
+IncludeCategories: # let vmlinux.h come first 
+  - Regex: '"vmlinux.h"'
+    Priority: -1000
