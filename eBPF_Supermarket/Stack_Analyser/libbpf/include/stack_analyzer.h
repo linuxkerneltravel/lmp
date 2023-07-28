@@ -1,3 +1,21 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: luiyanbing@foxmail.com
+//
+// 通用数据结构和宏
+
 #ifndef STACK_ANALYZER
 #define STACK_ANALYZER
 
@@ -6,6 +24,53 @@
 #define COMM_LEN 16
 
 #include <asm/types.h>
+
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
+    do                                                           \
+    {                                                            \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                \
+                    .retprobe = is_retprobe,                     \
+                    .func_name = #sym_name);                     \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
+            skel->progs.prog_name,                               \
+            pid,                                                 \
+            object,                                              \
+            0,                                                   \
+            &uprobe_opts);                                       \
+    } while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                                                      \
+    do                                                                                        \
+    {                                                                                         \
+        if (!skel->links.prog_name)                                                           \
+        {                                                                                     \
+            fprintf(stderr, "[%s] no program attached for" #prog_name "\n", strerror(errno)); \
+            return -errno;                                                                    \
+        }                                                                                     \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do                                                                  \
+    {                                                                   \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
+#define LOAD_SKEL_CHECKED(type, var)                                                   \
+    bpf_open_load(type, var);                                                          \
+    skel = var;                                                                        \
+    if (!skel)                                                                         \
+    {                                                                                  \
+        fprintf(stderr, "[%s] Fail to open and load BPF skeleton\n", strerror(errno)); \
+        err = -1;                                                                      \
+        return -1;                                                                     \
+    }
 
 #define BPF_STACK_TRACE(name)                           \
     struct                                              \
@@ -37,18 +102,30 @@ typedef struct
 {
     __u32 pid;
     __s32 ksid, usid;
-} psid;
+} psid; // counts key
 
 typedef struct
 {
     char str[COMM_LEN];
-} comm;
+} comm; // pid name
 
-typedef enum 
+typedef struct
 {
-	MOD_ON_CPU,
-	MOD_OFF_CPU,
-	MOD_MEM,
-} MOD;
+    __u64 addr;
+    __u32 pid, o;
+} piddr; // mem info key
+
+typedef struct
+{
+    __u64 size;
+    __u32 usid, o;
+} mem_info; // mem info with stack
+
+typedef enum
+{
+    MOD_ON_CPU,
+    MOD_OFF_CPU,
+    MOD_MEM,
+} MOD; // simpling mod
 
 #endif
