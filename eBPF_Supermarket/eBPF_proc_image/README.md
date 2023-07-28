@@ -50,4 +50,4 @@ mutex_image 工具目前只能完成下图情形1的进程互斥锁画像，后�
 
 <div align='center'><img src="./docs/images/mutex_development.png"></div>
 
-该工具的详细文档见./docs/mutex。
+该工具的详细文档见./docs/mutex
