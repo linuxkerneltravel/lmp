@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: luiyanbing@126.com
+// author: luiyanbing@foxmail.com
 //
 // 内核态bpf的off-cpu模块代码
 
