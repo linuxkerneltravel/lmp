@@ -1,3 +1,21 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: blown.away@qq.com
+//
+// tcpwatch libbpf 内核函数
+
 #include "tcpwatch.h"
 #include "vmlinux.h"
 #include <asm-generic/errno.h>
@@ -6,14 +24,14 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-struct ktime_info { // us time stamp info
-    unsigned long long qdisc_time;
-    unsigned long long mac_time;
-    unsigned long long ip_time;
-    unsigned long long tcp_time;
-    unsigned long long app_time;
-    void *sk;
-    char comm[MAX_COMM];
+struct ktime_info {                // us time stamp info
+    unsigned long long qdisc_time; // tx包离开mac层时间戳
+    unsigned long long mac_time;   // tx、rx包到达mac层时间戳
+    unsigned long long ip_time;    // tx、rx包到达ip层时间戳
+    unsigned long long tcp_time;   // tx、rx包到达tcp层时间戳
+    unsigned long long app_time;   // rx包离开tcp层时间戳
+    void *sk;                      // 此包所属 socket
+    char comm[MAX_COMM];           // 此包所属 command
 };
 
 static __always_inline void *
@@ -65,6 +83,7 @@ struct {
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 
+/* help macro */
 #define FILTER_DPORT                                                           \
     if (filter_dport) {                                                        \
         if (dport != filter_dport) {                                           \
@@ -77,7 +96,9 @@ const volatile int filter_sport = 0;
             return 0;                                                          \
         }                                                                      \
     }
+/* help macro end */
 
+/* help functions */
 static struct tcp_sock *tcp_sk(const struct sock *sk) {
     return (struct tcp_sock *)sk;
 }
@@ -127,6 +148,7 @@ static void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
     pkt_tuple->seq = __bpf_ntohl(seq);
     pkt_tuple->ack = __bpf_ntohl(ack);
 }
+/* help functions end */
 
 /**
     accecpt an TCP connection
@@ -181,6 +203,9 @@ int BPF_KRETPROBE(inet_csk_accept, struct sock *newsk) {
 
     return 0;
 }
+/**
+    accecpt an TCP connection end
+*/
 
 /**
     connect an TCP connection
@@ -298,29 +323,36 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
     return 0;
 }
 
-/* TCP State */
+/**
+    connect an TCP connection end
+*/
+
+/* erase CLOSED TCP connection */
 SEC("kprobe/tcp_set_state")
 int BPF_KPROBE(tcp_set_state, struct sock *sk, int state) {
     struct conn_t *value = bpf_map_lookup_elem(&conns_info, &sk);
     if (state == TCP_CLOSE && value != NULL) {
         // delete
-        // bpf_map_delete_elem(&sock_stores, &value->ptid);
-        // bpf_map_delete_elem(&conns_info, &sk);
+        bpf_map_delete_elem(&sock_stores, &value->ptid);
+        bpf_map_delete_elem(&conns_info, &sk);
     }
     return 0;
 }
+/* erase CLOSED TCP connection end*/
 
 /*!
 in_ipv4:
     kprobe/eth_type_trans
     kprobe/ip_rcv_core.isra.0
     kprobe/tcp_v4_rcv
+    kprobe/tcp_v4_do_rcv
     kprobe/skb_copy_datagram_iter
 
 in_ipv6:
     kprobe/eth_type_trans
     kprobe/ip6_rcv_core.isra.0
     kprobe/tcp_v6_rcv
+    kprobe/tcp_v6_do_rcv
     kprobe/skb_copy_datagram_iter
 
 out_ipv4:
