@@ -24,15 +24,15 @@
 #include <signal.h>
 #include <argp.h>
 #include <errno.h>
-#include "proc_image.skel.h"
-#include "proc_image.h"
+#include "mutex_image.skel.h"
+#include "mutex_image.h"
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
 static volatile bool exiting = false;
 static int target_pid = 0;
 
-const char argp_program_doc[] ="Trace process to get process image.\n";
+const char argp_program_doc[] ="Trace process to get mutex image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
@@ -72,15 +72,29 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-	const struct sleep_event *e = data;
-    double sleeptime = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-    
-    printf("pid:%d  comm:%s  offcpu_id:%d  offcpu_time:%llu  oncpu_id:%d  oncpu_time:%llu  sleeptime:%lf\n",
-    e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,sleeptime);
+	const struct mutex_event *e = data;
+	double acq_time,hold_time;
+
+    if(e->mutex_unlock_time!=0){
+        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu  mutex_unlock_time(ns):%llu\n",
+                e->pid,e->comm,e->mutex_acq_time,e->mutex_lock_time,e->mutex_unlock_time);
+        acq_time = (e->mutex_lock_time - e->mutex_acq_time)*1.0/1000.0;
+		hold_time = (e->mutex_unlock_time - e->mutex_lock_time)*1.0/1000.0;
+        printf("acq_time(us):%lf  hold_time(us):%lf\n",acq_time,hold_time);
+    }else if(e->mutex_lock_time!=0){
+        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu\n",
+                e->pid,e->comm,e->mutex_acq_time,e->mutex_lock_time);
+		acq_time = (e->mutex_lock_time - e->mutex_acq_time)*1.0/1000.0;
+		printf("acq_time(us):%lf\n",acq_time);
+    }else{
+        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu\n",
+                e->pid,e->comm,e->mutex_acq_time);
+    }
+
+    printf("\n");
 
 	return 0;
 }
-	
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -90,7 +104,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
-	struct proc_image_bpf *skel;
+	struct mutex_image_bpf *skel;
 	int err;
 	static const struct argp argp = {
 		.options = opts,
@@ -116,7 +130,7 @@ int main(int argc, char **argv)
 	signal(SIGALRM,sig_handler);
 
 	/* 打开BPF应用程序 */
-	skel = proc_image_bpf__open();
+	skel = mutex_image_bpf__open();
 	if (!skel) {
 		fprintf(stderr, "Failed to open BPF skeleton\n");
 		return 1;
@@ -125,14 +139,14 @@ int main(int argc, char **argv)
 	skel->rodata->target_pid = target_pid;
 
 	/* 加载并验证BPF程序 */
-	err = proc_image_bpf__load(skel);
+	err = mutex_image_bpf__load(skel);
 	if (err) {
 		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 		goto cleanup;
 	}
 	
 	/* 附加跟踪点处理程序 */
-	err = proc_image_bpf__attach(skel);
+	err = mutex_image_bpf__attach(skel);
 	if (err) {
 		fprintf(stderr, "Failed to attach BPF skeleton\n");
 		goto cleanup;
@@ -140,7 +154,7 @@ int main(int argc, char **argv)
 	
 	/* 设置环形缓冲区轮询 */
 	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.sleep_rb), handle_event, NULL, NULL);
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.mutex_rb), handle_event, NULL, NULL);
 	if (!rb) {
 		err = -1;
 		fprintf(stderr, "Failed to create ring buffer\n");
@@ -165,7 +179,7 @@ int main(int argc, char **argv)
 /* 卸载BPF程序 */
 cleanup:
 	ring_buffer__free(rb);
-	proc_image_bpf__destroy(skel);
+	mutex_image_bpf__destroy(skel);
 	
 	return err < 0 ? -err : 0;
 }
