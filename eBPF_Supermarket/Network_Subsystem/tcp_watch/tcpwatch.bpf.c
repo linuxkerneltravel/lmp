@@ -154,7 +154,7 @@ static void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
     accecpt an TCP connection
 */
 SEC("kretprobe/inet_csk_accept")
-int BPF_KRETPROBE(inet_csk_accept, struct sock *newsk) {
+int BPF_KRETPROBE(inet_csk_accept_exit, struct sock *newsk) {
     bpf_printk("inet_accept_ret\n");
     if (newsk == NULL) {
         bpf_printk("inet_accept_ret err: newsk is null\n");
@@ -604,14 +604,14 @@ int BPF_KPROBE(tcp_v6_do_rcv, struct sock *sk, struct sk_buff *skb) {
 /** in ipv4 && ipv6 */
 SEC("kprobe/skb_copy_datagram_iter")
 int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
+    if (skb == NULL)
+        return 0;
     __be16 protocol = BPF_CORE_READ(skb, protocol);
-
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
     struct ktime_info *tinfo;
     if (protocol == __bpf_htons(ETH_P_IP)) { /** ipv4 */
-        if (skb == NULL)
-            return 0;
+
         struct iphdr *ip = skb_to_iphdr(skb);
         get_pkt_tuple(&pkt_tuple, ip, tcp);
 
@@ -623,6 +623,18 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
             return 0;
         }
 
+        tinfo->app_time = bpf_ktime_get_ns() / 1000;
+    } else if (protocol == __bpf_ntohs(ETH_P_IPV6)) {
+        /** ipv6 */
+        struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
+        get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
+
+        // FILTER_DPORT
+        // FILTER_SPORT
+
+        if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
+            return 0;
+        }
         tinfo->app_time = bpf_ktime_get_ns() / 1000;
     } else {
         return 0;
@@ -646,7 +658,7 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
     for (int i = 0; i < MAX_COMM; ++i) {
         packet->comm[i] = tinfo->comm[i];
     }
-
+    packet->err = 0;
     packet->sock = sk;
     packet->ack = pkt_tuple.ack;
     packet->seq = pkt_tuple.seq;
@@ -658,11 +670,96 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
     return 0;
 }
 
-/***************************************** end of receive path
- * ****************************************/
+/**** end of receive path ****/
 
-/************************************************ send path
- * *******************************************/
+/**** receive error packet ****/
+/* TCP invalid seq error */
+SEC("kprobe/tcp_validate_incoming")
+int BPF_KPROBE(tcp_validate_incoming, struct sock *sk, struct sk_buff *skb) {
+    if (sk == NULL || skb == NULL)
+        return 0;
+    struct conn_t *conn = bpf_map_lookup_elem(&conns_info, &sk);
+    if (conn == NULL) {
+        return 0;
+    }
+    struct tcp_skb_cb *tcb = TCP_SKB_CB(skb);
+    u32 start_seq = BPF_CORE_READ(tcb, seq);
+    u32 end_seq = BPF_CORE_READ(tcb, end_seq);
+    struct tcp_sock *tp = tcp_sk(sk);
+    u32 rcv_wup = BPF_CORE_READ(tp, rcv_wup);
+    u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
+    u32 rcv_wnd = BPF_CORE_READ(tp, rcv_wnd);
+    u32 receive_window = rcv_wup + rcv_nxt - rcv_wnd;
+    if (receive_window < 0)
+        receive_window = 0;
+
+    if (end_seq >= rcv_wup && rcv_nxt + receive_window >= start_seq) {
+        bpf_printk("error_identify: tcp seq validated. \n");
+        return 0;
+    }
+    bpf_printk("error_identify: tcp seq err. \n");
+    // invalid seq
+    u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
+    struct packet_tuple pkt_tuple = {};
+    if (family == AF_INET) {
+        struct iphdr *ip = skb_to_iphdr(skb);
+        struct tcphdr *tcp = skb_to_tcphdr(skb);
+        get_pkt_tuple(&pkt_tuple, ip, tcp);
+    } else if (family == AF_INET6) {
+        struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
+        struct tcphdr *tcp = skb_to_tcphdr(skb);
+        get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
+    } else {
+        return 0;
+    }
+    struct pack_t *packet;
+    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
+    if (!packet) {
+        return 0;
+    }
+    packet->err = 1;
+    packet->sock = sk;
+    bpf_get_current_comm(&packet->comm, sizeof(packet->comm));
+    packet->ack = pkt_tuple.ack;
+    packet->seq = pkt_tuple.seq;
+    bpf_ringbuf_submit(packet, 0);
+    return 0;
+}
+
+/* TCP invalid checksum error*/
+SEC("kretprobe/__skb_checksum_complete")
+int BPF_KRETPROBE(__skb_checksum_complete_exit, int ret) {
+    u32 pid = bpf_get_current_pid_tgid();
+    struct sock **skp = bpf_map_lookup_elem(&sock_stores, &pid);
+    if (skp == NULL) {
+        return 0;
+    }
+    if (ret == 0) {
+        bpf_printk("error_identify: tcp checksum validated. \n");
+        return 0;
+    }
+    bpf_printk("error_identify: tcp checksum error. \n");
+    struct sock *sk = *skp;
+    struct conn_t *conn = bpf_map_lookup_elem(&conns_info, &sk);
+    if (conn == NULL) {
+        return 0;
+    }
+    struct pack_t *packet;
+    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
+    if (!packet) {
+        return 0;
+    }
+    packet->err = 2;
+    packet->sock = sk;
+    bpf_get_current_comm(&packet->comm, sizeof(packet->comm));
+    bpf_ringbuf_submit(packet, 0);
+
+    return 0;
+}
+
+/**** receive error packet end ****/
+
+/**** send path ****/
 /*!
  * \brief: 获取数据包进入TCP层时刻的时间戳, 发送tcp层起始点
  *         out ipv4 && ipv6
@@ -924,6 +1021,7 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
         packet->comm[i] = tinfo->comm[i];
     }
     bpf_printk("tx packet sk: %p\n", sk);
+    packet->err = 0;
     packet->sock = sk;
     packet->ack = pkt_tuple.ack;
     packet->seq = pkt_tuple.seq;
@@ -935,3 +1033,4 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
 
     return 0;
 };
+/**** send path end ****/

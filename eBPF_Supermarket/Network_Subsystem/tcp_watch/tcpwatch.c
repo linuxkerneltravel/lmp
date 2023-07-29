@@ -141,10 +141,23 @@ static int print_conns(struct tcpwatch_bpf *skel) {
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
     const struct pack_t *pack_info = packet_info;
-    printf("%-22p %-22s %-10u %-10u %-10llu %-10llu %-10llu %d\n",
-           pack_info->sock, pack_info->comm, pack_info->seq, pack_info->ack,
-           pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
-           pack_info->rx);
+    if (pack_info->err) {
+        if (pack_info->err == 1) {
+            printf("[X] invalid SEQ: sock = %p,comm = %s,seq= %u,ack = %u\n",
+                   pack_info->sock, pack_info->comm, pack_info->seq,
+                   pack_info->ack);
+        } else if (pack_info->err == 2) {
+            printf("[X] invalid checksum: sock = %p,comm = %s\n",
+                   pack_info->sock, pack_info->comm);
+        } else {
+            printf("UNEXPECTED packet error %d.\n", pack_info->err);
+        }
+    } else {
+        printf("%-22p %-22s %-10u %-10u %-10llu %-10llu %-10llu %d\n",
+               pack_info->sock, pack_info->comm, pack_info->seq, pack_info->ack,
+               pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
+               pack_info->rx);
+    }
     return 0;
 }
 

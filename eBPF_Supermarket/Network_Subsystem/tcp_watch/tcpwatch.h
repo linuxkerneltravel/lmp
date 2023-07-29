@@ -30,6 +30,8 @@
 #define AF_INET6 10 /* IP version 6	*/
 #endif
 
+#define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
+
 #define MAX_COMM 16
 
 struct conn_t {
@@ -72,6 +74,7 @@ struct packet_tuple {
 };
 
 struct pack_t {
+    int err;                     // no err(0) invalid seq(1) invalid checksum(2)
     unsigned long long mac_time; // mac layer 处理时间(us)
     unsigned long long ip_time;  // ip layer 处理时间(us)
     unsigned long long tcp_time; // tcp layer 处理时间(us)
