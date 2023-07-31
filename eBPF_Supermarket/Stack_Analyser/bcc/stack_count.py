@@ -99,7 +99,7 @@ if args.tgid is not None:
 elif args.pid is not None:
     thread_context = "TID %d" % args.pid
     thread_filter = 'curr->pid == %d' % args.pid
-    pid = [args.pid]
+    pid = args.pid
 elif args.cmd is not None:
     cmd = args.cmd.split()
     ps = Popen(cmd)
@@ -127,7 +127,8 @@ else:
     state_filter = '1'
 
 # stack data ebpf code
-with open(mode+'_count.bpf.c', encoding='utf-8') as f:
+from sys import path
+with open(path[0]+'/'+mode+'_count.bpf.c', encoding='utf-8') as f:
     bpf_text = f.read()
 
 bpf_text = bpf_text.replace('THREAD_FILTER', thread_filter)

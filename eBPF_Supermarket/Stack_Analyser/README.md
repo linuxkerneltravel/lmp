@@ -1,3 +1,7 @@
+# libbpf/stack_analyzer (incomplete)
+
+用于对调用栈进行计数，libbpf版本
+
 # bcc/stack_count.py
 
 用于对调用栈进行计数，拥有对调用栈出现频次异常检测的能力。

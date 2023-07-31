@@ -58,11 +58,14 @@ def fla_text(b, need_delimiter):
             ['.\n'*(max_deep - deep)] +
             [str(count) + '\n'*2]
         )
-    with open("stack_count.stk", 'w') as file:
-        file.write(lines)
+    # with open("stack_count.stk", 'w') as file:
+    #     file.write(lines)
     with open("stack_count.svg", "w") as file:
         from subprocess import Popen, PIPE
-        fle = Popen("FlameGraph/stackcollapse.pl | FlameGraph/flamegraph.pl",
+        from os import path
+        current_dir = path.dirname(path.abspath(__file__))
+        parent_dir = path.dirname(current_dir)
+        fle = Popen(parent_dir + "/FlameGraph/stackcollapse.pl | "+ parent_dir +"/FlameGraph/flamegraph.pl",
                     shell=True, stdin=PIPE, stdout=file)
         fle.stdin.write(lines.encode())
         fle.stdin.close()
