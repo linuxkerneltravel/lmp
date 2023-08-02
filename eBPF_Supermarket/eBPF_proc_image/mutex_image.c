@@ -1,21 +1,3 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: zhangziheng0525@163.com
-//
-// user-mode code for the process image
-
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -75,20 +57,20 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 	const struct mutex_event *e = data;
 	double acq_time,hold_time;
 
-    if(e->mutex_unlock_time!=0){
-        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu  mutex_unlock_time(ns):%llu\n",
-                e->pid,e->comm,e->mutex_acq_time,e->mutex_lock_time,e->mutex_unlock_time);
+    printf("pid:%d  comm:%s  mutex:%llu\n", e->pid,e->comm,e->lock_ptr);
+	
+	if(e->mutex_unlock_time!=0){
+        printf("mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu  mutex_unlock_time(ns):%llu\n",
+                e->mutex_acq_time,e->mutex_lock_time,e->mutex_unlock_time);
         acq_time = (e->mutex_lock_time - e->mutex_acq_time)*1.0/1000.0;
 		hold_time = (e->mutex_unlock_time - e->mutex_lock_time)*1.0/1000.0;
         printf("acq_time(us):%lf  hold_time(us):%lf\n",acq_time,hold_time);
     }else if(e->mutex_lock_time!=0){
-        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu\n",
-                e->pid,e->comm,e->mutex_acq_time,e->mutex_lock_time);
+        printf("mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu\n",e->mutex_acq_time,e->mutex_lock_time);
 		acq_time = (e->mutex_lock_time - e->mutex_acq_time)*1.0/1000.0;
 		printf("acq_time(us):%lf\n",acq_time);
     }else{
-        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu\n",
-                e->pid,e->comm,e->mutex_acq_time);
+        printf("mutex_acq_time(ns):%llu\n",e->mutex_acq_time);
     }
 
     printf("\n");

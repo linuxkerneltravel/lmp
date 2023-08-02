@@ -302,3 +302,98 @@ static __always_inline bool __mutex_unlock_fast(struct mutex *lock)
 - 当进程持有互斥锁时，进程不可以退出。 
 - 互斥锁必须使用官方接口函数来初始化。 
 - 互斥锁可以睡眠，所以不允许在中断处理程序或者中断下半部（如tasklet、定时器等）中使用。
+
+## 错误思维
+
+内核模块A的代码逻辑：
+
+```
+mutex_lock(&mutex);
+ssleep(10);
+write_hello_world();		// 在test.txt中写入HELLO WORLD
+mutex_unlock(&mutex);
+```
+
+内核模块B的代码逻辑：
+
+```
+while(count--){
+	write_hello_world();	// 在test.txt中写入hello world
+}
+```
+
+先插入内核模块A，再插入内核模块B，预期在test.txt中的输出：
+
+```
+HELLO WORLD
+hello world
+hello world
+hello world
+```
+
+实际输出：
+
+<div align='center'><img src="../images/error_result.png"></div>
+
+**原因：归根到底没有搞清楚什么是临界区和什么是临界资源**
+
+临界资源：一次仅允许一个进程使用的共享资源
+
+临界区：访问和操作临界资源的代码段
+
+在上述示例中，若进程A和进程B都会访问下述代码，则test.txt文件就是临界资源，下述代码就是临界区。
+
+```
+mutex_lock(&mutex);
+ssleep(10);
+write_hello_world();		// 在test.txt中写入HELLO WORLD
+mutex_unlock(&mutex);
+```
+
+## 解疑kthread_create的新线程工作路径
+
+内核模块逻辑：
+
+```
+......
+
+static void write_hello_world(char *data) {
+    struct file *file;
+    ssize_t ret;
+    const char *filename = "./test.txt";
+
+    file = filp_open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (IS_ERR(file)) {
+        printk(KERN_ERR "Error opening file %s\n", filename);
+        return;
+    }
+
+    ret = kernel_write(file, data, strlen(data), &file->f_pos);
+    if (ret < 0) {
+        printk(KERN_ERR "Error writing to file %s\n", filename);
+    }
+
+    filp_close(file, NULL);
+}
+
+......
+
+// 新线程（由insmod线程创建）
+    printk(KERN_INFO "I am new kernel thread. PID: %d\n", pid);
+    write_hello_world("hello world\n");
+
+......
+
+// insmod线程
+    write_hello_world("HELLO WORLD\n");
+
+......
+```
+
+运行结果：
+
+<div align='center'><img src="../images/insmod_path.png"></div>
+
+<div align='center'><img src="../images/newthread_path.png"></div>
+
+通过实验证明，内核模块中创建的新线程所在工作路径是根目录，因此创建新线程写文件时，文件的路径最好选用绝对路径，避免写到根目录的文件中。
