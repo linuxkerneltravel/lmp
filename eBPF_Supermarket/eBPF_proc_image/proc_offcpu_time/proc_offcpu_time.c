@@ -14,7 +14,7 @@
 //
 // author: zhangziheng0525@163.com
 //
-// user-mode code for the process image
+// user-mode code for the process offCPU time
 
 #include <stdio.h>
 #include <unistd.h>
@@ -24,20 +24,18 @@
 #include <signal.h>
 #include <argp.h>
 #include <errno.h>
-#include "proc_image.skel.h"
-#include "proc_image.h"
+#include "proc_offcpu_time.skel.h"
+#include "proc_offcpu_time.h"
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
 static volatile bool exiting = false;
-static int target_pid = 0;
-static int target_cpu_id = 0;
+static int target_pid = 1;
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
-    { "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{},
 };
@@ -45,28 +43,19 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
-    long cpu_id;
 	long time;
 	switch (key) {
 		case 'p':
 				errno = 0;
 				pid = strtol(arg, NULL, 10);
-				if (errno || pid < 0) {
+				if (errno || pid <= 0) {
 					warn("Invalid PID: %s\n", arg);
 					// 调用argp_usage函数，用于打印用法信息并退出程序
 					argp_usage(state);
 				}
 				target_pid = pid;
 				break;
-		case 'C':
-                cpu_id = strtol(arg, NULL, 10);
-                if(cpu_id < 0){
-                    warn("Invalid CPUID: %s\n", arg);
-                    argp_usage(state);
-                }
-                target_cpu_id = cpu_id;
-                break;
-        case 't':
+		case 't':
 				time = strtol(arg, NULL, 10);
 				if(time) alarm(time);
 				break;
@@ -83,19 +72,12 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-	const struct cpu_event *e = data;
-    double time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-
-    if(e->flag == 1){
-        time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%-16s  oncpu_id :%d  oncpu_time :%llu  offcpu_id:%d  offcpu_time:%llu  time:%lf\n",
-        e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
-    }else if(e->flag == 0){
-        time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%-16s  offcpu_id:%d  offcpu_time:%llu  oncpu_id :%d  oncpu_time :%llu  time:%lf\n",
-        e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
-    }
+	const struct offcpu_event *e = data;
+    double offcputime = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
     
+    printf("pid:%d  comm:%s  offcpu_id:%d  offcpu_time:%llu  oncpu_id:%d  oncpu_time:%llu  offcputime:%lf\n",
+    e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,offcputime);
+
 	return 0;
 }
 	
@@ -108,7 +90,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
-	struct proc_image_bpf *skel;
+	struct proc_offcpu_time_bpf *skel;
 	int err;
 	static const struct argp argp = {
 		.options = opts,
@@ -134,24 +116,23 @@ int main(int argc, char **argv)
 	signal(SIGALRM,sig_handler);
 
 	/* 打开BPF应用程序 */
-	skel = proc_image_bpf__open();
+	skel = proc_offcpu_time_bpf__open();
 	if (!skel) {
 		fprintf(stderr, "Failed to open BPF skeleton\n");
 		return 1;
 	}
 
 	skel->rodata->target_pid = target_pid;
-    skel->rodata->target_cpu_id = target_cpu_id;
 
 	/* 加载并验证BPF程序 */
-	err = proc_image_bpf__load(skel);
+	err = proc_offcpu_time_bpf__load(skel);
 	if (err) {
 		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 		goto cleanup;
 	}
 	
 	/* 附加跟踪点处理程序 */
-	err = proc_image_bpf__attach(skel);
+	err = proc_offcpu_time_bpf__attach(skel);
 	if (err) {
 		fprintf(stderr, "Failed to attach BPF skeleton\n");
 		goto cleanup;
@@ -159,7 +140,7 @@ int main(int argc, char **argv)
 	
 	/* 设置环形缓冲区轮询 */
 	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.cpu_rb), handle_event, NULL, NULL);
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.offcpu_rb), handle_event, NULL, NULL);
 	if (!rb) {
 		err = -1;
 		fprintf(stderr, "Failed to create ring buffer\n");
@@ -184,7 +165,7 @@ int main(int argc, char **argv)
 /* 卸载BPF程序 */
 cleanup:
 	ring_buffer__free(rb);
-	proc_image_bpf__destroy(skel);
+	proc_offcpu_time_bpf__destroy(skel);
 	
 	return err < 0 ? -err : 0;
 }

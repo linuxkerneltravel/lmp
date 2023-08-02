@@ -28,6 +28,9 @@ static struct mutex mutex;
 
 static int test_init(void) {
     pid_t pid = current->pid;
+
+    mutex_init(&mutex);
+    
     printk(KERN_INFO "Hello from kernel module. PID: %d\n", pid);
 
     ssleep(15);                 //为了在持有锁之前读取进程pid，以便对其进行跟踪
