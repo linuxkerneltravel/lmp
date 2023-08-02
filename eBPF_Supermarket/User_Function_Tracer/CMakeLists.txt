@@ -33,3 +33,10 @@ add_custom_target(format
   COMMENT "Running clang-format."
   VERBATIM
 )
+
+add_custom_target(doc 
+  COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile
+  COMMENT "Generating docs."
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  VERBATIM
+)
