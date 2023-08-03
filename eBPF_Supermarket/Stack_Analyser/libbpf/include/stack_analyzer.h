@@ -24,6 +24,7 @@
 #define COMM_LEN 16
 
 #include <asm/types.h>
+#include <bpf/libbpf_common.h>
 
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
     do                                                           \
