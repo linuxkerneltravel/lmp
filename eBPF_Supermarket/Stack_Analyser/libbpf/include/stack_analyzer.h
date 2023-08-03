@@ -62,15 +62,22 @@
 #define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
-#define LOAD_SKEL_CHECKED(type, var)                                                   \
-    bpf_open_load(type, var);                                                          \
-    skel = var;                                                                        \
-    if (!skel)                                                                         \
-    {                                                                                  \
-        fprintf(stderr, "[%s] Fail to open and load BPF skeleton\n", strerror(errno)); \
-        err = -1;                                                                      \
-        return -1;                                                                     \
+#define CHECK_ERR(cond, info)                               \
+    if (cond)                                               \
+    {                                                       \
+        fprintf(stderr, "[%s]" info "\n", strerror(errno)); \
+        err = -1;                                           \
+        return -1;                                          \
     }
+
+#define LOAD_SKEL_CHECKED(type, var) \
+    bpf_open_load(type, var);        \
+    skel = var;                      \
+    CHECK_ERR(!skel, "Fail to open and load BPF skeleton")
+
+#define LOAD_CHECKED(type, var) \
+    var =  type##_bpf__open_and_load(); \
+    CHECK_ERR(!var, "Fail to open and load BPF skeleton")
 
 #define BPF_STACK_TRACE(name)                           \
     struct                                              \
@@ -97,6 +104,15 @@
 
 #define KERNEL_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP)
 #define USER_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
+
+#define TRAVERSE_MAP(mapfd, prev, key, val, process)  \
+    memset(&prev, 0, sizeof(prev));                   \
+    while (!bpf_map_get_next_key(mapfd, &prev, &key)) \
+    {                                                 \
+        bpf_map_lookup_elem(mapfd, &key, &val);       \
+        process;                                      \
+        prev = key;                                   \
+    }
 
 typedef struct
 {
