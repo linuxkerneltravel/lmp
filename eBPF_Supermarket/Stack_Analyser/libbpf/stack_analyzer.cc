@@ -16,6 +16,17 @@
 //
 // 用户态bpf的主程序代码，主要用于数据的显示和整理
 
+#include <map>
+
+#include "rapidjson/document.h"
+#include "rapidjson/filewritestream.h"
+#include "rapidjson/writer.h"
+#include "symbol.h" /*符号解析库头文件*/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <fcntl.h>
 #include <sys/syscall.h>
 #include <linux/perf_event.h>
@@ -25,17 +36,15 @@
 #include <errno.h>
 #include <string.h>
 #include <bpf/libbpf.h>
-#include <map>
 
 #include "stack_analyzer.h"
-
 #include "bpf/on_cpu_count.skel.h"
 #include "bpf/off_cpu_count.skel.h"
 #include "bpf/mem_count.skel.h"
-#include "rapidjson/document.h"
-#include "rapidjson/filewritestream.h"
-#include "rapidjson/writer.h"
-#include "symbol.h" /*符号解析库头文件*/
+
+#ifdef __cplusplus
+}
+#endif
 
 /// @brief  printing help information
 /// @param progname progname printed in the help info
