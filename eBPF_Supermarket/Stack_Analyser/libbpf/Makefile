@@ -43,4 +43,4 @@ symbol: %: include/%.cc
 	clang -g -O2 -Wall -c include/elf.cc -o elf.o
 
 clean:
-	rm bpf/*.o bpf/*.skel.h *.o include/*.o $(APP) vmlinux.h
+	rm bpf/*.o bpf/*.skel.h *.o $(APP) vmlinux.h
