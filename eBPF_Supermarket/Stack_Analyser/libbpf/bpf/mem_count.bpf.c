@@ -50,7 +50,7 @@ int BPF_KPROBE(malloc_enter, size_t size)
     if (!p)
     {
         comm name;
-        bpf_get_current_comm(&name, TASK_COMM_LEN);
+        bpf_get_current_comm(&name, COMM_LEN);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
 

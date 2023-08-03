@@ -44,7 +44,7 @@ int do_stack(void *ctx)
     if (!p)
     {
         comm name;
-        bpf_probe_read_kernel_str(&name, TASK_COMM_LEN, curr->comm);
+        bpf_probe_read_kernel_str(&name, COMM_LEN, curr->comm);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
     psid apsid = {

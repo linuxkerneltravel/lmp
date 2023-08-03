@@ -69,7 +69,7 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
     if (!p)
     {
         comm name;
-        bpf_probe_read_kernel_str(&name, TASK_COMM_LEN, next->comm);
+        bpf_probe_read_kernel_str(&name, COMM_LEN, next->comm);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
     psid apsid = {
