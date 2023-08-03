@@ -10,9 +10,25 @@
 
 proc_image便是Linux进程生命周期画像工具，该工具由多个子功能组成。
 
-### 1. 进程的off_CPU_time
+### 1. 进程上下CPU时间统计
 
-目前该功能可由proc_image工具的-p参数去实现，需指定进程pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_sleep.c）进行了时间上的比对，准确性满足要求。示例如下：
+目前该功能可由proc_image工具的-p参数去实现，需指定进程pid，便可以采集到该进程在生命周期中上下CPU的时间信息。该功能已经和top进行了时间上的比对，准确性满足要求。示例如下：
+
+在top页面按下“d”，可以看到top默认为每3秒更新一次：
+
+<div align='center'><img src="./docs/images/top_delay.png"></div>
+
+运行eBPF程序跟踪top进程，执行指令 sudo ./proc_image -p 5523，运行结果：
+
+<div align='center'><img src="./docs/images/proc_cpu.png"></div>
+
+结合top进程每3秒更新一次，从运行结果中可以看出该eBPF程序已经成功捕获到top进程上下cpu的时间信息。
+
+在此基础上，通过该工具的-p和-C参数，能捕获到每个CPU所对应0号进程的上下cpu时间信息，进而也可以体现出0号进程所对应的CPU繁忙程度。
+
+## 三、proc_offcpu_time工具
+
+该工具可通过-p参数指定进程的pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_sleep.c）进行了时间上的比对，准确性满足要求。示例如下：
 
 终端1：./test_sleep
 
@@ -40,11 +56,9 @@ sleep结束时间：2023-07-24 16:58:31
 pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  oncpu_time:5966883001411  sleeptime:3.000173
 ```
 
-目前由于统计到的数据量过少，可视化的意义并不大，所以准备在下一步的迭代过程中进行可视化。
+目前该工具的功能已经合入proc_image。
 
-下一步迭代计划：在统计到的事件里加入int型的flag字段，1代表one_cpu，0代表off_CPU，即可获得进程生命周期的动态数据，在宏观上实现进程的生命周期，以便后期加入更多的进程信息。
-
-## 三、mutex_image 工具
+## 四、mutex_image 工具
 
 mutex_image 工具目前只能完成下图情形1的进程互斥锁画像，后期会继续迭代。
 

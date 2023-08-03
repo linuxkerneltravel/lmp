@@ -14,24 +14,12 @@
 //
 // author: zhangziheng0525@163.com
 //
-// eBPF map for the process image
+// eBPF map for the process offCPU time
 
-#ifndef __PROC_IMAGE_H
-#define __PROC_IMAGE_H
+#ifndef __PROC_OFFCPU_H
+#define __PROC_OFFCPU_H
 
 #define TASK_COMM_LEN 16
-
-// 以便于对0号进程进行画像（0号进程是每cpu进程）
-struct proc_id{
-    int pid;
-    int cpu_id;
-};
-
-struct proc_oncpu{
-    int pad;
-    int oncpu_id;
-    long long unsigned int oncpu_time;
-};
 
 struct proc_offcpu{
     int pad;
@@ -39,14 +27,15 @@ struct proc_offcpu{
     long long unsigned int offcpu_time;
 };
 
-struct cpu_event{
-    int flag;
+struct offcpu_event{
     int pid;
     char comm[TASK_COMM_LEN];
-    int oncpu_id;
-    long long unsigned int oncpu_time;
     int offcpu_id;
     long long unsigned int offcpu_time;
+    int oncpu_id;
+    long long unsigned int oncpu_time;
 };
 
-#endif /* __PROC_IMAGE_H */
+
+
+#endif /* __PROC_OFFCPU_H */
