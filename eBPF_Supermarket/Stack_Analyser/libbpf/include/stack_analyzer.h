@@ -24,8 +24,22 @@
 #define COMM_LEN 16
 
 #include <asm/types.h>
-#include <bpf/libbpf_common.h>
+#include <linux/version.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
+    do                                                           \
+    {                                                            \
+        DECLARE_LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,        \
+                            .retprobe = is_retprobe);            \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
+            skel->progs.prog_name,                               \
+            pid,                                                 \
+            object,                                              \
+            0,                                                   \
+            &uprobe_opts);                                       \
+    } while (false)
+#else
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
     do                                                           \
     {                                                            \
@@ -39,6 +53,7 @@
             0,                                                   \
             &uprobe_opts);                                       \
     } while (false)
+#endif
 
 #define __CHECK_PROGRAM(skel, prog_name)                                                      \
     do                                                                                        \
@@ -76,8 +91,8 @@
     skel = var;                      \
     CHECK_ERR(!skel, "Fail to open and load BPF skeleton")
 
-#define LOAD_CHECKED(type, var) \
-    var =  type##_bpf__open_and_load(); \
+#define LOAD_CHECKED(type, var)        \
+    var = type##_bpf__open_and_load(); \
     CHECK_ERR(!var, "Fail to open and load BPF skeleton")
 
 #define BPF_STACK_TRACE(name)                           \

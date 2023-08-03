@@ -38,9 +38,10 @@ const char LICENSE[] SEC("license") = "GPL";
 
 char u /*user stack flag*/, k /*kernel stack flag*/;
 
-SEC("uprobe")
+SEC("uprobe/malloc")
 int BPF_KPROBE(malloc_enter, size_t size)
 {
+    // bpf_printk("malloc_enter");
     // record data
     u64 pt = bpf_get_current_pid_tgid();
     u32 pid = pt >> 32;
@@ -58,9 +59,10 @@ int BPF_KPROBE(malloc_enter, size_t size)
     return bpf_map_update_elem(&pid_size, &pid, &size, BPF_NOEXIST);
 }
 
-SEC("uprobe")
+SEC("uretprobe/malloc")
 int BPF_KRETPROBE(malloc_exit)
 {
+    // bpf_printk("malloc_exit");
     // get size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 *size = bpf_map_lookup_elem(&pid_size, &pid);
@@ -95,9 +97,10 @@ int BPF_KRETPROBE(malloc_exit)
     return bpf_map_delete_elem(&pid_size, &pid);
 }
 
-SEC("uprobe")
+SEC("uprobe/free")
 int BPF_KPROBE(free_enter, u64 addr)
 {
+    // bpf_printk("free_enter");
     // get freeing size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     piddr a = {addr, pid};
