@@ -41,7 +41,6 @@ char u /*user stack flag*/, k /*kernel stack flag*/;
 SEC("uprobe")
 int BPF_KPROBE(malloc_enter, size_t size)
 {
-    bpf_printk("malloc_enter");
     // record data
     u64 pt = bpf_get_current_pid_tgid();
     u32 pid = pt >> 32;
@@ -62,7 +61,6 @@ int BPF_KPROBE(malloc_enter, size_t size)
 SEC("uprobe")
 int BPF_KRETPROBE(malloc_exit)
 {
-    bpf_printk("malloc_exit");
     // get size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 *size = bpf_map_lookup_elem(&pid_size, &pid);
@@ -100,7 +98,6 @@ int BPF_KRETPROBE(malloc_exit)
 SEC("uprobe")
 int BPF_KPROBE(free_enter, u64 addr)
 {
-    bpf_printk("free_enter");
     // get freeing size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     piddr a = {addr, pid};
