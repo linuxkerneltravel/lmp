@@ -63,7 +63,7 @@ namespace env
 {
 	int pid = -1;												  /*pid filter*/
 	int cpu = -1;												  /*cpu index*/
-	int run_time = 1;											  /*run time*/
+	unsigned run_time = __INT_MAX__;							  /*run time*/
 	int freq = 1;												  /*simple frequency*/
 	MOD mod = MOD_ON_CPU;										  /*mod setting*/
 	bool u = true;												  /*user stack setting*/
@@ -160,11 +160,13 @@ public:
 			stacks[sid_c].CKV("trace", rapidjson::kArrayType);
 			auto trace = stacks[sid_c]["trace"].GetArray();
 			// symbolize
-			if (id.ksid>=0){
+			if (id.ksid >= 0)
+			{
 				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
 				for (auto p : ip)
 				{
-					if(!p) break;
+					if (!p)
+						break;
 					sym.reset(p);
 					if (g_symbol_parser.find_kernel_symbol(sym))
 						trace.PV(sym.name.c_str());
@@ -174,11 +176,13 @@ public:
 			}
 			else
 				trace.PV("[MISSING KERNEL STACK]");
-			if (id.usid>=0) {
+			if (id.usid >= 0)
+			{
 				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
 				for (auto p : ip)
 				{
-					if(!p) break;
+					if (!p)
+						break;
 					sym.reset(p);
 					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
 						trace.PV(symbol.c_str());
@@ -187,7 +191,9 @@ public:
 					{
 						trace.PV(sym.name.c_str());
 						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
-					} else {
+					}
+					else
+					{
 						trace.PV(unsymbol.c_str());
 						g_symbol_parser.putin_symbol_cache(pid, p, unsymbol);
 					}
@@ -415,10 +421,11 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 	}
-	bpf_loader *arr[] = {
-		new on_cpu_loader(),
-		new off_cpu_loader(),
-		new mem_loader(),
+	typedef bpf_loader* (*bpf_load)();
+	bpf_load arr[] = {
+		[]()->bpf_loader*{return new on_cpu_loader();},
+		[]()->bpf_loader*{return new off_cpu_loader();},
+		[]()->bpf_loader*{return new mem_loader();},
 	};
-	return arr[env::mod]->test();
+	return arr[env::mod]()->test();
 }
