@@ -1,6 +1,6 @@
-- short live process
-- arg parser
-- input pid
-- more tests
-- ebpf uprobe max limit
-- colorful log
+- [] short live process
+- [] arg parser
+- [] input pid
+- [] more tests
+- [] colorful log
+- [] multithread
