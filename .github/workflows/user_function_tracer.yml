@@ -29,6 +29,7 @@ jobs:
       - name: Build and run
         run: |
           cd eBPF_Supermarket/User_Function_Tracer
+          mkdir -p vmlinux
           bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
           cmake -B build -S . -G Ninja
           cmake --build build

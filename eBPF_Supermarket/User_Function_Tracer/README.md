@@ -11,6 +11,7 @@ sudo apt install -y clang cmake ninja-build libelf1 libelf-dev zlib1g-dev libbpf
 
 ### 编译运行
 ```shell
+mkdir -p vmlinux
 bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
 cmake -B build -S . -G Ninja
 cmake --build build
@@ -22,3 +23,11 @@ build/utrace PROGRAM|PID
 + 不同于`ftrace`，`eBPF-utrace`用于观测用户态函数。
 + 不同于`uftrace`，`eBPF-utrace`基于eBPF，不依赖于任何编译技术，但是需要内核的支持，需要root权限，且可能有更高的开销。
 + 不同于`perf`, `gprof`等性能分析工具，`eBPF-utrace`输出准确的函数调用时延，而不是基于perf_event()的采样方式。
+
+### TODO
+- [] short live process
+- [] arg parser
+- [] input pid
+- [] more tests
+- [] colorful log
+- [] multithread
