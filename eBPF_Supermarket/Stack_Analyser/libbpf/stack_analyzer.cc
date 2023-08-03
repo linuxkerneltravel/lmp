@@ -146,7 +146,7 @@ public:
 		__u64 ip[MAX_STACKS];
 		std::string symbol;
 		elf_file file;
-		std::string unsymbol("UNKNOWN");
+		std::string unsymbol("[UNKNOWN]");
 		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
 		{
 			bpf_map_lookup_elem(count_fd, &id, &count);
@@ -164,6 +164,7 @@ public:
 				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
 				for (auto p : ip)
 				{
+					if(!p) break;
 					sym.reset(p);
 					if (g_symbol_parser.find_kernel_symbol(sym))
 						trace.PV(sym.name.c_str());
@@ -172,11 +173,12 @@ public:
 				}
 			}
 			else
-				trace.PV("MISSING KERNEL STACK");
+				trace.PV("[MISSING KERNEL STACK]");
 			if (id.usid>=0) {
 				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
 				for (auto p : ip)
 				{
+					if(!p) break;
 					sym.reset(p);
 					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
 						trace.PV(symbol.c_str());
@@ -192,7 +194,7 @@ public:
 				}
 			}
 			else
-				trace.PV("MISSING USER STACK");
+				trace.PV("[MISSING USER STACK]");
 		}
 		close(trace_fd);
 		close(count_fd);
@@ -413,14 +415,10 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 	}
-	bpf_loader *arr[3] = {
+	bpf_loader *arr[] = {
 		new on_cpu_loader(),
 		new off_cpu_loader(),
 		new mem_loader(),
 	};
-	for (auto b : arr)
-	{
-		if (b->test())
-			return -1;
-	}
+	return arr[env::mod]->test();
 }
