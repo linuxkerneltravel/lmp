@@ -25,7 +25,7 @@ ARCH ?= $(shell echo $(ORIG_ARCH) | sed 's/x86_64/x86/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
 APP = stack_analyzer
-bpf = on_cpu_count off_cpu_count mem_count
+bpf = on_cpu_count off_cpu_count mem_count io_count
 
 all: vmlinux.h $(bpf) symbol
 	clang -g -O2 -Wall -I. -I./include -c $(APP).cc -o $(APP).o

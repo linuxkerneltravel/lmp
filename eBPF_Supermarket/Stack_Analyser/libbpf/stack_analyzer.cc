@@ -44,6 +44,7 @@ extern "C"
 #include "bpf/on_cpu_count.skel.h"
 #include "bpf/off_cpu_count.skel.h"
 #include "bpf/mem_count.skel.h"
+#include "bpf/io_count.skel.h"
 
 #ifdef __cplusplus
 }
@@ -53,7 +54,7 @@ extern "C"
 /// @param progname progname printed in the help info
 static void show_help(const char *progname)
 {
-	printf("Usage: %s [-f <frequency>] [-p <pid>] [-T <time>] [-m <0 on cpu|1 off cpu|2 mem>] "
+	printf("Usage: %s [-f <frequency>] [-p <pid>] [-T <time>] [-m <0 on cpu|1 off cpu|2 mem|3 io>] "
 		   "[-U user stack only] [-K kernel stack only] [-h help]\n",
 		   progname);
 }
@@ -395,6 +396,43 @@ public:
 	};
 };
 
+class io_loader : public bpf_loader
+{
+protected:
+	struct io_count_bpf *skel;
+
+public:
+	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
+	{
+		skel = 0;
+	};
+	int load(void)
+	{
+		LO(io_count,
+		   skel->bss->apid = pid,
+		   skel->bss->u = ustack,
+		   skel->bss->k = kstack)
+		return 0;
+	};
+	int attach(void)
+	{
+		err = bpf_attach(io_count, skel);
+		CHECK_ERR(err, "Failed to attach BPF skeleton");
+		return 0;
+	};
+	void detach(void)
+	{
+		if (skel)
+			io_count_bpf__detach(skel);
+	};
+	void unload(void)
+	{
+		if (skel)
+			io_count_bpf__destroy(skel);
+		skel = 0;
+	};
+};
+
 typedef bpf_loader *(*bpf_load)();
 
 void __handler(int)
@@ -444,6 +482,8 @@ int main(int argc, char *argv[])
 		{ return new off_cpu_loader(); },
 		[]() -> bpf_loader *
 		{ return new mem_loader(); },
+		[]() -> bpf_loader *
+		{ return new io_loader(); },
 	};
 	CHECK_ERR(signal(SIGINT, __handler) == SIG_ERR, "can't set signal handler");
 	return arr[env::mod]()->test();

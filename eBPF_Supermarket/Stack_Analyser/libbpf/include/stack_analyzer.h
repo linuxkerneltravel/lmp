@@ -157,6 +157,7 @@ typedef enum
     MOD_ON_CPU,
     MOD_OFF_CPU,
     MOD_MEM,
+    MOD_IO,
 } MOD; // simpling mod
 
 #endif
