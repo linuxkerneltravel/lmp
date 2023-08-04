@@ -17,6 +17,7 @@
 // 用户态bpf的主程序代码，主要用于数据的显示和整理
 
 #include <map>
+#include <iostream>
 
 #include "rapidjson/document.h"
 #include "rapidjson/filewritestream.h"
@@ -257,7 +258,7 @@ public:
 		} while (false);
 		detach();
 		err = data_save();
-		unload();
+		// unload();
 		return err;
 	};
 };
