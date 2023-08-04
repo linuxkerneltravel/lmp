@@ -25,6 +25,7 @@ jobs:
 
       - name: Install dependencies and Init Env
         run: |
+          sudo apt update
           sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
           git submodule update --init --recursive
 
