@@ -24,7 +24,8 @@
 #include "symbol.h" /*符号解析库头文件*/
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #include <fcntl.h>
@@ -36,6 +37,7 @@ extern "C" {
 #include <errno.h>
 #include <string.h>
 #include <bpf/libbpf.h>
+#include <signal.h>
 
 #include "stack_analyzer.h"
 #include "bpf/on_cpu_count.skel.h"
@@ -78,22 +80,27 @@ namespace env
 	bool u = true;												  /*user stack setting*/
 	bool k = true;												  /*kernel stack setting*/
 	char *object = (char *)"/usr/lib/x86_64-linux-gnu/libc.so.6"; /*executable binary file for uprobe*/
+	static volatile sig_atomic_t exiting;						  /*exiting flag*/
 }
 
 class bpf_loader
 {
 protected:
-	int pid, cpu, err;
+	int pid, cpu, err, count_fd, tgid_fd, comm_fd, trace_fd;
 	bool ustack, kstack;
-	virtual int psid_count(void) = 0, pid_tgid(void) = 0, pid_comm(void) = 0, stack_trace(void) = 0;
-#define open_map(name) bpf_map__fd(skel->maps.name)
-#define decl_open(name) \
-	int name(void) { return open_map(name); }
-#define DECL_ALL_OPEN      \
-	decl_open(psid_count); \
-	decl_open(pid_tgid);   \
-	decl_open(pid_comm);   \
-	decl_open(stack_trace);
+#define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
+#define OPEN_ALL_MAP                 \
+	count_fd = OPEN_MAP(psid_count); \
+	tgid_fd = OPEN_MAP(pid_tgid);    \
+	comm_fd = OPEN_MAP(pid_comm);    \
+	trace_fd = OPEN_MAP(stack_trace);
+#define LO(name, ...)                              \
+	skel = name##_bpf::open();                     \
+	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
+	__VA_ARGS__;                                   \
+	err = name##_bpf::load(skel);                  \
+	CHECK_ERR(err, "Fail to load BPF skeleton");   \
+	OPEN_ALL_MAP
 #define CKV(k, ...)                                 \
 	AddMember(k,                                    \
 			  rapidjson::Value(__VA_ARGS__).Move(), \
@@ -105,18 +112,25 @@ protected:
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
 public:
-	bpf_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : pid(p), cpu(c), ustack(u), kstack(k){};
+	bpf_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : pid(p), cpu(c), ustack(u), kstack(k)
+	{
+		count_fd = tgid_fd = comm_fd = trace_fd = -1;
+		err = 0;
+	};
 	virtual int load(void) = 0, attach(void) = 0;
 	virtual void detach(void) = 0, unload(void) = 0;
 	int data_save(void)
 	{
+		printf("saving...\n");
+		CHECK_ERR(comm_fd < 0, "comm map open failure");
+		CHECK_ERR(tgid_fd < 0, "tgid map open failure");
+		CHECK_ERR(count_fd < 0, "count map open failure");
+		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		rapidjson::Document ajson;
 		rapidjson::Document::AllocatorType &alc = ajson.GetAllocator();
 		ajson.SetObject();
 
-		int tgid_fd = pid_tgid();
 		std::map<int, int> pidtgid_map;
-		CHECK_ERR(tgid_fd < 0, "tgid map open failure");
 		for (int prev = 0, pid, tgid; !bpf_map_get_next_key(tgid_fd, &prev, &pid); prev = pid)
 		{
 			bpf_map_lookup_elem(tgid_fd, &pid, &tgid);
@@ -132,10 +146,7 @@ public:
 			ajson[tgid_c][pid_c].CKV("stacks", rapidjson::kObjectType);
 			pidtgid_map[pid] = tgid;
 		}
-		close(tgid_fd);
 
-		int comm_fd = pid_comm();
-		CHECK_ERR(comm_fd < 0, "comm map open failure");
 		comm cmd;
 		for (int prev = 0, pid; !bpf_map_get_next_key(comm_fd, &prev, &pid); prev = pid)
 		{
@@ -144,12 +155,7 @@ public:
 			std::string pid_s = std::to_string(pid);
 			ajson[tgid_s.c_str()][pid_s.c_str()].CKV("name", cmd.str, alc);
 		}
-		close(comm_fd);
 
-		int count_fd = psid_count();
-		CHECK_ERR(count_fd < 0, "count map open failure");
-		int trace_fd = stack_trace();
-		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		int count;
 		symbol sym;
 		__u64 ip[MAX_STACKS];
@@ -211,8 +217,6 @@ public:
 			else
 				trace.PV("[MISSING USER STACK]");
 		}
-		close(trace_fd);
-		close(count_fd);
 
 		FILE *fp = fopen("stack_count.json", "w");
 		char writeBuffer[65536];
@@ -220,42 +224,41 @@ public:
 		rapidjson::Writer<rapidjson::FileWriteStream> writer(os);
 		ajson.Accept(writer);
 		fclose(fp);
-
 		return 0;
 	};
 	int count_log(int time)
 	{
-		int count_fd = psid_count(), val;
 		CHECK_ERR(count_fd < 0, "count map open failure");
-		psid prev = {}, key; /*for traverse map*/
-		do
+		int val;
+		/*for traverse map*/
+		for (; !env::exiting && time > 0; time -= 5)
 		{
 			printf("---------%d---------\n", count_fd);
 			sleep(5);
-			while (!bpf_map_get_next_key(count_fd, &prev, &key))
+			for (psid prev = {}, key; !bpf_map_get_next_key(count_fd, &prev, &key); prev = key)
 			{
 				bpf_map_lookup_elem(count_fd, &key, &val);
 				printf("%6d\t(%6d,%6d)\t%-6d\n", key.pid, key.ksid, key.usid, val);
-				prev = key;
 			}
-			time -= 5;
-		} while (time > 0);
-		// close(count_fd);
+		};
 		return time;
 	};
 	int test(void)
 	{
-		load();
-		if (err)
-			return -1;
-		attach();
-		if (err)
-			return -1;
-		count_log(env::run_time);
+		do
+		{
+			err = load();
+			if (err)
+				break;
+			err = attach();
+			if (err)
+				break;
+			count_log(env::run_time);
+		} while (false);
 		detach();
-		data_save();
-		// unload();
-		return 0;
+		err = data_save();
+		unload();
+		return err;
 	};
 };
 
@@ -266,7 +269,6 @@ protected:
 	unsigned long long freq;
 	struct perf_event_attr attr;
 	struct on_cpu_count_bpf *skel;
-	DECL_ALL_OPEN;
 
 public:
 	on_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, unsigned long long f = env::freq) : bpf_loader(p, c, u, k), freq(f)
@@ -283,10 +285,9 @@ public:
 	};
 	int load(void)
 	{
-		skel = on_cpu_count_bpf__open_and_load();
-		CHECK_ERR(!skel, "Fail to open and load BPF skeleton");
-		skel->bss->u = ustack;
-		skel->bss->k = kstack;
+		LO(on_cpu_count,
+		   skel->bss->u = ustack,
+		   skel->bss->k = kstack)
 		return 0;
 	};
 	int attach(void)
@@ -307,7 +308,7 @@ public:
 	void unload(void)
 	{
 		if (skel)
-			on_cpu_count_bpf__destroy(skel);
+			on_cpu_count_bpf::destroy(skel);
 		skel = 0;
 	}
 };
@@ -316,7 +317,6 @@ class off_cpu_loader : public bpf_loader
 {
 protected:
 	struct off_cpu_count_bpf *skel;
-	DECL_ALL_OPEN;
 
 public:
 	off_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
@@ -325,10 +325,10 @@ public:
 	};
 	int load(void)
 	{
-		LOAD_CHECKED(off_cpu_count, skel);
-		skel->bss->apid = pid;
-		skel->bss->u = ustack;
-		skel->bss->k = kstack;
+		LO(off_cpu_count,
+		   skel->bss->apid = pid,
+		   skel->bss->u = ustack,
+		   skel->bss->k = kstack)
 		return 0;
 	};
 	int attach(void)
@@ -345,7 +345,7 @@ public:
 	void unload(void)
 	{
 		if (skel)
-			bpf_destroy(off_cpu_count, skel);
+			off_cpu_count_bpf::destroy(skel);
 		skel = 0;
 	};
 };
@@ -355,7 +355,6 @@ class mem_loader : public bpf_loader
 protected:
 	struct mem_count_bpf *skel;
 	char *object;
-	DECL_ALL_OPEN;
 
 public:
 	mem_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, char *e = env::object) : bpf_loader(p, c, u, k), object(e)
@@ -364,9 +363,9 @@ public:
 	};
 	int load(void)
 	{
-		skel = mem_count_bpf__open_and_load();
-		CHECK_ERR(!skel, "Fail to open and load BPF skeleton");
-		skel->bss->u = ustack;
+		LO(mem_count,
+		   skel->bss->u = ustack,
+		   skel->bss->apid = pid)
 		return 0;
 	};
 	int attach(void)
@@ -374,7 +373,7 @@ public:
 		ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
 		ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
 		ATTACH_UPROBE_CHECKED(skel, free, free_enter);
-		err = bpf_attach(mem_count, skel);
+		err = mem_count_bpf::attach(skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
@@ -390,10 +389,17 @@ public:
 	void unload(void)
 	{
 		if (skel)
-			bpf_destroy(mem_count, skel);
+			mem_count_bpf::destroy(skel);
 		skel = 0;
 	};
 };
+
+typedef bpf_loader *(*bpf_load)();
+
+void __handler(int)
+{
+	env::exiting = 1;
+}
 
 int main(int argc, char *argv[])
 {
@@ -430,11 +436,14 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 	}
-	typedef bpf_loader* (*bpf_load)();
 	bpf_load arr[] = {
-		[]()->bpf_loader*{return new on_cpu_loader();},
-		[]()->bpf_loader*{return new off_cpu_loader();},
-		[]()->bpf_loader*{return new mem_loader();},
+		[]() -> bpf_loader *
+		{ return new on_cpu_loader(); },
+		[]() -> bpf_loader *
+		{ return new off_cpu_loader(); },
+		[]() -> bpf_loader *
+		{ return new mem_loader(); },
 	};
+	CHECK_ERR(signal(SIGINT, __handler) == SIG_ERR, "can't set signal handler");
 	return arr[env::mod]()->test();
 }
