@@ -23,15 +23,17 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <string.h>
 
-struct ktime_info {                // us time stamp info
-    unsigned long long qdisc_time; // tx包离开mac层时间戳
-    unsigned long long mac_time;   // tx、rx包到达mac层时间戳
-    unsigned long long ip_time;    // tx、rx包到达ip层时间戳
-    unsigned long long tcp_time;   // tx、rx包到达tcp层时间戳
-    unsigned long long app_time;   // rx包离开tcp层时间戳
-    void *sk;                      // 此包所属 socket
-    char comm[MAX_COMM];           // 此包所属 command
+struct ktime_info {                      // us time stamp info
+    unsigned long long qdisc_time;       // tx包离开mac层时间戳
+    unsigned long long mac_time;         // tx、rx包到达mac层时间戳
+    unsigned long long ip_time;          // tx、rx包到达ip层时间戳
+    unsigned long long tcp_time;         // tx、rx包到达tcp层时间戳
+    unsigned long long app_time;         // rx包离开tcp层时间戳
+    void *sk;                            // 此包所属 socket
+    char comm[MAX_COMM];                 // 此包所属 command
+    unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
 };
 
 static __always_inline void *
@@ -155,9 +157,9 @@ static void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
 */
 SEC("kretprobe/inet_csk_accept")
 int BPF_KRETPROBE(inet_csk_accept_exit, struct sock *newsk) {
-    bpf_printk("inet_accept_ret\n");
+    // bpf_printk("inet_accept_ret\n");
     if (newsk == NULL) {
-        bpf_printk("inet_accept_ret err: newsk is null\n");
+        // bpf_printk("inet_accept_ret err: newsk is null\n");
         return 0;
     }
 
@@ -197,7 +199,7 @@ int BPF_KRETPROBE(inet_csk_accept_exit, struct sock *newsk) {
 
     int err = bpf_map_update_elem(&conns_info, &newsk, &conn, BPF_ANY);
     if (err) {
-        bpf_printk("inet_accept update err.\n");
+        // bpf_printk("inet_accept update err.\n");
         return 0;
     }
 
@@ -212,11 +214,11 @@ int BPF_KRETPROBE(inet_csk_accept_exit, struct sock *newsk) {
 */
 SEC("kprobe/tcp_v4_connect")
 int BPF_KPROBE(tcp_v4_connect, const struct sock *sk) {
-    bpf_printk("tcp_v4_connect\n");
+    // bpf_printk("tcp_v4_connect\n");
     u32 pid = bpf_get_current_pid_tgid();
     int err = bpf_map_update_elem(&sock_stores, &pid, &sk, BPF_ANY);
     if (err) {
-        bpf_printk("tcp_v4_connect update sock_stores err.\n");
+        // bpf_printk("tcp_v4_connect update sock_stores err.\n");
         return 0;
     }
     return 0;
@@ -229,9 +231,9 @@ int BPF_KRETPROBE(tcp_v4_connect_exit, int ret) {
     if (skp == NULL) {
         return 0;
     }
-    bpf_printk("tcp_v4_connect_exit\n");
+    // bpf_printk("tcp_v4_connect_exit\n");
     if (ret != 0) {
-        bpf_printk("tcp_v4_connect_exit but ret %d\n", ret);
+        // bpf_printk("tcp_v4_connect_exit but ret %d\n", ret);
         bpf_map_delete_elem(&sock_stores, &pid);
         return 0;
     }
@@ -257,20 +259,20 @@ int BPF_KRETPROBE(tcp_v4_connect_exit, int ret) {
 
     long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     if (err) {
-        bpf_printk("tcp_v4_connect_exit update err.\n");
+        // bpf_printk("tcp_v4_connect_exit update err.\n");
         return 0;
     }
-    bpf_printk("tcp_v4_connect_exit update sk: %p\n", sk);
+    // bpf_printk("tcp_v4_connect_exit update sk: %p\n", sk);
     return 0;
 }
 
 SEC("kprobe/tcp_v6_connect")
 int BPF_KPROBE(tcp_v6_connect, const struct sock *sk) {
-    bpf_printk("tcp_v6_connect\n");
+    // bpf_printk("tcp_v6_connect\n");
     u32 pid = bpf_get_current_pid_tgid();
     int err = bpf_map_update_elem(&sock_stores, &pid, &sk, BPF_ANY);
     if (err) {
-        bpf_printk("tcp_v6_connect update sock_stores err.\n");
+        // bpf_printk("tcp_v6_connect update sock_stores err.\n");
         return 0;
     }
     return 0;
@@ -283,9 +285,9 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
     if (skp == NULL) {
         return 0;
     }
-    bpf_printk("tcp_v6_connect_exit\n");
+    // bpf_printk("tcp_v6_connect_exit\n");
     if (ret != 0) {
-        bpf_printk("tcp_v6_connect_exit but return %d\n", ret);
+        // bpf_printk("tcp_v6_connect_exit but return %d\n", ret);
         bpf_map_delete_elem(&sock_stores, &pid);
         return 0;
     }
@@ -316,10 +318,10 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
 
     long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     if (err) {
-        bpf_printk("tcp_v6_connect_exit update err.\n");
+        // bpf_printk("tcp_v6_connect_exit update err.\n");
         return 0;
     }
-    bpf_printk("tcp_v4_connect_exit update sk: %p.\n", sk);
+    // bpf_printk("tcp_v4_connect_exit update sk: %p.\n", sk);
     return 0;
 }
 
@@ -375,7 +377,7 @@ SEC("kprobe/eth_type_trans")
 int BPF_KPROBE(eth_type_trans, struct sk_buff *skb) {
     const struct ethhdr *eth = (struct ethhdr *)BPF_CORE_READ(skb, data);
     u16 protocol = BPF_CORE_READ(eth, h_proto);
-    bpf_printk("protocol: %d\n", __bpf_ntohs(protocol));
+    // bpf_printk("protocol: %d\n", __bpf_ntohs(protocol));
     if (protocol == __bpf_htons(ETH_P_IP)) { // Protocol is IP
         struct iphdr *ip = (struct iphdr *)(BPF_CORE_READ(skb, data) + 14);
         struct tcphdr *tcp = (struct tcphdr *)(BPF_CORE_READ(skb, data) +
@@ -391,11 +393,11 @@ int BPF_KPROBE(eth_type_trans, struct sk_buff *skb) {
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
-            bpf_printk("v4 rx tinfo init fail.\n");
+            // bpf_printk("v4 rx tinfo init fail.\n");
             return 0;
         }
         tinfo->mac_time = bpf_ktime_get_ns() / 1000;
-        bpf_printk("v4 rx init.\n");
+        // bpf_printk("v4 rx init.\n");
     } else if (protocol == __bpf_htons(ETH_P_IPV6)) { // Protocol is IPV6
         struct ipv6hdr *ip6h =
             (struct ipv6hdr *)(BPF_CORE_READ(skb, data) + 14);
@@ -412,11 +414,11 @@ int BPF_KPROBE(eth_type_trans, struct sk_buff *skb) {
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
-            bpf_printk("v6 rx tinfo init fail.\n");
+            // bpf_printk("v6 rx tinfo init fail.\n");
             return 0;
         }
         tinfo->mac_time = bpf_ktime_get_ns() / 1000;
-        bpf_printk("v6 rx init.\n");
+        // bpf_printk("v6 rx init.\n");
     }
     return 0;
 }
@@ -441,7 +443,7 @@ int BPF_KPROBE(ip_rcv_core, struct sk_buff *skb) {
         return 0;
     }
     tinfo->ip_time = bpf_ktime_get_ns() / 1000;
-    bpf_printk("rx enter ipv4 layer.\n");
+    // bpf_printk("rx enter ipv4 layer.\n");
     return 0;
 }
 
@@ -465,7 +467,7 @@ int BPF_KPROBE(ip6_rcv_core, struct sk_buff *skb) {
         return 0;
     }
     tinfo->ip_time = bpf_ktime_get_ns() / 1000;
-    bpf_printk("rx enter ipv6 layer.\n");
+    // bpf_printk("rx enter ipv6 layer.\n");
     return 0;
 }
 
@@ -489,7 +491,7 @@ int BPF_KPROBE(tcp_v4_rcv, struct sk_buff *skb) {
         return 0;
     }
     tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
-    bpf_printk("rx enter tcp4 layer.\n");
+    // bpf_printk("rx enter tcp4 layer.\n");
     return 0;
 }
 
@@ -513,7 +515,7 @@ int BPF_KPROBE(tcp_v6_rcv, struct sk_buff *skb) {
         return 0;
     }
     tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
-    bpf_printk("rx enter tcp6 layer.\n");
+    // bpf_printk("rx enter tcp6 layer.\n");
     return 0;
 }
 
@@ -525,7 +527,8 @@ int BPF_KPROBE(tcp_v4_do_rcv, struct sock *sk, struct sk_buff *skb) {
         return 0;
     struct conn_t *conn = bpf_map_lookup_elem(&conns_info, &sk);
     if (conn == NULL) {
-        bpf_printk("get a v4 rx pack but conn not record, its sock is: %p", sk);
+        // bpf_printk("get a v4 rx pack but conn not record, its sock is: %p",
+        // sk);
         return 0;
     }
     struct iphdr *ip = skb_to_iphdr(skb);
@@ -543,8 +546,8 @@ int BPF_KPROBE(tcp_v4_do_rcv, struct sock *sk, struct sk_buff *skb) {
     for (int i = 0; i < MAX_COMM; ++i) {
         tinfo->comm[i] = conn->comm[i];
     }
-    bpf_printk("rx enter tcp4_do_rcv, sk: %p \n", sk);
-    // conn info update
+    // bpf_printk("rx enter tcp4_do_rcv, sk: %p \n", sk);
+    //  conn info update
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     conn->srtt = BPF_CORE_READ(tp, srtt_us);
     conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
@@ -562,10 +565,11 @@ SEC("kprobe/tcp_v6_do_rcv")
 int BPF_KPROBE(tcp_v6_do_rcv, struct sock *sk, struct sk_buff *skb) {
     if (sk == NULL || skb == NULL)
         return 0;
-    bpf_printk("rx enter tcp6_do_rcv. \n");
+    // bpf_printk("rx enter tcp6_do_rcv. \n");
     struct conn_t *conn = bpf_map_lookup_elem(&conns_info, &sk);
     if (conn == NULL) {
-        bpf_printk("get a v6 rx pack but conn not record, its sock is: %p", sk);
+        // bpf_printk("get a v6 rx pack but conn not record, its sock is: %p",
+        // sk);
         return 0;
     }
 
@@ -584,7 +588,7 @@ int BPF_KPROBE(tcp_v6_do_rcv, struct sock *sk, struct sk_buff *skb) {
     for (int i = 0; i < MAX_COMM; ++i) {
         tinfo->comm[i] = conn->comm[i];
     }
-    bpf_printk("rx enter tcp6_do_rcv, sk: %p \n", sk);
+    // bpf_printk("rx enter tcp6_do_rcv, sk: %p \n", sk);
     /*----- update conn info ------*/
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     conn->srtt = BPF_CORE_READ(tp, srtt_us);
@@ -648,13 +652,13 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
     if (sk == NULL) {
         return 0;
     }
-    bpf_printk("rx enter app layer.\n");
+    // bpf_printk("rx enter app layer.\n");
     struct pack_t *packet;
     packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
     if (!packet) {
         return 0;
     }
-    bpf_printk("rx packet sk: %p\n", sk);
+    // bpf_printk("rx packet sk: %p\n", sk);
     for (int i = 0; i < MAX_COMM; ++i) {
         packet->comm[i] = tinfo->comm[i];
     }
@@ -666,6 +670,10 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
     packet->ip_time = tinfo->tcp_time - tinfo->ip_time;
     packet->tcp_time = tinfo->app_time - tinfo->tcp_time;
     packet->rx = 1;
+    int doff = BPF_CORE_READ_BITFIELD_PROBED(tcp, doff); // 得用bitfield_probed
+    unsigned char *user_data =
+        (unsigned char *)((unsigned char *)tcp + (doff * 4));
+    bpf_probe_read_str(packet->data, sizeof(packet->data), user_data);
     bpf_ringbuf_submit(packet, 0);
     return 0;
 }
@@ -694,11 +702,11 @@ int BPF_KPROBE(tcp_validate_incoming, struct sock *sk, struct sk_buff *skb) {
         receive_window = 0;
 
     if (end_seq >= rcv_wup && rcv_nxt + receive_window >= start_seq) {
-        bpf_printk("error_identify: tcp seq validated. \n");
+        // bpf_printk("error_identify: tcp seq validated. \n");
         return 0;
     }
-    bpf_printk("error_identify: tcp seq err. \n");
-    // invalid seq
+    // bpf_printk("error_identify: tcp seq err. \n");
+    //  invalid seq
     u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
     struct packet_tuple pkt_tuple = {};
     if (family == AF_INET) {
@@ -735,10 +743,10 @@ int BPF_KRETPROBE(__skb_checksum_complete_exit, int ret) {
         return 0;
     }
     if (ret == 0) {
-        bpf_printk("error_identify: tcp checksum validated. \n");
+        // bpf_printk("error_identify: tcp checksum validated. \n");
         return 0;
     }
-    bpf_printk("error_identify: tcp checksum error. \n");
+    // bpf_printk("error_identify: tcp checksum error. \n");
     struct sock *sk = *skp;
     struct conn_t *conn = bpf_map_lookup_elem(&conns_info, &sk);
     if (conn == NULL) {
@@ -843,6 +851,15 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
     conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
     conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
     conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+    unsigned char *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
+    tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
+                                                            &pkt_tuple, &zero);
+    if (tinfo == NULL) {
+        return 0;
+    }
+    bpf_printk("kernel data: %s", user_data);
+    bpf_probe_read_str(tinfo->data, sizeof(tinfo->data), user_data);
+    bpf_printk("tinfo data: %s", tinfo->data);
     return 0;
 }
 
@@ -854,9 +871,10 @@ tcp)获取ip段的数据 out only ipv4
 SEC("kprobe/ip_queue_xmit")
 int BPF_KPROBE(ip_queue_xmit, struct sock *sk, struct sk_buff *skb) {
     u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
+    struct packet_tuple pkt_tuple = {};
+    struct ktime_info *tinfo;
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
     if (family == AF_INET) {
-        struct packet_tuple pkt_tuple = {};
-        struct tcphdr *tcp = skb_to_tcphdr(skb);
         u16 dport;
         u32 seq, ack;
         pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
@@ -872,7 +890,6 @@ int BPF_KPROBE(ip_queue_xmit, struct sock *sk, struct sk_buff *skb) {
         // FILTER_DPORT
         // FILTER_SPORT
 
-        struct ktime_info *tinfo;
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
@@ -889,9 +906,10 @@ tcp)获取ip段的数据 out only ipv6
 SEC("kprobe/inet6_csk_xmit")
 int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb) {
     u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {};
+    struct ktime_info *tinfo;
     if (family == AF_INET6) {
-        struct packet_tuple pkt_tuple = {};
-        struct tcphdr *tcp = skb_to_tcphdr(skb);
         u16 dport;
         u32 seq, ack;
 
@@ -916,13 +934,11 @@ int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb) {
         // FILTER_DPORT
         // FILTER_SPORT
 
-        struct ktime_info *tinfo;
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
         tinfo->ip_time = bpf_ktime_get_ns() / 1000;
     }
-
     return 0;
 };
 
@@ -962,7 +978,6 @@ int BPF_KPROBE(__dev_queue_xmit, struct sk_buff *skb) {
         }
         tinfo->mac_time = bpf_ktime_get_ns() / 1000;
     }
-
     return 0;
 };
 
@@ -1020,7 +1035,7 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
     for (int i = 0; i < MAX_COMM; ++i) {
         packet->comm[i] = tinfo->comm[i];
     }
-    bpf_printk("tx packet sk: %p\n", sk);
+    // bpf_printk("tx packet sk: %p\n", sk);
     packet->err = 0;
     packet->sock = sk;
     packet->ack = pkt_tuple.ack;
@@ -1029,6 +1044,8 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
     packet->ip_time = tinfo->mac_time - tinfo->ip_time;
     packet->mac_time = tinfo->qdisc_time - tinfo->mac_time;
     packet->rx = 0;
+    bpf_probe_read_str(packet->data, sizeof(packet->data), tinfo->data);
+    // 此时skb为非线性 不能直接用RX同样的方式读取
     bpf_ringbuf_submit(packet, 0);
 
     return 0;

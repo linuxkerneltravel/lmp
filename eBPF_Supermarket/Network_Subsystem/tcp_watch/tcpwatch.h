@@ -61,6 +61,7 @@ struct conn_t {
 };
 
 #define MAX_PACKET 1000
+#define MAX_HTTP_HEADER 256
 
 struct packet_tuple {
     unsigned __int128 saddr_v6;
@@ -81,8 +82,9 @@ struct pack_t {
     unsigned int seq;            // the seq num of packet
     unsigned int ack;            // the ack num of packet
     char comm[MAX_COMM];         // 此包tcp连接的 command
-    const void *sock;            // 此包tcp连接的 socket 指针
-    int rx;                      // rx packet(1) or tx packet(0)
+    unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
+    const void *sock;                    // 此包tcp连接的 socket 指针
+    int rx;                              // rx packet(1) or tx packet(0)
 };
 
 #endif /* __TCPWATCH_H */
