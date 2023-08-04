@@ -162,17 +162,14 @@ int mmap_exit(struct trace_event_raw_sys_enter *ctx)
         return 0;
 
     u64 addr = ctx->args[0];
-    if (addr == (void*)(-1))
+    if (addr == (u64)(-1))
         return 0;
-
-    bpf_printk("%d", __LINE__);
 
     // get size
     u64 *size = bpf_map_lookup_elem(&pid_size, &pid);
     if (!size)
         return -1;
 
-    bpf_printk("%d", __LINE__);
     // record stack count
     psid apsid = {
         .pid = pid,

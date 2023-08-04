@@ -81,8 +81,7 @@
 #define CHECK_ERR(cond, info)                               \
     if (cond)                                               \
     {                                                       \
-        fprintf(stderr, "[%s]" info "\n", strerror(errno)); \
-        err = -1;                                           \
+        fprintf(stderr, "[%s]" info "\n", strerror(errno));                                   \
         return -1;                                          \
     }
 

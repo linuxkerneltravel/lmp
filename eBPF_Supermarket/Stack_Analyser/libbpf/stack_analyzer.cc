@@ -95,10 +95,10 @@ protected:
 	comm_fd = OPEN_MAP(pid_comm);    \
 	trace_fd = OPEN_MAP(stack_trace);
 #define LO(name, ...)                              \
-	skel = name##_bpf::open();                     \
+	skel = name##_bpf__open();                     \
 	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
 	__VA_ARGS__;                                   \
-	err = name##_bpf::load(skel);                  \
+	err = name##_bpf__load(skel);                  \
 	CHECK_ERR(err, "Fail to load BPF skeleton");   \
 	OPEN_ALL_MAP
 #define CKV(k, ...)                                 \
@@ -308,7 +308,7 @@ public:
 	void unload(void)
 	{
 		if (skel)
-			on_cpu_count_bpf::destroy(skel);
+			on_cpu_count_bpf__destroy(skel);
 		skel = 0;
 	}
 };
@@ -345,7 +345,7 @@ public:
 	void unload(void)
 	{
 		if (skel)
-			off_cpu_count_bpf::destroy(skel);
+			off_cpu_count_bpf__destroy(skel);
 		skel = 0;
 	};
 };
@@ -373,7 +373,7 @@ public:
 		ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
 		ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
 		ATTACH_UPROBE_CHECKED(skel, free, free_enter);
-		err = mem_count_bpf::attach(skel);
+		err = mem_count_bpf__attach(skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
@@ -389,7 +389,7 @@ public:
 	void unload(void)
 	{
 		if (skel)
-			mem_count_bpf::destroy(skel);
+			mem_count_bpf__destroy(skel);
 		skel = 0;
 	};
 };
