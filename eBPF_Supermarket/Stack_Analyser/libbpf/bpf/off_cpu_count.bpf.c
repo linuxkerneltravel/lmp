@@ -35,21 +35,20 @@ BPF_HASH(pid_comm, u32, comm);
 const char LICENSE[] SEC("license") = "GPL";
 
 int apid;
-char u,k;
+char u, k;
 
 SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     u32 pid = BPF_CORE_READ(curr, pid);
 
-    if((apid >= 0 && pid != apid) || !pid)
-        return 0;
-
-    // record next start time
-    u32 tgid = BPF_CORE_READ(curr, tgid);
-    u64 ts = bpf_ktime_get_ns();
-    bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);
-
+    if ((apid >= 0 && pid == apid) || (apid < 0 && pid))
+    {
+        // record next start time
+        u64 ts = bpf_ktime_get_ns();
+        bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);
+    }
+    
     // calculate time delta
     struct task_struct *next = (struct task_struct *)bpf_get_current_task();
     pid = BPF_CORE_READ(next, pid);
@@ -63,7 +62,7 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
         return 0;
 
     // record data
-    tgid = BPF_CORE_READ(next, tgid);
+    u32 tgid = BPF_CORE_READ(next, tgid);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
     if (!p)
@@ -74,8 +73,8 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
     }
     psid apsid = {
         .pid = pid,
-        .usid = u?USER_STACK:-1,
-        .ksid = k?KERNEL_STACK:-1,
+        .usid = u ? USER_STACK : -1,
+        .ksid = k ? KERNEL_STACK : -1,
     };
 
     // record time delta
