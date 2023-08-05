@@ -17,7 +17,6 @@
 // 用户态bpf的主程序代码，主要用于数据的显示和整理
 
 #include <map>
-#include <iostream>
 
 #include "rapidjson/document.h"
 #include "rapidjson/filewritestream.h"
@@ -186,13 +185,27 @@ public:
 						break;
 					sym.reset(p);
 					if (g_symbol_parser.find_kernel_symbol(sym))
-						trace.PV(sym.name.c_str());
+					{
+						unsigned offset = p - sym.start;
+						char offs[20];
+						sprintf(offs, "+0x%x", offset);
+						std::string s = sym.name + std::string(offs);
+						// ss << sym.name << "+0x" << std::setw(16) << std::setfill() << std::hex << offset;
+						trace.PV(s.c_str());
+					}
 					else
-						trace.PV(unsymbol.c_str());
+					{
+						char a[19];
+						sprintf(a, "0x%016llx", p);
+						std::string s(a);
+						trace.PV(a);
+						g_symbol_parser.putin_symbol_cache(pid, p, s);
+					}
 				}
 			}
 			else
 				trace.PV("[MISSING KERNEL STACK]");
+			trace.PV("----------------");
 			if (id.usid >= 0)
 			{
 				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
@@ -201,18 +214,29 @@ public:
 					if (!p)
 						break;
 					sym.reset(p);
+					std::string *s = 0;
 					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
-						trace.PV(symbol.c_str());
+						s = &symbol;
 					else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
 							 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
 					{
-						trace.PV(sym.name.c_str());
+						s = &sym.name;
 						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
 					}
-					else
+					if(!s)
 					{
-						trace.PV(unsymbol.c_str());
-						g_symbol_parser.putin_symbol_cache(pid, p, unsymbol);
+						char a[19];
+						sprintf(a, "0x%016llx", p);
+						std::string s(a);
+						trace.PV(a);
+						g_symbol_parser.putin_symbol_cache(pid, p, s);
+					} else {
+						unsigned offset = p - sym.start;
+						char offs[20];
+						sprintf(offs, "+0x%x", offset);
+						*s = *s + std::string(offs);
+						// ss << sym.name << "+0x" << std::setw(16) << std::setfill() << std::hex << offset;
+						trace.PV(s->c_str());
 					}
 				}
 			}
