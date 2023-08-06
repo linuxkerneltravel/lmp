@@ -459,8 +459,8 @@ public:
 	}
 	void unload(void) override
 	{
-		if (on_cpu_loader::skel)
-			on_cpu_count_bpf__destroy(on_cpu_loader::skel);
+		if (skel)
+			on_cpu_count_bpf__destroy(skel);
 		skel = 0;
 	}
 };
@@ -475,7 +475,7 @@ public:
 	{
 		skel = 0;
 	};
-	int load(void)
+	int load(void) override
 	{
 		LO(off_cpu_count,
 		   skel->bss->apid = pid,
@@ -483,18 +483,18 @@ public:
 		   skel->bss->k = kstack)
 		return 0;
 	};
-	int attach(void)
+	int attach(void) override
 	{
 		err = bpf_attach(off_cpu_count, skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
-	void detach(void)
+	void detach(void) override
 	{
 		if (skel)
 			off_cpu_count_bpf__detach(skel);
 	};
-	void unload(void)
+	void unload(void) override
 	{
 		if (skel)
 			off_cpu_count_bpf__destroy(skel);
@@ -513,14 +513,14 @@ public:
 	{
 		skel = 0;
 	};
-	int load(void)
+	int load(void) override
 	{
 		LO(mem_count,
 		   skel->bss->u = ustack,
 		   skel->bss->apid = pid)
 		return 0;
 	};
-	int attach(void)
+	int attach(void) override
 	{
 		ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
 		ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
@@ -529,7 +529,7 @@ public:
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
-	void detach(void)
+	void detach(void) override
 	{
 		if (skel->links.free_enter)
 			bpf_link__destroy(skel->links.free_enter);
@@ -538,7 +538,7 @@ public:
 		if (skel->links.malloc_enter)
 			bpf_link__destroy(skel->links.malloc_enter);
 	};
-	void unload(void)
+	void unload(void) override
 	{
 		if (skel)
 			mem_count_bpf__destroy(skel);
@@ -556,7 +556,7 @@ public:
 	{
 		skel = 0;
 	};
-	int load(void)
+	int load(void) override
 	{
 		LO(io_count,
 		   skel->bss->apid = pid,
@@ -564,18 +564,18 @@ public:
 		   skel->bss->k = kstack)
 		return 0;
 	};
-	int attach(void)
+	int attach(void) override
 	{
 		err = bpf_attach(io_count, skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
-	void detach(void)
+	void detach(void) override
 	{
 		if (skel)
 			io_count_bpf__detach(skel);
 	};
-	void unload(void)
+	void unload(void) override
 	{
 		if (skel)
 			io_count_bpf__destroy(skel);
