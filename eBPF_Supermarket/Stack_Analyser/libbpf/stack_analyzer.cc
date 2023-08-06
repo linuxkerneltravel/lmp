@@ -17,6 +17,11 @@
 // 用户态bpf的主程序代码，主要用于数据的显示和整理
 
 #include <map>
+#include <vector>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+#include <fstream>
 
 #include "rapidjson/document.h"
 #include "rapidjson/filewritestream.h"
@@ -28,6 +33,7 @@ extern "C"
 {
 #endif
 
+#include <paths.h>
 #include <fcntl.h>
 #include <sys/syscall.h>
 #include <linux/perf_event.h>
@@ -53,8 +59,8 @@ extern "C"
 /// @param progname progname printed in the help info
 static void show_help(const char *progname)
 {
-	printf("Usage: %s [-f <frequency>] [-p <pid>] [-T <time>] [-m <0 on cpu|1 off cpu|2 mem|3 io>] "
-		   "[-U user stack only] [-K kernel stack only] [-h help]\n",
+	printf("Usage: %s [-F <frequency>=49] [-p <pid>=-1] [-T <time>=INT_MAX] [-m <0 on cpu|1 off cpu|2 mem|3 io>=0] "
+		   "[-U user stack only] [-K kernel stack only] [-f flame graph but not json] [-h help] \n",
 		   progname);
 }
 
@@ -76,10 +82,11 @@ namespace env
 	int pid = -1;												  /*pid filter*/
 	int cpu = -1;												  /*cpu index*/
 	unsigned run_time = __INT_MAX__;							  /*run time*/
-	int freq = 1;												  /*simple frequency*/
+	int freq = 49;												  /*simple frequency*/
 	MOD mod = MOD_ON_CPU;										  /*mod setting*/
 	bool u = true;												  /*user stack setting*/
 	bool k = true;												  /*kernel stack setting*/
+	bool fla = false;											  /*flame graph instead of json*/
 	char *object = (char *)"/usr/lib/x86_64-linux-gnu/libc.so.6"; /*executable binary file for uprobe*/
 	static volatile sig_atomic_t exiting;						  /*exiting flag*/
 }
@@ -120,6 +127,116 @@ public:
 	};
 	virtual int load(void) = 0, attach(void) = 0;
 	virtual void detach(void) = 0, unload(void) = 0;
+	int flame_save(void)
+	{
+		printf("saving flame...\n");
+		CHECK_ERR(count_fd < 0, "count map open failure");
+		CHECK_ERR(trace_fd < 0, "trace map open failure");
+		CHECK_ERR(comm_fd < 0, "comm map open failure");
+		int max_deep = 0;
+		for (psid prev = {}, key; !bpf_map_get_next_key(count_fd, &prev, &key); prev = key)
+		{
+			__u64 ip[MAX_STACKS];
+			bpf_map_lookup_elem(trace_fd, &key.usid, ip);
+			int deep = 0;
+			for (int i = 0; i < MAX_STACKS && ip[i]; i++)
+				deep++;
+			if (max_deep < deep)
+				max_deep = deep;
+		}
+		std::ostringstream tex;
+		for (psid prev = {}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
+		{
+			symbol sym;
+			__u64 ip[MAX_STACKS];
+			if (id.ksid >= 0)
+			{
+				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
+				for (auto p : ip)
+				{
+					if (!p)
+						break;
+					sym.reset(p);
+					if (g_symbol_parser.find_kernel_symbol(sym))
+						tex << sym.name << '\n';
+					else
+					{
+						char a[19];
+						sprintf(a, "0x%016llx", p);
+						tex << a << '\n';
+						std::string s(a);
+						g_symbol_parser.putin_symbol_cache(pid, p, s);
+					}
+				}
+			}
+			else
+				tex << "[MISSING KERNEL STACK]" << '\n';
+			tex << "________________" << '\n';
+			unsigned deep = 0;
+			if (id.usid >= 0)
+			{
+				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
+				std::string *s = 0, symbol;
+				elf_file file;
+				for (auto p : ip)
+				{
+					if (!p)
+						break;
+					sym.reset(p);
+
+					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
+						s = &symbol;
+					else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+							 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+					{
+						s = &sym.name;
+						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+					}
+					if (!s)
+					{
+						char a[19];
+						sprintf(a, "0x%016llx", p);
+						tex << a << '\n';
+						std::string s(a);
+						g_symbol_parser.putin_symbol_cache(pid, p, s);
+					}
+					else
+						tex << *s << '\n';
+					deep++;
+				}
+			}
+			else
+			{
+				tex << "[MISSING USER STACK]" << '\n';
+				deep = 1;
+			}
+			deep = max_deep - deep;
+			for (int i = 0; i < deep; i++)
+			{
+				tex << "_\n";
+			}
+			{
+				char cmd[COMM_LEN];
+				bpf_map_lookup_elem(comm_fd, &id.pid, cmd);
+				tex << cmd << ' ' << id.pid << '\n';
+			}
+			int count;
+			bpf_map_lookup_elem(count_fd, &id, &count);
+			tex << count << "\n\n";
+		}
+		std::string tex_s = tex.str();
+		FILE *fp = 0;
+		// fp = fopen("flatex.log", "w");
+		// CHECK_ERR(!fp, "Failed to save flame text");
+		// fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
+		// fclose(fp);
+		fp = popen("stackcollapse.pl | tee colps.log | flamegraph.pl > flame.svg", "w");
+		CHECK_ERR(!fp, "Failed to draw flame graph");
+		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
+
+		pclose(fp);
+		return 0;
+	}
 	int data_save(void)
 	{
 		printf("saving...\n");
@@ -157,25 +274,29 @@ public:
 			ajson[tgid_s.c_str()][pid_s.c_str()].CKV("name", cmd.str, alc);
 		}
 
-		int count;
-		symbol sym;
-		__u64 ip[MAX_STACKS];
-		std::string symbol;
-		elf_file file;
 		std::string unsymbol("[UNKNOWN]");
 		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
 		{
-			bpf_map_lookup_elem(count_fd, &id, &count);
-			std::string tgid_s = std::to_string(pidtgid_map[id.pid]);
-			std::string pid_s = std::to_string(id.pid);
-			auto stacks = ajson[tgid_s.c_str()][pid_s.c_str()]["stacks"].GetObject();
-			auto sid_s = std::to_string(id.usid) + "," + std::to_string(id.ksid);
-			auto sid_c = sid_s.c_str();
-			stacks.KV(sid_c, rapidjson::kObjectType);
-			stacks[sid_c].CKV("count", count);
-			stacks[sid_c].CKV("trace", rapidjson::kArrayType);
-			auto trace = stacks[sid_c]["trace"].GetArray();
+			rapidjson::Value trace;
+			{
+				int count;
+				bpf_map_lookup_elem(count_fd, &id, &count);
+				rapidjson::Value stacks;
+				{
+					std::string tgid_s = std::to_string(pidtgid_map[id.pid]);
+					std::string pid_s = std::to_string(id.pid);
+					stacks = ajson[tgid_s.c_str()][pid_s.c_str()]["stacks"].GetObject();
+				}
+				auto sid_c = (std::to_string(id.usid) + "," + std::to_string(id.ksid)).c_str();
+				// auto sid_c = sid_s.c_str();
+				stacks.KV(sid_c, rapidjson::kObjectType);
+				stacks[sid_c].CKV("count", count);
+				stacks[sid_c].CKV("trace", rapidjson::kArrayType);
+				trace = stacks[sid_c]["trace"].GetArray();
+			}
 			// symbolize
+			symbol sym;
+			__u64 ip[MAX_STACKS];
 			if (id.ksid >= 0)
 			{
 				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
@@ -190,7 +311,6 @@ public:
 						char offs[20];
 						sprintf(offs, "+0x%x", offset);
 						std::string s = sym.name + std::string(offs);
-						// ss << sym.name << "+0x" << std::setw(16) << std::setfill() << std::hex << offset;
 						trace.PV(s.c_str());
 					}
 					else
@@ -208,6 +328,8 @@ public:
 			trace.PV("----------------");
 			if (id.usid >= 0)
 			{
+				std::string symbol;
+				elf_file file;
 				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
 				for (auto p : ip)
 				{
@@ -223,19 +345,20 @@ public:
 						s = &sym.name;
 						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
 					}
-					if(!s)
+					if (!s)
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string s(a);
 						trace.PV(a);
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
-					} else {
+					}
+					else
+					{
 						unsigned offset = p - sym.start;
 						char offs[20];
 						sprintf(offs, "+0x%x", offset);
 						*s = *s + std::string(offs);
-						// ss << sym.name << "+0x" << std::setw(16) << std::setfill() << std::hex << offset;
 						trace.PV(s->c_str());
 					}
 				}
@@ -282,7 +405,10 @@ public:
 			count_log(env::run_time);
 		} while (false);
 		detach();
-		err = data_save();
+		if (env::fla)
+			err = flame_save();
+		else
+			err = data_save();
 		// unload();
 		return err;
 	};
@@ -309,14 +435,14 @@ public:
 		};
 		skel = 0;
 	};
-	int load(void)
+	int load(void) override
 	{
 		LO(on_cpu_count,
 		   skel->bss->u = ustack,
 		   skel->bss->k = kstack)
 		return 0;
 	};
-	int attach(void)
+	int attach(void) override
 	{
 		pefd = perf_event_open(&attr, pid, -1, -1, PERF_FLAG_FD_CLOEXEC); // don't track child process
 		CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
@@ -324,17 +450,17 @@ public:
 		CHECK_ERR(!(skel->links.do_stack), "Fail to attach bpf");
 		return 0;
 	}
-	void detach(void)
+	void detach(void) override
 	{
 		if (skel->links.do_stack)
 			bpf_link__destroy(skel->links.do_stack);
 		if (pefd)
 			close(pefd);
 	}
-	void unload(void)
+	void unload(void) override
 	{
-		if (skel)
-			on_cpu_count_bpf__destroy(skel);
+		if (on_cpu_loader::skel)
+			on_cpu_count_bpf__destroy(on_cpu_loader::skel);
 		skel = 0;
 	}
 };
@@ -467,11 +593,11 @@ void __handler(int)
 int main(int argc, char *argv[])
 {
 	char argp;
-	while ((argp = getopt(argc, argv, "hf:p:T:m:UK")) != -1) // parsing arguments
+	while ((argp = getopt(argc, argv, "hF:p:T:m:UKf")) != -1) // parsing arguments
 	{
 		switch (argp)
 		{
-		case 'f':
+		case 'F':
 			env::freq = atoi(optarg);
 			if (env::freq < 1)
 				env::freq = 1;
@@ -480,6 +606,9 @@ int main(int argc, char *argv[])
 			env::pid = atoi(optarg);
 			if (env::pid < 1)
 				env::pid = -1;
+			break;
+		case 'f':
+			env::fla = true;
 			break;
 		case 'T':
 			env::run_time = atoi(optarg);
