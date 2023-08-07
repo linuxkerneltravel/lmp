@@ -30,5 +30,23 @@ jobs:
       - name: Run proc_image
         run: |
           cd eBPF_Supermarket/eBPF_proc_image
-          sudo make
+          sudo make proc_image
           sudo ./proc_image -t 1
+
+      - name: Run proc_offcpu_time
+        run: |
+          cd eBPF_Supermarket/eBPF_proc_image/proc_offcpu_time
+          sudo make
+          sudo ./proc_offcpu_time -t 1
+
+      - name: Run mutex_image
+        run: |
+          cd eBPF_Supermarket/eBPF_proc_image
+          sudo make mutex_image
+          sudo ./mutex_image -t 1
+
+      - name: Run mutex_test1
+        run: |
+          cd eBPF_Supermarket/eBPF_proc_image/test
+          sudo make
+          sudo insmod mutex_test1.ko

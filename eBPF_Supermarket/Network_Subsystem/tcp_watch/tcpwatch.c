@@ -1,3 +1,21 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: blown.away@qq.com
+//
+// tcpwatch libbpf 用户态代码
+
 #include "tcpwatch.h"
 #include "tcpwatch.skel.h"
 #include <argp.h>
@@ -9,6 +27,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 static volatile bool exiting = false;
@@ -45,15 +64,6 @@ static const struct argp argp = {
 
 static void sig_handler(int signo) { exiting = true; }
 
-static const char *state_to_str(char state) {
-    switch (state) {
-    case TCP_ESTABLISHED:
-        return "ESTABLISHED";
-    default:
-        return "UNKONWN";
-    }
-}
-
 static void bytes_to_str(char *str, unsigned long long num) {
     if (num > 1e9) {
         sprintf(str, "%.8lfG", (double)num / 1e9);
@@ -78,7 +88,7 @@ static int print_conns(struct tcpwatch_bpf *skel) {
     struct sock *sk = NULL;
 
     while (bpf_map_get_next_key(map_fd, &sk, &sk) == 0) {
-        fprintf(stdout, "next_sk: (%p)\n", sk);
+        // fprintf(stdout, "next_sk: (%p)\n", sk);
         struct conn_t d = {};
         int err = bpf_map_lookup_elem(map_fd, &sk, &d);
         if (err) {
@@ -117,16 +127,46 @@ static int print_conns(struct tcpwatch_bpf *skel) {
         bytes_to_str(acked_bytes, d.bytes_acked);
 
         fprintf(file,
-                "connection{sock=\"%p\",src=\"%s\",dst=\"%s\",rx=\"%s\","
-                "tx=\"%s\",srtt=\"%u\",duration=\"%llu\"} 0\n",
-                d.sock, s_ip_port_str, d_ip_port_str, received_bytes,
-                acked_bytes, d.srtt, d.duration);
+                "connection{sock=\"%p\",src=\"%s\",dst=\"%s\",backlog=\"%u\","
+                "maxbacklog=\"%u\",cwnd=\"%u\",ssthresh=\"%u\",sndbuf=\"%u\","
+                "wmem_queued=\"%u\",rx=\"%s\",tx=\"%"
+                "s\",srtt=\"%u\",duration=\"%llu\"} 0\n",
+                d.sock, s_ip_port_str, d_ip_port_str, d.tcp_backlog,
+                d.max_tcp_backlog, d.snd_cwnd, d.snd_ssthresh, d.sndbuf,
+                d.sk_wmem_queued, received_bytes, acked_bytes, d.srtt,
+                d.duration);
     }
     fclose(file);
     return 0;
 }
 
+static int print_packet(void *ctx, void *packet_info, size_t size) {
+    const struct pack_t *pack_info = packet_info;
+    if (pack_info->err) {
+        if (pack_info->err == 1) {
+            printf("[X] invalid SEQ: sock = %p,comm = %s,seq= %u,ack = %u\n",
+                   pack_info->sock, pack_info->comm, pack_info->seq,
+                   pack_info->ack);
+        } else if (pack_info->err == 2) {
+            printf("[X] invalid checksum: sock = %p,comm = %s\n",
+                   pack_info->sock, pack_info->comm);
+        } else {
+            printf("UNEXPECTED packet error %d.\n", pack_info->err);
+        }
+    } else {
+        printf("%-22p %-22s %-10u %-10u %-10llu %-10llu %-10llu %d\n",
+               pack_info->sock, pack_info->comm, pack_info->seq, pack_info->ack,
+               pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
+               pack_info->rx);
+        if (strstr((char *)pack_info->data, "HTTP/1")) {
+            printf("%s\n", pack_info->data);
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
+    struct ring_buffer *rb = NULL;
     struct tcpwatch_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -167,8 +207,20 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
+    /* Set up ring buffer polling */
+    rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
+    if (!rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+
+    printf("%-22s %-22s %-10s %-10s %-10s %-10s %-10s %-5s\n", "SOCK", "COMM",
+           "SEQ", "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX");
     /* Process events */
     while (!exiting) {
+        err = ring_buffer__poll(rb, 100 /* timeout, ms */);
+
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

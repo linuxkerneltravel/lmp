@@ -1,3 +1,21 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: zhangziheng0525@163.com
+//
+// user-mode code for the process image
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -13,11 +31,13 @@
 
 static volatile bool exiting = false;
 static int target_pid = 0;
+static int target_cpu_id = 0;
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
+    { "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{},
 };
@@ -25,19 +45,28 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
+    long cpu_id;
 	long time;
 	switch (key) {
 		case 'p':
 				errno = 0;
 				pid = strtol(arg, NULL, 10);
-				if (errno || pid <= 0) {
+				if (errno || pid < 0) {
 					warn("Invalid PID: %s\n", arg);
 					// 调用argp_usage函数，用于打印用法信息并退出程序
 					argp_usage(state);
 				}
 				target_pid = pid;
 				break;
-		case 't':
+		case 'C':
+                cpu_id = strtol(arg, NULL, 10);
+                if(cpu_id < 0){
+                    warn("Invalid CPUID: %s\n", arg);
+                    argp_usage(state);
+                }
+                target_cpu_id = cpu_id;
+                break;
+        case 't':
 				time = strtol(arg, NULL, 10);
 				if(time) alarm(time);
 				break;
@@ -54,12 +83,19 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-	const struct sleep_event *e = data;
-    double sleeptime = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-    
-    printf("pid:%d  comm:%s  offcpu_id:%d  offcpu_time:%llu  oncpu_id:%d  oncpu_time:%llu  sleeptime:%lf\n",
-    e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,sleeptime);
+	const struct cpu_event *e = data;
+    double time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
 
+    if(e->flag == 1){
+        time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
+        printf("flag:%d  pid:%d  comm:%-16s  oncpu_id :%d  oncpu_time :%llu  offcpu_id:%d  offcpu_time:%llu  time:%lf\n",
+        e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
+    }else if(e->flag == 0){
+        time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
+        printf("flag:%d  pid:%d  comm:%-16s  offcpu_id:%d  offcpu_time:%llu  oncpu_id :%d  oncpu_time :%llu  time:%lf\n",
+        e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
+    }
+    
 	return 0;
 }
 	
@@ -105,6 +141,7 @@ int main(int argc, char **argv)
 	}
 
 	skel->rodata->target_pid = target_pid;
+    skel->rodata->target_cpu_id = target_cpu_id;
 
 	/* 加载并验证BPF程序 */
 	err = proc_image_bpf__load(skel);
@@ -122,7 +159,7 @@ int main(int argc, char **argv)
 	
 	/* 设置环形缓冲区轮询 */
 	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.sleep_rb), handle_event, NULL, NULL);
+	rb = ring_buffer__new(bpf_map__fd(skel->maps.cpu_rb), handle_event, NULL, NULL);
 	if (!rb) {
 		err = -1;
 		fprintf(stderr, "Failed to create ring buffer\n");

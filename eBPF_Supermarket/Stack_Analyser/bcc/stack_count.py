@@ -6,11 +6,12 @@ from bcc import BPF, PerfType, PerfSWConfig
 from argparse import ArgumentTypeError, ArgumentParser, RawDescriptionHelpFormatter, SUPPRESS
 from subprocess import Popen, PIPE
 
-mode = 'on_cpu'
+mode_list = ['on_cpu', 'off_cpu', 'mem']
 
 # arguments
 examples = """examples:
     sudo -E ./stack_count.py             # trace on-CPU stack time until Ctrl-C
+    sudo -E ./stack_count.py -m off_cpu  # trace off-CPU stack time until Ctrl-C
     sudo -E ./stack_count.py 5           # trace for 5 seconds only
     sudo -E ./stack_count.py -f 5        # 5 seconds, and output as stack_count.svg in flame graph format
     sudo -E ./stack_count.py -s 5        # 5 seconds, and show symbol offsets
@@ -25,7 +26,7 @@ examples = """examples:
 """
 
 
-def positive_int(val):
+def positive_int(val:str):
     try:
         ival = int(val)
     except ValueError:
@@ -33,6 +34,12 @@ def positive_int(val):
     if ival <= 0:
         raise ArgumentTypeError("must be positive")
     return ival
+
+def mode_str(val:str):
+    if val in mode_list:
+        return val
+    else:
+        raise ArgumentTypeError("must be 'on_cpu', 'off_cpu' or 'mem'")
 
 
 parser = ArgumentParser(
@@ -69,6 +76,9 @@ parser.add_argument("-f", "--folded", action="store_true",
                     help="output folded format")
 parser.add_argument("-s", "--offset", action="store_true",
                     help="show address offsets")
+parser.add_argument("-m", "--mode", default='on_cpu',
+                    type = mode_str,
+                    help="mode of stack counting, 'on_cpu'/'off_cpu'/'mem'")
 parser.add_argument("--stack-storage-size", default=16384,
                     type=positive_int,
                     help="the number of unique stack traces that can be stored and "
@@ -84,6 +94,7 @@ parser.add_argument("--ebpf", action="store_true",
 args = parser.parse_args()
 folded = args.folded
 duration = int(args.duration)
+mode = args.mode
 debug = 0
 
 # set thread filter
@@ -94,7 +105,7 @@ if args.tgid is not None:
     # thread_filter = '!(curr->tgid == %d)' % args.tgid
     pid = args.tgid
     thread_context = "PID " + str(pid)
-    if mode != 'on_cpu':
+    if mode == 'off_cpu':
         thread_filter = 'curr->tgid == %d' % pid
 elif args.pid is not None:
     thread_context = "TID %d" % args.pid
@@ -106,7 +117,7 @@ elif args.cmd is not None:
     ps.send_signal(19)
     pid = ps.pid
     thread_context = "PID " + str(pid)
-    if mode != 'on_cpu':
+    if mode == 'off_cpu':
         thread_filter = 'curr->tgid == %d' % pid
     # perf default attach children process
 elif args.user_threads_only:
@@ -202,6 +213,16 @@ match mode:
     case 'off_cpu':
         b.attach_kprobe(
             event_re="^finish_task_switch$|^finish_task_switch\.isra\.\d$", fn_name='do_stack')
+    case 'mem':
+        arch = Popen(args='uname -m', stdout=PIPE, shell=True).stdout.read().decode().split()[0]
+        lib = "/usr/lib/"+arch+"-linux-gnu/libc.so.6"
+        # if pid != -1:
+        #     from psutil import Process
+        #     lib = Process(pid).exe()
+        b.attach_uprobe(name=lib, sym='malloc', fn_name='malloc_enter', pid=pid)
+        b.attach_uretprobe(name=lib, sym='malloc', fn_name='malloc_exit', pid=pid)
+        b.attach_uprobe(name=lib, sym='free', fn_name='free_enter', pid=pid)
+
 
 if pid != -1:
     print("attach %d." % pid)
@@ -217,12 +238,21 @@ else:
 
 def int_handler(sig=None, frame=None):
     print("\b\bquit...")
-    if mode == 'on_cpu':
-        b.detach_perf_event(ev_type=PerfType.SOFTWARE,
-                            ev_config=PerfSWConfig.CPU_CLOCK)
-    elif mode == 'off_cpu':
-        for tp in b.get_kprobe_functions(b"^finish_task_switch$|^finish_task_switch\.isra\.\d$"):
-            b.detach_kprobe(tp)
+    match mode:
+        case 'on_cpu':
+            b.detach_perf_event(ev_type=PerfType.SOFTWARE,
+                                ev_config=PerfSWConfig.CPU_CLOCK)
+        case 'off_cpu':
+            for tp in b.get_kprobe_functions(b"^finish_task_switch$|^finish_task_switch\.isra\.\d$"):
+                b.detach_kprobe(tp)
+        case 'mem':
+            try:
+                b.detach_uprobe(lib, 'malloc')
+                b.detach_uretprobe(lib, 'malloc')
+                b.detach_uprobe(lib, 'free')
+            except:
+                pass
+    
     # system("tput rmcup")
     if auto:
         if not ad:
