@@ -1,3 +1,21 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: Gui-Yue
+//
+// 该文件用于将收集到的信息进行进行规范化处理，实现重定向，并与Prometheus可视化逻辑进行交互。
+
 package collector
 
 import (
@@ -60,7 +78,7 @@ var collectCommand = cli.Command{
 	Name:    "collect",
 	Aliases: []string{"c"},
 	Usage:   "collect system data by eBPF",
-	Action:  serviceCollect,
+	Action:  simpleCollect,
 }
 
 func init() {
@@ -79,7 +97,7 @@ func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 	return collectCommand, nil
 }
 
-func serviceCollect(ctx *cli.Context) error {
+func simpleCollect(ctx *cli.Context) error {
 	filePath, err := checker.CollectCheck(ctx)
 	if err != nil {
 		return err
@@ -87,20 +105,36 @@ func serviceCollect(ctx *cli.Context) error {
 	return Run(filePath)
 }
 
-func Run(filePath string) error {
+func CheckFileType(filePath string) (specificcommand string) {
 	cmdSlice := make([]string, 0)
 	cmdSlice = append(cmdSlice, "sudo")
 	cmdSlice = append(cmdSlice, "stdbuf")
 	cmdSlice = append(cmdSlice, "-oL")
-	cmdSlice = append(cmdSlice, "python3")
-	cmdSlice = append(cmdSlice, "-u")
-	cmdSlice = append(cmdSlice, filePath)
+	lowercaseFilename := strings.ToLower(filePath)
+	if strings.HasSuffix(lowercaseFilename, ".py") {
+		log.Println("Try to run a python program.")
+		cmdSlice = append(cmdSlice, "python3")
+		cmdSlice = append(cmdSlice, "-u")
+		cmdSlice = append(cmdSlice, filePath)
+		cmdStr := strings.Join(cmdSlice, " ")
+		return cmdStr
+	} else {
+		cmdSlice = append(cmdSlice, filePath)
+		cmdStr := strings.Join(cmdSlice, " ")
+		return cmdStr
+	}
+}
 
-	cmdStr := strings.Join(cmdSlice, " ")
+func Run(filePath string) error {
+	cmdStr := CheckFileType(filePath)
 	cmd := exec.Command("sh", "-c", cmdStr)
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	stdout, _ := cmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
+	log.Println("full command is :", cmdStr)
+	if err != nil {
+		log.Println("get stdout failed:", err)
+	}
 
 	go listenSystemSignals(cmd)
 	//go getStdout(stdout)
@@ -119,7 +153,7 @@ func Run(filePath string) error {
 		}
 	}()
 
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		log.Printf("cmd.Start() analysis service failed: %v", err)
 		os.Exit(-1)

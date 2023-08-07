@@ -23,9 +23,11 @@ $ ./data-visual collect example/vfsstat.py
 
 程序会自动将bpf程序的输出收集到metrics中。
 
-通过访问http://127.0.0.1:8090 可实时查看收集到的metrics。
+通过访问http://127.0.0.1:8090/metrics 可实时查看收集到的metrics。
 
 ### 使用prometheus-server的docker镜像监控metrics
+
+编辑prom_core/prometheus.yaml中targets参数，使其符合用户ip地址，默认127.0.0.1。之后使用下述操作。
 
 ```bash
 docker run \
