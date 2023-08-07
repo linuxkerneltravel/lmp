@@ -16,9 +16,18 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
 
 ## 使用方式
 
-```
+python封装的bpf程序：
+```bash
 $ make
 $ ./data-visual collect example/vfsstat.py
+```
+
+通过ecli工具启动/eBPF_Hub中的bpf程序:
+注意，该功能要先安装ecli工具和ecc工具。详见: https://github.com/eunomia-bpf/eunomia-bpf
+```bash
+$ make
+$ ecc ./example/opensnoop/opensnoop.bpf.c ./example/opensnoop/opensnoop.h
+$ ./data-visual collect ecli example/opensnoop/package.json
 ```
 
 程序会自动将bpf程序的输出收集到metrics中。
