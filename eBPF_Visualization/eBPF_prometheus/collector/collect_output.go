@@ -47,6 +47,8 @@ var GlobalServices = struct {
 	services map[string]*Aservice
 }{}
 
+var mu sync.Mutex
+
 func AddAService(svc *Aservice) error {
 	GlobalServices.Lock()
 	defer GlobalServices.Unlock()
@@ -141,6 +143,7 @@ func Run(filePath string) error {
 
 	mapchan := make(chan []map[string]interface{}, 2)
 	go rediectStdout(stdout, mapchan)
+
 	// process chan from redirect Stdout
 	go func() {
 		for {
@@ -185,12 +188,16 @@ func rediectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) 
 	scanner := bufio.NewScanner(stdout)
 	var titles []string
 	var line_number = 1
+	var commandindex = 0
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line_number == firstline {
 			log.Printf("Title:%s\n", line)
 			parms := strings.Fields(line)
 			for _, value := range parms {
+				if value != "COMM" {
+					commandindex = commandindex + 1
+				}
 				one_map := make(map[string]interface{})
 				one_map[value] = nil
 				maps = append(maps, one_map)
@@ -199,10 +206,36 @@ func rediectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) 
 		} else {
 			log.Printf("Content:%s\n", line)
 			parms := strings.Fields(line)
-			for i, value := range parms {
-				maps[i][titles[i]] = value
+			var special_parms []string
+			if len(parms) != len(titles) {
+				log.Printf("title number: %d, content number:%d", len(titles), len(parms))
+				var COMM string
+				for i, value := range parms {
+					if i < commandindex-1 && i >= len(parms)-1 {
+						special_parms = append(special_parms, value)
+					} else if i == commandindex-1 {
+						COMM = value
+					} else if i < len(parms)-1 {
+						COMM = COMM + " " + value
+						special_parms = append(special_parms, COMM)
+					}
+				}
+				newMap := make(map[string]interface{})
+				mu.Lock()
+				for i, value := range special_parms {
+					newMap[titles[i]] = value
+				}
+				mu.Unlock()
+				mapchan <- []map[string]interface{}{newMap}
+			} else {
+				newMap := make(map[string]interface{})
+				mu.Lock()
+				for i, value := range parms {
+					newMap[titles[i]] = value
+				}
+				mu.Unlock()
+				mapchan <- []map[string]interface{}{newMap}
 			}
-			mapchan <- maps
 		}
 		line_number += 1
 	}
