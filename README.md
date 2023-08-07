@@ -21,7 +21,7 @@
 | eBPF 可视化观测 | eBPF_Visualization | 为 eBPF 程序管理而开发的 web 管理系统，聚焦 eBPF 数据可视化和内核可视化。 |
 | eBPF 学习资料  | eBPF_Documentation | 社区收集、梳理和原创的 eBPF 相关资料和文档                  |
 
-### eBPF_Supermarket：eBPF超级市场
+### eBPF_Supermarket：eBPF超级市场【代码成熟，可以直接运行，欢迎使用，欢迎提问题提代码】
 
 收集 eBPF 相关工具，现有`17`个：
 
@@ -30,13 +30,13 @@
 
 更多说明请查看 eBPF_Supermarket 仓库的 [README](eBPF_Supermarket/README.md)
 
-### eBPF_Hub:
+### eBPF_Hub:【还在开发中，欢迎一起建设】
 
 收集 eBPF 相关代码库，以规范化的方式管理 eBPF 程序，可以随时下载运行。
 
 更多说明请查看 eBPF_Hub 仓库的 [README](eBPF_Hub/README.md)
 
-### eBPF_Visualization：eBPF可视化观测
+### eBPF_Visualization：eBPF可视化观测【开发中，暂不可用，欢迎一起建设】
 
 为 eBPF 程序管理而开发的 web 管理系统，聚焦eBPF数据可视化和内核可视化，
 
@@ -47,7 +47,7 @@
 
 更多说明请查看 eBPF_Visualization 仓库的 [README](eBPF_Visualization/README.md)
 
-### eBPF_Documentation：eBPF学习资料
+### eBPF_Documentation：eBPF学习资料【资料丰富，不断积累中，欢迎投稿贡献和指出现有文档中的问题】
 
 本仓库存放 eBPF 和 LMP 相关文档，为大家提供学习指引，规划类别如下：
 
