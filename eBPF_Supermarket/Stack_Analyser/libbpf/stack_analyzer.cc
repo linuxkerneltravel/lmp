@@ -33,15 +33,11 @@ extern "C"
 {
 #endif
 
-#include <paths.h>
-#include <fcntl.h>
 #include <sys/syscall.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
-#include <unistd.h>
 #include <bpf/bpf.h>
 #include <errno.h>
-#include <string.h>
 #include <bpf/libbpf.h>
 #include <signal.h>
 
@@ -94,14 +90,31 @@ namespace env
 class bpf_loader
 {
 protected:
-	int pid, cpu, err, count_fd, tgid_fd, comm_fd, trace_fd;
-	bool ustack, kstack;
+	int pid; // 用于设置ebpf程序跟踪的pid
+	int cpu; // 用于设置ebpf程序跟踪的cpu
+	int err; // 用于保存错误代码
+	int count_fd; // 栈计数表的文件描述符
+	int tgid_fd; // pid-tgid表的文件描述符
+	int comm_fd; // pid-进程名表的文件描述符
+	int trace_fd; // 栈id-栈轨迹表的文件描述符
+	bool ustack; // 是否跟踪用户栈
+	bool kstack; // 是否跟踪内核栈
+
+/// @brief 获取epbf程序中指定表的文件描述符
+/// @param name 表的名字
 #define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
+
+/// @brief 获取所有表的文件描述符
 #define OPEN_ALL_MAP                 \
 	count_fd = OPEN_MAP(psid_count); \
 	tgid_fd = OPEN_MAP(pid_tgid);    \
 	comm_fd = OPEN_MAP(pid_comm);    \
 	trace_fd = OPEN_MAP(stack_trace);
+
+/// @brief 加载、初始化参数并打开指定类型的ebpf程序
+/// @param name ebpf程序的类型名
+/// @param ... 一些ebpf程序全局变量初始化语句
+/// @note 失败会使上层函数返回-1
 #define LO(name, ...)                              \
 	skel = name##_bpf__open();                     \
 	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
@@ -109,14 +122,28 @@ protected:
 	err = name##_bpf__load(skel);                  \
 	CHECK_ERR(err, "Fail to load BPF skeleton");   \
 	OPEN_ALL_MAP
+
+/// @class rapidjson::Value
+/// @brief 添加字符串常量键和任意值，值可使用内存分配器
+/// @param k 设置为键的字符串常量
+/// @param ... 对应值，可使用内存分配器
 #define CKV(k, ...)                                 \
 	AddMember(k,                                    \
 			  rapidjson::Value(__VA_ARGS__).Move(), \
 			  alc)
+
+/// @class rapidjson::Value
+/// @brief 添加需要分配内存的变量字符串键和值，值可使用内存分配器
+/// @param k 设置为键的字符串变量
+/// @param ... 对应值，可使用内存分配器
 #define KV(k, ...)                                  \
 	AddMember(rapidjson::Value(k, alc).Move(),      \
 			  rapidjson::Value(__VA_ARGS__).Move(), \
 			  alc)
+
+/// @class rapidjson::Value::kArray
+/// @brief 添加字符串变量
+/// @param v 要添加的字符串变量
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
 public:
@@ -125,8 +152,28 @@ public:
 		count_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
 	};
-	virtual int load(void) = 0, attach(void) = 0;
-	virtual void detach(void) = 0, unload(void) = 0;
+
+	/// @brief 负责ebpf程序的加载、参数设置和打开操作
+	/// @param  无
+	/// @return 成功则返回0，否则返回负数
+	virtual int load(void) = 0;
+
+	/// @brief 将ebpf程序挂载到跟踪点上
+	/// @param  无
+	/// @return 成功则返回0，否则返回负数
+	virtual int attach(void) = 0;
+
+	/// @brief 断开ebpf的跟踪点和处理函数间的连接
+	/// @param  无
+	virtual void detach(void) = 0;
+
+	/// @brief 卸载ebpf程序
+	/// @param  无
+	virtual void unload(void) = 0;
+
+	/// @brief 将表中的栈数据保存为火焰图
+	/// @param  无
+	/// @return 表未成功打开则返回负数
 	int flame_save(void)
 	{
 		printf("saving flame...\n");
@@ -237,6 +284,10 @@ public:
 		pclose(fp);
 		return 0;
 	}
+	
+	/// @brief 将表中的栈数据保存为json文件
+	/// @param  无
+	/// @return 表未成功打开则返回负数
 	int data_save(void)
 	{
 		printf("saving...\n");
@@ -375,6 +426,10 @@ public:
 		fclose(fp);
 		return 0;
 	};
+
+	/// @brief 每隔5s输出计数表中的栈及数量
+	/// @param time 输出的持续时间
+	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
 	int count_log(int time)
 	{
 		CHECK_ERR(count_fd < 0, "count map open failure");
@@ -392,6 +447,10 @@ public:
 		};
 		return time;
 	};
+
+	/// @brief 一个执行ebpf程序的总流程
+	/// @param  无
+	/// @return 成功则返回0，失败返回负数
 	int test(void)
 	{
 		do
@@ -558,10 +617,11 @@ public:
 	};
 	int load(void) override
 	{
-		LO(io_count,
-		   skel->bss->apid = pid,
-		   skel->bss->u = ustack,
-		   skel->bss->k = kstack)
+		LO(io_count, {
+		   skel->bss->apid = pid;
+		   skel->bss->u = ustack;
+		   skel->bss->k = kstack;
+		})
 		return 0;
 	};
 	int attach(void) override
