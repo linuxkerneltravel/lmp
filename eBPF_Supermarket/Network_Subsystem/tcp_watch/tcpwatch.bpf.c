@@ -130,6 +130,39 @@ const volatile int filter_sport = 0;
             &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);                    \
     }
 
+#define CONN_ADD_EXTRA_INFO                                                    \
+    struct tcp_sock *tp = (struct tcp_sock *)sk;                               \
+    conn->srtt = BPF_CORE_READ(tp, srtt_us);                                   \
+    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;         \
+    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);                        \
+    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);                  \
+    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);                              \
+    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);                      \
+    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);                               \
+    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);                  \
+    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);                     \
+    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+#define CONN_INFO_TRANSFER                                                     \
+    tinfo->sk = conn->sock;                                                    \
+    for (int i = 0; i < MAX_COMM; ++i) {                                       \
+        tinfo->comm[i] = conn->comm[i];                                        \
+    }
+
+#define PACKET_INIT_WITH_COMMON_INFO                                           \
+    struct pack_t *packet;                                                     \
+    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);                     \
+    if (!packet) {                                                             \
+        return 0;                                                              \
+    }                                                                          \
+    for (int i = 0; i < MAX_COMM; ++i) {                                       \
+        packet->comm[i] = tinfo->comm[i];                                      \
+    }                                                                          \
+    packet->err = 0;                                                           \
+    packet->sock = sk;                                                         \
+    packet->ack = pkt_tuple.ack;                                               \
+    packet->seq = pkt_tuple.seq;
+
 /* help macro end */
 
 /* help functions */
@@ -501,24 +534,13 @@ int BPF_KPROBE(tcp_v4_do_rcv, struct sock *sk, struct sk_buff *skb) {
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->sk = sk;
-    // copy comm string
-    for (int i = 0; i < MAX_COMM; ++i) {
-        tinfo->comm[i] = conn->comm[i];
-    }
+
+    CONN_INFO_TRANSFER
+
     // bpf_printk("rx enter tcp4_do_rcv, sk: %p \n", sk);
-    //  conn info update
-    struct tcp_sock *tp = (struct tcp_sock *)sk;
-    conn->srtt = BPF_CORE_READ(tp, srtt_us);
-    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
-    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);
-    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);
-    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
-    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
-    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);
-    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
-    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
-    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+    CONN_ADD_EXTRA_INFO
+
     return 0;
 }
 SEC("kprobe/tcp_v6_do_rcv")
@@ -543,24 +565,12 @@ int BPF_KPROBE(tcp_v6_do_rcv, struct sock *sk, struct sk_buff *skb) {
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->sk = sk;
 
-    for (int i = 0; i < MAX_COMM; ++i) {
-        tinfo->comm[i] = conn->comm[i];
-    }
+    CONN_INFO_TRANSFER
+
     // bpf_printk("rx enter tcp6_do_rcv, sk: %p \n", sk);
-    /*----- update conn info ------*/
-    struct tcp_sock *tp = (struct tcp_sock *)sk;
-    conn->srtt = BPF_CORE_READ(tp, srtt_us);
-    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
-    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);
-    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);
-    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
-    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
-    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);
-    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
-    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
-    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+    CONN_ADD_EXTRA_INFO
 
     return 0;
 }
@@ -607,27 +617,20 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
         return 0;
     }
     // bpf_printk("rx enter app layer.\n");
-    struct pack_t *packet;
-    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
-    if (!packet) {
-        return 0;
-    }
-    // bpf_printk("rx packet sk: %p\n", sk);
-    for (int i = 0; i < MAX_COMM; ++i) {
-        packet->comm[i] = tinfo->comm[i];
-    }
-    packet->err = 0;
-    packet->sock = sk;
-    packet->ack = pkt_tuple.ack;
-    packet->seq = pkt_tuple.seq;
+
+    PACKET_INIT_WITH_COMMON_INFO
+
     packet->mac_time = tinfo->ip_time - tinfo->mac_time;
     packet->ip_time = tinfo->tcp_time - tinfo->ip_time;
     packet->tcp_time = tinfo->app_time - tinfo->tcp_time;
     packet->rx = 1;
+
+    // RX HTTP INFO
     int doff = BPF_CORE_READ_BITFIELD_PROBED(tcp, doff); // 得用bitfield_probed
     unsigned char *user_data =
         (unsigned char *)((unsigned char *)tcp + (doff * 4));
     bpf_probe_read_str(packet->data, sizeof(packet->data), user_data);
+
     bpf_ringbuf_submit(packet, 0);
     return 0;
 }
@@ -789,31 +792,20 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
         }
         tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
     }
-    for (int i = 0; i < MAX_COMM; ++i) {
-        tinfo->comm[i] = conn->comm[i];
-    }
-    tinfo->sk = sk;
-    /*----- update conn info ------*/
-    struct tcp_sock *tp = (struct tcp_sock *)sk;
-    conn->srtt = BPF_CORE_READ(tp, srtt_us);
-    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
-    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);
-    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);
-    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
-    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
-    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);
-    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
-    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
-    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+    CONN_INFO_TRANSFER
+
+    CONN_ADD_EXTRA_INFO
+
+    // TX HTTP info
     unsigned char *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
     if (tinfo == NULL) {
         return 0;
     }
-    bpf_printk("kernel data: %s", user_data);
     bpf_probe_read_str(tinfo->data, sizeof(tinfo->data), user_data);
-    bpf_printk("tinfo data: %s", tinfo->data);
+
     return 0;
 }
 
@@ -966,25 +958,17 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
     if (sk == NULL) {
         return 0;
     }
-    struct pack_t *packet;
-    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
-    if (!packet) {
-        return 0;
-    }
-    for (int i = 0; i < MAX_COMM; ++i) {
-        packet->comm[i] = tinfo->comm[i];
-    }
-    // bpf_printk("tx packet sk: %p\n", sk);
-    packet->err = 0;
-    packet->sock = sk;
-    packet->ack = pkt_tuple.ack;
-    packet->seq = pkt_tuple.seq;
+
+    PACKET_INIT_WITH_COMMON_INFO
+
     packet->tcp_time = tinfo->ip_time - tinfo->tcp_time;
     packet->ip_time = tinfo->mac_time - tinfo->ip_time;
     packet->mac_time = tinfo->qdisc_time - tinfo->mac_time;
     packet->rx = 0;
+
+    // TX HTTP Info
     bpf_probe_read_str(packet->data, sizeof(packet->data), tinfo->data);
-    // 此时skb为非线性 不能直接用RX同样的方式读取
+
     bpf_ringbuf_submit(packet, 0);
 
     return 0;
