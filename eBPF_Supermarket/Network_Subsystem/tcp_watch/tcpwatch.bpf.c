@@ -84,6 +84,7 @@ struct {
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
+const volatile int all_conn = 0;
 
 /* help macro */
 #define FILTER_DPORT                                                           \
@@ -343,6 +344,9 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
 /* erase CLOSED TCP connection */
 SEC("kprobe/tcp_set_state")
 int BPF_KPROBE(tcp_set_state, struct sock *sk, int state) {
+    if (all_conn) {
+        return 0;
+    }
     struct conn_t *value = bpf_map_lookup_elem(&conns_info, &sk);
     if (state == TCP_CLOSE && value != NULL) {
         // delete
