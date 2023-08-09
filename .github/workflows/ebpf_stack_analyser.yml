@@ -29,6 +29,7 @@ jobs:
           sudo apt install linux-tools-5.19.0-46-generic	
           sudo apt install linux-cloud-tools-5.19.0-46-generic
           sudo apt install libc6-dev-i386
+          sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
 
       - name: Run 
         run: |
