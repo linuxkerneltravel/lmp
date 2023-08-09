@@ -191,9 +191,10 @@ public:
 			if (max_deep < deep)
 				max_deep = deep;
 		}
-		std::ostringstream tex;
+		std::ostringstream tex("");
 		for (psid prev = {}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
 		{
+			std::string line("");
 			symbol sym;
 			__u64 ip[MAX_STACKS];
 			if (id.ksid >= 0)
@@ -205,20 +206,20 @@ public:
 						break;
 					sym.reset(p);
 					if (g_symbol_parser.find_kernel_symbol(sym))
-						tex << sym.name << '\n';
+						line = sym.name + ';' + line;
 					else
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
-						tex << a << '\n';
 						std::string s(a);
+						line = s + ';' + line;
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
 					}
 				}
 			}
 			else
-				tex << "[MISSING KERNEL STACK]" << '\n';
-			tex << "________________" << '\n';
+				line = "[MISSING KERNEL STACK];" + line;
+			line = std::string("----------------;") + line;
 			unsigned deep = 0;
 			if (id.usid >= 0)
 			{
@@ -243,45 +244,49 @@ public:
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
-						tex << a << '\n';
 						std::string s(a);
+						line = s + ';' + line;
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
 					}
 					else
-						tex << *s << '\n';
+						line = *s + ';' + line;
 					deep++;
 				}
 			}
 			else
 			{
-				tex << "[MISSING USER STACK]" << '\n';
+				line = std::string("[MISSING USER STACK];") + line;
 				deep = 1;
 			}
 			deep = max_deep - deep;
 			for (int i = 0; i < deep; i++)
 			{
-				tex << "_\n";
+				line = ".;" + line;
 			}
 			{
 				char cmd[COMM_LEN];
 				bpf_map_lookup_elem(comm_fd, &id.pid, cmd);
-				tex << cmd << ' ' << id.pid << '\n';
+				line = std::string(cmd) + ':' + std::to_string(id.pid) + ';' + line;
 			}
 			int count;
 			bpf_map_lookup_elem(count_fd, &id, &count);
-			tex << count << "\n\n";
+			line +=  " " + std::to_string(count) + "\n";
+			tex << line;
 		}
 		std::string tex_s = tex.str();
 		FILE *fp = 0;
-		// fp = fopen("flatex.log", "w");
-		// CHECK_ERR(!fp, "Failed to save flame text");
-		// fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
-		// fclose(fp);
-		fp = popen("stackcollapse.pl | tee colps.log | flamegraph.pl > flame.svg", "w");
-		CHECK_ERR(!fp, "Failed to draw flame graph");
-		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 
+		fp = fopen("flatex.log", "w");
+		CHECK_ERR(!fp, "Failed to save flame text");
+		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
+		fclose(fp);
+
+		fp = popen("flamegraph.pl > flame.svg", "w");
+		CHECK_ERR(!fp, "Failed to draw flame graph");
+		// fwrite("", 1, 0, fp);
+		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		pclose(fp);
+		printf("complete\n");
 		return 0;
 	}
 	
