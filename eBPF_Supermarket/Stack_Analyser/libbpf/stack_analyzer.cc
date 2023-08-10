@@ -146,6 +146,32 @@ protected:
 /// @param v 要添加的字符串变量
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
+	struct pksid_count {
+		int32_t pid, ksid, usid;
+		uint64_t count;
+
+		pksid_count(int32_t p, int32_t k, int32_t u, uint64_t c) {
+			pid = p;
+			ksid = k;
+			usid = u;
+			count = c;
+		};
+
+		bool operator < (const pksid_count b) { return count < b.count; };
+	};
+
+	std::vector<pksid_count> *sortD() {
+		if(count_fd < 0) return NULL;
+		std::vector<pksid_count> *D = new std::vector<pksid_count>();
+		__u64 count;
+		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id) {
+			bpf_map_lookup_elem(count_fd, &id, &count);
+			pksid_count d(id.pid, id.ksid, id.usid, count);
+			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
+		}
+		return D;
+	}
+
 public:
 	bpf_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : pid(p), cpu(c), ustack(u), kstack(k)
 	{
@@ -330,32 +356,29 @@ public:
 			ajson[tgid_s.c_str()][pid_s.c_str()].CKV("name", cmd.str, alc);
 		}
 
-		std::string unsymbol("[UNKNOWN]");
-		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
+		auto D = sortD();
+		for(auto id = D->rbegin(); id != D->rend(); ++id)
 		{
-			rapidjson::Value trace;
+			rapidjson::Value *trace;
 			{
-				int count;
-				bpf_map_lookup_elem(count_fd, &id, &count);
-				rapidjson::Value stacks;
+				rapidjson::Value *stacks;
 				{
-					std::string tgid_s = std::to_string(pidtgid_map[id.pid]);
-					std::string pid_s = std::to_string(id.pid);
-					stacks = ajson[tgid_s.c_str()][pid_s.c_str()]["stacks"].GetObject();
+					std::string tgid_s = std::to_string(pidtgid_map[id->pid]);
+					std::string pid_s = std::to_string(id->pid);
+					stacks = &(ajson[tgid_s.c_str()][pid_s.c_str()]["stacks"]);
 				}
-				auto sid_c = (std::to_string(id.usid) + "," + std::to_string(id.ksid)).c_str();
-				// auto sid_c = sid_s.c_str();
-				stacks.KV(sid_c, rapidjson::kObjectType);
-				stacks[sid_c].CKV("count", count);
-				stacks[sid_c].CKV("trace", rapidjson::kArrayType);
-				trace = stacks[sid_c]["trace"].GetArray();
+				auto sid_c = (std::to_string(id->usid) + "," + std::to_string(id->ksid)).c_str();
+				stacks->KV(sid_c, rapidjson::kObjectType);
+				(*stacks)[sid_c].CKV("count", id->count);
+				(*stacks)[sid_c].CKV("trace", rapidjson::kArrayType);
+				trace = &((*stacks)[sid_c]["trace"]);
 			}
 			// symbolize
 			symbol sym;
 			__u64 ip[MAX_STACKS];
-			if (id.ksid >= 0)
+			if (id->ksid >= 0)
 			{
-				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
+				bpf_map_lookup_elem(trace_fd, &id->ksid, ip);
 				for (auto p : ip)
 				{
 					if (!p)
@@ -367,46 +390,46 @@ public:
 						char offs[20];
 						sprintf(offs, "+0x%x", offset);
 						std::string s = sym.name + std::string(offs);
-						trace.PV(s.c_str());
+						trace->PV(s.c_str());
 					}
 					else
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string s(a);
-						trace.PV(a);
+						trace->PV(a);
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
 					}
 				}
 			}
 			else
-				trace.PV("[MISSING KERNEL STACK]");
-			trace.PV("----------------");
-			if (id.usid >= 0)
+				trace->PV("[MISSING KERNEL STACK]");
+			trace->PV("----------------");
+			if (id->usid >= 0)
 			{
 				std::string symbol;
 				elf_file file;
-				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
+				bpf_map_lookup_elem(trace_fd, &id->usid, ip);
 				for (auto p : ip)
 				{
 					if (!p)
 						break;
 					sym.reset(p);
 					std::string *s = 0;
-					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
+					if (g_symbol_parser.find_symbol_in_cache(id->pid, p, symbol))
 						s = &symbol;
-					else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-							 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+					else if (g_symbol_parser.get_symbol_info(id->pid, sym, file) &&
+							 g_symbol_parser.find_elf_symbol(sym, file, id->pid, id->pid))
 					{
 						s = &sym.name;
-						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+						g_symbol_parser.putin_symbol_cache(id->pid, p, sym.name);
 					}
 					if (!s)
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string s(a);
-						trace.PV(a);
+						trace->PV(a);
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
 					}
 					else
@@ -415,13 +438,14 @@ public:
 						char offs[20];
 						sprintf(offs, "+0x%x", offset);
 						*s = *s + std::string(offs);
-						trace.PV(s->c_str());
+						trace->PV(s->c_str());
 					}
 				}
 			}
 			else
-				trace.PV("[MISSING USER STACK]");
+				trace->PV("[MISSING USER STACK]");
 		}
+		delete D;
 
 		FILE *fp = fopen("stack_count.json", "w");
 		char writeBuffer[65536];
@@ -438,17 +462,16 @@ public:
 	int count_log(int time)
 	{
 		CHECK_ERR(count_fd < 0, "count map open failure");
-		int val;
 		/*for traverse map*/
 		for (; !env::exiting && time > 0; time -= 5)
 		{
 			printf("---------%d---------\n", count_fd);
 			sleep(5);
-			for (psid prev = {}, key; !bpf_map_get_next_key(count_fd, &prev, &key); prev = key)
-			{
-				bpf_map_lookup_elem(count_fd, &key, &val);
-				printf("%6d\t(%6d,%6d)\t%-6d\n", key.pid, key.ksid, key.usid, val);
+			auto D = sortD();
+			for(auto d : *D) {
+				printf("%6d\t(%6d,%6d)\t%-6lu\n", d.pid, d.ksid, d.usid, d.count);
 			}
+			delete D;
 		};
 		return time;
 	};
