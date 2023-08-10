@@ -26,7 +26,7 @@ extern char *__cxa_demangle(const char *name, char *output, long *len, int *stat
  * @param[in] mangled_name 符号
  * @return 还原后的符号
  * @details 对于未重整的符号，调用strdup()
- *          对于重整过的符号（以"_Z"起始），调用abi::__cxa_demangle()
+ *          对于重整过的符号（以"_GLOBAL__sub_I__Z"或"_Z"起始），调用abi::__cxa_demangle()
  * @retval 指向堆内存
  */
 char *demangle(const char *mangled_name);

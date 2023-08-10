@@ -120,7 +120,7 @@ struct symbol_tab *symtab;
 struct dyn_symbol_set *dyn_symset;
 struct vmap_list *vmaps;
 
-char buf[256];
+char buf[MAX_SYMBOL_LEN];
 char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
 int status = -1, pre_ustack_sz = 0;
 
