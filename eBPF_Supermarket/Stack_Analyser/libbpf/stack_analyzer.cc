@@ -90,15 +90,15 @@ namespace env
 class bpf_loader
 {
 protected:
-	int pid; // 用于设置ebpf程序跟踪的pid
-	int cpu; // 用于设置ebpf程序跟踪的cpu
-	int err; // 用于保存错误代码
+	int pid;	  // 用于设置ebpf程序跟踪的pid
+	int cpu;	  // 用于设置ebpf程序跟踪的cpu
+	int err;	  // 用于保存错误代码
 	int count_fd; // 栈计数表的文件描述符
-	int tgid_fd; // pid-tgid表的文件描述符
-	int comm_fd; // pid-进程名表的文件描述符
+	int tgid_fd;  // pid-tgid表的文件描述符
+	int comm_fd;  // pid-进程名表的文件描述符
 	int trace_fd; // 栈id-栈轨迹表的文件描述符
-	bool ustack; // 是否跟踪用户栈
-	bool kstack; // 是否跟踪内核栈
+	bool ustack;  // 是否跟踪用户栈
+	bool kstack;  // 是否跟踪内核栈
 
 /// @brief 获取epbf程序中指定表的文件描述符
 /// @param name 表的名字
@@ -146,25 +146,30 @@ protected:
 /// @param v 要添加的字符串变量
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
-	struct pksid_count {
+	struct pksid_count
+	{
 		int32_t pid, ksid, usid;
 		uint64_t count;
 
-		pksid_count(int32_t p, int32_t k, int32_t u, uint64_t c) {
+		pksid_count(int32_t p, int32_t k, int32_t u, uint64_t c)
+		{
 			pid = p;
 			ksid = k;
 			usid = u;
 			count = c;
 		};
 
-		bool operator < (const pksid_count b) { return count < b.count; };
+		bool operator<(const pksid_count b) { return count < b.count; };
 	};
 
-	std::vector<pksid_count> *sortD() {
-		if(count_fd < 0) return NULL;
+	std::vector<pksid_count> *sortD()
+	{
+		if (count_fd < 0)
+			return NULL;
 		std::vector<pksid_count> *D = new std::vector<pksid_count>();
 		__u64 count;
-		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id) {
+		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
+		{
 			bpf_map_lookup_elem(count_fd, &id, &count);
 			pksid_count d(id.pid, id.ksid, id.usid, count);
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
@@ -296,7 +301,7 @@ public:
 			}
 			int count;
 			bpf_map_lookup_elem(count_fd, &id, &count);
-			line +=  " " + std::to_string(count) + "\n";
+			line += " " + std::to_string(count) + "\n";
 			tex << line;
 		}
 		std::string tex_s = tex.str();
@@ -315,7 +320,7 @@ public:
 		printf("complete\n");
 		return 0;
 	}
-	
+
 	/// @brief 将表中的栈数据保存为json文件
 	/// @param  无
 	/// @return 表未成功打开则返回负数
@@ -357,7 +362,7 @@ public:
 		}
 
 		auto D = sortD();
-		for(auto id = D->rbegin(); id != D->rend(); ++id)
+		for (auto id = D->rbegin(); id != D->rend(); ++id)
 		{
 			rapidjson::Value *trace;
 			{
@@ -415,30 +420,35 @@ public:
 					if (!p)
 						break;
 					sym.reset(p);
-					std::string *s = 0;
+					std::string *s = NULL;
 					if (g_symbol_parser.find_symbol_in_cache(id->pid, p, symbol))
 						s = &symbol;
 					else if (g_symbol_parser.get_symbol_info(id->pid, sym, file) &&
 							 g_symbol_parser.find_elf_symbol(sym, file, id->pid, id->pid))
 					{
-						s = &sym.name;
+						s = &(sym.name);
 						g_symbol_parser.putin_symbol_cache(id->pid, p, sym.name);
 					}
 					if (!s)
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
-						std::string s(a);
+						std::string addr_s(a);
 						trace->PV(a);
-						g_symbol_parser.putin_symbol_cache(pid, p, s);
+						g_symbol_parser.putin_symbol_cache(id->pid, p, addr_s);
 					}
 					else
 					{
-						unsigned offset = p - sym.start;
-						char offs[20];
-						sprintf(offs, "+0x%x", offset);
-						*s = *s + std::string(offs);
-						trace->PV(s->c_str());
+						if (kill(id->pid, 0))
+							trace->PV(s->c_str());
+						else
+						{
+							unsigned offset = p - sym.start;
+							char offs[20];
+							sprintf(offs, " +0x%x", offset);
+							*s = *s + std::string(offs);
+							trace->PV(s->c_str());
+						}
 					}
 				}
 			}
@@ -463,12 +473,13 @@ public:
 	{
 		CHECK_ERR(count_fd < 0, "count map open failure");
 		/*for traverse map*/
-		for (; !env::exiting && time > 0; time -= 5)
+		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= 5)
 		{
 			printf("---------%d---------\n", count_fd);
 			sleep(5);
 			auto D = sortD();
-			for(auto d : *D) {
+			for (auto d : *D)
+			{
 				printf("%6d\t(%6d,%6d)\t%-6lu\n", d.pid, d.ksid, d.usid, d.count);
 			}
 			delete D;
@@ -646,9 +657,9 @@ public:
 	int load(void) override
 	{
 		LO(io_count, {
-		   skel->bss->apid = pid;
-		   skel->bss->u = ustack;
-		   skel->bss->k = kstack;
+			skel->bss->apid = pid;
+			skel->bss->u = ustack;
+			skel->bss->k = kstack;
 		})
 		return 0;
 	};
