@@ -16,9 +16,9 @@
 //
 // eBPF用户态探针部分
 
-#include "utrace.h"
-
 #include "vmlinux.h"
+
+#include "utrace.h"
 
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>

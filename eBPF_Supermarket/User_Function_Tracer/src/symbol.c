@@ -18,14 +18,15 @@
 
 #include "symbol.h"
 
-#include "demangle.h"
-#include "elf.h"
-#include "log.h"
 #include <elf.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "demangle.h"
+#include "elf.h"
+#include "log.h"
 
 static int addrsort(const void* lhs, const void* rhs) {
   const size_t addrl = ((const struct symbol*)(lhs))->addr;

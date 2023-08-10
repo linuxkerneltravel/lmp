@@ -18,10 +18,10 @@
 
 #include "utrace.h"
 
-#include "demangle.h"
-
 #include <stdlib.h>
 #include <string.h>
+
+#include "demangle.h"
 
 char *demangle(const char *mangled_name) {
   char *original_name;

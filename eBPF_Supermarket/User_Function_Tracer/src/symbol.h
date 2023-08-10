@@ -19,8 +19,9 @@
 #ifndef UTRACE_SYMBOL_H
 #define UTRACE_SYMBOL_H
 
-#include "elf.h"
 #include <stddef.h>
+
+#include "elf.h"
 
 /**
  * @brief 表示一个符号条目
