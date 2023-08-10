@@ -34,15 +34,14 @@ BPF_HASH(pid_comm, u32, comm);
 const char LICENSE[] SEC("license") = "GPL";
 
 int apid;
-char u,k;
+char u, k;
 
-SEC("kprobe/vfs_write")
-int BPF_KPROBE(do_stack)
+int do_stack(struct pt_regs *ctx)
 {
     u64 td = bpf_get_current_pid_tgid();
     u32 pid = td >> 32;
 
-    if((apid >= 0 && pid != apid) || !pid)
+    if ((apid >= 0 && pid != apid) || !pid)
         return 0;
 
     u32 tgid = td;
@@ -56,8 +55,8 @@ int BPF_KPROBE(do_stack)
     }
     psid apsid = {
         .pid = pid,
-        .usid = u?USER_STACK:-1,
-        .ksid = k?KERNEL_STACK:-1,
+        .usid = u ? USER_STACK : -1,
+        .ksid = k ? KERNEL_STACK : -1,
     };
 
     u32 len = PT_REGS_PARM3(ctx);
@@ -70,3 +69,9 @@ int BPF_KPROBE(do_stack)
         bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);
     return 0;
 }
+
+SEC("kprobe/vfs_write")
+int BPF_KPROBE(write_enter) { return do_stack(ctx); }
+
+SEC("kprobe/vfs_read")
+int BPF_KPROBE(read_enter) { return do_stack(ctx); }
