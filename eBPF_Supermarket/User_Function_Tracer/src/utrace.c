@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/personality.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -37,16 +38,20 @@
 #include "symbol.h"
 #include "vmap.h"
 
+#define BASE_ADDR 0x400000  // for no-pie option
+
+#define NOASLR 1000
 static const struct option longopts[] = {{"command", required_argument, NULL, 'c'},
                                          {"pid", required_argument, NULL, 'p'},
+                                         {"no-ASLR", no_argument, NULL, NOASLR},
                                          {"help", no_argument, NULL, 'h'},
-                                         {"debug", no_argument, NULL, 'd'},
                                          {NULL, 0, NULL, 0}};
 
 static const char *optstring = "c:p:hd";
 
 struct args {
   pid_t pid;
+  int aslr;
   char **argv;
 };
 
@@ -57,6 +62,7 @@ void print_usage(char *program) {
   LOG("  -c --command: the command to run the program to be traced.\n");
   LOG("  -p --pid: the PID of the program to be traced.\n");
   LOG("  -d --debug: enable debug mode.\n");
+  LOG("     --no-ASLR: disable Address Space Layout Randomization (ASLR).\n");
   LOG("  -h --help: disaply this usage information.\n");
   LOG("\n");
   LOG("Examples:\n");
@@ -68,13 +74,14 @@ void parse_args(int argc, char *argv[], struct args *arg) {
   int len, c = 0;
 
   arg->pid = 0;
+  arg->aslr = 1;
   arg->argv = (char **)malloc(sizeof(char *) * 16);
 
   debug = 0;
 
   int opt, opt_index = 1;
   while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) {
-    switch ((char)opt) {
+    switch (opt) {
       case 'c':  // -c --command
         len = strlen(optarg);
         for (int i = 0; i < len; i++) {
@@ -100,6 +107,9 @@ void parse_args(int argc, char *argv[], struct args *arg) {
       case 'd':  // -d --debug
         debug = 1;
         opt_index += 1;
+        break;
+      case NOASLR:
+        arg->aslr = 0;
         break;
       case 'h':  // -h --help
         print_usage(argv[0]);
@@ -258,10 +268,19 @@ int main(int argc, char **argv) {
   if (arg.pid) {
     pid = arg.pid;
     program = get_program(pid);
+  } else {
+    program = strdup(arg.argv[0]);
+  }
 
-    symtab = new_symbol_tab();
-    dyn_symset = new_dyn_symbol_set();
-    push_symbol_arr(symtab, new_symbol_arr(program, dyn_symset, 0));
+  symtab = new_symbol_tab();
+  dyn_symset = new_dyn_symbol_set();
+  push_symbol_arr(symtab, new_symbol_arr(program, dyn_symset, 0));
+  for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
+         sym++) {
+      if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
+    }
+
+  if (arg.pid) {
     for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
          sym++) {
       if (strcmp(sym->name, "_start") == 0)
@@ -270,8 +289,7 @@ int main(int argc, char **argv) {
         continue;
       else if (strcmp(sym->name, "__libc_csu_fini") == 0)
         continue;
-      else
-        uprobe_attach(skel, pid, program, sym->addr);
+      else uprobe_attach(skel, pid, program, sym->addr);
     }
 
     vmaps = new_vmap_list(pid);
@@ -288,17 +306,12 @@ int main(int argc, char **argv) {
           continue;
         uprobe_attach(skel, pid, vmap->libname, sym->addr);
       }
-
-      /* Attach tracepoints */
-      assert(utrace_bpf__attach(skel) == 0);
     }
-  } else {
-    program = strdup(arg.argv[0]);
 
-    symtab = new_symbol_tab();
-    dyn_symset = new_dyn_symbol_set();
+    /* Attach tracepoints */
+    assert(utrace_bpf__attach(skel) == 0);
+  } else {
     size_t break_addr = 0;
-    push_symbol_arr(symtab, new_symbol_arr(program, dyn_symset, 0));
     for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
          sym++) {
       if (strcmp(sym->name, "_start") == 0) {
@@ -312,6 +325,7 @@ int main(int argc, char **argv) {
       ERROR("Fork error\n");
       goto cleanup;
     } else if (pid == 0) {
+      if (!arg.aslr) personality(ADDR_NO_RANDOMIZE);
       ptrace(PTRACE_TRACEME, 0, 0, 0);
       execv(program, arg.argv);
       ERROR("Execv %s error\n", program);
@@ -400,6 +414,8 @@ cleanup:
   delete_symbol_tab(symtab);
   delete_dyn_symbol_set(dyn_symset);
   delete_vmap_list(vmaps);
+
+  free(program);
 
   return err < 0 ? -err : 0;
 }
