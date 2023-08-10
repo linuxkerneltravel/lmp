@@ -190,7 +190,7 @@ typedef struct
 /// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
 typedef struct
 {
-    __u64 addr;
+    void * addr;
     __u32 pid, o;
 } piddr;
 

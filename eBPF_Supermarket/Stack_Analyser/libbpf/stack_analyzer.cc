@@ -615,6 +615,7 @@ public:
 	{
 		LO(mem_count,
 		   skel->bss->u = ustack,
+		//    skel->bss->k = kstack,
 		   skel->bss->apid = pid)
 		return 0;
 	};
@@ -622,7 +623,16 @@ public:
 	{
 		ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
 		ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
+		ATTACH_UPROBE_CHECKED(skel, calloc, calloc_enter);
+		ATTACH_URETPROBE_CHECKED(skel, calloc, calloc_exit);
+		ATTACH_UPROBE_CHECKED(skel, realloc, realloc_enter);
+		ATTACH_URETPROBE_CHECKED(skel, realloc, realloc_exit);
 		ATTACH_UPROBE_CHECKED(skel, free, free_enter);
+
+		ATTACH_UPROBE_CHECKED(skel, mmap, mmap_enter);
+		ATTACH_URETPROBE_CHECKED(skel, mmap, mmap_exit);
+		ATTACH_UPROBE_CHECKED(skel, munmap, munmap_enter);
+
 		err = mem_count_bpf__attach(skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
