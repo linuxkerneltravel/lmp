@@ -5,8 +5,14 @@ ColumnLimit: 100
 PointerAlignment: Right
 IncludeCategories:  
   - Regex: '"vmlinux.h"' # let vmlinux.h come first
-    Priority: -1000
-  - Regex: '"utrace.h"'
-    Priority: -1001
-  - Regex: '"utrace.skel.h"'
-    Priority: -1000
+    Priority: -1
+  - Regex: '"utrace.*h"'    
+    Priority: 0
+  - Regex: '<getopt.h>'
+    Priority: -1
+  - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
+    Priority:        2
+  - Regex:           '^(<|"(gtest|isl|json)/)'
+    Priority:        2
+  - Regex:           '.\*'
+    Priority:        1
