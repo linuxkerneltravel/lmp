@@ -18,20 +18,22 @@
 
 #include "log.h"
 
-#include <stdio.h>
+int debug;
 
-void print_char(char c, int cnt) {
+void log_char(char c, int cnt) {
   while (cnt > 0) {
-    printf("%c", c);
+    LOG("%c", c);
     --cnt;
   }
 }
 
-void print_header() { printf("# DURATION     TID     FUNCTION\n"); }
+void log_header() { LOG(" CPU |   TID  |   DURATION  |   FUNCTION CALLS\n"); }
 
-void print_tid(int tid) { printf("[%6d]", tid); }
+void log_tid(int tid) { LOG("%6d", tid); }
 
-void print_time_unit(size_t ns) {
+void log_cpuid(int cpuid) { LOG("%4d", cpuid); }
+
+void log_time(size_t ns) {
   static char *units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
@@ -48,5 +50,5 @@ void print_time_unit(size_t ns) {
     ++i;
   }
 
-  printf("%3zu.%03zu %s", t, t_mod, units[i]);
+  LOG("%4zu.%03zu %s", t, t_mod, units[i]);
 }

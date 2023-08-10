@@ -35,22 +35,24 @@ struct {
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
-  __uint(max_entries, 256 * 1024);
+  __uint(max_entries, 8192 * 1024);
 } records SEC(".maps");
 
 SEC("uprobe/trace")
 int BPF_KPROBE(uprobe) {
   struct profile_record *r;
-  pid_t pid, tid;
+  pid_t pid, tid, cpu_id;
   u64 id, ts;
 
   id = bpf_get_current_pid_tgid();
   tid = (u32)id;
   pid = id >> 32;
+  cpu_id = bpf_get_smp_processor_id();
 
   r = bpf_ringbuf_reserve(&records, sizeof(*r), 0);
   if (!r) return 0;
   r->tid = tid;
+  r->cpu_id = cpu_id;
   r->duration_ns = 0;
   r->ustack_sz =
       bpf_get_stack(ctx, r->ustack, sizeof(r->ustack), BPF_F_USER_STACK) / sizeof(r->ustack[0]);
@@ -65,18 +67,20 @@ int BPF_KPROBE(uprobe) {
 SEC("uretprobe/trace")
 int BPF_KRETPROBE(uretprobe) {
   struct profile_record *r;
-  pid_t pid, tid;
+  pid_t pid, tid, cpu_id;
   u64 id, end_ts = bpf_ktime_get_ns();
   u64 *start_ts;
   s32 ustack_sz;
 
   id = bpf_get_current_pid_tgid();
+  cpu_id = bpf_get_smp_processor_id();
   pid = id >> 32;
   tid = (u32)id;
 
   r = bpf_ringbuf_reserve(&records, sizeof(*r), 0);
   if (!r) return 0;
   r->tid = tid;
+  r->cpu_id = cpu_id;
   r->ustack_sz = bpf_get_stack(ctx, r->ustack, sizeof(r->ustack), BPF_F_USER_STACK) /
                  sizeof(sizeof(r->ustack[0]));
   ustack_sz = r->ustack_sz;

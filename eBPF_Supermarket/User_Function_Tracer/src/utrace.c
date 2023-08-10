@@ -85,39 +85,53 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
   const struct profile_record *r = data;
 
   if (r->exit) {
-    // for (int i = 0; i < r->ustack_sz; i++) printf("%llx ", r->ustack[i]);
+    // LOG("EXIT");
+    // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
+    // LOG(" %s\n", stack_func[r->ustack_sz]);
+    // return 0;
     if (status == 0 && r->ustack_sz == pre_ustack_sz) {
-      printf(" ");
-      print_time_unit(r->duration_ns);
-      printf(" ");
-      print_tid(r->tid);
-      printf(" | ");
-      print_char(' ', 2 * r->ustack_sz - 2);
-      printf("%s();\n", stack_func[r->ustack_sz]);
+      log_cpuid(r->cpu_id);
+      LOG(" | ");
+      log_tid(r->tid);
+      LOG(" | ");
+      log_time(r->duration_ns);
+      LOG(" | ");
+      log_char(' ', 2 * r->ustack_sz - 2);
+      LOG("%s();\n", stack_func[r->ustack_sz]);
       status = 1;
       pre_ustack_sz = r->ustack_sz;
     } else if (status == 1 && r->ustack_sz == pre_ustack_sz - 1) {
-      printf(" ");
-      print_time_unit(r->duration_ns);
-      printf(" ");
-      print_tid(r->tid);
-      printf(" | ");
-      print_char(' ', 2 * r->ustack_sz - 2);
-      printf("} // %s\n", stack_func[r->ustack_sz]);
+      log_cpuid(r->cpu_id);
+      LOG(" | ");
+      log_tid(r->tid);
+      LOG(" | ");
+      log_time(r->duration_ns);
+      LOG(" | ");
+      log_char(' ', 2 * r->ustack_sz - 2);
+      LOG("} /* %s */\n", stack_func[r->ustack_sz]);
       status = 1;
       pre_ustack_sz = r->ustack_sz;
     }
   } else {
-    // for (int i = 0; i < r->ustack_sz; i++) printf("%llx ", r->ustack[i]);
+    // LOG("EXEC");
+    // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
+    // if (symbolize(r->ustack[0])) {
+    //   memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
+    // }
+    // LOG(" %s\n", stack_func[r->ustack_sz]);
+    // return 0;
     if (status == -1 && r->ustack_sz != 1) return 0;
     if (status == 0 && r->ustack_sz != pre_ustack_sz + 1) return 0;
     if (status == 1 && r->ustack_sz != pre_ustack_sz) return 0;
     if (status == 0) {
-      print_char(' ', 12);
-      print_tid(r->tid);
-      printf(" | ");
-      print_char(' ', 2 * r->ustack_sz - 4);
-      printf("%s() {\n", stack_func[r->ustack_sz - 1]);
+      log_cpuid(r->cpu_id);
+      LOG(" | ");
+      log_tid(r->tid);
+      LOG(" |");
+      log_char(' ', 12);
+      LOG(" | ");
+      log_char(' ', 2 * r->ustack_sz - 4);
+      LOG("%s() {\n", stack_func[r->ustack_sz - 1]);
     }
     if (symbolize(r->ustack[0])) {
       memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
@@ -231,7 +245,7 @@ int main(int argc, char **argv) {
     disable_breakpoint(gdb, pid, break_addr);
     continue_execution(pid);
 
-    print_header();
+    log_header();
     /* Process events */
     while (true) {
       err = ring_buffer__poll(records, 100 /* timeout, ms */);
