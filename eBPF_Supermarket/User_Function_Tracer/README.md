@@ -11,12 +11,23 @@ sudo apt install -y clang cmake ninja-build libelf1 libelf-dev zlib1g-dev libbpf
 
 ### 编译运行
 ```shell
-mkdir -p vmlinux
-bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
-cmake -B build -S . -G Ninja
-cmake --build build
+$ mkdir -p vmlinux
+$ bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
+$ cmake -B build -S . -G Ninja
+$ cmake --build build
+$ build/utrace -h
+Usage: build/utrace [$OPTIONS...]
 
-build/utrace PROGRAM|PID
+Options:
+  -c --command: the command to run the program to be traced.
+  -p --pid: the PID of the program to be traced.
+  -d --debug: enable debug mode.
+     --no-ASLR: disable Address Space Layout Randomization (ASLR).
+  -h --help: disaply this usage information.
+
+Examples:
+  build/utrace -c "$PROGRAM $ARGS"
+  build/utrace -p $PID
 ```
 
 ### 特点
@@ -25,9 +36,7 @@ build/utrace PROGRAM|PID
 + 不同于`perf`, `gprof`等性能分析工具，`eBPF-utrace`输出准确的函数调用时延，而不是基于perf_event()的采样方式。
 
 ### TODO
-- [] short live process
-- [] arg parser
-- [] input pid
-- [] more tests
-- [] colorful log
-- [] multithread
+- simplify c++ symbols
+- more tests
+- colorful log
+- multithread
