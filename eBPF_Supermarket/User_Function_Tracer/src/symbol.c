@@ -109,8 +109,6 @@ struct symbol_arr* new_symbol_arr(char* libname, struct dyn_symbol_set* dyn_syms
       if (sym.size == 0) continue;
       if (lib && !contain_dyn_symbol(dyn_symset, sym.name)) continue;
 
-      // if (strcmp(sym.name, "_start") == 0) continue;
-
       push_symbol(symbols, &sym);
       prev_sym_value = elf_e.sym.st_value;
     }

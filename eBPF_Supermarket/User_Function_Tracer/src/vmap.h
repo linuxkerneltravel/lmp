@@ -74,4 +74,12 @@ void delete_vmap_list(struct vmap_list* vmaps);
  */
 struct vmap* find_vmap(struct vmap_list* vmaps, size_t addr);
 
+/**
+ * @brief 获得进程在运行时的起始物理地址
+ * @param[in] pid 对应进程的进程号
+ * @return 起始地址
+ * @details 虚拟文件/proc/pid/maps中第一行的第一个字段
+ */
+size_t get_base_addr(pid_t pid);
+
 #endif  // UTRACE_VMAP_H

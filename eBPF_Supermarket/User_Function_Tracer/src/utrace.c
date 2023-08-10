@@ -20,6 +20,7 @@
 
 #include "utrace.skel.h"
 
+#include "gdb.h"
 #include "log.h"
 #include "symbol.h"
 #include "vmap.h"
@@ -30,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -62,9 +64,6 @@ void uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t a
       bpf_program__attach_uprobe(skel->progs.uretprobe, true /* uretprobe */, pid, exe, addr);
 
   assert(skel->links.uretprobe);
-
-  /* Attach tracepoints */
-  assert(utrace_bpf__attach(skel) == 0);
 }
 
 bool symbolize(size_t addr) {
@@ -156,14 +155,6 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-  symtab = new_symbol_tab();
-  dyn_symset = new_dyn_symbol_set();
-  push_symbol_arr(symtab, new_symbol_arr(exe, dyn_symset, 0));
-  for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-       sym++) {
-    uprobe_attach(skel, -1, exe, sym->addr);
-  }
-
   /* Set up ring buffer polling */
   records = ring_buffer__new(bpf_map__fd(skel->maps.records), handle_event, NULL, NULL);
   if (!records) {
@@ -172,17 +163,52 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
+  symtab = new_symbol_tab();
+  dyn_symset = new_dyn_symbol_set();
+  size_t break_addr = 0;
+  push_symbol_arr(symtab, new_symbol_arr(exe, dyn_symset, 0));
+  for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
+       sym++) {
+    if (strcmp(sym->name, "_start") == 0) {  // NOTE
+      break_addr = sym->addr;
+      break;
+    }
+  }
+
   pid_t pid = fork();
   if (pid < 0) {
     ERROR("Fork error\n");
     goto cleanup;
   } else if (pid == 0) {
-    execlp(exe, exe, NULL);
-    ERROR("Execlp %s error\n", exe);
+    ptrace(PTRACE_TRACEME, 0, 0, 0);
+    execl(exe, exe, NULL);
+    ERROR("Execl %s error\n", exe);
     exit(1);
   } else {
-    // TODO: short live process
-    sleep(1);  // wait for the address mapping
+    struct gdb *gdb = new_gdb();
+    wait_for_signal(pid);
+
+    vmaps = new_vmap_list(pid);
+    delete_vmap_list(vmaps);
+    break_addr += get_base_addr(pid);
+    DEBUG("break address: %zx\n", break_addr);
+
+    enable_breakpoint(gdb, pid, break_addr);
+    continue_execution(pid);
+    wait_for_signal(pid);
+
+    for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
+         sym++) {
+      if (strcmp(sym->name, "_start") == 0)
+        continue;
+      else if (strcmp(sym->name, "__libc_csu_init") == 0)
+        continue;
+      else if (strcmp(sym->name, "__libc_csu_fini") == 0)
+        continue;
+      else
+        uprobe_attach(skel, pid, exe, sym->addr);
+    }
+
     vmaps = new_vmap_list(pid);
     for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
          prev_vmap = vmap, vmap = vmap->next) {
@@ -191,14 +217,22 @@ int main(int argc, char **argv) {
       push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
       for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
            sym++) {
-        if (sym->addr != 0x48a80) continue;
+        if (strcmp(sym->name, "__cxa_finalize") == 0)
+          continue;
+        else if (strcmp(sym->name, "__libc_start_main") == 0)
+          continue;
         uprobe_attach(skel, pid, vmap->libname, sym->addr);
       }
     }
 
+    /* Attach tracepoints */
+    assert(utrace_bpf__attach(skel) == 0);
+
+    disable_breakpoint(gdb, pid, break_addr);
+    continue_execution(pid);
+
     print_header();
     /* Process events */
-    int status = 0;
     while (true) {
       err = ring_buffer__poll(records, 100 /* timeout, ms */);
       /* Ctrl-C will cause -EINTR */
@@ -211,7 +245,8 @@ int main(int argc, char **argv) {
         break;
       }
       if (err == 0) {
-        pid_t ret = waitpid(pid, &status, WNOHANG);
+        int wstatus;
+        pid_t ret = waitpid(pid, &wstatus, WNOHANG);
         if (ret > 0)
           break;
         else if (ret < 0) {

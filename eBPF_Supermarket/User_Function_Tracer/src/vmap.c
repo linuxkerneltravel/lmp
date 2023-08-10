@@ -102,3 +102,19 @@ struct vmap *find_vmap(struct vmap_list *vmaps, size_t addr) {
   }
   return NULL;
 }
+
+size_t get_base_addr(pid_t pid) {
+  static char buf[MAX_PATH_LEN];
+  size_t base_addr = 0;
+  snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
+
+  FILE *fmap = fopen(buf, "r");
+  if (fmap == NULL) {
+    ERROR("Cannot open %s\n", buf);
+    exit(1);
+  }
+
+  fgets(buf, sizeof(buf), fmap);
+  sscanf(buf, "%zx", &base_addr);
+  return base_addr;
+}
