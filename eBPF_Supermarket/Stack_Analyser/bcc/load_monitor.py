@@ -1,42 +1,73 @@
 #!/bin/python3
-import time
+from time import time, sleep, strftime
 from signal import signal, SIG_IGN
-from bcc import BPF, PerfType, PerfSWConfig
-from subprocess import Popen, PIPE
-import argparse
-
-# arguments
-examples = """examples:
-    ./load_monitor.py             # monitor system load until Ctrl-C
-    ./load_monitor.py -t 5           # monitor for 5 seconds only
-"""
 
 
-def positive_int(val):
-    try:
-        ival = int(val)
-    except ValueError:
-        raise argparse.ArgumentTypeError("must be an integer")
-    if ival <= 0:
-        raise argparse.ArgumentTypeError("must be positive")
-    return ival
+def nice_1():
+    from os import nice
+    nice(-20)
+
+nice_1()
+
+mem_path = "/dev/shm/load_monitor_tex.pkl"
+
+def get_args():
+    from argparse import ArgumentParser, ArgumentTypeError, RawDescriptionHelpFormatter
+    # arguments
+    examples = """examples:
+        ./load_monitor.py             # monitor system load until Ctrl-C
+        ./load_monitor.py -t 5           # monitor for 5 seconds only
+    """
+
+    def positive_int(val):
+        try:
+            ival = int(val)
+        except ValueError:
+            raise ArgumentTypeError("must be an integer")
+        if ival <= 0:
+            raise ArgumentTypeError("must be positive")
+        return ival
 
 
-parser = argparse.ArgumentParser(
-    description="Summarize on-CPU time by stack trace",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog=examples)
-parser.add_argument("-t", "--time", default=99999999, dest="time",
-                    type=positive_int, help="running time")
-parser.add_argument("-F", "--frequency", default=99, dest="freq",
-                    type=positive_int, help="monitor frequency")
-parser.add_argument("-d", "--delay", default=10, dest="delay",
-                    type=positive_int, help="output delay(interval)")
-args = parser.parse_args()
+    parser = ArgumentParser(
+        description="Summarize on-CPU time by stack trace",
+        formatter_class=RawDescriptionHelpFormatter,
+        epilog=examples)
+    parser.add_argument("-t", "--time", default=99999999, dest="time",
+                        type=positive_int, help="running time")
+    parser.add_argument("-F", "--frequency", default=99, dest="freq",
+                        type=positive_int, help="monitor frequency")
+    parser.add_argument("-d", "--delay", default=10, dest="delay",
+                        type=positive_int, help="output delay(interval)")
+    parser.add_argument("-l", "--threshold", default=8, dest="threshold",
+                        type=positive_int, help="load limit threshold")
+    # parser.add_argument("-f", "--flame-graph", action='store_true', dest="flame")
+    parser.add_argument("-r", "--report", action='store_true', dest="report")
+    return parser.parse_args()
+
+args = get_args()
+
+
+def save_fla(tex):
+    from subprocess import Popen, PIPE
+    p = Popen("flamegraph.pl > stack.svg", shell=True, stdin=PIPE)
+    p.stdin.write(tex.encode())
+    p.stdin.close()
+    p.wait()
+
+if args.report:
+    with open(mem_path, "r") as file:
+        print(file.read())
+    # if args.flame:
+    #     save_fla(tex)
+    # else:
+    from os import remove
+    remove(mem_path)
+    exit()
 
 code = """
 #include <linux/sched.h>
-#define LOAD_LIMIT 4
+#define LOAD_LIMIT LOAD_LIMIT_THRESHOLD
 #define MAX_ENTITY 10240
 #define avenrun AVENRUN_ADDRULL
 typedef struct {
@@ -67,29 +98,65 @@ void do_stack(struct pt_regs *ctx) {
 }
 """
 
-p = Popen("sudo cat /proc/kallsyms | grep ' avenrun'", shell=True, stdout=PIPE)
-p.wait()
-evanrun_addr = "0x" + p.stdout.read().split()[0].decode()
-# print("get addr of evanrun: ", evanrun_addr)
-code = code.replace("AVENRUN_ADDR", evanrun_addr)
+def get_load(code):
+    from subprocess import Popen, PIPE
+    p = Popen("sudo cat /proc/kallsyms | grep ' avenrun'", shell=True, stdout=PIPE)
+    p.wait()
+    evanrun_addr = "0x" + p.stdout.read().split()[0].decode()
+    # print("get addr of evanrun: ", evanrun_addr)
+    return code.replace("AVENRUN_ADDR", evanrun_addr)
 
+code = get_load(code)
+code = code.replace("LOAD_LIMIT_THRESHOLD", str(args.threshold))
 # !!!segfault
 # import ctypes
 # addr = int(evanrun_addr, base=16)
 # load = ctypes.cast(addr, ctypes.POINTER(ctypes.c_ulong)).contents
 
-bpf = BPF(text=code)
-bpf.attach_perf_event(ev_type=PerfType.SOFTWARE,
-                      ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_stack",
-                      sample_period=0, sample_freq=args.freq)
+def attach_bpf():
+    from bcc import BPF, PerfType, PerfSWConfig
+    bpf = BPF(text=code)
+    bpf.attach_perf_event(ev_type=PerfType.SOFTWARE,
+                        ev_config=PerfSWConfig.CPU_CLOCK, fn_name="do_stack",
+                        sample_period=0, sample_freq=args.freq)
+    return bpf
 
-def sig_handle(*_):
-    print("\b\bQuit...\n")
+bpf = attach_bpf()
+
+def detach_bpf(bpf):
+    from bcc import BPF, PerfType, PerfSWConfig
     bpf.detach_perf_event(ev_type=PerfType.SOFTWARE,
                           ev_config=PerfSWConfig.CPU_CLOCK)
+
+def format_tex():
+    stackcount = {TaskData(k): v.value for k,
+                    v in bpf["stack_count"].items()}
+    bpf["stack_count"].clear()
+    stackcount = sorted(stackcount.items(),
+                        key=lambda d: d[1], reverse=False)
+    timestr = strftime("%H:%M:%S")
+    tex = ''
+    for d in stackcount:
+        tex += "_"*32+'\n'
+        tex += "%-5d:%16s %d\n" % (d[0].pid, d[0].comm, d[1])
+        if d[0].ksid >= 0:
+            for j in bpf["stack_trace"].walk(d[0].ksid):
+                tex += "\t%#08x %s\n" % (j, bpf.ksym(j).decode())
+        else:
+            tex += "\t[MKS]\n"
+        tex += "\t"+"-"*16 + '\n'
+        if d[0].usid >= 0:
+            for j in bpf["stack_trace"].walk(d[0].usid):
+                tex += "\t%#08x %s\n" % (j, bpf.sym(j, d[0].pid).decode())
+        else:
+            tex += "\t[MUS]\n"
+    tex += "_"*26 + timestr + "_"*26 + '\n'
+    return tex
+
+def fla_tex():
     stackcount = {TaskData(k): v.value for k,
                   v in bpf["stack_count"].items()}
-
+    bpf["stack_count"].clear()
     max_deep = 0
     for k in stackcount.keys():
         if (k.usid >= 0):
@@ -105,7 +172,7 @@ def sig_handle(*_):
             for i in bpf["stack_trace"].walk(k.ksid):
                 line = bpf.ksym(i).decode()+';' + line
         else:
-            line = "[MISSING KERNEL STACK];" + line
+            line = "[MKS];" + line
         line = "-"*16+';' + line
         deep = 0
         if (k.usid >= 0):
@@ -113,19 +180,13 @@ def sig_handle(*_):
                 line = bpf.sym(i, k.pid).decode()+";" + line
                 deep += 1
         else:
-            line = "[MISSING USER STACK];" + line
+            line = "[MUS];" + line
             deep = 1
         line = '.;'*(max_deep - deep) + line
         line = '%s:%d;' % (k.comm, k.pid) + line
         line += " %d\n" % v
         tex += line
-    from subprocess import Popen, PIPE
-    p = Popen("flamegraph.pl > stack.svg", shell=True, stdin=PIPE)
-    p.stdin.write(tex.encode())
-    p.stdin.close()
-    p.wait()
-    exit()
-
+    return tex
 
 class TaskData:
     def __init__(self, a) -> None:
@@ -134,44 +195,36 @@ class TaskData:
         self.usid = a.usid
         self.comm = a.comm.decode()
 
+mem_file = open(mem_path, "a")
+
+def sig_handle(*_):
+    print("\b\bQuit...\n")
+    detach_bpf(bpf)
+    # tex = format_tex()
+    # print(tex, file=mem_file)
+    mem_file.close()
+    exit()
 
 signal(2, sig_handle)
 signal(1, sig_handle)
 start = 0.
 load = bpf["load"]
 period = 1/(args.freq + 1)
+print("start...")
+
 for _ in range(args.time):
     load_5 = int(load[0].value)
     # print(load_5, end=' ')
-    if (load_5 < 4):
-        time.sleep(period)
-    elif (time.time()-start > args.delay):
-        tex = ''
-        time.sleep(1)
-        stackcount = {TaskData(k): v.value for k,
-                      v in bpf["stack_count"].items()}
-        stackcount = sorted(stackcount.items(),
-                            key=lambda d: d[1], reverse=False)
-        timestr = time.strftime("%H:%M:%S")
-        for d in stackcount:
-            tex += "_"*32+'\n'
-            tex += "%-5d:%16s %d\n" % (d[0].pid, d[0].comm, d[1])
-            if d[0].ksid >= 0:
-                for j in bpf["stack_trace"].walk(d[0].ksid):
-                    tex += "\t%#08x %s\n" % (j, bpf.ksym(j).decode())
-            else:
-                tex += "\t[MISSING KERNEL STACK]\n"
-            tex += "\t"+"-"*16 + '\n'
-            if d[0].usid >= 0:
-                for j in bpf["stack_trace"].walk(d[0].usid):
-                    tex += "\t%#08x %s\n" % (j, bpf.sym(j, d[0].pid).decode())
-            else:
-                tex += "\t[MISSING USER STACK]\n"
-        tex += "_"*26 + timestr + "_"*26 + '\n'
-        print(tex)
-        start = time.time()
+    if (load_5 < args.threshold):
+        sleep(period)
+    elif (time()-start > args.delay):
+        # print(".")
+        sleep(period*100)
+        tex = format_tex()
+        print(tex, file=mem_file)
+        start = time()
     else:
-        time.sleep(args.delay)
+        sleep(args.delay)
 
 signal(2, SIG_IGN)
 signal(1, SIG_IGN)
