@@ -23,9 +23,6 @@
 
 #include "stack_analyzer.h"
 
-#define MINBLOCK_US 1ULL
-#define MAXBLOCK_US 99999999ULL
-
 BPF_HASH(psid_count, psid, u64);
 BPF_STACK_TRACE(stack_trace);
 BPF_HASH(pid_tgid, u32, u32);
@@ -37,12 +34,14 @@ BPF_HASH(piddr_meminfo, piddr, mem_info);
 const char LICENSE[] SEC("license") = "GPL";
 
 char u /*user stack flag*/, k /*kernel stack flag*/;
+int apid;
 
-SEC("uprobe")
-int BPF_KPROBE(malloc_enter, size_t size)
+int gen_alloc_enter(size_t size)
 {
-    bpf_printk("malloc_enter");
+    // bpf_printk("malloc_enter");
     // record data
+    if (!size)
+        return 0;
     u64 pt = bpf_get_current_pid_tgid();
     u32 pid = pt >> 32;
     u32 tgid = pt;
@@ -51,61 +50,104 @@ int BPF_KPROBE(malloc_enter, size_t size)
     if (!p)
     {
         comm name;
-        bpf_get_current_comm(&name, TASK_COMM_LEN);
+        bpf_get_current_comm(&name, COMM_LEN);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
 
     // record size
-    return bpf_map_update_elem(&pid_size, &pid, &size, BPF_NOEXIST);
+    return bpf_map_update_elem(&pid_size, &pid, &size, BPF_ANY);
 }
 
-SEC("uprobe")
-int BPF_KRETPROBE(malloc_exit)
+SEC("uprobe/malloc")
+int BPF_KPROBE(malloc_enter, size_t size)
 {
-    bpf_printk("malloc_exit");
+    return gen_alloc_enter(size);
+}
+
+SEC("uprobe/calloc")
+int BPF_KPROBE(calloc_enter, size_t nmemb, size_t size)
+{
+    return gen_alloc_enter(nmemb * size);
+}
+
+SEC("uprobe/mmap")
+int BPF_KPROBE(mmap_enter)
+{
+    size_t size = PT_REGS_PARM2(ctx);
+    return gen_alloc_enter(size);
+}
+
+int gen_alloc_exit(struct pt_regs *ctx)
+{
+    void *addr = (void *)PT_REGS_RC(ctx);
+    if (!addr)
+        return 0;
+    // bpf_printk("malloc_exit");
     // get size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 *size = bpf_map_lookup_elem(&pid_size, &pid);
-    if(!size) return -1;
+    if (!size)
+        return -1;
 
     // record stack count
     psid apsid = {
         .pid = pid,
         .usid = u ? USER_STACK : -1,
-        .ksid = -1,
+        .ksid = k ? KERNEL_STACK: -1,
     };
     u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);
     if (!count)
         bpf_map_update_elem(&psid_count, &apsid, size, BPF_NOEXIST);
-    else (*count) += *size;
+    else
+        (*count) += *size;
 
     // record pid_addr-info
-    u64 addr = PT_REGS_RC(ctx);
     piddr a = {
-        .addr = addr, 
+        .addr = addr,
         .pid = pid,
         .o = 0,
     };
     mem_info info = {
-        .size = *size, 
+        .size = *size,
         .usid = apsid.usid,
         .o = 0,
     };
-    bpf_map_update_elem(&piddr_meminfo, &a, &info, BPF_NOEXIST);
-
-    // delete pid-size
-    return bpf_map_delete_elem(&pid_size, &pid);
+    return bpf_map_update_elem(&piddr_meminfo, &a, &info, BPF_NOEXIST);
 }
 
-SEC("uprobe")
-int BPF_KPROBE(free_enter, u64 addr)
+SEC("uretprobe/malloc")
+int BPF_KRETPROBE(malloc_exit)
 {
-    bpf_printk("free_enter");
+    return gen_alloc_exit(ctx);
+}
+
+SEC("uretprobe/calloc")
+int BPF_KRETPROBE(calloc_exit)
+{
+    return gen_alloc_exit(ctx);
+}
+
+SEC("uretprobe/realloc")
+int BPF_KRETPROBE(realloc_exit)
+{
+	return gen_alloc_exit(ctx);
+}
+
+SEC("uretprobe/mmap")
+int BPF_KRETPROBE(mmap_exit)
+{
+    return gen_alloc_exit(ctx);
+}
+
+int gen_free_enter(void *addr, size_t unsize)
+{
+    // bpf_printk("free_enter");
     // get freeing size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-    piddr a = {addr, pid};
+    piddr a = {.addr = addr, .pid = pid, .o = 0};
     mem_info *info = bpf_map_lookup_elem(&piddr_meminfo, &a);
-    if(!info) return -1;
+    if (!info)
+        return -1;
 
     // get allocated size
     psid apsid = {
@@ -114,11 +156,36 @@ int BPF_KPROBE(free_enter, u64 addr)
         .usid = info->usid,
     };
     u64 *size = bpf_map_lookup_elem(&psid_count, &apsid);
-    if(!size) return -1;
+    if (!size)
+        return -1;
 
     // sub the freeing size
-    (*size) -= info->size;
+    if(unsize) {
+        if (unsize >= *size)
+            *size = 0;
+        else
+            (*size) -= unsize;
+    }
+    else
+        (*size) -= info->size;
 
     // del freeing addr info
     return bpf_map_delete_elem(&piddr_meminfo, &a);
+}
+
+SEC("uprobe/free")
+int BPF_KPROBE(free_enter, void *addr) {
+    return gen_free_enter(addr, 0);
+}
+
+SEC("uprobe/realloc")
+int BPF_KPROBE(realloc_enter, void *ptr, size_t size)
+{
+	gen_free_enter(ptr, 0);
+	return gen_alloc_enter(size);
+}
+
+SEC("uprobe/munmap")
+int BPF_KPROBE(munmap_enter, void *addr, size_t unsize) {
+    return gen_free_enter(addr, unsize);
 }
