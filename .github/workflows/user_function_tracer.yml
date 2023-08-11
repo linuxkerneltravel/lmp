@@ -35,5 +35,7 @@ jobs:
           cmake --build build
           gcc test/sleep.c -o test/sleep
           gcc test/mmap.c -o test/mmap
+          gcc test/strcpy.c -o test/strcpy
           sudo build/utrace -c test/sleep
           sudo build/utrace -c test/mmap
+          sudo build/utrace -c test/strcpy
