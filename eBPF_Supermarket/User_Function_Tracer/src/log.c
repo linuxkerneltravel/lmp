@@ -26,7 +26,7 @@ int debug;
 
 void log_color(const char* color) {
   char* term = getenv("TERM");
-  if (isatty(fileno(stdout)) && !(term && !strcmp(term, "dumb"))) {
+  if (isatty(fileno(stderr)) && !(term && !strcmp(term, "dumb"))) {
     LOG("%s", color);
   }
 }

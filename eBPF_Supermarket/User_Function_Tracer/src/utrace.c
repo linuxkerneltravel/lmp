@@ -199,7 +199,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       log_time(r->duration_ns);
       log_split();
       log_char(' ', 2 * r->ustack_sz);
-      LOG("} " TERM_GRAY "/* %s */" TERM_NC "\n", stack_func[r->global_sz]);
+      LOG("} ");
+      log_color(TERM_GRAY);
+      LOG("/* %s */\n", stack_func[r->global_sz]);
+      log_color(TERM_NC);
     }
     pending = 0;
     status = 1;
