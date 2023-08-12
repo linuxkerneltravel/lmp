@@ -23,7 +23,13 @@
 #include <stdio.h>
 
 /**
- * @brief 输出cnt个字符c
+ * @brief 设置输出的颜色
+ * @param[in] color 颜色控制符
+ */
+void log_color(const char* color);
+
+/**
+ * @brief 输出连续cnt个字符c
  * @param[in] c 字符
  * @param[in] cnt 个数
  */
@@ -45,6 +51,12 @@ void log_tid(int tid);
  * @param[in] cpuid CPU编号
  */
 void log_cpuid(int cpuid);
+
+/**
+ * @brief 输出分隔符
+ * @details 分隔符为" | "
+ */
+void log_split();
 
 /**
  * @brief 输出时间及其单位
@@ -85,5 +97,10 @@ extern int debug;
   do {                                   \
     fprintf(stderr, fmt, ##__VA_ARGS__); \
   } while (0)
+
+#define TERM_RED "\033[0;31m"
+#define TERM_GREEN "\033[0;32m"
+#define TERM_GRAY "\033[0;90m"
+#define TERM_NC "\033[0m"
 
 #endif  // UTRACE_LOG_H

@@ -38,5 +38,4 @@ Examples:
 ### TODO
 - simplify c++ symbols
 - more tests
-- colorful log
 - multithread

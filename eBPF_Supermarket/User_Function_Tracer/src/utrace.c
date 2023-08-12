@@ -179,24 +179,28 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // return 0;
     if (status == 0 && r->ustack_sz == pre_ustack_sz) {
       log_cpuid(r->cpu_id);
-      LOG(" | ");
+      log_split();
       log_tid(r->tid);
-      LOG(" | ");
+      log_split();
       log_time(r->duration_ns);
-      LOG(" | ");
+      log_split();
       log_char(' ', 2 * r->ustack_sz - 2);
       LOG("%s();\n", stack_func[r->ustack_sz]);
       status = 1;
       pre_ustack_sz = r->ustack_sz;
     } else if (status == 1 && r->ustack_sz == pre_ustack_sz - 1) {
       log_cpuid(r->cpu_id);
-      LOG(" | ");
+      log_split();
       log_tid(r->tid);
-      LOG(" | ");
+      log_split();
       log_time(r->duration_ns);
-      LOG(" | ");
+      log_split();
       log_char(' ', 2 * r->ustack_sz - 2);
-      LOG("} /* %s */\n", stack_func[r->ustack_sz]);
+      LOG("} ");
+      log_color(TERM_GRAY);
+      LOG("/* %s */", stack_func[r->ustack_sz]);
+      log_color(TERM_NC);
+      LOG("\n");
       status = 1;
       pre_ustack_sz = r->ustack_sz;
     }
@@ -213,11 +217,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     if (status == 1 && r->ustack_sz != pre_ustack_sz) return 0;
     if (status == 0) {
       log_cpuid(r->cpu_id);
-      LOG(" | ");
+      log_split();
       log_tid(r->tid);
-      LOG(" |");
-      log_char(' ', 12);
-      LOG(" | ");
+      log_split();
+      log_char(' ', 11);
+      log_split();
       log_char(' ', 2 * r->ustack_sz - 4);
       LOG("%s() {\n", stack_func[r->ustack_sz - 1]);
     }

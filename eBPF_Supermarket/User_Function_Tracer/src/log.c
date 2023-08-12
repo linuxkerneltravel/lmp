@@ -18,7 +18,18 @@
 
 #include "log.h"
 
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 int debug;
+
+void log_color(const char* color) {
+  char* term = getenv("TERM");
+  if (isatty(fileno(stdout)) && !(term && !strcmp(term, "dumb"))) {
+    LOG("%s", color);
+  }
+}
 
 void log_char(char c, int cnt) {
   while (cnt > 0) {
@@ -33,8 +44,10 @@ void log_tid(int tid) { LOG("%6d", tid); }
 
 void log_cpuid(int cpuid) { LOG("%4d", cpuid); }
 
+void log_split() { LOG(" | "); }
+
 void log_time(size_t ns) {
-  static char *units[] = {
+  static char* units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
   static size_t limit[] = {
