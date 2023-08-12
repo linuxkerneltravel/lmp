@@ -276,11 +276,12 @@ int main(int argc, char **argv) {
   dyn_symset = new_dyn_symbol_set();
   push_symbol_arr(symtab, new_symbol_arr(program, dyn_symset, 0));
   for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-         sym++) {
-      if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
-    }
+       sym++) {
+    if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
+  }
 
   if (arg.pid) {
+    size_t pre_addr = 0;
     for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
          sym++) {
       if (strcmp(sym->name, "_start") == 0)
@@ -289,7 +290,10 @@ int main(int argc, char **argv) {
         continue;
       else if (strcmp(sym->name, "__libc_csu_fini") == 0)
         continue;
-      else uprobe_attach(skel, pid, program, sym->addr);
+      if (sym->addr != pre_addr) {
+        uprobe_attach(skel, pid, program, sym->addr);
+        pre_addr = sym->addr;
+      }
     }
 
     vmaps = new_vmap_list(pid);
@@ -298,13 +302,17 @@ int main(int argc, char **argv) {
       if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
       if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
       push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
+      size_t pre_addr = 0;
       for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
            sym++) {
         if (strcmp(sym->name, "__cxa_finalize") == 0)
           continue;
         else if (strcmp(sym->name, "__libc_start_main") == 0)
           continue;
-        uprobe_attach(skel, pid, vmap->libname, sym->addr);
+        if (sym->addr != pre_addr) {
+          uprobe_attach(skel, pid, vmap->libname, sym->addr);
+          pre_addr = sym->addr;
+        }
       }
     }
 
@@ -341,6 +349,7 @@ int main(int argc, char **argv) {
       continue_execution(pid);
       wait_for_signal(pid);
 
+      size_t pre_addr = 0;
       for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
            sym++) {
         if (strcmp(sym->name, "_start") == 0)
@@ -349,8 +358,12 @@ int main(int argc, char **argv) {
           continue;
         else if (strcmp(sym->name, "__libc_csu_fini") == 0)
           continue;
-        else
+        else if (strcmp(sym->name, "_dl_relocate_static_pie") == 0)
+          continue;
+        if (sym->addr != pre_addr) {
           uprobe_attach(skel, pid, program, sym->addr);
+          pre_addr = sym->addr;
+        }
       }
 
       vmaps = new_vmap_list(pid);
@@ -359,13 +372,17 @@ int main(int argc, char **argv) {
         if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
         if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
         push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
+        size_t pre_addr = 0;
         for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
              sym++) {
           if (strcmp(sym->name, "__cxa_finalize") == 0)
             continue;
           else if (strcmp(sym->name, "__libc_start_main") == 0)
             continue;
-          uprobe_attach(skel, pid, vmap->libname, sym->addr);
+          if (sym->addr != pre_addr) {
+            uprobe_attach(skel, pid, vmap->libname, sym->addr);
+            pre_addr = sym->addr;
+          }
         }
       }
 
