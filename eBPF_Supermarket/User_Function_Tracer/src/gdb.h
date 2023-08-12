@@ -26,49 +26,49 @@
  * @brief 记录跨函数传递的信息
  */
 struct gdb {
-  uint8_t inst; /*< 被int3覆盖的单字节指令 */
+  pid_t pid;    /**< gdb附加到的进程的编号 */
+  uint8_t inst; /**< 被int3覆盖的单字节指令 */
 };
 
 /*
  * @brief 创建一个gdb结构体
+ * @param[in] pid 进程号
  * @return 指向gdb结构体的指针
  * @note 从堆中申请空间
  */
-struct gdb* new_gdb();
+struct gdb* new_gdb(pid_t pid);
 
 /*
  * @brief 设置一个断点
  * @param[in] gdb 指向一个gdb结构体
- * @param[in] pid 进程号
  * @param[in] addr 物理地址
  */
-void enable_breakpoint(struct gdb* gdb, pid_t pid, uint64_t addr);
+void enable_breakpoint(struct gdb* gdb, uint64_t addr);
 
 /*
  * @brief 取消一个断点
  * @param[in] gdb 指向一个gdb结构体
- * @param[in] pid 进程号
  * @param[in] addr 物理地址
  * @note 需要保证之前调用过enable_breakpoint(gdb, pid, addr)
  */
-void disable_breakpoint(struct gdb* gdb, pid_t pid, uint64_t addr);
+void disable_breakpoint(struct gdb* gdb, uint64_t addr);
 
 /*
  * @brief 继续执行
- * @param[in] pid 进程号
+ * @param[in] gdb 指向一个gdb结构体
  */
-void continue_execution(pid_t pid);
-
-/*
- * @brief 释放gdb结构体的空间
- * @param[in] gdb 指向要释放的gdb结构体
- */
-void delete_gdb(struct gdb* gdb);
+long continue_execution(struct gdb* gdb);
 
 /*
  * @brief 等待进程收到信号
- * @param[in] pid 进程号
+ * @param[in] gdb 指向一个gdb结构体
  */
-void wait_for_signal(pid_t pid);
+long wait_for_signal(struct gdb* gdb);
+
+/*
+ * @brief 取消ptrace并释放gdb结构体的空间
+ * @param[in] gdb 指向要释放的gdb结构体
+ */
+void delete_gdb(struct gdb* gdb);
 
 #endif  // UTRACE_GDB_H

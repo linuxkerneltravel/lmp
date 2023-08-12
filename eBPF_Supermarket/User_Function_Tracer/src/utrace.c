@@ -30,6 +30,7 @@
 #include <string.h>
 #include <sys/personality.h>
 #include <sys/ptrace.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -234,6 +235,7 @@ int main(int argc, char **argv) {
   struct ring_buffer *records = NULL;
   struct utrace_bpf *skel;
   struct args arg;
+  struct rlimit old_rlim;
   pid_t pid;
   char *program;
   int err;
@@ -357,15 +359,15 @@ int main(int argc, char **argv) {
       ERROR("Execv %s error\n", program);
       exit(1);
     } else {
-      struct gdb *gdb = new_gdb();
-      wait_for_signal(pid);
+      struct gdb *gdb = new_gdb(pid);
+      wait_for_signal(gdb);
 
       break_addr += get_base_addr(pid);
       DEBUG("break address: %zx\n", break_addr);
 
-      enable_breakpoint(gdb, pid, break_addr);
-      continue_execution(pid);
-      wait_for_signal(pid);
+      enable_breakpoint(gdb, break_addr);
+      continue_execution(gdb);
+      wait_for_signal(gdb);
 
       size_t pre_addr = 0;
       for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
@@ -407,8 +409,8 @@ int main(int argc, char **argv) {
       /* Attach tracepoints */
       assert(utrace_bpf__attach(skel) == 0);
 
-      disable_breakpoint(gdb, pid, break_addr);
-      continue_execution(pid);
+      disable_breakpoint(gdb, break_addr);
+      delete_gdb(gdb);
     }
   }
 

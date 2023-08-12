@@ -22,29 +22,34 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 
-struct gdb* new_gdb() {
-  return (struct gdb*)malloc(sizeof(struct gdb));
+struct gdb* new_gdb(pid_t pid) {
+  struct gdb* gdb = (struct gdb*)malloc(sizeof(struct gdb));
+  gdb->pid = pid;
+  return gdb;
 }
 
-void enable_breakpoint(struct gdb* gdb, pid_t pid, uint64_t addr) {
-  long data = ptrace(PTRACE_PEEKDATA, pid, addr, NULL);
+void enable_breakpoint(struct gdb* gdb, uint64_t addr) {
+  long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
   gdb->inst = (uint8_t)data & 0xFF;
 
   uint64_t int3 = 0xCC;
-  ptrace(PTRACE_POKEDATA, pid, addr, (data & ~0xFF) | int3);
+  ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | int3);
 }
 
-void disable_breakpoint(struct gdb* gdb, pid_t pid, uint64_t addr) {
-  long data = ptrace(PTRACE_PEEKDATA, pid, addr, NULL);
-  ptrace(PTRACE_POKEDATA, pid, (data & ~0xFF) | gdb->inst);
+void disable_breakpoint(struct gdb* gdb, uint64_t addr) {
+  long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
+  ptrace(PTRACE_POKEDATA, gdb->pid, (data & ~0xFF) | gdb->inst);
 }
 
-void continue_execution(pid_t pid) { ptrace(PTRACE_CONT, pid, NULL, NULL); }
+long continue_execution(struct gdb* gdb) { return ptrace(PTRACE_CONT, gdb->pid, NULL, NULL); }
 
-void delete_gdb(struct gdb* gdb) { free(gdb); }
-
-void wait_for_signal(pid_t pid) {
+long wait_for_signal(struct gdb* gdb) {
   int wstatus;
   int options = 0;
-  waitpid(pid, &wstatus, options);
+  return waitpid(gdb->pid, &wstatus, options);
+}
+
+void delete_gdb(struct gdb* gdb) {
+  ptrace(PTRACE_DETACH, gdb->pid, NULL, NULL);
+  free(gdb);
 }
