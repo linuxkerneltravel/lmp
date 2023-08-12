@@ -170,6 +170,10 @@ bool symbolize(size_t addr) {
 }
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
+  static struct profile_record pending_r;
+  static int pending = 0;
+  static int status = -1; /**< 0: exec 1: exit */
+
   const struct profile_record *r = data;
 
   if (r->exit) {
@@ -177,58 +181,50 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
-    if (status == 0 && r->ustack_sz == pre_ustack_sz) {
+    if (status == 0) {
+      log_cpuid(pending_r.cpu_id);
+      log_split();
+      log_tid(pending_r.tid);
+      log_split();
+      log_time(r->duration_ns);
+      log_split();
+      log_char(' ', 2 * pending_r.ustack_sz);
+      LOG("%s();\n", stack_func[pending_r.global_sz]);
+    } else {  // status == 1
       log_cpuid(r->cpu_id);
       log_split();
       log_tid(r->tid);
       log_split();
       log_time(r->duration_ns);
       log_split();
-      log_char(' ', 2 * r->ustack_sz - 2);
-      LOG("%s();\n", stack_func[r->ustack_sz]);
-      status = 1;
-      pre_ustack_sz = r->ustack_sz;
-    } else if (status == 1 && r->ustack_sz == pre_ustack_sz - 1) {
-      log_cpuid(r->cpu_id);
-      log_split();
-      log_tid(r->tid);
-      log_split();
-      log_time(r->duration_ns);
-      log_split();
-      log_char(' ', 2 * r->ustack_sz - 2);
-      LOG("} ");
-      log_color(TERM_GRAY);
-      LOG("/* %s */", stack_func[r->ustack_sz]);
-      log_color(TERM_NC);
-      LOG("\n");
-      status = 1;
-      pre_ustack_sz = r->ustack_sz;
+      log_char(' ', 2 * r->ustack_sz);
+      LOG("} " TERM_GRAY "/* %s */" TERM_NC "\n", stack_func[r->global_sz]);
     }
+    pending = 0;
+    status = 1;
   } else {
     // LOG("EXEC");
     // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
     // if (symbolize(r->ustack[0])) {
-    //   memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
+    //    memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
     // }
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
-    if (status == -1 && r->ustack_sz != 1) return 0;
-    if (status == 0 && r->ustack_sz != pre_ustack_sz + 1) return 0;
-    if (status == 1 && r->ustack_sz != pre_ustack_sz) return 0;
     if (status == 0) {
-      log_cpuid(r->cpu_id);
+      log_cpuid(pending_r.cpu_id);
       log_split();
-      log_tid(r->tid);
+      log_tid(pending_r.tid);
       log_split();
       log_char(' ', 11);
       log_split();
-      log_char(' ', 2 * r->ustack_sz - 4);
-      LOG("%s() {\n", stack_func[r->ustack_sz - 1]);
+      log_char(' ', 2 * pending_r.ustack_sz);
+      LOG("%s() {\n", stack_func[pending_r.global_sz]);
     }
-    if (symbolize(r->ustack[0])) {
-      memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
+    if (symbolize(r->ustack)) {
+      memcpy(stack_func[r->global_sz], buf, sizeof(buf));
+      pending_r = *r;
+      pending = 1;
       status = 0;
-      pre_ustack_sz = r->ustack_sz;
     }
   }
   return 0;

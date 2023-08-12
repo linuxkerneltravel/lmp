@@ -26,68 +26,96 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
+static int global_sz;
+static int current_pid;
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
-  __uint(max_entries, 8192);
-  __type(key, s32);
-  __type(value, u64);
+  __type(key, __u32);
+  __type(value, __u64);
+  __uint(max_entries, MAX_STACK_DEPTH);
 } function_start SEC(".maps");
 
 struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, __u32);
+  __type(value, __u32);
+  __uint(max_entries, MAX_THREAD_NUM);
+} stack_depth SEC(".maps");
+
+struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
-  __uint(max_entries, 8192 * 1024);
+  __uint(max_entries, 2048 * 4096);
 } records SEC(".maps");
 
 SEC("uprobe/trace")
 int BPF_KPROBE(uprobe) {
   struct profile_record *r;
-  pid_t pid, tid, cpu_id;
-  u64 id, ts;
+  pid_t tid, cpu_id;
+  __u64 ts;
+  __u32 *depth_ptr;
+  __u32 depth;
 
-  id = bpf_get_current_pid_tgid();
-  tid = (u32)id;
-  pid = id >> 32;
+  current_pid = tid = (__u32)bpf_get_current_pid_tgid();
   cpu_id = bpf_get_smp_processor_id();
 
   r = bpf_ringbuf_reserve(&records, sizeof(*r), 0);
   if (!r) return 0;
+
   r->tid = tid;
   r->cpu_id = cpu_id;
+  r->timestamp = 0;
   r->duration_ns = 0;
-  r->ustack_sz =
-      bpf_get_stack(ctx, r->ustack, sizeof(r->ustack), BPF_F_USER_STACK) / sizeof(r->ustack[0]);
+  bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
+  depth_ptr = bpf_map_lookup_elem(&stack_depth, &tid);
+  if (depth_ptr)
+    r->ustack_sz = depth = *depth_ptr + 1;
+  else
+    r->ustack_sz = depth = 0;
+  r->global_sz = global_sz;
   r->exit = 0;
-  s32 ustack_sz = r->ustack_sz;
-  ts = bpf_ktime_get_ns();
-  bpf_map_update_elem(&function_start, &ustack_sz, &ts, BPF_ANY);
+
   bpf_ringbuf_submit(r, 0);
+
+  ts = bpf_ktime_get_ns();
+  bpf_map_update_elem(&function_start, &global_sz, &ts, BPF_NOEXIST);
+  ++global_sz;
+  bpf_map_update_elem(&stack_depth, &tid, &depth, BPF_ANY);
   return 0;
 }
 
 SEC("uretprobe/trace")
 int BPF_KRETPROBE(uretprobe) {
   struct profile_record *r;
-  pid_t pid, tid, cpu_id;
-  u64 id, end_ts = bpf_ktime_get_ns();
-  u64 *start_ts;
-  s32 ustack_sz;
+  pid_t tid, cpu_id;
+  __u64 *start_ts_ptr;
+  __u64 end_ts = bpf_ktime_get_ns();
+  __u32 *depth_ptr;
 
-  id = bpf_get_current_pid_tgid();
+  current_pid = tid = (__u32)bpf_get_current_pid_tgid();
   cpu_id = bpf_get_smp_processor_id();
-  pid = id >> 32;
-  tid = (u32)id;
+
+  depth_ptr = bpf_map_lookup_elem(&stack_depth, &tid);
+  if (!depth_ptr) return 0;
 
   r = bpf_ringbuf_reserve(&records, sizeof(*r), 0);
   if (!r) return 0;
+
+  --global_sz;
+
   r->tid = tid;
   r->cpu_id = cpu_id;
-  r->ustack_sz = bpf_get_stack(ctx, r->ustack, sizeof(r->ustack), BPF_F_USER_STACK) /
-                 sizeof(sizeof(r->ustack[0]));
-  ustack_sz = r->ustack_sz;
-  start_ts = bpf_map_lookup_elem(&function_start, &ustack_sz);
-  if (start_ts) r->duration_ns = end_ts - *start_ts;
-  bpf_map_delete_elem(&function_start, &ustack_sz);
+  r->timestamp = 0;
+  start_ts_ptr = bpf_map_lookup_elem(&function_start, &global_sz);
+  if (start_ts_ptr) r->duration_ns = end_ts - *start_ts_ptr;
+  bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
+  r->ustack_sz = *depth_ptr;
+  r->global_sz = global_sz;
   r->exit = 1;
+
   bpf_ringbuf_submit(r, 0);
+
+  bpf_map_delete_elem(&function_start, &global_sz);
+  --*depth_ptr;
+  bpf_map_update_elem(&stack_depth, &tid, depth_ptr, BPF_ANY);
   return 0;
 }

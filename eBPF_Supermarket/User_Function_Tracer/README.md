@@ -38,4 +38,3 @@ Examples:
 ### TODO
 - simplify c++ symbols
 - more tests
-- multithread
