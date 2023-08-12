@@ -240,6 +240,11 @@ int main(int argc, char **argv) {
 
   parse_args(argc, argv, &arg);
 
+  if (geteuid() != 0) {
+    ERROR("Failed to run %s: permission denied\n", argv[0]);
+    return 1;
+  }
+
   /* Set up libbpf errors and debug info callback */
   libbpf_set_print(libbpf_print_fn);
 
@@ -278,6 +283,19 @@ int main(int argc, char **argv) {
   for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
        sym++) {
     if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
+  }
+
+  if (getrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
+    ERROR("getrlimit error");
+    exit(1);
+  }
+  struct rlimit rlim = {
+      .rlim_cur = 1048576,
+      .rlim_max = 1048576,
+  };
+  if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) {
+    ERROR("setrlimit error");
+    exit(1);
   }
 
   if (arg.pid) {
@@ -433,6 +451,11 @@ cleanup:
   delete_vmap_list(vmaps);
 
   free(program);
+
+  if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
+    ERROR("setrlimit error");
+    exit(1);
+  }
 
   return err < 0 ? -err : 0;
 }
