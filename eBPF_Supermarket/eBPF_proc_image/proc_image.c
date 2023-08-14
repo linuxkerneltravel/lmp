@@ -84,7 +84,7 @@ static void sig_handler(int sig)
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct cpu_event *e = data;
-    double time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
+    double time;
 
     if(e->flag == 1){
         time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
