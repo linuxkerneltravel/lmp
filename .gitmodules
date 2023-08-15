@@ -4,9 +4,6 @@
 [submodule "eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap"]
 	path = eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap
 	url = https://github.com/libbpf/libbpf-bootstrap
-[submodule "eBPF_Supermarket/Stack_Analyser/FlameGraph"]
-	path = eBPF_Supermarket/Stack_Analyser/FlameGraph
-	url = https://github.com/brendangregg/FlameGraph.git
 [submodule "eBPF_Supermarket/XDP_Res-Application/tools/lib/libbpf"]
 	path = eBPF_Supermarket/XDP_Res-Application/tools/lib/libbpf
 	url = https://github.com/libbpf/libbpf.git

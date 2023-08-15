@@ -14,7 +14,7 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 内核态bpf的on-cpu模块代码
+// 内核态bpf的io-cpu模块代码
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -23,44 +23,55 @@
 
 #include "stack_analyzer.h"
 
-const char LICENSE[] SEC("license") = "GPL";
+#define MINBLOCK_US 1ULL
+#define MAXBLOCK_US 99999999ULL
 
-BPF_HASH(pid_tgid, u32, u32);
-BPF_STACK_TRACE(stack_trace);
 BPF_HASH(psid_count, psid, u32);
+BPF_STACK_TRACE(stack_trace);
+BPF_HASH(pid_tgid, u32, u32);
 BPF_HASH(pid_comm, u32, comm);
 
-char u /*user stack flag*/, k /*kernel stack flag*/; 
+const char LICENSE[] SEC("license") = "GPL";
 
-SEC("perf_event")
-int do_stack(void *ctx)
+int apid;
+char u, k;
+
+int do_stack(struct pt_regs *ctx)
 {
-    // record data
-    struct task_struct *curr = (void *)bpf_get_current_task();
-    u32 pid = BPF_CORE_READ(curr, pid);
-    u32 tgid = BPF_CORE_READ(curr, tgid);
+    u64 td = bpf_get_current_pid_tgid();
+    u32 pid = td >> 32;
+
+    if ((apid >= 0 && pid != apid) || !pid)
+        return 0;
+
+    u32 tgid = td;
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
     if (!p)
     {
         comm name;
-        bpf_probe_read_kernel_str(&name, COMM_LEN, curr->comm);
+        bpf_get_current_comm(&name, COMM_LEN);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
     psid apsid = {
         .pid = pid,
-        .usid = u?USER_STACK:-1,
-        .ksid = k?KERNEL_STACK:-1,
+        .usid = u ? USER_STACK : -1,
+        .ksid = k ? KERNEL_STACK : -1,
     };
 
-    // add cosunt
+    u32 len = PT_REGS_PARM3(ctx);
+
+    // record time delta
     u32 *count = bpf_map_lookup_elem(&psid_count, &apsid);
     if (count)
-        (*count)++;
+        (*count) += len;
     else
-    {
-        u32 orig = 1;
-        bpf_map_update_elem(&psid_count, &apsid, &orig, BPF_ANY);
-    }
+        bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);
     return 0;
 }
+
+SEC("kprobe/vfs_write")
+int BPF_KPROBE(write_enter) { return do_stack(ctx); }
+
+SEC("kprobe/vfs_read")
+int BPF_KPROBE(read_enter) { return do_stack(ctx); }
