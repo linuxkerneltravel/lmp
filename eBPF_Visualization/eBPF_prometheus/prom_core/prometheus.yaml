@@ -1,3 +1,6 @@
+global:
+  scrape_interval: 50ms
+
 scrape_configs:
   - job_name: 'bpf_collector'
     metrics_path: '/metrics'      #采集路径

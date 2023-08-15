@@ -53,8 +53,6 @@ func AddAService(svc *Aservice) error {
 	GlobalServices.Lock()
 	defer GlobalServices.Unlock()
 
-	GlobalServices.services = make(map[string]*Aservice)
-
 	if _, existed := GlobalServices.services[svc.Name]; existed {
 		return fmt.Errorf("service existed: %s", svc.Name)
 	}
@@ -84,6 +82,7 @@ var collectCommand = cli.Command{
 }
 
 func init() {
+	GlobalServices.services = make(map[string]*Aservice)
 	svc := Aservice{
 		Name:    "collectData",
 		Desc:    "collect eBPF data",
@@ -93,10 +92,23 @@ func init() {
 		log.Fatalf("Failed to load ... error:%s\n", err)
 		return
 	}
+	procSvc := Aservice{
+		Name:    "procCollectData",
+		Desc:    "collect process eBPF data",
+		NewInst: newProcCmd,
+	}
+	if err := AddAService(&procSvc); err != nil {
+		log.Fatalf("Failed to load ... error:%s\n", err)
+		return
+	}
 }
 
 func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 	return collectCommand, nil
+}
+
+func newProcCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
+	return proc_imageCommand, nil
 }
 
 func simpleCollect(ctx *cli.Context) error {
