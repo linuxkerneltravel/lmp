@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-void h() { printf("h!"); }
+void h() {}
 void g() { h(); }
 void f() { g(); }
 

@@ -67,8 +67,8 @@ void print_usage(char *program) {
   LOG("  -h --help: disaply this usage information.\n");
   LOG("\n");
   LOG("Examples:\n");
-  LOG("  %s -c \"$PROGRAM $ARGS\"\n", program);
-  LOG("  %s -p $PID\n", program);
+  LOG("  sudo %s -c \"$PROGRAM $ARGS\"\n", program);
+  LOG("  sudo %s -p $PID\n", program);
 }
 
 void parse_args(int argc, char *argv[], struct args *arg) {
@@ -120,8 +120,7 @@ void parse_args(int argc, char *argv[], struct args *arg) {
         exit(1);
     }
   }
-
-  if (!c) {
+  if (!c && !arg->pid) {
     print_usage(argv[0]);
     exit(1);
   }
@@ -295,8 +294,8 @@ int main(int argc, char **argv) {
     exit(1);
   }
   struct rlimit rlim = {
-      .rlim_cur = 1048576,
-      .rlim_max = 1048576,
+      .rlim_cur = 1 << 20,
+      .rlim_max = 1 << 20,
   };
   if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) {
     ERROR("setrlimit error");

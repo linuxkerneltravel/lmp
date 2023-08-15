@@ -26,15 +26,20 @@ Options:
   -h --help: disaply this usage information.
 
 Examples:
-  build/utrace -c "$PROGRAM $ARGS"
-  build/utrace -p $PID
+  sudo build/utrace -c "$PROGRAM $ARGS"
+  sudo build/utrace -p $PID
 ```
 
 ### 特点
+- 观测用户态函数调用流程以及调用时延
+- 非侵入式，不依赖任何编译选项
+- 支持多线程程序、已经运行的程序（输入进程PID号）
 + 不同于`ftrace`，`eBPF-utrace`用于观测用户态函数。
-+ 不同于`uftrace`，`eBPF-utrace`基于eBPF，不依赖于任何编译技术，但是需要内核的支持，需要root权限，且可能有更高的开销。
-+ 不同于`perf`, `gprof`等性能分析工具，`eBPF-utrace`输出准确的函数调用时延，而不是基于perf_event()的采样方式。
++ 不同于`uftrace`，`eBPF-utrace`基于eBPF，不依赖于任何编译技术，但是需要内核的支持，需要root权限。
++ 不同于`perf`, `gprof`等性能分析工具，`eBPF-utrace`输出准确的函数调用时延，而不是基于perf_event的采样方式。
 
 ### TODO
-- simplify c++ symbols
-- more tests
+- IFUNC符号的观测
+- 嵌套的共享库观测
+- 简化C++符号的展示
+- 更多的测试

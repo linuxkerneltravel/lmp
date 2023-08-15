@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -13,14 +14,12 @@ int foo(long sz) {
   munmap(ptr, sz);
   close(fd);
 
+  printf("Finish mmap.\n");
+
   return 0;
 }
 
-int main(int argc, char *argv[]) {
-  sleep(2);
-
-  int n = 4096;
-
-  foo(n);
+int main() {
+  foo(4096);
   return 0;
 }

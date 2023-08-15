@@ -31,8 +31,9 @@ char *demangle(const char *mangled_name) {
 
   if (strncmp(mangled_name, "_Z", 2) == 0) {
     __cxa_demangle(mangled_name, NULL, &len, &status);
-    if (status < 0) return strdup(mangled_name);
-
+    if (status < 0) {
+      return strdup(mangled_name);
+    }
     original_name = malloc(len);
     __cxa_demangle(mangled_name, original_name, &len, &status);
 
