@@ -16,16 +16,27 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
 
 ## 使用方式
 
-```
+python封装的bpf程序：
+```bash
 $ make
 $ ./data-visual collect example/vfsstat.py
 ```
 
+通过ecli工具启动/eBPF_Hub中的bpf程序:
+注意，该功能要先安装ecli工具和ecc工具。详见: https://github.com/eunomia-bpf/eunomia-bpf
+```bash
+$ make
+$ ecc ./example/opensnoop/opensnoop.bpf.c ./example/opensnoop/opensnoop.h
+$ ./data-visual collect ecli example/opensnoop/package.json
+```
+
 程序会自动将bpf程序的输出收集到metrics中。
 
-通过访问http://127.0.0.1:8090 可实时查看收集到的metrics。
+通过访问http://127.0.0.1:8090/metrics 可实时查看收集到的metrics。
 
 ### 使用prometheus-server的docker镜像监控metrics
+
+编辑prom_core/prometheus.yaml中targets参数，使其符合用户ip地址，默认127.0.0.1。之后使用下述操作。
 
 ```bash
 docker run \

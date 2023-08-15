@@ -1,4 +1,12 @@
-# libbpf/stack_analyzer (incomplete)
+# 依赖
+
+火焰图绘制程序 `FlameGraph/flamegraph.pl`，需要将该程序放入环境变量PATH中，一种方法：
+
+```shell
+sudo cp FlameGraph/flamegraph.pl /usr/bin/
+```
+
+# libbpf/stack_analyzer
 
 用于对调用栈进行计数，libbpf版本
 
@@ -10,10 +18,11 @@
 - [x] malloc-free 栈采集功能
 - [x] 保存为json文件功能
 - [ ] 火焰图绘制功能
-- [ ] io-sync栈采集功能
+- [x] io-write栈采集功能
 - [ ] 收发包栈采集功能
 - [ ] 兼容perf数据
 - [ ] 栈数据智能分析功能
+- [ ] 加入排序功能
 
 ## 实时输出测试结果
 
