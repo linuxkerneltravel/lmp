@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 static volatile bool exiting = false;
@@ -157,6 +158,9 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
                pack_info->sock, pack_info->comm, pack_info->seq, pack_info->ack,
                pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
                pack_info->rx);
+        if (strstr((char *)pack_info->data, "HTTP/1")) {
+            printf("%s\n", pack_info->data);
+        }
     }
     return 0;
 }

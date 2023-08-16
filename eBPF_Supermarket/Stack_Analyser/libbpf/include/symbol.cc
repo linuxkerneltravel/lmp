@@ -18,7 +18,7 @@ void restore_global_env();
 int attach_ns_env(int pid);
 
 symbol_parser g_symbol_parser;
-const bool debug_mode = true;
+const bool debug_mode = false;
 
 bool symbol_parser::add_pid_maps(int pid, size_t start, size_t end, size_t offset, const char *name)
 {
