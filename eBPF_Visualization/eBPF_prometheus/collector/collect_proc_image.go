@@ -1,3 +1,21 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: Gui-Yue
+//
+// 为proc_image所适配的collector，实现对proc_image输出格式的支持。
+
 package collector
 
 import (
@@ -15,6 +33,7 @@ import (
 	"time"
 )
 
+// Pro_Setting 定义了设置项，通过读取同目录下的proc_setting.yaml实现对基本信息的设置。
 type Proc_Setting struct {
 	Name        string `yaml:"name"`
 	Path        string `yaml:"path"`
@@ -29,6 +48,7 @@ var proc_imageCommand = cli.Command{
 	Action:  procCollect,
 }
 
+// Get_Setting 函数用于获取设置的信息
 func Get_Setting() (error, string, int) {
 	currentDir, _ := os.Getwd()
 	content, err := os.ReadFile(currentDir + "/collector/proc_setting.yaml")
@@ -53,6 +73,7 @@ func procCollect(ctx *cli.Context) error {
 	return ProcRun(command)
 }
 
+// ProcRun 是收集器的主函数，通过goroutin的方式实现数据收集，重定向，与prom_core包实现通信。
 func ProcRun(command string) error {
 	_, _, maxrecords := Get_Setting()
 	cmdStr := CheckFileType(command)
@@ -71,7 +92,7 @@ func ProcRun(command string) error {
 
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	currenttime := float64(time.Now().In(loc).UnixNano()) / 1e9
-	go rediectProc(stdout, mapchan)
+	go redirectProc(stdout, mapchan)
 	procdata := prom_core.ProcMetrics{Max_records: maxrecords, NowTime: currenttime}
 	// process chan from redirectProc Stdout
 	go procdata.BootProcService()
@@ -103,7 +124,8 @@ func ProcRun(command string) error {
 	return nil
 }
 
-func rediectProc(stdout io.ReadCloser, mapchan chan map[string]interface{}) {
+// redirectProc 实现数据重定向
+func redirectProc(stdout io.ReadCloser, mapchan chan map[string]interface{}) {
 	var onemap map[string]interface{}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
