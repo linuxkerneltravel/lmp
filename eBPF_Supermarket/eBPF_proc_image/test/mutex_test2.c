@@ -14,7 +14,7 @@
 //
 // author: zhangziheng0525@163.com
 //
-// process mutex image test program
+// process recursive lock unlock test program
 
 #include <linux/init.h>
 #include <linux/module.h>
