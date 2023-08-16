@@ -38,6 +38,14 @@
 #define LB_SERVICE_MAP_MAX_ENTRIES	65536
 #define LB_BACKENDS_MAP_MAX_ENTRIES	65536
 
+/* Lookup scope for externalTrafficPolicy=Local */
+#define LB_LOOKUP_SCOPE_EXT	0
+#define LB_LOOKUP_SCOPE_INT	1
+
+#define CONDITIONAL_PREALLOC 0
+
+#define MAX_BACKEND_SELECTION 2048
+
 // sudo cat /sys/kernel/debug/tracing/trace_pipe
 
 #define print_ip_formatted(ip)                          \
@@ -60,6 +68,9 @@ struct lb4_key {
 struct lb4_service {
     __u32 backend_id;	    /* Backend ID in lb4_backends */
 	__u16 count;
+	__u16 possibility;
+	__u8 flags;     // TODO: timeout flag
+	__u8 flags2;
 	__u8  pad[2];
 };
 
@@ -76,6 +87,7 @@ struct {
 	__type(value, struct lb4_service);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, LB_SERVICE_MAP_MAX_ENTRIES);
+	__uint(map_flags, CONDITIONAL_PREALLOC);
 } LB4_SERVICES_MAP_V2 SEC(".maps");
 
 struct {
@@ -84,6 +96,7 @@ struct {
 	__type(value, struct lb4_backend);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, LB_BACKENDS_MAP_MAX_ENTRIES);
+	__uint(map_flags, CONDITIONAL_PREALLOC);
 } LB4_BACKEND_MAP_V2 SEC(".maps");
 
 static __always_inline __be32 ctx_get_dst_ip(const struct bpf_sock_addr *ctx)
@@ -118,6 +131,7 @@ static __always_inline struct lb4_service *lb4_lookup_service(struct lb4_key *ke
 {
 	struct lb4_service *svc;
 
+	key->scope = LB_LOOKUP_SCOPE_EXT;
 	svc = bpf_map_lookup_elem(&LB4_SERVICES_MAP_V2, key);
     if (svc)
         return svc;

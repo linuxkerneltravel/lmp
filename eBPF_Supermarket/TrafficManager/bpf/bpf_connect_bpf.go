@@ -28,9 +28,12 @@ type bpf_connectLb4Key struct {
 }
 
 type bpf_connectLb4Service struct {
-	BackendId uint32
-	Count     uint16
-	Pad       [2]uint8
+	BackendId   uint32
+	Count       uint16
+	Possibility uint16
+	Flags       uint8
+	Flags2      uint8
+	Pad         [2]uint8
 }
 
 // loadBpf_connect returns the embedded CollectionSpec for bpf_connect.
