@@ -53,8 +53,6 @@ func AddAService(svc *Aservice) error {
 	GlobalServices.Lock()
 	defer GlobalServices.Unlock()
 
-	GlobalServices.services = make(map[string]*Aservice)
-
 	if _, existed := GlobalServices.services[svc.Name]; existed {
 		return fmt.Errorf("service existed: %s", svc.Name)
 	}
@@ -84,6 +82,7 @@ var collectCommand = cli.Command{
 }
 
 func init() {
+	GlobalServices.services = make(map[string]*Aservice)
 	svc := Aservice{
 		Name:    "collectData",
 		Desc:    "collect eBPF data",
@@ -93,10 +92,23 @@ func init() {
 		log.Fatalf("Failed to load ... error:%s\n", err)
 		return
 	}
+	procSvc := Aservice{
+		Name:    "procCollectData",
+		Desc:    "collect process eBPF data",
+		NewInst: newProcCmd,
+	}
+	if err := AddAService(&procSvc); err != nil {
+		log.Fatalf("Failed to load ... error:%s\n", err)
+		return
+	}
 }
 
 func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 	return collectCommand, nil
+}
+
+func newProcCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
+	return proc_imageCommand, nil
 }
 
 func simpleCollect(ctx *cli.Context) error {
@@ -192,7 +204,7 @@ func rediectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) 
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line_number == firstline {
-			log.Printf("Title:%s\n", line)
+			// log.Printf("Title:%s\n", line)
 			parms := strings.Fields(line)
 			for _, value := range parms {
 				if value != "COMM" {
@@ -204,18 +216,18 @@ func rediectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) 
 				titles = append(titles, value)
 			}
 		} else {
-			log.Printf("Content:%s\n", line)
+			// log.Printf("Content:%s\n", line)
 			parms := strings.Fields(line)
 			var special_parms []string
 			if len(parms) != len(titles) {
-				log.Printf("title number: %d, content number:%d", len(titles), len(parms))
+				// log.Printf("title number: %d, content number:%d", len(titles), len(parms))
 				var COMM string
 				for i, value := range parms {
-					if i < commandindex-1 && i >= len(parms)-1 {
+					if i < commandindex-1 && i >= len(parms)-commandindex {
 						special_parms = append(special_parms, value)
 					} else if i == commandindex-1 {
 						COMM = value
-					} else if i < len(parms)-1 {
+					} else if i < len(parms)-commandindex {
 						COMM = COMM + " " + value
 						special_parms = append(special_parms, COMM)
 					}

@@ -25,6 +25,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -83,6 +84,26 @@ func CheckNormalError(err error) {
 	}
 }
 
-func RelatedBetweenData(content string) {
+func IsProcOutput(content string) bool {
+	pattern := `flag:\d+\s+pid:\d+\s+comm:\S+\s+offcpu_id|oncpu_time:\d+\s+offcpu_time|oncpu_time:\d+\s+oncpu_id|offcpu_id:\d+\s+oncpu_time|offcpu_time:\d+\s+time:[\d.]+`
+	re := regexp.MustCompile(pattern)
+	return re.MatchString(content)
+}
 
+func CutunexceptedSpace(content string) string {
+	re := regexp.MustCompile(`\s*:\s*`)
+	result := re.ReplaceAllString(content, ":")
+	return result
+}
+
+func ConvertTimeStamp(timestamp int64) string {
+	t := time.Unix(0, timestamp)
+	formattedTime := t.Format("15:04:05.000000")
+	return formattedTime
+}
+
+func Isinvalid(string2 string) bool {
+	pattern := `<.*>`
+	re := regexp.MustCompile(pattern)
+	return re.MatchString(string2)
 }

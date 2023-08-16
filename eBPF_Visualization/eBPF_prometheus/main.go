@@ -36,7 +36,7 @@ func main() {
 	here are two different sub-command : collect & ecli
 	example:
 		sudo data-visual collect ./vfsstat.py
-		sudo data-visual ecli ./package.json
+		sudo data-visual proc_image
 `
 	err := collector.RunServices(func(nm string, svc *collector.Aservice) error {
 		ins, err := svc.NewInst(nil)
