@@ -19,6 +19,7 @@
 package prom_core
 
 import (
+	"ebpf_prometheus/checker"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
@@ -32,15 +33,7 @@ type MyMetrics struct {
 	maps map[string]interface{}
 }
 
-func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {
-	_, string_dict := Format_Dict(m.maps)
-	ch <- prometheus.NewDesc(
-		"bpf_metrics",
-		"collect data and load to metrics",
-		[]string{"bpf_out_data"},
-		string_dict,
-	)
-}
+func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {}
 
 // Convert_Maps_To_Dict shift dict list to dict
 func Convert_Maps_To_Dict(maps []map[string]interface{}) map[string]interface{} {
@@ -63,6 +56,9 @@ func Format_Dict(dict map[string]interface{}) (map[string]float64, map[string]st
 			if floatValue, err := strconv.ParseFloat(strvalue, 64); err == nil {
 				measurable_dict[key] = floatValue
 			} else {
+				if checker.Isinvalid(key) {
+					continue
+				}
 				string_dict[key] = value.(string)
 				// todo: what should do when get string data.
 			}
