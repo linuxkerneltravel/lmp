@@ -14,20 +14,28 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试库函数调用，涉及IFUNC符号
+// 测试多线程程序
 
-#include <stdlib.h>
-#include <string.h>
+#include <assert.h>
+#include <pthread.h>
+
+static void* c(void* n) { return n; }
+
+static void* b(void* n) { return c(n); }
+
+static void* a(void* n) { return b(n); }
+
 int main() {
-  char *s = "Hello!";
-  char *t = malloc(15 * sizeof(char));
-  int m = strlen(s);
-  memcpy(t, s, m);
-  int n = strlen(t);
-  int ss = strlen(s) + strlen(t);
-  memset(t, 0, n);
-  free(t);
-  t = malloc(12 * sizeof(char));
-  free(t);
+  int i;
+  void* v;
+  int n = 10;
+  pthread_t t[4];
+
+  for (i = 0; i < 4; i++) pthread_create(&t[i], NULL, a, &n);
+  for (i = 0; i < 4; i++) {
+    pthread_join(t[i], &v);
+  }
+
+  assert(*(int*)v == n);
   return 0;
 }
