@@ -12,7 +12,8 @@ static int sock4_forward_entry(struct bpf_sock_addr *ctx)
     // 0x846F070A;   // 10.7.111.132
     // 0x0529050A;   // 10.5.41.5
     // 0x0100007F;   // 127.0.0.1
-    struct lb4_key key = {}, orig_key;
+
+    struct lb4_key key = {}, orig_key;    // must init the struct by zero
     struct lb4_service *svc;
     struct lb4_service *backend_slot;
     int backend_id = -1;
@@ -20,7 +21,6 @@ static int sock4_forward_entry(struct bpf_sock_addr *ctx)
 
     __be32 ori_dst_ip   = ctx_get_dst_ip(ctx);
     __be16 ori_dst_port = ctx_get_dst_port(ctx);
-    bpf_printk("dest: %08x:%04x", ori_dst_ip, ori_dst_port);
     key.address = ori_dst_ip,
     key.dport = ori_dst_port,
     key.backend_slot = 0,
@@ -30,10 +30,37 @@ static int sock4_forward_entry(struct bpf_sock_addr *ctx)
     svc = lb4_lookup_service(&key);
     if (!svc || svc->count == 0)
         return -ENXIO;
+    bpf_printk("dest: %08x:%04x", ori_dst_ip, ori_dst_port);
     bpf_printk("1. Service backend ID (must be zero): %d", svc->backend_id);
 
     // 2. find backend slots from service
-    key.backend_slot = sock_select_random_slot(svc->count);
+    // TODO: provide more (lightweight) selection logic later
+    int keep_possibility = MAX_BACKEND_SELECTION;
+    for (int i = 1; i <= MAX_BACKEND_SELECTION; i++) {
+        if(i > svc->count)
+            return -ENETRESET;
+
+        key.backend_slot = i;
+        backend_slot = lookup_lb4_backend_slot(&key);
+        if (!backend_slot)
+            return -ENOENT;
+
+        u32 random_value = bpf_get_prandom_u32();
+        bpf_printk("evaluate: %d < %d ? remain: %d", random_value % keep_possibility, backend_slot->possibility, keep_possibility);
+
+        if((random_value % keep_possibility) < backend_slot->possibility) {
+            key.backend_slot = i;
+            break;
+        }
+
+        keep_possibility -= backend_slot->possibility;
+        if(keep_possibility < 0)
+            return -ENOENT;
+    }
+
+//    // 2. find backend slots from service
+//    key.backend_slot = sock_select_random_slot(svc->count);
+
     bpf_printk("2. select backend from service slot: %d", key.backend_slot);
 
     // 3. lookup backend slot from constructed backend key
@@ -63,7 +90,7 @@ SEC("cgroup/connect4")
 int sock4_connect(struct bpf_sock_addr *ctx)
 {
     int ret = sock4_forward_entry(ctx);
-    if(!ret)
+    if(ret)
         bpf_printk("skipped, not modified");
     return SYS_PROCEED;
 }

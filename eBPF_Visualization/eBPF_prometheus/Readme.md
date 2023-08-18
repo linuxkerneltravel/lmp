@@ -34,6 +34,21 @@ $ ./data-visual collect ecli example/opensnoop/package.json
 
 通过访问http://127.0.0.1:8090/metrics 可实时查看收集到的metrics。
 
+proc_image:
+先打开/collector/proc_setting.yaml进行初始化配置，填入需要的信息
+```bash
+$ make
+$ ./data-visual proc_image
+```
+打开 localhost:8090/metrics 可查看输出的信息。
+
+启动grafana服务，在grafana中安装JSON API,之后选择使用JSON API连接，使用stateTimeline作为展示图，配置方式如下所示：
+![8](https://github.com/Gui-Yue/lmp/assets/78520005/60c4f70b-b51f-409a-9715-4fe3c8a0d87d)
+![9](https://github.com/Gui-Yue/lmp/assets/78520005/4bf9a907-1a59-4051-a6e4-133d917f96a7)
+
+效果图如下：
+![10](https://github.com/Gui-Yue/lmp/assets/78520005/d053b7ef-82a8-4f61-9a68-fd852c987bea)
+
 ### 使用prometheus-server的docker镜像监控metrics
 
 编辑prom_core/prometheus.yaml中targets参数，使其符合用户ip地址，默认127.0.0.1。之后使用下述操作。
