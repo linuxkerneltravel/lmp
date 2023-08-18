@@ -154,7 +154,14 @@ func Run(filePath string) error {
 	//go getStdout(stdout)
 
 	mapchan := make(chan []map[string]interface{}, 2)
-	go rediectStdout(stdout, mapchan)
+
+	if checker.IsTcpObjection(cmdStr) {
+		log.Println("I am TCPWatch")
+		go RedirectTcpWatch(stdout, mapchan)
+	} else {
+		go redirectStdout(stdout, mapchan)
+		log.Println("I am normal")
+	}
 
 	// process chan from redirect Stdout
 	go func() {
@@ -195,7 +202,7 @@ func listenSystemSignals(cmd *exec.Cmd) {
 	}
 }
 
-func rediectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
+func redirectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
 	var maps []map[string]interface{}
 	scanner := bufio.NewScanner(stdout)
 	var titles []string
@@ -207,7 +214,7 @@ func rediectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) 
 			// log.Printf("Title:%s\n", line)
 			parms := strings.Fields(line)
 			for _, value := range parms {
-				if value != "COMM" {
+				if strings.ToUpper(value) != "COMM" {
 					commandindex = commandindex + 1
 				}
 				one_map := make(map[string]interface{})
