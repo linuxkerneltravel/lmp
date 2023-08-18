@@ -101,7 +101,6 @@ func ConvertTimeStamp(timestamp int64) string {
 	formattedTime := t.Format("15:04:05.000000")
 	return formattedTime
 }
-
 func Isinvalid(string2 string) bool {
 	pattern := `<.*>`
 	re := regexp.MustCompile(pattern)
