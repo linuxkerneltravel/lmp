@@ -1,17 +1,44 @@
+# eBPF-TCP-Watch
+## 介绍
 基于目前已有eBPF小工具，以及linux网络协议栈相关探测点，该项目在主机空间实现以下功能：
+### 已完成
+- 搭建基础开发框架和自动编译管道。
+- 设计并实现TCP连接信息的记录
+- 设计并实现各个TCP连接发送与接收包信息的记录
+- 设计并实现TCP错误包信息的记录
+- 实现从TCP包中抽取HTTP信息并记录
+### TODO
+- 增加运行时参数以提升可用性
+## 组织结构
+- tcpwatch.bpf.c：在各个内核探针点对TCP包信息、TCP连接信息以及各个包的HTTP1/1.1信息进行记录
+- tcpwatch.c: 对bpf.c文件中记录的信息进行输出
+- tcpwatch.h: 定义内核态与用户态程序共用的结构体
+- data/：
+    - connects.log：符合Prometheus格式的连接信息
+    - err.log：符合Prometheus格式的错误包信息
+    - packets.log：符合Prometheus格式的包信息
+- visual.py：暴露metrics接口给Prometheus，输出data文件夹下的所有信息
+## 快速开始
+### 安装依赖
+- OS: Ubuntu 22.04LTS
+```bash
+sudo apt update
+sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+git submodule update --init --recursive
+```
+### 编译运行
+```bash
+make
+sudo ./tcpwatch
+```
+### 参数
+```bash
+Usage: tcpwatch [OPTION...]
+Watch tcp/ip in network subsystem
 
-- 记录TCP连接层面相关信息
-- 记录TCP包层面相关信息
-- 从TCP包中提取HTTP1/1.1相关信息
-- 暴露HTTP接口提供给Prometheus以进行可视化
-
-项目开发规划：
-
-- [x]   搭建基础开发框架和自动编译管道。
-- [x]   根据相关工具代码，设计并实现TCP连接信息的记录
-- [x]   根据相关工具代码，设计并实现各个TCP连接发送与接收包信息的记录
-- [ ]   更具相关工具代码，设计并实现TCP错误包信息的记录
-- [ ]   调查相关资料，实现从TCP包中抽取HTTP信息并记录
-- [ ]   讨论与Prometheus的连接方案并实现
-- [ ]   设计并添加工具的控制参数，提高工具的可用性
-- [ ]   编写相关文档
+  -a, --all                  set to trace CLOSED connection
+  -d, --dport=DPORT          trace this destination port only
+  -s, --sport=SPORT          trace this source port only
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+```

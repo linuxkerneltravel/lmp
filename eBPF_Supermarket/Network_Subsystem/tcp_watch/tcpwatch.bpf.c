@@ -84,20 +84,86 @@ struct {
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
+const volatile int all_conn = 0;
 
 /* help macro */
 #define FILTER_DPORT                                                           \
     if (filter_dport) {                                                        \
-        if (dport != filter_dport) {                                           \
+        if (conn.dport != filter_dport) {                                      \
             return 0;                                                          \
         }                                                                      \
     }
 #define FILTER_SPORT                                                           \
     if (filter_sport) {                                                        \
-        if (sport != filter_sport) {                                           \
+        if (conn.sport != filter_sport) {                                      \
             return 0;                                                          \
         }                                                                      \
     }
+
+#define CONN_INIT                                                              \
+    struct conn_t conn = {};                                                   \
+    u16 protocol = BPF_CORE_READ(sk, sk_protocol);                             \
+    if (protocol != IPPROTO_TCP)                                               \
+        return 0;                                                              \
+    bpf_get_current_comm(&conn.comm, sizeof(conn.comm));                       \
+    conn.sock = sk;                                                            \
+    u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);                    \
+    __be16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);                   \
+    u16 sport = BPF_CORE_READ(sk, __sk_common.skc_num);                        \
+    conn.family = family;                                                      \
+    conn.sport = sport;                                                        \
+    conn.dport = __bpf_ntohs(dport);                                           \
+    conn.init_timestamp = bpf_ktime_get_ns() / 1000;                           \
+    conn.ptid = bpf_get_current_pid_tgid();
+
+#define CONN_ADD_ADDRESS                                                       \
+    if (family == AF_INET) {                                                   \
+        conn.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);             \
+        conn.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);                 \
+    } else if (family == AF_INET6) {                                           \
+        bpf_probe_read_kernel(                                                 \
+            &conn.saddr_v6,                                                    \
+            sizeof(sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32),          \
+            &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);                \
+        bpf_probe_read_kernel(                                                 \
+            &conn.daddr_v6,                                                    \
+            sizeof(sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32),              \
+            &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);                    \
+    }
+
+#define CONN_ADD_EXTRA_INFO                                                    \
+    struct tcp_sock *tp = (struct tcp_sock *)sk;                               \
+    conn->srtt = BPF_CORE_READ(tp, srtt_us);                                   \
+    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;         \
+    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);                        \
+    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);                  \
+    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);                              \
+    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);                      \
+    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);                               \
+    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);                  \
+    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);                     \
+    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+#define CONN_INFO_TRANSFER                                                     \
+    tinfo->sk = conn->sock;                                                    \
+    for (int i = 0; i < MAX_COMM; ++i) {                                       \
+        tinfo->comm[i] = conn->comm[i];                                        \
+    }
+
+#define PACKET_INIT_WITH_COMMON_INFO                                           \
+    struct pack_t *packet;                                                     \
+    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);                     \
+    if (!packet) {                                                             \
+        return 0;                                                              \
+    }                                                                          \
+    for (int i = 0; i < MAX_COMM; ++i) {                                       \
+        packet->comm[i] = tinfo->comm[i];                                      \
+    }                                                                          \
+    packet->err = 0;                                                           \
+    packet->sock = sk;                                                         \
+    packet->ack = pkt_tuple.ack;                                               \
+    packet->seq = pkt_tuple.seq;
+
 /* help macro end */
 
 /* help functions */
@@ -156,48 +222,22 @@ static void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
     accecpt an TCP connection
 */
 SEC("kretprobe/inet_csk_accept")
-int BPF_KRETPROBE(inet_csk_accept_exit, struct sock *newsk) {
+int BPF_KRETPROBE(inet_csk_accept_exit,
+                  struct sock *sk) { // this func return a newsk
     // bpf_printk("inet_accept_ret\n");
-    if (newsk == NULL) {
+    if (sk == NULL) {
         // bpf_printk("inet_accept_ret err: newsk is null\n");
         return 0;
     }
 
-    u16 protocol = BPF_CORE_READ(newsk, sk_protocol);
-    if (protocol != IPPROTO_TCP)
-        return 0;
-    struct conn_t conn = {};
-    bpf_get_current_comm(&conn.comm, sizeof(conn.comm));
-    conn.sock = newsk;
+    CONN_INIT
 
-    u16 family = BPF_CORE_READ(newsk, __sk_common.skc_family);
-    __be16 dport = BPF_CORE_READ(newsk, __sk_common.skc_dport);
-    u16 sport = BPF_CORE_READ(newsk, __sk_common.skc_num);
+    FILTER_DPORT
+    FILTER_SPORT
 
-    conn.family = family;
-    conn.sport = sport;
-    conn.dport = __bpf_ntohs(dport);
+    CONN_ADD_ADDRESS
 
-    // ##FILTER_PORT##
-
-    if (family == AF_INET) {
-        conn.saddr = BPF_CORE_READ(newsk, __sk_common.skc_rcv_saddr);
-        conn.daddr = BPF_CORE_READ(newsk, __sk_common.skc_daddr);
-    } else if (family == AF_INET6) {
-        bpf_probe_read_kernel(
-            &conn.saddr_v6,
-            sizeof(newsk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32),
-            &newsk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
-        bpf_probe_read_kernel(
-            &conn.daddr_v6,
-            sizeof(newsk->__sk_common.skc_v6_daddr.in6_u.u6_addr32),
-            &newsk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
-    }
-
-    conn.init_timestamp = bpf_ktime_get_ns() / 1000;
-    conn.ptid = bpf_get_current_pid_tgid();
-
-    int err = bpf_map_update_elem(&conns_info, &newsk, &conn, BPF_ANY);
+    int err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     if (err) {
         // bpf_printk("inet_accept update err.\n");
         return 0;
@@ -215,8 +255,8 @@ int BPF_KRETPROBE(inet_csk_accept_exit, struct sock *newsk) {
 SEC("kprobe/tcp_v4_connect")
 int BPF_KPROBE(tcp_v4_connect, const struct sock *sk) {
     // bpf_printk("tcp_v4_connect\n");
-    u32 pid = bpf_get_current_pid_tgid();
-    int err = bpf_map_update_elem(&sock_stores, &pid, &sk, BPF_ANY);
+    u32 ptid = bpf_get_current_pid_tgid();
+    int err = bpf_map_update_elem(&sock_stores, &ptid, &sk, BPF_ANY);
     if (err) {
         // bpf_printk("tcp_v4_connect update sock_stores err.\n");
         return 0;
@@ -226,36 +266,24 @@ int BPF_KPROBE(tcp_v4_connect, const struct sock *sk) {
 
 SEC("kretprobe/tcp_v4_connect")
 int BPF_KRETPROBE(tcp_v4_connect_exit, int ret) {
-    u32 pid = bpf_get_current_pid_tgid();
-    struct sock **skp = bpf_map_lookup_elem(&sock_stores, &pid);
+    u32 ptid = bpf_get_current_pid_tgid();
+    struct sock **skp = bpf_map_lookup_elem(&sock_stores, &ptid);
     if (skp == NULL) {
         return 0;
     }
     // bpf_printk("tcp_v4_connect_exit\n");
     if (ret != 0) {
         // bpf_printk("tcp_v4_connect_exit but ret %d\n", ret);
-        bpf_map_delete_elem(&sock_stores, &pid);
+        bpf_map_delete_elem(&sock_stores, &ptid);
         return 0;
     }
     struct sock *sk = *skp;
-    struct conn_t conn = {};
-    bpf_get_current_comm(&conn.comm, sizeof(conn.comm));
-    conn.sock = sk;
-    conn.ptid = pid;
-    u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
-    __be16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
-    u16 sport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    CONN_INIT
 
-    conn.family = family;
-    conn.sport = sport;
-    conn.dport = __bpf_ntohs(dport);
+    FILTER_DPORT
+    FILTER_SPORT
 
-    // ##FILTER_PORT##
-
-    conn.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
-    conn.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
-
-    conn.init_timestamp = bpf_ktime_get_ns() / 1000;
+    CONN_ADD_ADDRESS
 
     long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     if (err) {
@@ -280,41 +308,25 @@ int BPF_KPROBE(tcp_v6_connect, const struct sock *sk) {
 
 SEC("kretprobe/tcp_v6_connect")
 int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
-    u32 pid = bpf_get_current_pid_tgid();
-    struct sock **skp = bpf_map_lookup_elem(&sock_stores, &pid);
+    u32 ptid = bpf_get_current_pid_tgid();
+    struct sock **skp = bpf_map_lookup_elem(&sock_stores, &ptid);
     if (skp == NULL) {
         return 0;
     }
     // bpf_printk("tcp_v6_connect_exit\n");
     if (ret != 0) {
         // bpf_printk("tcp_v6_connect_exit but return %d\n", ret);
-        bpf_map_delete_elem(&sock_stores, &pid);
+        bpf_map_delete_elem(&sock_stores, &ptid);
         return 0;
     }
     struct sock *sk = *skp;
-    struct conn_t conn = {};
-    bpf_get_current_comm(&conn.comm, sizeof(conn.comm));
-    conn.sock = sk;
-    conn.ptid = pid;
-    u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
-    __be16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
-    u16 sport = BPF_CORE_READ(sk, __sk_common.skc_num);
 
-    conn.family = family;
-    conn.sport = sport;
-    conn.dport = __bpf_ntohs(dport);
+    CONN_INIT
 
-    // ##FILTER_PORT##
+    FILTER_DPORT
+    FILTER_SPORT
 
-    bpf_probe_read_kernel(
-        &conn.saddr_v6,
-        sizeof(sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32),
-        &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
-    bpf_probe_read_kernel(&conn.daddr_v6,
-                          sizeof(sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32),
-                          &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
-
-    conn.init_timestamp = bpf_ktime_get_ns() / 1000;
+    CONN_ADD_ADDRESS
 
     long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     if (err) {
@@ -332,6 +344,9 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
 /* erase CLOSED TCP connection */
 SEC("kprobe/tcp_set_state")
 int BPF_KPROBE(tcp_set_state, struct sock *sk, int state) {
+    if (all_conn) {
+        return 0;
+    }
     struct conn_t *value = bpf_map_lookup_elem(&conns_info, &sk);
     if (state == TCP_CLOSE && value != NULL) {
         // delete
@@ -385,9 +400,6 @@ int BPF_KPROBE(eth_type_trans, struct sk_buff *skb) {
         struct packet_tuple pkt_tuple = {};
         get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
         struct ktime_info *tinfo, zero = {};
 
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
@@ -405,9 +417,6 @@ int BPF_KPROBE(eth_type_trans, struct sk_buff *skb) {
                                                sizeof(struct ipv6hdr) + 14);
         struct packet_tuple pkt_tuple = {};
         get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
-
-        // FILTER_DPORT
-        // FILTER_SPORT
 
         struct ktime_info *tinfo, zero = {};
 
@@ -434,9 +443,6 @@ int BPF_KPROBE(ip_rcv_core, struct sk_buff *skb) {
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-    // FILTER_DPORT
-    // FILTER_SPORT
-
     struct ktime_info *tinfo;
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -457,9 +463,6 @@ int BPF_KPROBE(ip6_rcv_core, struct sk_buff *skb) {
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
-
-    // FILTER_DPORT
-    // FILTER_SPORT
 
     struct ktime_info *tinfo;
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
@@ -482,9 +485,6 @@ int BPF_KPROBE(tcp_v4_rcv, struct sk_buff *skb) {
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-    // FILTER_DPORT
-    // FILTER_SPORT
-
     struct ktime_info *tinfo;
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -505,9 +505,6 @@ int BPF_KPROBE(tcp_v6_rcv, struct sk_buff *skb) {
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
-
-    // FILTER_DPORT
-    // FILTER_SPORT
 
     struct ktime_info *tinfo;
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
@@ -541,24 +538,13 @@ int BPF_KPROBE(tcp_v4_do_rcv, struct sock *sk, struct sk_buff *skb) {
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->sk = sk;
-    // copy comm string
-    for (int i = 0; i < MAX_COMM; ++i) {
-        tinfo->comm[i] = conn->comm[i];
-    }
+
+    CONN_INFO_TRANSFER
+
     // bpf_printk("rx enter tcp4_do_rcv, sk: %p \n", sk);
-    //  conn info update
-    struct tcp_sock *tp = (struct tcp_sock *)sk;
-    conn->srtt = BPF_CORE_READ(tp, srtt_us);
-    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
-    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);
-    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);
-    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
-    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
-    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);
-    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
-    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
-    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+    CONN_ADD_EXTRA_INFO
+
     return 0;
 }
 SEC("kprobe/tcp_v6_do_rcv")
@@ -583,24 +569,12 @@ int BPF_KPROBE(tcp_v6_do_rcv, struct sock *sk, struct sk_buff *skb) {
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->sk = sk;
 
-    for (int i = 0; i < MAX_COMM; ++i) {
-        tinfo->comm[i] = conn->comm[i];
-    }
+    CONN_INFO_TRANSFER
+
     // bpf_printk("rx enter tcp6_do_rcv, sk: %p \n", sk);
-    /*----- update conn info ------*/
-    struct tcp_sock *tp = (struct tcp_sock *)sk;
-    conn->srtt = BPF_CORE_READ(tp, srtt_us);
-    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
-    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);
-    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);
-    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
-    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
-    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);
-    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
-    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
-    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+    CONN_ADD_EXTRA_INFO
 
     return 0;
 }
@@ -619,9 +593,6 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
         struct iphdr *ip = skb_to_iphdr(skb);
         get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
         tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
         if (tinfo == NULL) {
             return 0;
@@ -632,9 +603,6 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
         /** ipv6 */
         struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
         get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
-
-        // FILTER_DPORT
-        // FILTER_SPORT
 
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
@@ -653,27 +621,20 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
         return 0;
     }
     // bpf_printk("rx enter app layer.\n");
-    struct pack_t *packet;
-    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
-    if (!packet) {
-        return 0;
-    }
-    // bpf_printk("rx packet sk: %p\n", sk);
-    for (int i = 0; i < MAX_COMM; ++i) {
-        packet->comm[i] = tinfo->comm[i];
-    }
-    packet->err = 0;
-    packet->sock = sk;
-    packet->ack = pkt_tuple.ack;
-    packet->seq = pkt_tuple.seq;
+
+    PACKET_INIT_WITH_COMMON_INFO
+
     packet->mac_time = tinfo->ip_time - tinfo->mac_time;
     packet->ip_time = tinfo->tcp_time - tinfo->ip_time;
     packet->tcp_time = tinfo->app_time - tinfo->tcp_time;
     packet->rx = 1;
+
+    // RX HTTP INFO
     int doff = BPF_CORE_READ_BITFIELD_PROBED(tcp, doff); // 得用bitfield_probed
     unsigned char *user_data =
         (unsigned char *)((unsigned char *)tcp + (doff * 4));
     bpf_probe_read_str(packet->data, sizeof(packet->data), user_data);
+
     bpf_ringbuf_submit(packet, 0);
     return 0;
 }
@@ -835,31 +796,20 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
         }
         tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
     }
-    for (int i = 0; i < MAX_COMM; ++i) {
-        tinfo->comm[i] = conn->comm[i];
-    }
-    tinfo->sk = sk;
-    /*----- update conn info ------*/
-    struct tcp_sock *tp = (struct tcp_sock *)sk;
-    conn->srtt = BPF_CORE_READ(tp, srtt_us);
-    conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;
-    conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);
-    conn->bytes_received = BPF_CORE_READ(tp, bytes_received);
-    conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
-    conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
-    conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);
-    conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);
-    conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);
-    conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);
+
+    CONN_INFO_TRANSFER
+
+    CONN_ADD_EXTRA_INFO
+
+    // TX HTTP info
     unsigned char *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
     if (tinfo == NULL) {
         return 0;
     }
-    bpf_printk("kernel data: %s", user_data);
     bpf_probe_read_str(tinfo->data, sizeof(tinfo->data), user_data);
-    bpf_printk("tinfo data: %s", tinfo->data);
+
     return 0;
 }
 
@@ -886,9 +836,6 @@ int BPF_KPROBE(ip_queue_xmit, struct sock *sk, struct sk_buff *skb) {
         ack = BPF_CORE_READ(tcp, ack_seq);
         pkt_tuple.seq = __bpf_ntohl(seq);
         pkt_tuple.ack = __bpf_ntohl(ack);
-
-        // FILTER_DPORT
-        // FILTER_SPORT
 
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
@@ -931,9 +878,6 @@ int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb) {
         pkt_tuple.seq = __bpf_ntohl(seq);
         pkt_tuple.ack = __bpf_ntohl(ack);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
@@ -970,9 +914,6 @@ int BPF_KPROBE(__dev_queue_xmit, struct sk_buff *skb) {
         struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
         get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
@@ -997,9 +938,6 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
         struct iphdr *ip = skb_to_iphdr(skb);
         get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
@@ -1008,9 +946,6 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
         /** ipv6 */
         struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
         get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
-
-        // FILTER_DPORT
-        // FILTER_SPORT
 
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
@@ -1027,25 +962,17 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
     if (sk == NULL) {
         return 0;
     }
-    struct pack_t *packet;
-    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);
-    if (!packet) {
-        return 0;
-    }
-    for (int i = 0; i < MAX_COMM; ++i) {
-        packet->comm[i] = tinfo->comm[i];
-    }
-    // bpf_printk("tx packet sk: %p\n", sk);
-    packet->err = 0;
-    packet->sock = sk;
-    packet->ack = pkt_tuple.ack;
-    packet->seq = pkt_tuple.seq;
+
+    PACKET_INIT_WITH_COMMON_INFO
+
     packet->tcp_time = tinfo->ip_time - tinfo->tcp_time;
     packet->ip_time = tinfo->mac_time - tinfo->ip_time;
     packet->mac_time = tinfo->qdisc_time - tinfo->mac_time;
     packet->rx = 0;
+
+    // TX HTTP Info
     bpf_probe_read_str(packet->data, sizeof(packet->data), tinfo->data);
-    // 此时skb为非线性 不能直接用RX同样的方式读取
+
     bpf_ringbuf_submit(packet, 0);
 
     return 0;

@@ -1,1 +1,3 @@
-packet{sock="",src="",dst="",ack="",seq="",mac_delay="",ip_delay="",tcp_delay=""} 0
+packet{sock="0xffff9ddca18cd780",comm="curl",seq="2779274508",ack="504640002",mac_time="1",ip_time="3",tcp_time="14",rx="0"} 0
+packet{sock="0xffff9ddca18cd780",comm="curl",seq="504640002",ack="2779274585",mac_time="45",ip_time="8",tcp_time="489",rx="1"} 0
+packet{sock="0xffff9ddca18cd780",comm="curl",seq="504642722",ack="2779274585",mac_time="37",ip_time="4",tcp_time="194",rx="1"} 0

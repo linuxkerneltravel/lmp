@@ -1,0 +1,1 @@
+connection{sock="0xffff9ddca18cd780",src="10.0.2.15:56680",dst="220.181.38.149:80",backlog="0",maxbacklog="0",cwnd="10",ssthresh="2147483647",sndbuf="87040",wmem_queued="1280",rx="2.781K",tx="78",srtt="44112",duration="14882"} 0

@@ -33,10 +33,12 @@
 static volatile bool exiting = false;
 
 static int sport = 0, dport = 0; // for filter
+static int all_conn = 0;         // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
 static const struct argp_option opts[] = {
+    {"all", 'a', 0, 0, "set to trace CLOSED connection"},
     {"sport", 's', "SPORT", 0, "trace this source port only"},
     {"dport", 'd', "DPORT", 0, "trace this destination port only"},
     {}};
@@ -44,6 +46,9 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     char *end;
     switch (key) {
+    case 'a':
+        all_conn = 1;
+        break;
     case 's':
         sport = strtoul(arg, &end, 10);
         break;
@@ -141,26 +146,55 @@ static int print_conns(struct tcpwatch_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
+
     const struct pack_t *pack_info = packet_info;
     if (pack_info->err) {
+        FILE *file = fopen("./data/err.log", "a");
+        char reason[20];
         if (pack_info->err == 1) {
             printf("[X] invalid SEQ: sock = %p,comm = %s,seq= %u,ack = %u\n",
                    pack_info->sock, pack_info->comm, pack_info->seq,
                    pack_info->ack);
+            sprintf(reason, "Invalid SEQ");
         } else if (pack_info->err == 2) {
             printf("[X] invalid checksum: sock = %p,comm = %s\n",
                    pack_info->sock, pack_info->comm);
+            sprintf(reason, "Invalid checksum");
         } else {
             printf("UNEXPECTED packet error %d.\n", pack_info->err);
+            sprintf(reason, "Unkonwn");
         }
+        fprintf(file,
+                "error{sock=\"%p\",comm=\"%s\",seq=\"%u\",ack=\"%u\","
+                "reason=\"%s\"} 0\n",
+                pack_info->sock, pack_info->comm, pack_info->seq,
+                pack_info->ack, reason);
+        fclose(file);
     } else {
-        printf("%-22p %-22s %-10u %-10u %-10llu %-10llu %-10llu %d\n",
+        FILE *file = fopen("./data/packets.log", "a");
+        printf("%-22p %-22s %-10u %-10u %-10llu %-10llu %-10llu %-5d",
                pack_info->sock, pack_info->comm, pack_info->seq, pack_info->ack,
                pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
                pack_info->rx);
         if (strstr((char *)pack_info->data, "HTTP/1")) {
-            printf("%s\n", pack_info->data);
+            for (int i = 0; i < sizeof(pack_info->data); ++i) {
+                if (pack_info->data[i] == '\r') {
+                    break;
+                }
+                printf("%c", pack_info->data[i]);
+            }
+        } else {
+            printf("-");
         }
+        printf("\n");
+        fprintf(file,
+                "packet{sock=\"%p\",comm=\"%s\",seq=\"%u\",ack=\"%u\","
+                "mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",rx=\"%"
+                "d\"} 0\n",
+                pack_info->sock, pack_info->comm, pack_info->seq,
+                pack_info->ack, pack_info->mac_time, pack_info->ip_time,
+                pack_info->tcp_time, pack_info->rx);
+        fclose(file);
     }
     return 0;
 }
@@ -190,9 +224,7 @@ int main(int argc, char **argv) {
     /* Parameterize BPF code */
     skel->rodata->filter_dport = dport;
     skel->rodata->filter_sport = sport;
-    fprintf(stdout, "Filter source port: %d\n", skel->rodata->filter_sport);
-    fprintf(stdout, "Filter destination port: %d\n",
-            skel->rodata->filter_dport);
+    skel->rodata->all_conn = all_conn;
 
     err = tcpwatch_bpf__load(skel);
     if (err) {
@@ -215,8 +247,22 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    printf("%-22s %-22s %-10s %-10s %-10s %-10s %-10s %-5s\n", "SOCK", "COMM",
-           "SEQ", "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX");
+    printf("%-22s %-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK",
+           "COMM", "SEQ", "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX",
+           "HTTP");
+    FILE *err_file = fopen("./data/err.log", "w");
+    if (err_file == NULL) {
+        fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
+        return 0;
+    }
+    fclose(err_file);
+    FILE *packet_file = fopen("./data/packets.log", "w");
+    if (packet_file == NULL) {
+        fprintf(stderr, "Failed to open packets.log: (%s)\n", strerror(errno));
+        return 0;
+    }
+    fclose(packet_file);
+
     /* Process events */
     while (!exiting) {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
