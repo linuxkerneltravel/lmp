@@ -101,9 +101,31 @@ func ConvertTimeStamp(timestamp int64) string {
 	formattedTime := t.Format("15:04:05.000000")
 	return formattedTime
 }
-
 func Isinvalid(string2 string) bool {
 	pattern := `<.*>`
 	re := regexp.MustCompile(pattern)
 	return re.MatchString(string2)
+}
+
+func IsTCPwatchFirst(string2 string) bool {
+	pattern := `^\s*SOCK\s*COMM\s*SEQ\s*ACK\s*MAC_TIME\s*IP_TIME\s*TCP_TIME\s*RX\s*$`
+	re := regexp.MustCompile(pattern)
+	return re.MatchString(string2)
+}
+
+func IsTcpObjection(string2 string) bool {
+	pattern := `tcpwatch`
+	match, _ := regexp.MatchString(pattern, string2)
+	return match
+}
+
+func InvalidTcpData(string2 string) bool {
+	pattern1 := `invalid`
+	pattern2 := `User-Agent`
+	match1, _ := regexp.MatchString(pattern1, string2)
+	match2, _ := regexp.MatchString(pattern2, string2)
+	if match2 || match1 {
+		return true
+	}
+	return false
 }

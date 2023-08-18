@@ -1,0 +1,3 @@
+data-visual 
+./collector/proc_setting.yaml
+./prom_core/prometheus.yaml
