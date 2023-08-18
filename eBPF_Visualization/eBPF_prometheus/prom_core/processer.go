@@ -19,11 +19,13 @@
 package prom_core
 
 import (
+	"ebpf_prometheus/checker"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -32,14 +34,7 @@ type MyMetrics struct {
 	maps map[string]interface{}
 }
 
-func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc(
-		"bpf_metrics",
-		"collect data and load to metrics",
-		[]string{"bpf_out_data"},
-		nil,
-	)
-}
+func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {}
 
 // Convert_Maps_To_Dict shift dict list to dict
 func Convert_Maps_To_Dict(maps []map[string]interface{}) map[string]interface{} {
@@ -53,31 +48,35 @@ func Convert_Maps_To_Dict(maps []map[string]interface{}) map[string]interface{} 
 }
 
 // Format_Dict format dict.
-func Format_Dict(dict map[string]interface{}) map[string]float64 {
-	new_dict := map[string]float64{}
+func Format_Dict(dict map[string]interface{}) (map[string]float64, map[string]string) {
+	measurable_dict := map[string]float64{}
+	string_dict := map[string]string{}
 	for key, value := range dict {
 		if strvalue, is_string := value.(string); is_string {
 			// shift numerical data to float64
 			if floatValue, err := strconv.ParseFloat(strvalue, 64); err == nil {
-				new_dict[key] = floatValue
+				measurable_dict[key] = floatValue
 			} else {
-				// todo: what should do when get string data.
+				if checker.Isinvalid(key) || strings.ToUpper(key) == "TIME" || strings.ToUpper(key) == "SOCK" {
+					continue
+				}
+				string_dict[key] = value.(string)
 			}
 		}
 	}
-	return new_dict
+	return measurable_dict, string_dict
 }
 
 // Collect func collect data and load to metrics.
 func (m *MyMetrics) Collect(ch chan<- prometheus.Metric) {
-	bpfdata := Format_Dict(m.maps)
+	bpfdata, stringdata := Format_Dict(m.maps)
 	for key, value := range bpfdata {
 		ch <- prometheus.MustNewConstMetric(
 			prometheus.NewDesc(
 				"bpf_metrics",
 				"collect data and load to metrics",
 				[]string{"bpf_out_data"},
-				nil,
+				stringdata,
 			),
 			prometheus.GaugeValue,
 			value,

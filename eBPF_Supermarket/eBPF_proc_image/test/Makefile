@@ -16,7 +16,7 @@
 #
 # compile the current folder code
 
-obj-m += mutex_test1.o
+obj-m += mutex_test1.o mutex_test2.o
 
 CURRENT_PATH:=$(shell pwd)	#模块所在的当前所在路径
 LINUX_KERNEL:=$(shell uname -r)	#linux内核代码的当前版本

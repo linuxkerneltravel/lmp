@@ -18,24 +18,36 @@
 
 #include "utrace.h"
 
-#include "demangle.h"
-
 #include <stdlib.h>
 #include <string.h>
 
+#include "demangle.h"
+
 char *demangle(const char *mangled_name) {
   char *original_name;
-  long len = MAX_SYMBOL_LEN;
+  long len = MAX_MANGLED_LEN;
+  long name_len;
   int status;
 
-  /** 确保只还原重整过的符号（以"_Z"起始）*/
-  if (mangled_name[0] != '_' || mangled_name[1] != 'Z') return strdup(mangled_name);
+  if (strncmp(mangled_name, "_Z", 2) == 0) {
+    __cxa_demangle(mangled_name, NULL, &len, &status);
+    if (status < 0) {
+      return strdup(mangled_name);
+    }
+    original_name = malloc(len);
+    __cxa_demangle(mangled_name, original_name, &len, &status);
 
-  __cxa_demangle(mangled_name, NULL, &len, &status);
-  if (status < 0) return strdup(mangled_name);
+    name_len = strlen(original_name);
+    if (original_name[name_len - 1] == ')') {
+      int cont = 1;
+      while (cont) {
+        --name_len;
+        if (original_name[name_len] == '(') cont = 0;
+        original_name[name_len] = 0;
+      }
+    }
+    return original_name;
+  }
 
-  original_name = malloc(len);
-  __cxa_demangle(mangled_name, original_name, &len, &status);
-
-  return original_name;
+  return strdup(mangled_name);
 }

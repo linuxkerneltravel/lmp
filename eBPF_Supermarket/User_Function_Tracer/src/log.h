@@ -20,31 +20,50 @@
 #define UTRACE_LOG_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 /**
- * @brief 输出cnt个字符c
+ * @brief 设置输出的颜色
+ * @param[in] color 颜色控制符
+ */
+void log_color(const char* color);
+
+/**
+ * @brief 输出连续cnt个字符c
  * @param[in] c 字符
  * @param[in] cnt 个数
  */
-void print_char(char c, int cnt);
+void log_char(char c, int cnt);
 
 /**
  * @brief 输出头部
  */
-void print_header();
+void log_header();
 
 /**
  * @brief 输出线程号
  * @param[in] tid 线程号
  */
-void print_tid(int tid);
+void log_tid(int tid);
 
 /**
- * @brief 根据参数打印合适时间单位
- * @param[in] ns 时间（单位纳秒）
- * @details 从[ns,us,ms,s,m,h]中选择合适的单位输出
+ * @brief 输出CPU编号
+ * @param[in] cpuid CPU编号
  */
-void print_time_unit(size_t ns);
+void log_cpuid(int cpuid);
+
+/**
+ * @brief 输出分隔符
+ * @details 分隔符为" | "
+ */
+void log_split();
+
+/**
+ * @brief 输出时间及其单位
+ * @param[in] ns 时间（单位纳秒）
+ * @details 从[ns,us,ms,s,m,h]中选择合适的单位输出时间信息
+ */
+void log_time(size_t ns);
 
 /** 控制是否显示调试信息，在utrace.c中定义 */
 extern int debug;
@@ -70,5 +89,18 @@ extern int debug;
     fprintf(stderr, "[ERROR] ");         \
     fprintf(stderr, fmt, ##__VA_ARGS__); \
   } while (0)
+
+/**
+ * @brief 输出到stderr
+ */
+#define LOG(fmt, ...)                    \
+  do {                                   \
+    fprintf(stderr, fmt, ##__VA_ARGS__); \
+  } while (0)
+
+#define TERM_RED "\033[0;31m"
+#define TERM_GREEN "\033[0;32m"
+#define TERM_GRAY "\033[0;90m"
+#define TERM_NC "\033[0m"
 
 #endif  // UTRACE_LOG_H

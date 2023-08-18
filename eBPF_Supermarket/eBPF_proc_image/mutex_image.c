@@ -75,20 +75,20 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 	const struct mutex_event *e = data;
 	double acq_time,hold_time;
 
-    if(e->mutex_unlock_time!=0){
-        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu  mutex_unlock_time(ns):%llu\n",
-                e->pid,e->comm,e->mutex_acq_time,e->mutex_lock_time,e->mutex_unlock_time);
+    printf("pid:%d  comm:%s  mutex:%llu\n", e->pid,e->comm,e->lock_ptr);
+	
+	if(e->mutex_unlock_time!=0){
+        printf("mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu  mutex_unlock_time(ns):%llu\n",
+                e->mutex_acq_time,e->mutex_lock_time,e->mutex_unlock_time);
         acq_time = (e->mutex_lock_time - e->mutex_acq_time)*1.0/1000.0;
 		hold_time = (e->mutex_unlock_time - e->mutex_lock_time)*1.0/1000.0;
         printf("acq_time(us):%lf  hold_time(us):%lf\n",acq_time,hold_time);
     }else if(e->mutex_lock_time!=0){
-        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu\n",
-                e->pid,e->comm,e->mutex_acq_time,e->mutex_lock_time);
+        printf("mutex_acq_time(ns):%llu  mutex_lock_time(ns):%llu\n",e->mutex_acq_time,e->mutex_lock_time);
 		acq_time = (e->mutex_lock_time - e->mutex_acq_time)*1.0/1000.0;
 		printf("acq_time(us):%lf\n",acq_time);
     }else{
-        printf("pid:%d  comm:%s  mutex_acq_time(ns):%llu\n",
-                e->pid,e->comm,e->mutex_acq_time);
+        printf("mutex_acq_time(ns):%llu\n",e->mutex_acq_time);
     }
 
     printf("\n");
