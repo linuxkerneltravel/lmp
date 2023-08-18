@@ -34,4 +34,12 @@ jobs:
           cmake -B build -S . -G Ninja
           cmake --build build
           gcc test/sleep.c -o test/sleep
-          sudo build/utrace test/sleep
+          gcc test/mmap.c -o test/mmap
+          gcc test/strcpy.c -o test/strcpy
+          gcc test/fib.c -o test/fib
+          gcc test/thread.c -o test/thread
+          sudo build/utrace -c test/sleep
+          sudo build/utrace -c test/mmap
+          sudo build/utrace -c test/strcpy
+          sudo build/utrace -c test/fib
+          sudo build/utrace -c test/thread

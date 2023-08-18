@@ -18,14 +18,15 @@
 
 #include "symbol.h"
 
-#include "demangle.h"
-#include "elf.h"
-#include "log.h"
 #include <elf.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "demangle.h"
+#include "elf.h"
+#include "log.h"
 
 static int addrsort(const void* lhs, const void* rhs) {
   const size_t addrl = ((const struct symbol*)(lhs))->addr;
@@ -87,7 +88,6 @@ struct symbol_arr* new_symbol_arr(char* libname, struct dyn_symbol_set* dyn_syms
     if (elf_s.shdr.sh_type != SHT_SYMTAB && elf_s.shdr.sh_type != SHT_DYNSYM) continue;
     struct elf_entry elf_e;
     struct symbol sym;
-    size_t prev_sym_value = 0;
     for (elf_symbol_entry_begin(&elf_e, &elf_s); elf_symbol_entry_next(&elf_e, &elf_s);) {
       if (GELF_ST_TYPE(elf_e.sym.st_info) != STT_FUNC &&
           // GELF_ST_TYPE(elf_e.sym.st_info) != STT_OBJECT &&
@@ -104,15 +104,11 @@ struct symbol_arr* new_symbol_arr(char* libname, struct dyn_symbol_set* dyn_syms
         DEBUG("Dynamic symbol: %s\n", sym.name);
       }
 
-      if (elf_e.sym.st_value == prev_sym_value) continue;
       if (elf_e.sym.st_shndx == STN_UNDEF) continue;
       if (sym.size == 0) continue;
       if (lib && !contain_dyn_symbol(dyn_symset, sym.name)) continue;
 
-      // if (strcmp(sym.name, "_start") == 0) continue;
-
       push_symbol(symbols, &sym);
-      prev_sym_value = elf_e.sym.st_value;
     }
   }
   elf_head_end(&elf);

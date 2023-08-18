@@ -14,30 +14,28 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试库函数调用
+// 测试多线程程序
 
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <unistd.h>
+#include <assert.h>
+#include <pthread.h>
 
-int foo(long sz) {
-  int fd;
-  void *ptr;
+static void* c(void* n) { return n; }
 
-  fd = open("/dev/zero", O_RDONLY);
-  ptr = mmap(NULL, sz, PROT_READ, MAP_ANON | MAP_PRIVATE, fd, 0);
-  mprotect(ptr, sz, PROT_NONE);
-  munmap(ptr, sz);
-  close(fd);
+static void* b(void* n) { return c(n); }
 
-  printf("Finish mmap.\n");
-
-  return 0;
-}
+static void* a(void* n) { return b(n); }
 
 int main() {
-  foo(4096);
+  int i;
+  void* v;
+  int n = 10;
+  pthread_t t[4];
+
+  for (i = 0; i < 4; i++) pthread_create(&t[i], NULL, a, &n);
+  for (i = 0; i < 4; i++) {
+    pthread_join(t[i], &v);
+  }
+
+  assert(*(int*)v == n);
   return 0;
 }
