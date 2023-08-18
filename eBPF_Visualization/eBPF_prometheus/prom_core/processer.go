@@ -57,11 +57,10 @@ func Format_Dict(dict map[string]interface{}) (map[string]float64, map[string]st
 			if floatValue, err := strconv.ParseFloat(strvalue, 64); err == nil {
 				measurable_dict[key] = floatValue
 			} else {
-				if checker.Isinvalid(key) || strings.ToUpper(key) == "TIME" {
+				if checker.Isinvalid(key) || strings.ToUpper(key) == "TIME" || strings.ToUpper(key) == "SOCK" {
 					continue
 				}
 				string_dict[key] = value.(string)
-				// todo: what should do when get string data.
 			}
 		}
 	}

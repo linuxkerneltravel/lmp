@@ -22,13 +22,14 @@ import (
 	"bufio"
 	"ebpf_prometheus/checker"
 	"io"
-	"log"
 	"strings"
+	"sync"
 )
 
 // RedirectTcpWatch 重定向tcpwatch的输出
 func RedirectTcpWatch(stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
 	var maps []map[string]interface{}
+	var mu sync.Mutex
 	scanner := bufio.NewScanner(stdout)
 	startcollect := 0
 	var titles []string
@@ -36,7 +37,7 @@ func RedirectTcpWatch(stdout io.ReadCloser, mapchan chan []map[string]interface{
 	for scanner.Scan() {
 		line := scanner.Text()
 		if checker.IsTCPwatchFirst(line) {
-			log.Printf("Title:%s\n", line)
+			// log.Printf("Title:%s\n", line)
 			parms := strings.Fields(line)
 			for _, value := range parms {
 				if strings.ToUpper(value) != "COMM" {
@@ -63,7 +64,7 @@ func RedirectTcpWatch(stdout io.ReadCloser, mapchan chan []map[string]interface{
 				if checker.InvalidTcpData(line) {
 					continue
 				}
-				log.Printf("Content:%s\n", line)
+				// log.Printf("Content:%s\n", line)
 				for i, value := range parms {
 					if i < commandindex-1 && i >= len(parms)-commandindex {
 						special_parms = append(special_parms, value)
@@ -74,17 +75,17 @@ func RedirectTcpWatch(stdout io.ReadCloser, mapchan chan []map[string]interface{
 						special_parms = append(special_parms, COMM)
 					}
 				}
-				newMap := make(map[string]interface{})
 				mu.Lock()
+				newMap := make(map[string]interface{})
 				for i, value := range special_parms {
 					newMap[titles[i]] = value
 				}
 				mu.Unlock()
 				mapchan <- []map[string]interface{}{newMap}
 			} else {
-				log.Printf("Content:%s\n", line)
-				newMap := make(map[string]interface{})
+				// log.Printf("Content:%s\n", line)
 				mu.Lock()
+				newMap := make(map[string]interface{})
 				for i, value := range parms {
 					newMap[titles[i]] = value
 				}

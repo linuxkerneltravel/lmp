@@ -47,8 +47,6 @@ var GlobalServices = struct {
 	services map[string]*Aservice
 }{}
 
-var mu sync.Mutex
-
 func AddAService(svc *Aservice) error {
 	GlobalServices.Lock()
 	defer GlobalServices.Unlock()
@@ -204,6 +202,7 @@ func listenSystemSignals(cmd *exec.Cmd) {
 
 func redirectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
 	var maps []map[string]interface{}
+	var mu sync.Mutex
 	scanner := bufio.NewScanner(stdout)
 	var titles []string
 	var line_number = 1
