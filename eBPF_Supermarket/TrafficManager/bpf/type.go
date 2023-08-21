@@ -66,7 +66,7 @@ func (k *Service4Key) ToHost() *Service4Key {
 }
 
 func (k *Service4Key) String() string {
-	kHost := k.ToHost()
+	kHost := k // .ToHost()
 	addr := net.JoinHostPort(kHost.Address.String(), fmt.Sprintf("%d", kHost.Port))
 	if kHost.Scope == loadbalancer.ScopeInternal {
 		addr += "/i"
@@ -150,3 +150,10 @@ func (v *Backend4Value) ToNetwork() *Backend4Value {
 type Possibility struct {
 	percentage float64
 }
+
+// func tes() {
+//	IP := net.ParseIP("1.1.1.1")
+//	var Port uint16 = 8080
+//
+//	svcKey := NewService4Key(IP, Port, u8proto.ANY, 0, 0)
+// }

@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/u8proto"
@@ -133,8 +133,8 @@ func (p *Programs) Close() {
 	_ = os.Remove(MapsPinPath)
 }
 
-func (p *Programs) DeleteServiceItem(serviceIP string, slot int) bool {
-	serviceKey := NewService4Key(net.ParseIP(serviceIP), 0, u8proto.ANY, 0, uint16(slot))
+func (p *Programs) DeleteServiceItem(serviceIP string, servicePort int, slot int) bool {
+	serviceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePort), u8proto.ANY, 0, uint16(slot))
 	err := p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Delete(serviceKey.ToNetwork())
 	if err != nil {
 		fmt.Println("[ERROR] DeleteServiceItem: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Delete failed: ", err)
@@ -201,28 +201,30 @@ func (p *Programs) AutoDeleteService(serviceIP string, servicePort int) bool {
 		fmt.Println("[ERROR] AutoDeleteService: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup failed:", err)
 		return false
 	}
-	fmt.Println("[DEBUG] To delete service", serviceValue)
-	p.DeleteServiceItem(serviceIP, 0)
+	fmt.Println("[DEBUG] To delete service", serviceKey.String())
+	p.DeleteServiceItem(serviceIP, servicePort, 0)
 	for i := 0; i < int(serviceValue.Count); i++ {
-		backendServiceKey := NewService4Key(net.ParseIP(serviceIP), 0, u8proto.ANY, 0, uint16(i+1))
+		backendServiceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePort), u8proto.ANY, 0, uint16(i+1))
 		backendServiceValue := NewService4Value(Backend4Key{uint32(0)}, 0, Possibility{0})
 		err := p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup(backendServiceKey.ToNetwork(), backendServiceValue)
 		if err != nil {
 			fmt.Println("[WARNING] AutoDeleteService: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup failed:", err)
 			break
 		}
-		fmt.Println("[DEBUG] To delete backend:", backendServiceValue)
+		fmt.Println("[DEBUG] To delete backend backendServiceValue:", backendServiceValue.String())
 		p.AutoDeleteBackend(int(backendServiceValue.BackendID.ID))
-		p.DeleteServiceItem(serviceIP, i+1)
+		p.DeleteServiceItem(serviceIP, servicePort, i+1)
 	}
 	fmt.Printf("[INFO] AutoDeleteService succeeded: serviceIP: %s servicePort: %d\n", serviceIP, servicePort)
 	return true
 }
 
 // AutoInsertBackend inserts an organized backend item into map
-func (p *Programs) AutoInsertBackend(serviceIP string, servicePort int, backendIP string, backendPort int, slotIndex int, possibility float64) {
+func (p *Programs) AutoInsertBackend(serviceIP string, servicePortStr string, backendIP string, backendPortStr string, slotIndex int, possibility float64) {
 	backendID := p.currentIndex
 	p.currentIndex++
+	servicePort, _ := strconv.Atoi(servicePortStr)
+	backendPort, _ := strconv.Atoi(backendPortStr)
 	ok := p.InsertBackendItem(serviceIP, servicePort, backendIP, backendPort, backendID, slotIndex, possibility)
 	if ok {
 		p.backEndSet[backendID] = true
@@ -248,12 +250,13 @@ func Sample() {
 
 	// set service
 	serviceIP := "1.1.1.1"
-	servicePort := 80 // TODO: 0 means it will not be modified
-	backendPort1 := 80
-	backendPort2 := 8888
-	progs.InsertServiceItem(serviceIP, servicePort, 2)
-	progs.AutoInsertBackend(serviceIP, servicePort, "1.1.1.1", backendPort1, 1, 0.75)
-	progs.AutoInsertBackend(serviceIP, servicePort, "127.0.0.1", backendPort2, 2, 0.25)
+	servicePort := "80" // TODO: 0 means it will not be modified
+	servicePortInt, _ := strconv.Atoi(servicePort)
+	backendPort1 := "80"
+	backendPort2 := "8888"
+	progs.InsertServiceItem(serviceIP, servicePortInt, 2)
+	progs.AutoInsertBackend(serviceIP, servicePort, "1.1.1.1", backendPort1, 1, 0.25)
+	progs.AutoInsertBackend(serviceIP, servicePort, "127.0.0.1", backendPort2, 2, 0.75)
 
 	err = progs.Attach()
 	if err != nil {
@@ -261,10 +264,10 @@ func Sample() {
 	}
 	defer progs.Close()
 
-	time.Sleep(time.Minute)
+	// time.Sleep(time.Minute)
 	fmt.Println("[INFO] Time is up...")
-	progs.AutoDeleteService("1.1.1.1", servicePort)
-	//c := make(chan os.Signal, 1)
-	//signal.Notify(c)
-	//<-c
+	progs.AutoDeleteService("1.1.1.1", servicePortInt)
+	// c := make(chan os.Signal, 1)
+	// signal.Notify(c)
+	// <-c
 }

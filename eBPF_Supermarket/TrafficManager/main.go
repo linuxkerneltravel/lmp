@@ -20,6 +20,7 @@ import (
 	"github.com/eswzy/eTrafficManager/bpf"
 )
 
+// main is just for test now
 func main() {
 	bpf.Sample()
 }
