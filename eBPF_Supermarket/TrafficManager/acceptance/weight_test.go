@@ -22,7 +22,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -60,9 +59,25 @@ func TestWeight(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			weights: []float64{
-				0.33333,
-				0.33333,
-				0.33333,
+				1,
+				0,
+				0,
+			},
+			repeatNum: repeatNum,
+		},
+		{
+			weights: []float64{
+				0,
+				1,
+				0,
+			},
+			repeatNum: repeatNum,
+		},
+		{
+			weights: []float64{
+				0,
+				0,
+				1,
 			},
 			repeatNum: repeatNum,
 		},
@@ -105,11 +120,7 @@ func TestWeight(t *testing.T) {
 			return
 		}
 
-		targetPortInt, err := strconv.Atoi(targetPort)
-		if err != nil {
-			panic(err)
-		}
-		progs.InsertServiceItem(targetIP, targetPortInt, len(serverPortList))
+		progs.InsertServiceItem(targetIP, targetPort, len(serverPortList))
 		for i := 0; i < len(serverPortList); i++ {
 			progs.AutoInsertBackend(targetIP, targetPort, "127.0.0.1", serverPortList[i], i+1, tc.weights[i])
 		}
@@ -162,7 +173,11 @@ func TestWeight(t *testing.T) {
 		}
 
 		fmt.Println("[INFO] Test is done...")
-		progs.AutoDeleteService(targetIP, targetPortInt)
+		s := bpf.Service{
+			IP:   targetIP,
+			Port: targetPort,
+		}
+		progs.AutoDeleteService(s)
 		progs.Close()
 	}
 }
