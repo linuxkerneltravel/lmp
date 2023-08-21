@@ -35,6 +35,7 @@
 #define MAX_COMM 16
 
 struct conn_t {
+    int pid;               // pid
     void *sock;            // 此tcp连接的 socket 地址
     char comm[MAX_COMM];   // 此tcp连接的 command
     unsigned int ptid;     // 此tcp连接的ptid
@@ -81,7 +82,6 @@ struct pack_t {
     unsigned long long tcp_time; // tcp layer 处理时间(us)
     unsigned int seq;            // the seq num of packet
     unsigned int ack;            // the ack num of packet
-    char comm[MAX_COMM];         // 此包tcp连接的 command
     unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
     const void *sock;                    // 此包tcp连接的 socket 指针
     int rx;                              // rx packet(1) or tx packet(0)

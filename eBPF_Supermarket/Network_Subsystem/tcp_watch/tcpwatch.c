@@ -33,12 +33,17 @@
 static volatile bool exiting = false;
 
 static int sport = 0, dport = 0; // for filter
-static int all_conn = 0;         // flag
+static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
+           http_info = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
 static const struct argp_option opts[] = {
     {"all", 'a', 0, 0, "set to trace CLOSED connection"},
+    {"err", 'e', 0, 0, "set to trace TCP error packets"},
+    {"extra", 'r', 0, 0, "set to trace extra conn info"},
+    {"time", 't', 0, 0, "set to trace layer time of each packet"},
+    {"http", 'i', 0, 0, "set to trace http info"},
     {"sport", 's', "SPORT", 0, "trace this source port only"},
     {"dport", 'd', "DPORT", 0, "trace this destination port only"},
     {}};
@@ -48,6 +53,18 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
     case 'a':
         all_conn = 1;
+        break;
+    case 'e':
+        err_packet = 1;
+        break;
+    case 'r':
+        extra_conn_info = 1;
+        break;
+    case 't':
+        layer_time = 1;
+        break;
+    case 'i':
+        http_info = 1;
         break;
     case 's':
         sport = strtoul(arg, &end, 10);
@@ -130,16 +147,27 @@ static int print_conns(struct tcpwatch_bpf *skel) {
         char received_bytes[11], acked_bytes[11];
         bytes_to_str(received_bytes, d.bytes_received);
         bytes_to_str(acked_bytes, d.bytes_acked);
-
-        fprintf(file,
-                "connection{sock=\"%p\",src=\"%s\",dst=\"%s\",backlog=\"%u\","
+        if (extra_conn_info) {
+            fprintf(
+                file,
+                "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
+                "backlog=\"%u\","
                 "maxbacklog=\"%u\",cwnd=\"%u\",ssthresh=\"%u\",sndbuf=\"%u\","
                 "wmem_queued=\"%u\",rx=\"%s\",tx=\"%"
                 "s\",srtt=\"%u\",duration=\"%llu\"} 0\n",
-                d.sock, s_ip_port_str, d_ip_port_str, d.tcp_backlog,
+                d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.tcp_backlog,
                 d.max_tcp_backlog, d.snd_cwnd, d.snd_ssthresh, d.sndbuf,
                 d.sk_wmem_queued, received_bytes, acked_bytes, d.srtt,
                 d.duration);
+        } else {
+            fprintf(file,
+                    "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
+                    "backlog=\"-\","
+                    "maxbacklog=\"-\",cwnd=\"-\",ssthresh=\"-\",sndbuf=\"-\","
+                    "wmem_queued=\"-\",rx=\"-\",tx=\"-\",srtt=\"-\",duration="
+                    "\"-\"} 0\n",
+                    d.pid, d.sock, s_ip_port_str, d_ip_port_str);
+        }
     }
     fclose(file);
     return 0;
@@ -152,48 +180,61 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         FILE *file = fopen("./data/err.log", "a");
         char reason[20];
         if (pack_info->err == 1) {
-            printf("[X] invalid SEQ: sock = %p,comm = %s,seq= %u,ack = %u\n",
-                   pack_info->sock, pack_info->comm, pack_info->seq,
-                   pack_info->ack);
+            printf("[X] invalid SEQ: sock = %p,seq= %u,ack = %u\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack);
             sprintf(reason, "Invalid SEQ");
         } else if (pack_info->err == 2) {
-            printf("[X] invalid checksum: sock = %p,comm = %s\n",
-                   pack_info->sock, pack_info->comm);
+            printf("[X] invalid checksum: sock = %p\n", pack_info->sock);
             sprintf(reason, "Invalid checksum");
         } else {
             printf("UNEXPECTED packet error %d.\n", pack_info->err);
             sprintf(reason, "Unkonwn");
         }
         fprintf(file,
-                "error{sock=\"%p\",comm=\"%s\",seq=\"%u\",ack=\"%u\","
+                "error{sock=\"%p\",seq=\"%u\",ack=\"%u\","
                 "reason=\"%s\"} 0\n",
-                pack_info->sock, pack_info->comm, pack_info->seq,
-                pack_info->ack, reason);
+                pack_info->sock, pack_info->seq, pack_info->ack, reason);
         fclose(file);
     } else {
         FILE *file = fopen("./data/packets.log", "a");
-        printf("%-22p %-22s %-10u %-10u %-10llu %-10llu %-10llu %-5d",
-               pack_info->sock, pack_info->comm, pack_info->seq, pack_info->ack,
-               pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
-               pack_info->rx);
+        char http_data[256];
         if (strstr((char *)pack_info->data, "HTTP/1")) {
             for (int i = 0; i < sizeof(pack_info->data); ++i) {
                 if (pack_info->data[i] == '\r') {
+                    http_data[i] = '\0';
                     break;
                 }
-                printf("%c", pack_info->data[i]);
+                http_data[i] = pack_info->data[i];
             }
         } else {
-            printf("-");
+            sprintf(http_data, "-");
         }
-        printf("\n");
-        fprintf(file,
-                "packet{sock=\"%p\",comm=\"%s\",seq=\"%u\",ack=\"%u\","
-                "mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",rx=\"%"
-                "d\"} 0\n",
-                pack_info->sock, pack_info->comm, pack_info->seq,
-                pack_info->ack, pack_info->mac_time, pack_info->ip_time,
-                pack_info->tcp_time, pack_info->rx);
+        if (layer_time) {
+            printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack,
+                   pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
+                   pack_info->rx, http_data);
+            fprintf(file,
+                    "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
+                    "mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",http_"
+                    "info=\"%s\",rx=\"%"
+                    "d\"} 0\n",
+                    pack_info->sock, pack_info->seq, pack_info->ack,
+                    pack_info->mac_time, pack_info->ip_time,
+                    pack_info->tcp_time, http_data, pack_info->rx);
+        } else {
+            printf("%-22p %-10u %-10u %-10s %-10s %-10s %-5d %s\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack, "-", "-",
+                   "-", pack_info->rx, "-");
+            fprintf(file,
+                    "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
+                    "mac_time=\"-\",ip_time=\"-\",tcp_time=\"-\",http_"
+                    "info=\"%s\",rx=\"%"
+                    "d\"} 0\n",
+                    pack_info->sock, pack_info->seq, pack_info->ack, http_data,
+                    pack_info->rx);
+        }
+
         fclose(file);
     }
     return 0;
@@ -225,6 +266,10 @@ int main(int argc, char **argv) {
     skel->rodata->filter_dport = dport;
     skel->rodata->filter_sport = sport;
     skel->rodata->all_conn = all_conn;
+    skel->rodata->err_packet = err_packet;
+    skel->rodata->extra_conn_info = extra_conn_info;
+    skel->rodata->layer_time = layer_time;
+    skel->rodata->http_info = http_info;
 
     err = tcpwatch_bpf__load(skel);
     if (err) {
@@ -247,9 +292,8 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    printf("%-22s %-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK",
-           "COMM", "SEQ", "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX",
-           "HTTP");
+    printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
+           "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
     FILE *err_file = fopen("./data/err.log", "w");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
