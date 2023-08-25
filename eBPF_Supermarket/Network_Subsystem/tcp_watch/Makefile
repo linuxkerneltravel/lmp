@@ -111,3 +111,19 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
+
+SHELL := /bin/bash
+test:
+	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
+	sudo timeout -s SIGINT 3 ./tcpwatch -a || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	cat $(shell pwd)/data/connects.log
+	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
+	sudo timeout -s SIGINT 3 ./tcpwatch -ax || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	cat $(shell pwd)/data/connects.log
+	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
+	sudo timeout -s SIGINT 3 ./tcpwatch -axr || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	cat $(shell pwd)/data/connects.log
+	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
+	sudo timeout -s SIGINT 3 ./tcpwatch -t || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
+	sudo timeout -s SIGINT 3 ./tcpwatch -ti || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
