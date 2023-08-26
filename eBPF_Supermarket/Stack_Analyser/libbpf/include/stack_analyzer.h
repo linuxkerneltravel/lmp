@@ -26,6 +26,8 @@
 #include <asm/types.h>
 #include <linux/version.h>
 
+extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
+
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架
 /// @param sym_name 用户态函数名
@@ -41,7 +43,7 @@
             skel->progs.prog_name,                               \
             pid,                                                 \
             object,                                              \
-            0,                                                   \
+            1,                                                   \
             &uprobe_opts);                                       \
     } while (false)
 #else
@@ -55,7 +57,7 @@
             skel->progs.prog_name,                               \
             pid,                                                 \
             object,                                              \
-            0,                                                   \
+            1,                                                   \
             &uprobe_opts);                                       \
     } while (false)
 #endif
@@ -209,6 +211,12 @@ typedef enum
     MOD_OFF_CPU, // off-cpu模式
     MOD_MEM, // 内存模式
     MOD_IO, // io模式
+    MOD_PER, // 预读取分析模式
 } MOD;
+
+typedef struct {
+    __u64 truth;
+    __u64 expect;
+} tuple;
 
 #endif
