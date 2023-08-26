@@ -1,5 +1,8 @@
+global:
+  scrape_interval: 50ms
+
 scrape_configs:
   - job_name: 'bpf_collector'
     metrics_path: '/metrics'      #采集路径
     static_configs:
-    - targets: ['192.168.75.141:8090']   #需要采集的地址
+    - targets: ['127.0.0.1:8090']   #需要采集的地址

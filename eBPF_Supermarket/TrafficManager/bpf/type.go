@@ -26,6 +26,8 @@ import (
 	"github.com/cilium/cilium/pkg/u8proto"
 )
 
+const maxPossibilityUnit = 2048
+
 type pad2uint8 [2]uint8
 
 type Service4Key struct {
@@ -64,7 +66,7 @@ func (k *Service4Key) ToHost() *Service4Key {
 }
 
 func (k *Service4Key) String() string {
-	kHost := k.ToHost()
+	kHost := k // .ToHost()
 	addr := net.JoinHostPort(kHost.Address.String(), fmt.Sprintf("%d", kHost.Port))
 	if kHost.Scope == loadbalancer.ScopeInternal {
 		addr += "/i"
@@ -73,15 +75,19 @@ func (k *Service4Key) String() string {
 }
 
 type Service4Value struct {
-	BackendID Backend4Key `align:"backend_id"`
-	Count     uint16      `align:"count"`
-	Pad       pad2uint8   `align:"pad"`
+	BackendID   Backend4Key `align:"backend_id"`
+	Count       uint16      `align:"count"`
+	Possibility uint16      `align:"possibility"`
+	Flags       uint8       `align:"flags"`
+	Flags2      uint8       `align:"flags2"`
+	Pad         pad2uint8   `align:"pad"`
 }
 
-func NewService4Value(backendId Backend4Key, count uint16) *Service4Value {
+func NewService4Value(backendId Backend4Key, count uint16, possibility Possibility) *Service4Value {
 	value := Service4Value{
-		BackendID: backendId,
-		Count:     count,
+		BackendID:   backendId,
+		Count:       count,
+		Possibility: uint16(possibility.percentage * maxPossibilityUnit),
 	}
 
 	return &value
@@ -89,17 +95,21 @@ func NewService4Value(backendId Backend4Key, count uint16) *Service4Value {
 
 func (s *Service4Value) String() string {
 	sHost := s.ToHost()
-	return fmt.Sprintf("%d %d", sHost.BackendID, sHost.Count)
+	return fmt.Sprintf("%d %d (%d) [0x%x 0x%x]", sHost.BackendID, sHost.Count, sHost.Possibility, sHost.Flags, sHost.Flags2)
 }
 
 func (s *Service4Value) ToNetwork() *Service4Value {
 	n := *s
+	// TODO: need more test
+	// n.Possibility = byteorder.HostToNetwork16(n.Possibility)
 	return &n
 }
 
 // ToHost converts Service4Value to host byte order.
 func (s *Service4Value) ToHost() *Service4Value {
 	h := *s
+	// TODO: need more test
+	// h.Possibility = byteorder.NetworkToHost16(h.Possibility)
 	return &h
 }
 
@@ -136,3 +146,14 @@ func (v *Backend4Value) ToNetwork() *Backend4Value {
 	n.Port = byteorder.HostToNetwork16(n.Port)
 	return &n
 }
+
+type Possibility struct {
+	percentage float64
+}
+
+// func tes() {
+//	IP := net.ParseIP("1.1.1.1")
+//	var Port uint16 = 8080
+//
+//	svcKey := NewService4Key(IP, Port, u8proto.ANY, 0, 0)
+// }

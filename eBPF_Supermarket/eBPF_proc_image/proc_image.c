@@ -83,16 +83,16 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-	const struct cpu_event *e = data;
-    double time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
+    const struct cpu_event *e = data;
+    double time;
 
     if(e->flag == 1){
         time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%-16s  oncpu_id :%d  oncpu_time :%llu  offcpu_id:%d  offcpu_time:%llu  time:%lf\n",
+        printf("flag:%d  pid:%d  comm:%-16s  oncpu_id :%d  oncpu_time(ns) :%llu  offcpu_id:%d  offcpu_time(ns):%llu  time(s):%lf\n",
         e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
     }else if(e->flag == 0){
         time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%-16s  offcpu_id:%d  offcpu_time:%llu  oncpu_id :%d  oncpu_time :%llu  time:%lf\n",
+        printf("flag:%d  pid:%d  comm:%-16s  offcpu_id:%d  offcpu_time(ns):%llu  oncpu_id :%d  oncpu_time(ns) :%llu  time(s):%lf\n",
         e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
     }
     

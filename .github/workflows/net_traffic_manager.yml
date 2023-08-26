@@ -77,3 +77,8 @@ jobs:
         run: |
           cd eBPF_Supermarket/TrafficManager/
           sudo -E timeout 10 ./main || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
+
+      - name: Test Weight
+        run: |
+          cd eBPF_Supermarket/TrafficManager/
+          sudo go test -v ./...
