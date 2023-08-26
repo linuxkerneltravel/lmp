@@ -46,6 +46,7 @@ extern "C"
 #include "bpf/off_cpu_count.skel.h"
 #include "bpf/mem_count.skel.h"
 #include "bpf/io_count.skel.h"
+#include "bpf/pre_count.skel.h"
 
 #ifdef __cplusplus
 }
@@ -55,7 +56,7 @@ extern "C"
 /// @param progname progname printed in the help info
 static void show_help(const char *progname)
 {
-	printf("Usage: %s [-F <frequency>=49] [-p <pid>=-1] [-T <time>=INT_MAX] [-m <0 on cpu|1 off cpu|2 mem|3 io>=0] "
+	printf("Usage: %s [-F <frequency>=49] [-p <pid>=-1] [-T <time>=INT_MAX] [-m <0 on cpu|1 off cpu|2 mem|3 io|4 preread>=0] "
 		   "[-U user stack only] [-K kernel stack only] [-f flame graph but not json] [-h help] \n",
 		   progname);
 }
@@ -77,7 +78,7 @@ namespace env
 {
 	int pid = -1;												  /*pid filter*/
 	int cpu = -1;												  /*cpu index*/
-	unsigned run_time = __INT_MAX__;							  /*run time*/
+	int run_time = __INT_MAX__;									  /*run time*/
 	int freq = 49;												  /*simple frequency*/
 	MOD mod = MOD_ON_CPU;										  /*mod setting*/
 	bool u = true;												  /*user stack setting*/
@@ -93,35 +94,38 @@ protected:
 	int pid;	  // 用于设置ebpf程序跟踪的pid
 	int cpu;	  // 用于设置ebpf程序跟踪的cpu
 	int err;	  // 用于保存错误代码
-	int count_fd; // 栈计数表的文件描述符
+	int value_fd; // 栈计数表的文件描述符
 	int tgid_fd;  // pid-tgid表的文件描述符
 	int comm_fd;  // pid-进程名表的文件描述符
 	int trace_fd; // 栈id-栈轨迹表的文件描述符
 	bool ustack;  // 是否跟踪用户栈
 	bool kstack;  // 是否跟踪内核栈
+	uint64_t min, max;
 
 /// @brief 获取epbf程序中指定表的文件描述符
 /// @param name 表的名字
 #define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
 
 /// @brief 获取所有表的文件描述符
-#define OPEN_ALL_MAP                 \
-	count_fd = OPEN_MAP(psid_count); \
-	tgid_fd = OPEN_MAP(pid_tgid);    \
-	comm_fd = OPEN_MAP(pid_comm);    \
+#define OPEN_ALL_MAP(value_map_name)     \
+	value_fd = OPEN_MAP(value_map_name); \
+	tgid_fd = OPEN_MAP(pid_tgid);        \
+	comm_fd = OPEN_MAP(pid_comm);        \
 	trace_fd = OPEN_MAP(stack_trace);
 
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param name ebpf程序的类型名
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define LO(name, ...)                              \
+#define LO(name, val_map_name, ...)                \
 	skel = name##_bpf__open();                     \
 	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
+	skel->bss->min = min;                          \
+	skel->bss->max = max;                          \
 	__VA_ARGS__;                                   \
 	err = name##_bpf__load(skel);                  \
 	CHECK_ERR(err, "Fail to load BPF skeleton");   \
-	OPEN_ALL_MAP
+	OPEN_ALL_MAP(val_map_name)
 
 /// @class rapidjson::Value
 /// @brief 添加字符串常量键和任意值，值可使用内存分配器
@@ -146,41 +150,92 @@ protected:
 /// @param v 要添加的字符串变量
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
-	struct pksid_count
+	class pksid_val
 	{
+	public:
 		int32_t pid, ksid, usid;
-		uint64_t count;
-
-		pksid_count(int32_t p, int32_t k, int32_t u, uint64_t c)
+		double val;
+		pksid_val(int32_t p, int32_t k, int32_t u, double v)
 		{
 			pid = p;
 			ksid = k;
 			usid = u;
-			count = c;
+			val = v;
 		};
 
-		bool operator<(const pksid_count b) { return count < b.count; };
+		bool operator<(const pksid_val b) { return val < b.val; };
 	};
 
-	std::vector<pksid_count> *sortD()
+	class value_class
 	{
-		if (count_fd < 0)
-			return NULL;
-		std::vector<pksid_count> *D = new std::vector<pksid_count>();
-		__u64 count;
-		for (psid prev = {0}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
+	public:
+		void *p;
+		virtual double value() = 0;
+		virtual ~value_class(){};
+	};
+
+	class count_class : public value_class
+	{
+	protected:
+		uint64_t val;
+
+	public:
+		count_class() { p = &val; };
+		double value() override
 		{
-			bpf_map_lookup_elem(count_fd, &id, &count);
-			pksid_count d(id.pid, id.ksid, id.usid, count);
+			return val * 1.;
+		};
+	};
+
+	template <class T>
+	std::vector<pksid_val> *sortD()
+	{
+		if (value_fd < 0)
+			return NULL;
+		std::vector<pksid_val> *D = new std::vector<pksid_val>();
+		auto *val = static_cast<value_class *>(new T());
+		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
+		{
+			bpf_map_lookup_elem(value_fd, &id, val->p);
+			pksid_val d(id.pid, id.ksid, id.usid, val->value());
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
 		}
+		delete val;
 		return D;
-	}
+	};
+
+	/// @brief 每隔5s输出计数表中的栈及数量
+	/// @param time 输出的持续时间
+	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
+	template <class T>
+	int val_log(int time)
+	{
+		CHECK_ERR(value_fd < 0, "count map open failure");
+		/*for traverse map*/
+		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= 5)
+		{
+			printf("---------%d---------\n", value_fd);
+			sleep(5);
+			auto D = sortD<T>();
+			for (auto d : *D)
+			{
+				printf("%6d\t(%6d,%6d)\t%lf\n", d.pid, d.ksid, d.usid, d.val);
+			}
+			delete D;
+		};
+		return time;
+	};
 
 public:
-	bpf_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : pid(p), cpu(c), ustack(u), kstack(k)
-	{
-		count_fd = tgid_fd = comm_fd = trace_fd = -1;
+	bpf_loader(
+		int p = env::pid,
+		int c = env::cpu,
+		bool u = env::u,
+		bool k = env::k,
+		uint64_t n = 1ull,
+		uint64_t m = UINT64_MAX
+	) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m) {
+		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
 	};
 
@@ -208,11 +263,12 @@ public:
 	int flame_save(void)
 	{
 		printf("saving flame...\n");
-		CHECK_ERR(count_fd < 0, "count map open failure");
+		CHECK_ERR(value_fd < 0, "count map open failure");
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
 		int max_deep = 0;
-		for (psid prev = {}, key; !bpf_map_get_next_key(count_fd, &prev, &key); prev = key)
+		printf("%d\n", __LINE__);
+		for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
 		{
 			__u64 ip[MAX_STACKS];
 			bpf_map_lookup_elem(trace_fd, &key.usid, ip);
@@ -223,7 +279,8 @@ public:
 				max_deep = deep;
 		}
 		std::ostringstream tex("");
-		for (psid prev = {}, id; !bpf_map_get_next_key(count_fd, &prev, &id); prev = id)
+		printf("%d\n", __LINE__);
+		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
 		{
 			std::string line("");
 			symbol sym;
@@ -300,18 +357,20 @@ public:
 				line = std::string(cmd) + ':' + std::to_string(id.pid) + ';' + line;
 			}
 			int count;
-			bpf_map_lookup_elem(count_fd, &id, &count);
+			bpf_map_lookup_elem(value_fd, &id, &count);
 			line += " " + std::to_string(count) + "\n";
 			tex << line;
 		}
 		std::string tex_s = tex.str();
 		FILE *fp = 0;
 
+		printf("%d\n", __LINE__);
 		fp = fopen("flatex.log", "w");
 		CHECK_ERR(!fp, "Failed to save flame text");
 		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		fclose(fp);
 
+		printf("%d\n", __LINE__);
 		fp = popen("flamegraph.pl > flame.svg", "w");
 		CHECK_ERR(!fp, "Failed to draw flame graph");
 		// fwrite("", 1, 0, fp);
@@ -329,7 +388,7 @@ public:
 		printf("saving...\n");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
 		CHECK_ERR(tgid_fd < 0, "tgid map open failure");
-		CHECK_ERR(count_fd < 0, "count map open failure");
+		CHECK_ERR(value_fd < 0, "count map open failure");
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		rapidjson::Document ajson;
 		rapidjson::Document::AllocatorType &alc = ajson.GetAllocator();
@@ -361,7 +420,7 @@ public:
 			ajson[tgid_s.c_str()][pid_s.c_str()].CKV("name", cmd.str, alc);
 		}
 
-		auto D = sortD();
+		auto D = sortD<count_class>();
 		for (auto id = D->rbegin(); id != D->rend(); ++id)
 		{
 			rapidjson::Value *trace;
@@ -374,7 +433,7 @@ public:
 				}
 				auto sid_c = (std::to_string(id->usid) + "," + std::to_string(id->ksid)).c_str();
 				stacks->KV(sid_c, rapidjson::kObjectType);
-				(*stacks)[sid_c].CKV("count", id->count);
+				(*stacks)[sid_c].CKV("count", id->val);
 				(*stacks)[sid_c].CKV("trace", rapidjson::kArrayType);
 				trace = &((*stacks)[sid_c]["trace"]);
 			}
@@ -466,31 +525,12 @@ public:
 		return 0;
 	};
 
-	/// @brief 每隔5s输出计数表中的栈及数量
-	/// @param time 输出的持续时间
-	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
-	int count_log(int time)
-	{
-		CHECK_ERR(count_fd < 0, "count map open failure");
-		/*for traverse map*/
-		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= 5)
-		{
-			printf("---------%d---------\n", count_fd);
-			sleep(5);
-			auto D = sortD();
-			for (auto d : *D)
-			{
-				printf("%6d\t(%6d,%6d)\t%-6lu\n", d.pid, d.ksid, d.usid, d.count);
-			}
-			delete D;
-		};
-		return time;
-	};
+	virtual int log(int time) { return val_log<count_class>(time); };
 
 	/// @brief 一个执行ebpf程序的总流程
 	/// @param  无
 	/// @return 成功则返回0，失败返回负数
-	int test(void)
+	int test(int time)
 	{
 		do
 		{
@@ -500,9 +540,9 @@ public:
 			err = attach();
 			if (err)
 				break;
-			count_log(env::run_time);
+			log(time);
 		} while (false);
-		detach();
+		// detach();
 		if (env::fla)
 			err = flame_save();
 		else
@@ -515,15 +555,24 @@ public:
 class on_cpu_loader : public bpf_loader
 {
 protected:
-	int pefd;
+	int *pefds, num_cpus, num_online_cpus;
 	unsigned long long freq;
 	struct perf_event_attr attr;
 	struct on_cpu_count_bpf *skel;
+	struct bpf_link **links;
+	bool *online_mask;
+	const char *online_cpus_file;
 
 public:
 	on_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, unsigned long long f = env::freq) : bpf_loader(p, c, u, k), freq(f)
 	{
-		pefd = -1;
+		online_mask = NULL;
+		online_cpus_file = "/sys/devices/system/cpu/online";
+		pefds = (int *)malloc(num_cpus * sizeof(int));
+		for (int i = 0; i < num_cpus; i++) {
+			pefds[i] = -1;
+		}
+		links = (struct bpf_link **)calloc(num_cpus, sizeof(struct bpf_link *));
 		attr = {
 			.type = PERF_TYPE_SOFTWARE, // hardware event can't be used
 			.size = sizeof(attr),
@@ -535,25 +584,56 @@ public:
 	};
 	int load(void) override
 	{
+		FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
+		CHECK_ERR(!fp, "Failed to draw flame graph");
+		// fwrite("", 1, 0, fp);
+		unsigned long *load_a;
+		fscanf(fp, "%p", &load_a);
+		pclose(fp);
 		LO(on_cpu_count,
+		   psid_count,
+		   skel->bss->load_a = load_a,
 		   skel->bss->u = ustack,
 		   skel->bss->k = kstack)
 		return 0;
 	};
 	int attach(void) override
 	{
-		pefd = perf_event_open(&attr, pid, -1, -1, PERF_FLAG_FD_CLOEXEC); // don't track child process
-		CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
-		skel->links.do_stack = bpf_program__attach_perf_event(skel->progs.do_stack, pefd);
-		CHECK_ERR(!(skel->links.do_stack), "Fail to attach bpf");
+		err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
+		CHECK_ERR(err, "Fail to get online CPU numbers");
+		num_cpus = libbpf_num_possible_cpus();
+		CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
+
+		for (int cpu = 0; cpu < num_cpus; cpu++) {
+			/* skip offline/not present CPUs */
+			if (cpu >= num_online_cpus || !online_mask[cpu])
+				continue;
+
+			/* Set up performance monitoring on a CPU/Core */
+			int pefd = perf_event_open(&attr, pid, cpu, -1, PERF_FLAG_FD_CLOEXEC);
+			CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+			pefds[cpu] = pefd;
+
+			/* Attach a BPF program on a CPU */
+			links[cpu] = bpf_program__attach_perf_event(skel->progs.do_stack, pefd);//与内核bpf程序联系
+			CHECK_ERR(!links[cpu], "");
+		}
 		return 0;
 	}
 	void detach(void) override
 	{
-		if (skel->links.do_stack)
-			bpf_link__destroy(skel->links.do_stack);
-		if (pefd)
-			close(pefd);
+		if (links) {
+			for (int cpu = 0; cpu < num_cpus; cpu++)
+				bpf_link__destroy(links[cpu]);
+			free(links);
+		}
+		if (pefds) {
+			for (int i = 0; i < num_cpus; i++) {
+				if (pefds[i] >= 0)
+					close(pefds[i]);
+			}
+			free(pefds);
+		}
 	}
 	void unload(void) override
 	{
@@ -576,6 +656,7 @@ public:
 	int load(void) override
 	{
 		LO(off_cpu_count,
+		   psid_count,
 		   skel->bss->apid = pid,
 		   skel->bss->u = ustack,
 		   skel->bss->k = kstack)
@@ -614,8 +695,9 @@ public:
 	int load(void) override
 	{
 		LO(mem_count,
+		   psid_count,
 		   skel->bss->u = ustack,
-		//    skel->bss->k = kstack,
+		   //    skel->bss->k = kstack,
 		   skel->bss->apid = pid)
 		return 0;
 	};
@@ -666,11 +748,11 @@ public:
 	};
 	int load(void) override
 	{
-		LO(io_count, {
+		LO(io_count, psid_count, {
 			skel->bss->apid = pid;
 			skel->bss->u = ustack;
 			skel->bss->k = kstack;
-		})
+		});
 		return 0;
 	};
 	int attach(void) override
@@ -690,6 +772,61 @@ public:
 			io_count_bpf__destroy(skel);
 		skel = 0;
 	};
+};
+
+class pre_loader : public bpf_loader
+{
+protected:
+	struct pre_count_bpf *skel;
+
+public:
+	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
+	{
+		skel = 0;
+	};
+	int load(void) override
+	{
+		LO(pre_count, psid_util, {
+			skel->bss->apid = pid;
+			skel->bss->u = ustack;
+			skel->bss->k = kstack;
+		});
+		return 0;
+	};
+	int attach(void) override
+	{
+		auto object = env::object;
+		ATTACH_UPROBE_CHECKED(skel, read, read_enter);
+		err = pre_count_bpf__attach(skel);
+		CHECK_ERR(err, "Failed to attach BPF skeleton");
+		return 0;
+	};
+	void detach(void) override
+	{
+		if (skel)
+			pre_count_bpf__detach(skel);
+	};
+	void unload(void) override
+	{
+		if (skel)
+			pre_count_bpf__destroy(skel);
+		skel = 0;
+	};
+
+	class tuple_class : public value_class
+	{
+	protected:
+		tuple val;
+
+	public:
+		tuple_class() { p = &val; };
+		double value() override
+		{
+			return val.truth * 1. / val.expect;
+		};
+	};
+
+	int log(int time) override { return val_log<tuple_class>(time); };
 };
 
 typedef bpf_loader *(*bpf_load)();
@@ -746,7 +883,9 @@ int main(int argc, char *argv[])
 		{ return new mem_loader(); },
 		[]() -> bpf_loader *
 		{ return new io_loader(); },
+		[]() -> bpf_loader *
+		{ return new pre_loader(); },
 	};
 	CHECK_ERR(signal(SIGINT, __handler) == SIG_ERR, "can't set signal handler");
-	return arr[env::mod]()->test();
+	return arr[env::mod]()->test(env::run_time);
 }
