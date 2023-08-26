@@ -23,9 +23,6 @@
 
 #include "stack_analyzer.h"
 
-#define MINBLOCK_US 1ULL
-#define MAXBLOCK_US 99999999ULL
-
 BPF_HASH(psid_count, psid, u32);
 BPF_HASH(start, u32, u64);
 BPF_STACK_TRACE(stack_trace);
@@ -36,6 +33,7 @@ const char LICENSE[] SEC("license") = "GPL";
 
 int apid;
 char u, k;
+__u64 min, max;
 
 SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(do_stack, struct task_struct *curr)
@@ -58,7 +56,7 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
     bpf_map_delete_elem(&start, &pid);
     u32 delta = (bpf_ktime_get_ns() - *tsp) >> 20;
 
-    if ((delta < MINBLOCK_US) || (delta > MAXBLOCK_US))
+    if ((delta < min) || (delta > max))
         return 0;
 
     // record data
