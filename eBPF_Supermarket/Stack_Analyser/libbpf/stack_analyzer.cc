@@ -27,6 +27,7 @@
 #include "rapidjson/filewritestream.h"
 #include "rapidjson/writer.h"
 #include "symbol.h" /*符号解析库头文件*/
+#include "clipp.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -267,7 +268,6 @@ public:
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
 		int max_deep = 0;
-		printf("%d\n", __LINE__);
 		for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
 		{
 			__u64 ip[MAX_STACKS];
@@ -279,7 +279,6 @@ public:
 				max_deep = deep;
 		}
 		std::ostringstream tex("");
-		printf("%d\n", __LINE__);
 		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
 		{
 			std::string line("");
@@ -364,13 +363,11 @@ public:
 		std::string tex_s = tex.str();
 		FILE *fp = 0;
 
-		printf("%d\n", __LINE__);
 		fp = fopen("flatex.log", "w");
 		CHECK_ERR(!fp, "Failed to save flame text");
 		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		fclose(fp);
 
-		printf("%d\n", __LINE__);
 		fp = popen("flamegraph.pl > flame.svg", "w");
 		CHECK_ERR(!fp, "Failed to draw flame graph");
 		// fwrite("", 1, 0, fp);
@@ -542,7 +539,7 @@ public:
 				break;
 			log(time);
 		} while (false);
-		// detach();
+		detach();
 		if (env::fla)
 			err = flame_save();
 		else
@@ -568,6 +565,11 @@ public:
 	{
 		online_mask = NULL;
 		online_cpus_file = "/sys/devices/system/cpu/online";
+		err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
+		CHECK_ERR_EXIT(err, "Fail to get online CPU numbers");
+		num_cpus = libbpf_num_possible_cpus();
+		CHECK_ERR_EXIT(num_cpus <= 0, "Fail to get the number of processors");
+
 		pefds = (int *)malloc(num_cpus * sizeof(int));
 		for (int i = 0; i < num_cpus; i++) {
 			pefds[i] = -1;
@@ -599,11 +601,6 @@ public:
 	};
 	int attach(void) override
 	{
-		err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
-		CHECK_ERR(err, "Fail to get online CPU numbers");
-		num_cpus = libbpf_num_possible_cpus();
-		CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
-
 		for (int cpu = 0; cpu < num_cpus; cpu++) {
 			/* skip offline/not present CPUs */
 			if (cpu >= num_online_cpus || !online_mask[cpu])
@@ -838,42 +835,38 @@ void __handler(int)
 
 int main(int argc, char *argv[])
 {
-	char argp;
-	while ((argp = getopt(argc, argv, "hF:p:T:m:UKf")) != -1) // parsing arguments
-	{
-		switch (argp)
-		{
-		case 'F':
-			env::freq = atoi(optarg);
-			if (env::freq < 1)
-				env::freq = 1;
-			break;
-		case 'p':
-			env::pid = atoi(optarg);
-			if (env::pid < 1)
-				env::pid = -1;
-			break;
-		case 'f':
-			env::fla = true;
-			break;
-		case 'T':
-			env::run_time = atoi(optarg);
-			break;
-		case 'm':
-			env::mod = (MOD)atoi(optarg);
-			break;
-		case 'U':
-			env::k = 0; // do not track kernel stack
-			break;
-		case 'K':
-			env::u = 0; // do not track user stack
-			break;
-		case 'h':
-		default:
-			show_help(argv[0]);
-			return 0;
-		}
+	auto oncpu_mod = (
+		clipp::command("on-cpu").set(env::mod, MOD_ON_CPU) % "sample the call stacks of on-cpu processes",
+		clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency"
+	);
+	auto offcpu_mod = (
+		clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes"
+	);
+	auto mem_mod = (
+		clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks"
+	);
+	auto io_mod = (
+		clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks"
+	);
+	auto opti = (
+		clipp::option("-f", "--flame-graph").set(env::fla),
+		clipp::option("-p", "--pid") & clipp::value("set the pid of sampled process", env::pid),
+		clipp::option("-U", "--user-stack-only").set(env::k, false),
+		clipp::option("-K", "--kernel-stack-only").set(env::u, false),
+		clipp::opt_value("simpling time", env::run_time)
+	);
+	auto cli = (
+		(oncpu_mod | offcpu_mod | mem_mod | io_mod), 
+		opti, 
+		clipp::option("-v", "--version").call([]{
+			std::cout << "verion 1.0\n\n";
+		}) % "show version"
+	);
+	if(!clipp::parse(argc, argv, cli)) {
+        std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
+		return 0;
 	}
+	
 	bpf_load arr[] = {
 		[]() -> bpf_loader *
 		{ return new on_cpu_loader(); },
