@@ -29,7 +29,8 @@ git submodule update --init --recursive
 ### 编译运行
 ```bash
 make
-sudo ./tcpwatch
+sudo ./tcpwatch [options] # 运行
+sudo make test # 测试
 ```
 ### 参数
 ```bash
@@ -40,11 +41,12 @@ Watch tcp/ip in network subsystem
   -d, --dport=DPORT          trace this destination port only
   -e, --err                  set to trace TCP error packets
   -i, --http                 set to trace http info
-  -r, --extra                set to trace extra conn info
+  -r, --retrans              set to trace extra retrans info
   -s, --sport=SPORT          trace this source port only
   -t, --time                 set to trace layer time of each packet
+  -x, --extra                set to trace extra conn info
   -?, --help                 Give this help list
-      --usage                Give a short usage message
+      --usage                Give a short usage messages.
 ```
 - 参数`-d`,`-s`用于指定监控某个源端口/目的端口
 - 指定参数`-a`会保留已CLOSED的TCP连接信息
@@ -53,11 +55,13 @@ Watch tcp/ip in network subsystem
     - TCP连接pid
     - TCP连接\[源地址:端口,目的地址:端口\]
     - TCP连接sock地址
+    - TCP连接方向（是否为TCP Server）
     - TCP包sock地址（用于明确TCP连接）
     - TCP包ack
     - TCP包seq
 - 指定`-t`参数会监控各个包在每一层的处理时间，单位us
-- 指定`-r`参数会监控以下额外连接信息：
+- 指定`-r`参数会监控快速重传与超时重传次数
+- 指定`-x`参数会监控以下额外连接信息：
     - backlog
     - max_backlog
     - 已确认的字节数
@@ -68,3 +72,4 @@ Watch tcp/ip in network subsystem
     - 已使用的发送缓冲区
     - 平滑往返时间
     - 连接已建立时长
+    - 连接总重传次数
