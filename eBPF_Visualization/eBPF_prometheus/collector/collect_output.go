@@ -161,12 +161,16 @@ func Run(filePath string) error {
 		log.Println("I am normal")
 	}
 
+	metricsobj := &prom_core.MyMetrics{}
+
+	go metricsobj.StartService()
 	// process chan from redirect Stdout
 	go func() {
 		for {
 			select {
 			case <-mapchan:
-				prom_core.StartService(mapchan)
+				metricsobj.Maplist = <-mapchan
+				metricsobj.UpdateData()
 				<-mapchan
 			default:
 			}

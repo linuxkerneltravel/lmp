@@ -14,13 +14,27 @@
 //
 // author: Woa <me@wuzy.cn>
 
-package main
+package k8s
 
 import (
-	"lmp/eTrafficManager/bpf"
+	"fmt"
+	"strconv"
+	"testing"
 )
 
-// main is just for test now
-func main() {
-	bpf.Sample()
+func TestGetPodsForService(t *testing.T) {
+	namespace := "default"
+	serviceName := "sisyphe-sfs"
+
+	service, pods, err := GetPodByService(serviceName, namespace, "")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Printf("Service: %s, Service IP: %s, Ports: %v\n", service.Name, service.Spec.ClusterIPs, service.Spec.Ports)
+	fmt.Printf("Pods:\n")
+	for _, pod := range pods.Items {
+		p := pod.Spec.Containers[0].Ports[0]
+		fmt.Printf("- %s, IP: %s, Ports: %v\n", pod.Name, pod.Status.PodIP, strconv.Itoa(int(p.ContainerPort))+"|"+strconv.Itoa(int(p.HostPort))+"|"+string(p.Protocol))
+	}
 }

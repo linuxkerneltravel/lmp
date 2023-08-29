@@ -35,26 +35,32 @@
 #define MAX_COMM 16
 
 struct conn_t {
-    int pid;               // pid
-    void *sock;            // 此tcp连接的 socket 地址
-    char comm[MAX_COMM];   // 此tcp连接的 command
-    unsigned int ptid;     // 此tcp连接的ptid
-    unsigned short family; // v6(AF_INET6) or v4(AF_INET)
+    void *sock;              // 此tcp连接的 socket 地址
+    int pid;                 // pid
+    unsigned long long ptid; // 此tcp连接的 ptid(ebpf def)
+    char comm[MAX_COMM];     // 此tcp连接的 command
+    unsigned short family;   // 10(AF_INET6):v6 or 2(AF_INET):v4
     unsigned __int128 saddr_v6;
     unsigned __int128 daddr_v6;
     unsigned int saddr;
     unsigned int daddr;
     unsigned short sport;
     unsigned short dport;
+    int is_server; // 1: 被动连接 0: 主动连接
+
     unsigned int tcp_backlog;          // backlog
     unsigned int max_tcp_backlog;      // max_backlog
     unsigned long long bytes_acked;    // 已确认的字节数
     unsigned long long bytes_received; // 已接收的字节数
 
     unsigned int snd_cwnd;       // 拥塞窗口大小
+    unsigned int rcv_wnd;        // 接收窗口大小
     unsigned int snd_ssthresh;   // 慢启动阈值
     unsigned int sndbuf;         // 发送缓冲区大小(byte)
     unsigned int sk_wmem_queued; // 已使用的发送缓冲区
+    unsigned int total_retrans;  // 重传包数
+    unsigned int fastRe;         // 快速重传次数
+    unsigned int timeout;        // 超时重传次数
 
     unsigned int srtt;                 // 平滑往返时间
     unsigned long long init_timestamp; // 建立连接时间戳

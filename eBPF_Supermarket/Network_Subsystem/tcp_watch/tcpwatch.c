@@ -34,14 +34,15 @@ static volatile bool exiting = false;
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0; // flag
+           http_info = 0, retrans_info = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
 static const struct argp_option opts[] = {
     {"all", 'a', 0, 0, "set to trace CLOSED connection"},
     {"err", 'e', 0, 0, "set to trace TCP error packets"},
-    {"extra", 'r', 0, 0, "set to trace extra conn info"},
+    {"extra", 'x', 0, 0, "set to trace extra conn info"},
+    {"retrans", 'r', 0, 0, "set to trace extra retrans info"},
     {"time", 't', 0, 0, "set to trace layer time of each packet"},
     {"http", 'i', 0, 0, "set to trace http info"},
     {"sport", 's', "SPORT", 0, "trace this source port only"},
@@ -57,8 +58,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'e':
         err_packet = 1;
         break;
-    case 'r':
+    case 'x':
         extra_conn_info = 1;
+        break;
+    case 'r':
+        retrans_info = 1;
         break;
     case 't':
         layer_time = 1;
@@ -147,27 +151,40 @@ static int print_conns(struct tcpwatch_bpf *skel) {
         char received_bytes[11], acked_bytes[11];
         bytes_to_str(received_bytes, d.bytes_received);
         bytes_to_str(acked_bytes, d.bytes_acked);
-        if (extra_conn_info) {
-            fprintf(
-                file,
+        fprintf(file,
                 "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
-                "backlog=\"%u\","
-                "maxbacklog=\"%u\",cwnd=\"%u\",ssthresh=\"%u\",sndbuf=\"%u\","
-                "wmem_queued=\"%u\",rx=\"%s\",tx=\"%"
-                "s\",srtt=\"%u\",duration=\"%llu\"} 0\n",
-                d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.tcp_backlog,
-                d.max_tcp_backlog, d.snd_cwnd, d.snd_ssthresh, d.sndbuf,
-                d.sk_wmem_queued, received_bytes, acked_bytes, d.srtt,
-                d.duration);
+                "is_server=\"%d\"",
+                d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.is_server);
+        if (extra_conn_info) {
+            fprintf(file,
+                    ",backlog=\"%u\""
+                    ",maxbacklog=\"%u\""
+                    ",rwnd=\"%u\""
+                    ",cwnd=\"%u\""
+                    ",ssthresh=\"%u\""
+                    ",sndbuf=\"%u\""
+                    ",wmem_queued=\"%u\""
+                    ",rx_bytes=\"%s\""
+                    ",tx_bytes=\"%s\""
+                    ",srtt=\"%u\""
+                    ",duration=\"%llu\""
+                    ",total_retrans=\"%u\"",
+                    d.tcp_backlog, d.max_tcp_backlog, d.rcv_wnd, d.snd_cwnd,
+                    d.snd_ssthresh, d.sndbuf, d.sk_wmem_queued, received_bytes,
+                    acked_bytes, d.srtt, d.duration, d.total_retrans);
         } else {
             fprintf(file,
-                    "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
-                    "backlog=\"-\","
-                    "maxbacklog=\"-\",cwnd=\"-\",ssthresh=\"-\",sndbuf=\"-\","
-                    "wmem_queued=\"-\",rx=\"-\",tx=\"-\",srtt=\"-\",duration="
-                    "\"-\"} 0\n",
-                    d.pid, d.sock, s_ip_port_str, d_ip_port_str);
+                    ",backlog=\"-\",maxbacklog=\"-\",cwnd=\"-\",ssthresh=\"-\","
+                    "sndbuf=\"-\",wmem_queued=\"-\",rx_bytes=\"-\",tx_bytes=\"-"
+                    "\",srtt=\"-\",duration=\"-\",total_retrans=\"-\"");
         }
+        if (retrans_info) {
+            fprintf(file, ",fast_retrans=\"%u\",timeout_retrans=\"%u\"",
+                    d.fastRe, d.timeout);
+        } else {
+            fprintf(file, ",fast_retrans=\"-\",timeout_retrans=\"-\"");
+        }
+        fprintf(file, "} 0\n");
     }
     fclose(file);
     return 0;
@@ -270,6 +287,7 @@ int main(int argc, char **argv) {
     skel->rodata->extra_conn_info = extra_conn_info;
     skel->rodata->layer_time = layer_time;
     skel->rodata->http_info = http_info;
+    skel->rodata->retrans_info = retrans_info;
 
     err = tcpwatch_bpf__load(skel);
     if (err) {
