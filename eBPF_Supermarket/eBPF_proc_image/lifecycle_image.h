@@ -14,12 +14,15 @@
 //
 // author: zhangziheng0525@163.com
 //
-// eBPF map for the process image
+// eBPF map for the process life cycle image
 
 #ifndef __PROC_IMAGE_H
 #define __PROC_IMAGE_H
 
 #define TASK_COMM_LEN 16
+#define MAX_STACK_DEPTH 128
+
+typedef __u64 stack_trace_t[MAX_STACK_DEPTH];
 
 // 以便于对0号进程进行画像（0号进程是每cpu进程）
 struct proc_id{
@@ -42,11 +45,17 @@ struct proc_offcpu{
 struct cpu_event{
     int flag;
     int pid;
+    int n_pid;
     char comm[TASK_COMM_LEN];
+    char n_comm[TASK_COMM_LEN];
+    int prio;
+    int n_prio;
     int oncpu_id;
     long long unsigned int oncpu_time;
     int offcpu_id;
     long long unsigned int offcpu_time;
+    __s32 kstack_sz;
+    stack_trace_t kstack;
 };
 
 #endif /* __PROC_IMAGE_H */

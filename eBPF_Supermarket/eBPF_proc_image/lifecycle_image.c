@@ -14,7 +14,7 @@
 //
 // author: zhangziheng0525@163.com
 //
-// user-mode code for the process image
+// user-mode code for the process life cycle image
 
 #include <stdio.h>
 #include <unistd.h>
@@ -24,14 +24,21 @@
 #include <signal.h>
 #include <argp.h>
 #include <errno.h>
-#include "proc_image.skel.h"
-#include "proc_image.h"
+#include "lifecycle_image.skel.h"
+#include "lifecycle_image.h"
+#include "trace_helpers.h"
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
+#define MAX_LINE_LENGTH 256
 
 static volatile bool exiting = false;
 static int target_pid = 0;
 static int target_cpu_id = 0;
+static int target_stack_count = 0;
+static bool set_stack = false;
+static bool enable_cs = false;
+
+static struct ksyms *ksyms = NULL;
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
@@ -39,6 +46,8 @@ static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
     { "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
+	{ "cs-reason", 'r', NULL, 0, "Process context switch reasons annotation" },
+	{ "stack", 's', "STACK-COUNT", 0, "The number of kernel stacks printed when the process is under the CPU" },
 	{},
 };
 
@@ -47,6 +56,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	long pid;
     long cpu_id;
 	long time;
+	long stack;
 	switch (key) {
 		case 'p':
 				errno = 0;
@@ -70,6 +80,19 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				time = strtol(arg, NULL, 10);
 				if(time) alarm(time);
 				break;
+		case 'r':
+				enable_cs = true;
+				break;
+		case 's':
+				stack = strtol(arg, NULL, 10);
+				if (stack < 0) {
+					warn("Invalid STACK-COUNT: %s\n", arg);
+					// 调用argp_usage函数，用于打印用法信息并退出程序
+					argp_usage(state);
+				}
+				target_stack_count = stack;
+				set_stack = true;
+				break;
 		default:
 				return ARGP_ERR_UNKNOWN;
 		}
@@ -81,20 +104,55 @@ static void sig_handler(int sig)
 	exiting = true;
 }
 
+static void print_stack(unsigned long long address)
+{
+	const struct ksym *ksym;
+
+	ksym = ksyms__map_addr(ksyms, address);
+	if (ksym)
+		printf("0x%llx %s+0x%llx\n", address, ksym->name, address - ksym->addr);
+	else
+		printf("0x%llx [unknown]\n", address);
+}
+
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-    const struct cpu_event *e = data;
+	const struct cpu_event *e = data;
     double time;
 
     if(e->flag == 1){
         time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%-16s  oncpu_id :%d  oncpu_time(ns) :%llu  offcpu_id:%d  offcpu_time(ns):%llu  time(s):%lf\n",
+        printf("flag:%d  pid:%d  comm:%s  oncpu_id :%d  oncpu_time(ns) :%llu  offcpu_id:%d  offcpu_time(ns):%llu  time(s):%lf\n",
         e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
+
+		if(enable_cs){
+			printf("pid:%d,comm:%s,prio:%d -> pid:%d,comm:%s,prio:%d\n", e->pid,e->comm,e->prio,e->n_pid,e->n_comm,e->n_prio);
+			int count = e->kstack_sz / sizeof(long long unsigned int);
+			if(!set_stack)	target_stack_count = count;
+			if(e->kstack_sz>0 && target_stack_count!=0){
+				int t_count = target_stack_count;
+
+				if(target_stack_count > count)
+				{
+					t_count = count;
+				}
+				printf("offCPU_Kernel_stack:\n");
+				for(int i=0 ; i<t_count ; i++){
+					print_stack(e->kstack[i]);
+				}
+			}
+		}
     }else if(e->flag == 0){
         time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%-16s  offcpu_id:%d  offcpu_time(ns):%llu  oncpu_id :%d  oncpu_time(ns) :%llu  time(s):%lf\n",
+        printf("flag:%d  pid:%d  comm:%s  offcpu_id:%d  offcpu_time(ns):%llu  oncpu_id :%d  oncpu_time(ns) :%llu  time(s):%lf\n",
         e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
+
+		if(enable_cs){
+			printf("pid:%d,comm:%s,prio:%d -> pid:%d,comm:%s,prio:%d\n", e->n_pid,e->n_comm,e->n_prio,e->pid,e->comm,e->prio);
+		}
     }
+
+	printf("\n");
     
 	return 0;
 }
@@ -108,7 +166,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
-	struct proc_image_bpf *skel;
+	struct lifecycle_image_bpf *skel;
 	int err;
 	static const struct argp argp = {
 		.options = opts,
@@ -134,7 +192,7 @@ int main(int argc, char **argv)
 	signal(SIGALRM,sig_handler);
 
 	/* 打开BPF应用程序 */
-	skel = proc_image_bpf__open();
+	skel = lifecycle_image_bpf__open();
 	if (!skel) {
 		fprintf(stderr, "Failed to open BPF skeleton\n");
 		return 1;
@@ -144,14 +202,20 @@ int main(int argc, char **argv)
     skel->rodata->target_cpu_id = target_cpu_id;
 
 	/* 加载并验证BPF程序 */
-	err = proc_image_bpf__load(skel);
+	err = lifecycle_image_bpf__load(skel);
 	if (err) {
 		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 		goto cleanup;
 	}
-	
+
+	ksyms = ksyms__load();
+	if (!ksyms) {
+		fprintf(stderr, "failed to load kallsyms\n");
+		goto cleanup;
+	}
+
 	/* 附加跟踪点处理程序 */
-	err = proc_image_bpf__attach(skel);
+	err = lifecycle_image_bpf__attach(skel);
 	if (err) {
 		fprintf(stderr, "Failed to attach BPF skeleton\n");
 		goto cleanup;
@@ -184,7 +248,8 @@ int main(int argc, char **argv)
 /* 卸载BPF程序 */
 cleanup:
 	ring_buffer__free(rb);
-	proc_image_bpf__destroy(skel);
+	lifecycle_image_bpf__destroy(skel);
+	ksyms__free(ksyms);
 	
 	return err < 0 ? -err : 0;
 }
