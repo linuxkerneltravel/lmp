@@ -20,18 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: |
-          sudo apt install clang libelf1 libelf-dev zlib1g-dev
-          sudo apt install libbpf-dev
-          sudo apt install linux-tools-5.19.0-46-generic	
-          sudo apt install linux-cloud-tools-5.19.0-46-generic
-
-      - name: Run proc_image
+      - name: Run lifecycle_image
         run: |
           cd eBPF_Supermarket/eBPF_proc_image
-          sudo make proc_image
-          sudo ./proc_image -t 1
+          sudo make lifecycle
+          sudo ./lifecycle -t 1
 
       - name: Run proc_offcpu_time
         run: |
