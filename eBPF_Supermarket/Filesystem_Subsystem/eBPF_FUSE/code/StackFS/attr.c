@@ -1,6 +1,3 @@
-#define FUSE_USE_VERSION 30
-#define _XOPEN_SOURCE 500
-#define _GNU_SOURCE
 #include <stdarg.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -27,6 +24,10 @@
 
 #include "lookup.h"
 #include "attr.h"
+
+#define FUSE_USE_VERSION 30
+#define _XOPEN_SOURCE 500
+#define _GNU_SOURCE
 
 #define gettid getpid
 
