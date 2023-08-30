@@ -92,8 +92,8 @@ struct {
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct lb4_backend);
+	__type(key, __u32);                 // TODO: use lb4_backend_key instead
+	__type(value, struct lb4_backend);  // TODO: use lb4_backend_value instead
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, LB_BACKENDS_MAP_MAX_ENTRIES);
 	__uint(map_flags, CONDITIONAL_PREALLOC);

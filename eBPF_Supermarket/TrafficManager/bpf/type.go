@@ -124,21 +124,17 @@ type Backend4Value struct {
 	Flags   uint8           `align:"flags"`
 }
 
-func NewBackend4Value(ip net.IP, port uint16, proto u8proto.U8proto, state loadbalancer.BackendState) (*Backend4Value, error) {
-	ip4 := ip.To4()
-	if ip4 == nil {
-		return nil, fmt.Errorf("not an IPv4 address")
-	}
+func NewBackend4Value(ip net.IP, port uint16, proto u8proto.U8proto, state loadbalancer.BackendState) *Backend4Value {
 	flags := loadbalancer.NewBackendFlags(state)
 
-	val := Backend4Value{
+	value := Backend4Value{
 		Port:  port,
 		Proto: proto,
 		Flags: flags,
 	}
-	copy(val.Address[:], ip.To4())
+	copy(value.Address[:], ip.To4())
 
-	return &val, nil
+	return &value
 }
 
 func (v *Backend4Value) ToNetwork() *Backend4Value {
