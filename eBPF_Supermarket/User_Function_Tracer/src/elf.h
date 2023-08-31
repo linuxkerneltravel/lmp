@@ -35,7 +35,7 @@ struct elf_head {
  * @param[out] elf 待初始化的ELF头
  * @param[in] filename 文件名
  */
-void elf_head_begin(struct elf_head* elf, const char* filename);
+int elf_head_begin(struct elf_head* elf, const char* filename);
 
 /**
  * @brief 在使用完ELF头信息后释放资源

@@ -41,30 +41,46 @@
 
 #define BASE_ADDR 0x400000  // for no-pie option
 
-#define NOASLR 1000
+enum longopt {
+  CPUID = 1000,
+  NOASLR,
+  TID,
+  TIMESTAMP,
+};
+
 static const struct option longopts[] = {{"command", required_argument, NULL, 'c'},
-                                         {"pid", required_argument, NULL, 'p'},
-                                         {"no-ASLR", no_argument, NULL, NOASLR},
+                                         {"cpuid", no_argument, NULL, CPUID},
+                                         {"debug", no_argument, NULL, 'd'},
                                          {"help", no_argument, NULL, 'h'},
+                                         {"no-aslr", no_argument, NULL, NOASLR},
+                                         {"pid", required_argument, NULL, 'p'},
+                                         {"tid", no_argument, NULL, TID},
+                                         {"timestamp", no_argument, NULL, TIMESTAMP},
                                          {NULL, 0, NULL, 0}};
 
 static const char *optstring = "c:p:hd";
 
 struct args {
   pid_t pid;
+  int cpuid;
+  int tid;
+  int timestamp;
   int aslr;
   char **argv;
-};
+} arg;
 
 void print_usage(char *program) {
   LOG("Usage: %s [$OPTIONS...]\n", program);
   LOG("\n");
   LOG("Options:\n");
   LOG("  -c --command: the command to run the program to be traced.\n");
-  LOG("  -p --pid: the PID of the program to be traced.\n");
+  LOG("     --cpuid: display cpuid information.\n");
   LOG("  -d --debug: enable debug mode.\n");
-  LOG("     --no-ASLR: disable Address Space Layout Randomization (ASLR).\n");
   LOG("  -h --help: disaply this usage information.\n");
+  LOG("     --no-aslr: disable Address Space Layout Randomization (ASLR).\n");
+  LOG("  -p --pid: the PID of the program to be traced.\n");
+  LOG("     --tid: display tid information.\n");
+  LOG("     --timestamp: display timestamp information.\n");
   LOG("\n");
   LOG("Examples:\n");
   LOG("  sudo %s -c \"$PROGRAM $ARGS\"\n", program);
@@ -101,25 +117,40 @@ void parse_args(int argc, char *argv[], struct args *arg) {
         arg->argv[c] = NULL;
         opt_index += 2;
         break;
-      case 'p':  // -p --pid
-        arg->pid = atoi(optarg);
-        opt_index += 2;
+      case CPUID:  // --cpuid
+        arg->cpuid = 1;
+        opt_index += 1;
         break;
       case 'd':  // -d --debug
         debug = 1;
         opt_index += 1;
         break;
-      case NOASLR:
-        arg->aslr = 0;
-        break;
       case 'h':  // -h --help
         print_usage(argv[0]);
         exit(0);
+      case 'p':  // -p --pid
+        arg->pid = atoi(optarg);
+        opt_index += 2;
+        break;
+      case NOASLR:  // --no-aslr
+        arg->aslr = 0;
+        opt_index += 1;
+        break;
+      case TID:  // --tid
+        arg->tid = 1;
+        opt_index += 1;
+        break;
+      case TIMESTAMP:  // --timestamp
+        arg->timestamp = 1;
+        opt_index += 1;
+        break;
+
       default:
         print_usage(argv[0]);
         exit(1);
     }
   }
+
   if (!c && !arg->pid) {
     print_usage(argv[0]);
     exit(1);
@@ -182,20 +213,36 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
     if (status == 0) {
-      log_cpuid(pending_r.cpu_id);
-      log_split();
-      log_tid(pending_r.tid);
-      log_split();
-      log_time(r->duration_ns);
+      if (arg.cpuid) {
+        log_cpuid(pending_r.cpu_id);
+        log_split();
+      }
+      if (arg.tid) {
+        log_tid(pending_r.tid);
+        log_split();
+      }
+      if (arg.timestamp) {
+        log_timestamp(pending_r.timestamp);
+        log_split();
+      }
+      log_duration(r->duration_ns);
       log_split();
       log_char(' ', 2 * pending_r.ustack_sz);
       LOG("%s();\n", stack_func[pending_r.global_sz]);
     } else {  // status == 1
-      log_cpuid(r->cpu_id);
-      log_split();
-      log_tid(r->tid);
-      log_split();
-      log_time(r->duration_ns);
+      if (arg.cpuid) {
+        log_cpuid(r->cpu_id);
+        log_split();
+      }
+      if (arg.tid) {
+        log_tid(r->tid);
+        log_split();
+      }
+      if (arg.timestamp) {
+        log_timestamp(r->timestamp);
+        log_split();
+      }
+      log_duration(r->duration_ns);
       log_split();
       log_char(' ', 2 * r->ustack_sz);
       LOG("} ");
@@ -214,10 +261,18 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
     if (status == 0) {
-      log_cpuid(pending_r.cpu_id);
-      log_split();
-      log_tid(pending_r.tid);
-      log_split();
+      if (arg.cpuid) {
+        log_cpuid(pending_r.cpu_id);
+        log_split();
+      }
+      if (arg.tid) {
+        log_tid(pending_r.tid);
+        log_split();
+      }
+      if (arg.timestamp) {
+        log_timestamp(pending_r.timestamp);
+        log_split();
+      }
       log_char(' ', 11);
       log_split();
       log_char(' ', 2 * pending_r.ustack_sz);
@@ -236,7 +291,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 int main(int argc, char **argv) {
   struct ring_buffer *records = NULL;
   struct utrace_bpf *skel;
-  struct args arg;
   struct rlimit old_rlim;
   pid_t pid;
   char *program;
@@ -312,6 +366,8 @@ int main(int argc, char **argv) {
         continue;
       else if (strcmp(sym->name, "__libc_csu_fini") == 0)
         continue;
+      else if (strcmp(sym->name, "_dl_relocate_static_pie") == 0)
+        continue;
       if (sym->addr != pre_addr) {
         uprobe_attach(skel, pid, program, sym->addr);
         pre_addr = sym->addr;
@@ -321,9 +377,12 @@ int main(int argc, char **argv) {
     vmaps = new_vmap_list(pid);
     for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
          prev_vmap = vmap, vmap = vmap->next) {
+      printf("%s\n", vmap->libname);
       if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
       if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-      push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
+      struct symbol_arr *symbols = new_symbol_arr(vmap->libname, dyn_symset, 1);
+      if (!symbols) continue;
+      push_symbol_arr(symtab, symbols);
       size_t pre_addr = 0;
       for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
            sym++) {
@@ -337,7 +396,7 @@ int main(int argc, char **argv) {
         }
       }
     }
-
+    puts("HERE");
     /* Attach tracepoints */
     assert(utrace_bpf__attach(skel) == 0);
   } else {
@@ -416,7 +475,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  log_header();
+  log_header(arg.cpuid, arg.tid, arg.timestamp);
   /* Process events */
   while (true) {
     err = ring_buffer__poll(records, 100 /* timeout, ms */);

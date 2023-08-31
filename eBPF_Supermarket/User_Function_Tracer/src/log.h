@@ -37,20 +37,11 @@ void log_char(char c, int cnt);
 
 /**
  * @brief 输出头部
+ * @param[in] cpuid 是否输出cpu编号
+ * @param[in] tid 是否输出线程编号
+ * @param[in] timestamp 是否输出时间戳
  */
-void log_header();
-
-/**
- * @brief 输出线程号
- * @param[in] tid 线程号
- */
-void log_tid(int tid);
-
-/**
- * @brief 输出CPU编号
- * @param[in] cpuid CPU编号
- */
-void log_cpuid(int cpuid);
+void log_header(int cpuid, int tid, int timestamp);
 
 /**
  * @brief 输出分隔符
@@ -59,11 +50,29 @@ void log_cpuid(int cpuid);
 void log_split();
 
 /**
+ * @brief 输出CPU编号
+ * @param[in] cpuid CPU编号
+ */
+void log_cpuid(int cpuid);
+
+/**
+ * @brief 输出线程号
+ * @param[in] tid 线程号
+ */
+void log_tid(int tid);
+
+/**
+ * @brief 输出线程号
+ * @param[in] tid 线程号
+ */
+void log_timestamp(unsigned long long timestamp);
+
+/**
  * @brief 输出时间及其单位
  * @param[in] ns 时间（单位纳秒）
  * @details 从[ns,us,ms,s,m,h]中选择合适的单位输出时间信息
  */
-void log_time(size_t ns);
+void log_duration(unsigned long long ns);
 
 /** 控制是否显示调试信息，在utrace.c中定义 */
 extern int debug;

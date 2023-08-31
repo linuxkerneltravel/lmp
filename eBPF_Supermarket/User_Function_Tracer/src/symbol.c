@@ -75,7 +75,7 @@ void delete_dyn_symbol_set(struct dyn_symbol_set* dyn_symset) {
 
 struct symbol_arr* new_symbol_arr(char* libname, struct dyn_symbol_set* dyn_symset, int lib) {
   struct elf_head elf;
-  elf_head_begin(&elf, libname);
+  if (elf_head_begin(&elf, libname)) return NULL;
 
   struct symbol_arr* symbols = (struct symbol_arr*)malloc(sizeof(struct symbol_arr));
   symbols->size = 0;

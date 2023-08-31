@@ -20,18 +20,26 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <unistd.h>
 
-void elf_head_begin(struct elf_head* elf, const char* filename) {
+#include "log.h"
+
+int elf_head_begin(struct elf_head* elf, const char* filename) {
   elf->fd = open(filename, O_RDONLY);
-  assert(elf->fd >= 0);
+  if (elf->fd < 0) {
+    return -1;
+  }
 
   assert(elf_version(EV_CURRENT) != EV_NONE);
 
   elf->e = elf_begin(elf->fd, ELF_C_READ_MMAP, NULL);
   assert(elf->e);
 
-  assert(gelf_getehdr(elf->e, &elf->ehdr));
+  if (!gelf_getehdr(elf->e, &elf->ehdr)) {
+    return -1;
+  }
+  return 0;
 }
 
 void elf_head_end(struct elf_head* elf) {
