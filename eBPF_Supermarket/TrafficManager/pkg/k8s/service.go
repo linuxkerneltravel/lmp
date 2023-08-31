@@ -44,10 +44,9 @@ func getDefaultKubeConfigFile() string {
 		os.Getenv("KUBECONFIG"),
 		path.Join(home, ".kube/config"),
 		"/etc/kubernetes/admin.conf",
-		"/home/runner/.kube/config", // for GitHib Workflow only
+		// "/home/runner/.kube/config", // for GitHib Workflow only
 	}
 
-	fmt.Println("DefaultConfigPaths", DefaultConfigPaths)
 	for _, kubeConfig := range DefaultConfigPaths {
 		if kubeConfig != "" && fileExists(kubeConfig) {
 			return kubeConfig
@@ -97,4 +96,27 @@ func getPodsForService(clientSet *kubernetes.Clientset, namespace string, servic
 	}
 
 	return pods, nil
+}
+
+func GetPodByService(serviceName string, namespace string, kubeConfigFilePath string) (*v1.Service, *v1.PodList, error) {
+	if kubeConfigFilePath == "" {
+		kubeConfigFilePath = getDefaultKubeConfigFile()
+	}
+
+	clientSet, err := buildClientSet(kubeConfigFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	service, err := getService(clientSet, serviceName, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pods, err := getPodsForService(clientSet, namespace, service.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return service, pods, nil
 }

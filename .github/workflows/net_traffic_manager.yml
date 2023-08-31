@@ -95,15 +95,22 @@ jobs:
           kubectl get pods -owide -A
           kubectl get services
           test_pod() {
-            while [[ $(kubectl get pods -l $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True True True True True" ]]
+            while [[ $(kubectl get pods -l $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True True True True True True True True True True True True True True True True True True True True True True True True True" ]]
               do 
                 echo "waiting for pod"
                 sleep 5
-                kubectl get pods -owide -A; 
+                kubectl get pods -o wide -A; 
               done
             return 0
           }
-          test_pod app=sisyphe
-          test_pod app=sisyphe-sfs
           cd eBPF_Supermarket/TrafficManager/
-          sudo go test -v ./...
+          test_pod app=sisyphe
+          # test_pod app=sisyphe-sfs
+          # sudo go test -v ./...
+          
+          kubectl get nodes
+          kubectl get pods -owide -A
+          kubectl get services
+          
+          sudo go test -c acceptance/performance_test.go
+          sudo ./acceptance.test
