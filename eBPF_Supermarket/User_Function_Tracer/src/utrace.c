@@ -16,11 +16,10 @@
 //
 // 基于eBPF的用户态函数观测主程序
 
-#include <getopt.h>
-
 #include "utrace.h"
 #include "utrace.skel.h"
 
+#include <argp.h>
 #include <assert.h>
 #include <bpf/libbpf.h>
 #include <ctype.h>
@@ -48,114 +47,91 @@ enum longopt {
   TIMESTAMP,
 };
 
-static const struct option longopts[] = {{"command", required_argument, NULL, 'c'},
-                                         {"cpuid", no_argument, NULL, CPUID},
-                                         {"debug", no_argument, NULL, 'd'},
-                                         {"help", no_argument, NULL, 'h'},
-                                         {"no-aslr", no_argument, NULL, NOASLR},
-                                         {"pid", required_argument, NULL, 'p'},
-                                         {"tid", no_argument, NULL, TID},
-                                         {"timestamp", no_argument, NULL, TIMESTAMP},
-                                         {NULL, 0, NULL, 0}};
-
-static const char *optstring = "c:p:hd";
-
-struct args {
-  pid_t pid;
+static struct env {
+  char **argv;
   int cpuid;
+  int noaslr;
+  pid_t pid;
   int tid;
   int timestamp;
-  int aslr;
-  char **argv;
-} arg;
+} env;
 
-void print_usage(char *program) {
-  LOG("Usage: %s [$OPTIONS...]\n", program);
-  LOG("\n");
-  LOG("Options:\n");
-  LOG("  -c --command: the command to run the program to be traced.\n");
-  LOG("     --cpuid: display cpuid information.\n");
-  LOG("  -d --debug: enable debug mode.\n");
-  LOG("  -h --help: disaply this usage information.\n");
-  LOG("     --no-aslr: disable Address Space Layout Randomization (ASLR).\n");
-  LOG("  -p --pid: the PID of the program to be traced.\n");
-  LOG("     --tid: display tid information.\n");
-  LOG("     --timestamp: display timestamp information.\n");
-  LOG("\n");
-  LOG("Examples:\n");
-  LOG("  sudo %s -c \"$PROGRAM $ARGS\"\n", program);
-  LOG("  sudo %s -p $PID\n", program);
-}
+const char *argp_program_version = "eBPF-utrace 0.0";
+const char argp_program_doc[] =
+    "\neBPF user function tracer (utrace).\n"
+    "\n"
+    "Examples:\n"
+    "  sudo utrace -c \"$PROGRAM $ARGS\"\n"
+    "  sudo utrace -p $PID\n";
 
-void parse_args(int argc, char *argv[], struct args *arg) {
-  int len, c = 0;
+static const struct argp_option opts[] = {
+    {"command", 'c', "COMMAND", 0, "Command to run the program to be traced"},
+    {"cpuid", CPUID, NULL, 0, "Display cpuid information"},
+    {"debug", 'd', NULL, 0, "Display debug information"},
+    {"no-aslr", NOASLR, NULL, 0, "Disable address space layout randomization (aslr)"},
+    {"pid", 'p', "P", 0, "PID of the program to be traced"},
+    {"tid", TID, NULL, 0, "Display tid information"},
+    {"timestamp", TIMESTAMP, NULL, 0, "Display timestamp information"},
+    {}};
 
-  arg->pid = 0;
-  arg->aslr = 1;
-  arg->argv = (char **)malloc(sizeof(char *) * 16);
-
-  debug = 0;
-
-  int opt, opt_index = 1;
-  while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) {
-    switch (opt) {
-      case 'c':  // -c --command
-        len = strlen(optarg);
-        for (int i = 0; i < len; i++) {
-          if (optarg[i] != ' ') {
-            int j = i + 1;
-            while (j < len && optarg[j] != ' ') {
-              ++j;
-            }
-            optarg[j] = 0;
-            arg->argv[c] = strdup(optarg + i);
-            ++c;
-            optarg[j] = ' ';
-            i = j;
+static error_t parse_arg(int key, char *arg, struct argp_state *state) {
+  switch (key) {
+    case 'c':  // -c --command
+      env.argv = (char **)malloc(sizeof(char *) * 16);
+      for (int i = 0, len = strlen(arg), c = 0; i < len; i++) {
+        if (arg[i] != ' ') {
+          int j = i + 1;
+          while (j < len && arg[j] != ' ') {
+            ++j;
           }
+          arg[j] = 0;
+          env.argv[c] = strdup(arg + i);
+          env.argv[c + 1] = NULL;
+          ++c;
+          arg[j] = ' ';
+          i = j;
         }
-        arg->argv[c] = NULL;
-        opt_index += 2;
-        break;
-      case CPUID:  // --cpuid
-        arg->cpuid = 1;
-        opt_index += 1;
-        break;
-      case 'd':  // -d --debug
-        debug = 1;
-        opt_index += 1;
-        break;
-      case 'h':  // -h --help
-        print_usage(argv[0]);
-        exit(0);
-      case 'p':  // -p --pid
-        arg->pid = atoi(optarg);
-        opt_index += 2;
-        break;
-      case NOASLR:  // --no-aslr
-        arg->aslr = 0;
-        opt_index += 1;
-        break;
-      case TID:  // --tid
-        arg->tid = 1;
-        opt_index += 1;
-        break;
-      case TIMESTAMP:  // --timestamp
-        arg->timestamp = 1;
-        opt_index += 1;
-        break;
-
-      default:
-        print_usage(argv[0]);
-        exit(1);
-    }
+      }
+      break;
+    case CPUID:  // --cpuid
+      env.cpuid = 1;
+      break;
+    case 'd':  // -d --debug
+      debug = 1;
+      break;
+    case 'h':  // -h --help
+      argp_usage(state);
+      exit(0);
+    case 'p':  // -p --pid
+      env.pid = atoi(optarg);
+      if (env.pid < 0) {
+        ERROR("Invalid pid: %d\n", env.pid);
+        argp_usage(state);
+      }
+      break;
+    case NOASLR:  // --no-aslr
+      env.noaslr = 1;
+      break;
+    case TID:  // --tid
+      env.tid = 1;
+      break;
+    case TIMESTAMP:  // --timestamp
+      env.timestamp = 1;
+      break;
+    case ARGP_KEY_ARG:
+      argp_usage(state);
+      break;
+    default:
+      return ARGP_ERR_UNKNOWN;
   }
-
-  if (!c && !arg->pid) {
-    print_usage(argv[0]);
-    exit(1);
-  }
+  return 0;
 }
+
+static const struct argp argp = {
+    .options = opts,
+    .parser = parse_arg,
+    .doc = argp_program_doc,
+};
 
 struct symbol_tab *symtab;
 struct dyn_symbol_set *dyn_symset;
@@ -213,15 +189,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
     if (status == 0) {
-      if (arg.cpuid) {
+      if (env.cpuid) {
         log_cpuid(pending_r.cpu_id);
         log_split();
       }
-      if (arg.tid) {
+      if (env.tid) {
         log_tid(pending_r.tid);
         log_split();
       }
-      if (arg.timestamp) {
+      if (env.timestamp) {
         log_timestamp(pending_r.timestamp);
         log_split();
       }
@@ -230,15 +206,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       log_char(' ', 2 * pending_r.ustack_sz);
       LOG("%s();\n", stack_func[pending_r.global_sz]);
     } else {  // status == 1
-      if (arg.cpuid) {
+      if (env.cpuid) {
         log_cpuid(r->cpu_id);
         log_split();
       }
-      if (arg.tid) {
+      if (env.tid) {
         log_tid(r->tid);
         log_split();
       }
-      if (arg.timestamp) {
+      if (env.timestamp) {
         log_timestamp(r->timestamp);
         log_split();
       }
@@ -261,15 +237,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
     if (status == 0) {
-      if (arg.cpuid) {
+      if (env.cpuid) {
         log_cpuid(pending_r.cpu_id);
         log_split();
       }
-      if (arg.tid) {
+      if (env.tid) {
         log_tid(pending_r.tid);
         log_split();
       }
-      if (arg.timestamp) {
+      if (env.timestamp) {
         log_timestamp(pending_r.timestamp);
         log_split();
       }
@@ -296,7 +272,10 @@ int main(int argc, char **argv) {
   char *program;
   int err;
 
-  parse_args(argc, argv, &arg);
+  err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
+  if (err || (env.argv == NULL && !env.pid)) {
+    return err;
+  }
 
   if (geteuid() != 0) {
     ERROR("Failed to run %s: permission denied\n", argv[0]);
@@ -328,11 +307,11 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-  if (arg.pid) {
-    pid = arg.pid;
+  if (env.pid) {
+    pid = env.pid;
     program = get_program(pid);
   } else {
-    program = strdup(arg.argv[0]);
+    program = strdup(env.argv[0]);
   }
 
   symtab = new_symbol_tab();
@@ -356,7 +335,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  if (arg.pid) {
+  if (env.pid) {
     size_t pre_addr = 0;
     for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
          sym++) {
@@ -414,9 +393,9 @@ int main(int argc, char **argv) {
       ERROR("Fork error\n");
       goto cleanup;
     } else if (pid == 0) {
-      if (!arg.aslr) personality(ADDR_NO_RANDOMIZE);
+      if (env.noaslr) personality(ADDR_NO_RANDOMIZE);
       ptrace(PTRACE_TRACEME, 0, 0, 0);
-      execv(program, arg.argv);
+      execv(program, env.argv);
       ERROR("Execv %s error\n", program);
       exit(1);
     } else {
@@ -475,7 +454,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  log_header(arg.cpuid, arg.tid, arg.timestamp);
+  log_header(env.cpuid, env.tid, env.timestamp);
   /* Process events */
   while (true) {
     err = ring_buffer__poll(records, 100 /* timeout, ms */);
@@ -489,7 +468,7 @@ int main(int argc, char **argv) {
       break;
     }
     if (err == 0) {
-      if (arg.pid) {
+      if (env.pid) {
         if (kill(pid, 0)) break;
       } else {
         int wstatus;
