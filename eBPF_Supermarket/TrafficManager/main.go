@@ -17,7 +17,7 @@
 package main
 
 import (
-	"github.com/eswzy/eTrafficManager/bpf"
+	"lmp/eTrafficManager/bpf"
 )
 
 // main is just for test now

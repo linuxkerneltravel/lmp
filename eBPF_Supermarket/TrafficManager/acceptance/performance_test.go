@@ -1,8 +1,25 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: Woa <me@wuzy.cn>
+
 package acceptance
 
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -10,8 +27,8 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/eswzy/eTrafficManager/bpf"
-	"github.com/eswzy/eTrafficManager/pkg/k8s"
+	"lmp/eTrafficManager/bpf"
+	"lmp/eTrafficManager/pkg/k8s"
 )
 
 type SiegeResponse struct {
@@ -30,7 +47,7 @@ type SiegeResponse struct {
 }
 
 func siegeService(siegePodName string, service *v1.Service) (*SiegeResponse, error) {
-	fmt.Println("Start Sieging")
+	log.Println("Start Sieging")
 	// kubectl exec siege -- siege -c 5 -r 20000 http://sisyphe-sfs.default.svc.cluster.local
 	out, err := exec.Command("kubectl", "exec", siegePodName, "--", "siege", "-c", "20", "-r", "40000", "http://"+service.Spec.ClusterIPs[0]).Output()
 	if err != nil {
@@ -54,11 +71,11 @@ func TestServicePerformance(t *testing.T) {
 		panic(err.Error())
 	}
 
-	fmt.Printf("Service: %s, Service IP: %s, Ports: %v\n", service.Name, service.Spec.ClusterIPs, service.Spec.Ports)
-	fmt.Printf("Pods:\n")
+	log.Printf("Service: %s, Service IP: %s, Ports: %v\n", service.Name, service.Spec.ClusterIPs, service.Spec.Ports)
+	log.Println("Pods:")
 	for _, pod := range pods.Items {
 		p := pod.Spec.Containers[0].Ports[0]
-		fmt.Printf("- %s, IP: %s, Ports: %v\n", pod.Name, pod.Status.PodIP, strconv.Itoa(int(p.ContainerPort))+"|"+strconv.Itoa(int(p.HostPort))+"|"+string(p.Protocol))
+		log.Printf("- %s, IP: %s, Ports: %v\n", pod.Name, pod.Status.PodIP, strconv.Itoa(int(p.ContainerPort))+"|"+strconv.Itoa(int(p.HostPort))+"|"+string(p.Protocol))
 	}
 
 	// Siege service IP before loading program
@@ -70,7 +87,7 @@ func TestServicePerformance(t *testing.T) {
 	programs, err := bpf.LoadProgram()
 	defer programs.Close()
 	if err != nil {
-		fmt.Println("[ERROR] Loading program failed:", err)
+		t.Errorf("[ERROR] Loading program failed: %s", err)
 		return
 	}
 
@@ -83,7 +100,7 @@ func TestServicePerformance(t *testing.T) {
 
 	err = programs.Attach()
 	if err != nil {
-		fmt.Println("[ERROR] Attaching failed:", err)
+		t.Errorf("[ERROR] Attaching failed: %s", err)
 	}
 
 	// Siege service IP after loading program
@@ -95,7 +112,7 @@ func TestServicePerformance(t *testing.T) {
 	reductionElapsedTime := resp1.ElapsedTime - resp2.ElapsedTime
 	promotionTransactionRate := resp2.TransactionRate - resp1.TransactionRate
 	promotionThroughput := resp2.Throughput - resp1.Throughput
-	fmt.Printf("Reducing of ElapsedTime:      %13.5f -> %13.5f = %13.5f\n", resp1.ElapsedTime, resp2.ElapsedTime, reductionElapsedTime)
-	fmt.Printf("Promotion of TransactionRate: %13.5f -> %13.5f = %13.5f\n", resp1.TransactionRate, resp2.TransactionRate, promotionTransactionRate)
-	fmt.Printf("Promotion of Throughput:      %13.5f -> %13.5f = %13.5f\n", resp1.Throughput, resp2.Throughput, promotionThroughput)
+	log.Printf("Reducing of ElapsedTime:      %13.5f -> %13.5f = %13.5f\n", resp1.ElapsedTime, resp2.ElapsedTime, reductionElapsedTime)
+	log.Printf("Promotion of TransactionRate: %13.5f -> %13.5f = %13.5f\n", resp1.TransactionRate, resp2.TransactionRate, promotionTransactionRate)
+	log.Printf("Promotion of Throughput:      %13.5f -> %13.5f = %13.5f\n", resp1.Throughput, resp2.Throughput, promotionThroughput)
 }

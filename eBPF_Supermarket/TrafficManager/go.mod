@@ -1,4 +1,4 @@
-module github.com/eswzy/eTrafficManager
+module lmp/eTrafficManager
 
 go 1.20
 

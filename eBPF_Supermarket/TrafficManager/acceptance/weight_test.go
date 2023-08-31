@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eswzy/eTrafficManager/bpf"
+	"lmp/eTrafficManager/bpf"
 )
 
 type testCase struct {
