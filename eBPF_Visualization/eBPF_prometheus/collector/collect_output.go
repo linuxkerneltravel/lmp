@@ -21,6 +21,7 @@ package collector
 import (
 	"bufio"
 	"ebpf_prometheus/checker"
+	"ebpf_prometheus/dao"
 	"ebpf_prometheus/prom_core"
 	"fmt"
 	"github.com/urfave/cli/v2"
@@ -161,7 +162,9 @@ func Run(filePath string) error {
 		log.Println("I am normal")
 	}
 
-	metricsobj := &prom_core.MyMetrics{}
+	metricsobj := &prom_core.MyMetrics{Sqlinited: false}
+	sqlobj := &dao.Sqlobj{Tablename: "bpf_data"}
+	metricsobj.Sqlobj = sqlobj
 
 	go metricsobj.StartService()
 	// process chan from redirect Stdout
@@ -170,7 +173,13 @@ func Run(filePath string) error {
 			select {
 			case <-mapchan:
 				metricsobj.Maplist = <-mapchan
+				log.Println(metricsobj.Maplist)
 				metricsobj.UpdateData()
+				if metricsobj.Sqlinited {
+					metricsobj.UpdataSql()
+				} else {
+					metricsobj.Initsql()
+				}
 				<-mapchan
 			default:
 			}

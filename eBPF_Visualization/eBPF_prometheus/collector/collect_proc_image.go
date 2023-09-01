@@ -21,6 +21,7 @@ package collector
 import (
 	"bufio"
 	"ebpf_prometheus/checker"
+	"ebpf_prometheus/dao"
 	"ebpf_prometheus/prom_core"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
@@ -93,7 +94,10 @@ func ProcRun(command string) error {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	currenttime := float64(time.Now().In(loc).UnixNano()) / 1e9
 	go redirectProc(stdout, mapchan)
+
 	procdata := prom_core.ProcMetrics{Max_records: maxrecords, NowTime: currenttime}
+	sqlobj := &dao.Sqlobj{Tablename: "proc_image_data"}
+	procdata.Sqlobj = sqlobj
 	// process chan from redirectProc Stdout
 	go procdata.BootProcService()
 
@@ -102,6 +106,11 @@ func ProcRun(command string) error {
 			select {
 			case <-mapchan:
 				procdata.Getorigindata(mapchan)
+				if procdata.Sqlinted {
+					procdata.UpdateSql()
+				} else {
+					procdata.Initsql()
+				}
 				procdata.UpdateRecords()
 				<-mapchan
 			default:
