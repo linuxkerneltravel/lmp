@@ -48,13 +48,13 @@
 
 // sudo cat /sys/kernel/debug/tracing/trace_pipe
 
-#define print_ip_formatted(ip)                          \
-({                                                      \
-    bpf_printk("ip1: %d.%d",                            \
-                ip%256, (ip/256)%256);                  \
-    bpf_printk("ip2: %d.%d\n",                          \
-                (ip/65536)%256, (ip/16711680)%256);     \
-})
+//#define print_ip_formatted(ip)                          \
+//({                                                      \
+//    // bpf_printk("ip1: %d.%d",                            \
+//                ip%256, (ip/256)%256);                  \
+//    // bpf_printk("ip2: %d.%d\n",                          \
+//                (ip/65536)%256, (ip/16711680)%256);     \
+//})
 
 struct lb4_key {
 	__be32 address;		/* Service virtual IPv4 address */

@@ -87,23 +87,5 @@ jobs:
 
       - name: Test
         run: |
-          pwd
-          env
-          sudo mkdir /root/.kube
-          sudo cp ~/.kube/config /root/.kube/config
-          kubectl get nodes
-          kubectl get pods -owide -A
-          kubectl get services
-          test_pod() {
-            while [[ $(kubectl get pods -l $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True True True True True" ]]
-              do 
-                echo "waiting for pod"
-                sleep 5
-                kubectl get pods -owide -A; 
-              done
-            return 0
-          }
-          test_pod app=sisyphe
-          test_pod app=sisyphe-sfs
           cd eBPF_Supermarket/TrafficManager/
-          sudo go test -v ./...
+          make test

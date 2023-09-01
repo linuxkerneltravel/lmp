@@ -21,7 +21,7 @@ metadata:
   labels:
     app: sisyphe
 spec:
-  replicas: 5
+  replicas: 25
   selector:
     matchLabels:
       app: sisyphe

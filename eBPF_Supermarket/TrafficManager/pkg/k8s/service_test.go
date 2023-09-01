@@ -23,21 +23,10 @@ import (
 )
 
 func TestGetPodsForService(t *testing.T) {
-	configFilePath := getDefaultKubeConfigFile()
-
-	clientSet, err := buildClientSet(configFilePath)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	namespace := "default"
 	serviceName := "sisyphe-sfs"
-	service, err := getService(clientSet, serviceName, namespace)
-	if err != nil {
-		panic(err.Error())
-	}
 
-	pods, err := getPodsForService(clientSet, namespace, service.Name)
+	service, pods, err := GetPodByService(serviceName, namespace, "")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -48,5 +37,4 @@ func TestGetPodsForService(t *testing.T) {
 		p := pod.Spec.Containers[0].Ports[0]
 		fmt.Printf("- %s, IP: %s, Ports: %v\n", pod.Name, pod.Status.PodIP, strconv.Itoa(int(p.ContainerPort))+"|"+strconv.Itoa(int(p.HostPort))+"|"+string(p.Protocol))
 	}
-	fmt.Println()
 }

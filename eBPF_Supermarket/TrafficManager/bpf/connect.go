@@ -25,6 +25,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/u8proto"
@@ -317,7 +318,7 @@ func Sample() {
 	}
 	defer progs.Close()
 
-	// time.Sleep(time.Minute)
+	time.Sleep(time.Minute)
 	fmt.Println("[INFO] Time is up...")
 	progs.AutoDeleteService(s)
 	// c := make(chan os.Signal, 1)
