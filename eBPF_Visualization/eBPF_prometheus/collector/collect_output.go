@@ -119,8 +119,9 @@ func simpleCollect(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	pathlist := strings.Split(filePath, "/")
-	n := BPF_name{Name: strings.ReplaceAll(pathlist[len(pathlist)-1], ".", "")}
+	path := strings.Fields(filePath)[0]
+	pathlist := strings.Split(path, "/")
+	n := BPF_name{Name: strings.ReplaceAll(pathlist[len(pathlist)-1], ".py", "")}
 	return n.Run(filePath)
 }
 
