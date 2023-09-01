@@ -110,12 +110,18 @@ func newProcCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 	return proc_imageCommand, nil
 }
 
+type BPF_name struct {
+	Name string
+}
+
 func simpleCollect(ctx *cli.Context) error {
 	filePath, err := checker.CollectCheck(ctx)
 	if err != nil {
 		return err
 	}
-	return Run(filePath)
+	pathlist := strings.Split(filePath, "/")
+	n := BPF_name{Name: strings.ReplaceAll(pathlist[len(pathlist)-1], ".", "")}
+	return n.Run(filePath)
 }
 
 func CheckFileType(filePath string) (specificcommand string) {
@@ -138,7 +144,7 @@ func CheckFileType(filePath string) (specificcommand string) {
 	}
 }
 
-func Run(filePath string) error {
+func (b *BPF_name) Run(filePath string) error {
 	cmdStr := CheckFileType(filePath)
 	cmd := exec.Command("sh", "-c", cmdStr)
 
@@ -162,8 +168,8 @@ func Run(filePath string) error {
 		log.Println("I am normal")
 	}
 
-	metricsobj := &prom_core.MyMetrics{Sqlinited: false}
-	sqlobj := &dao.Sqlobj{Tablename: "bpf_data"}
+	metricsobj := &prom_core.MyMetrics{BPFName: b.Name, Sqlinited: false}
+	sqlobj := &dao.Sqlobj{Tablename: b.Name}
 	metricsobj.Sqlobj = sqlobj
 
 	go metricsobj.StartService()

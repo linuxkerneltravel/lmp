@@ -31,6 +31,7 @@ import (
 )
 
 type MyMetrics struct {
+	BPFName   string
 	mu        sync.Mutex
 	Maps      map[string]interface{}
 	Maplist   []map[string]interface{}
@@ -59,9 +60,7 @@ func (m *MyMetrics) UpdataSql() {
 func (m *MyMetrics) Initsql() {
 	m.Sqlobj.Data = m.Maps
 	m.Sqlobj.Connectsql()
-	m.Sqlobj.CreateTable()
-	m.Sqlobj.AppendTable()
-	m.Sqlobj.CreateRow()
+	m.Sqlobj.OperateTable(m.BPFName)
 	m.Sqlinited = true
 }
 

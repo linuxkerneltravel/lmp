@@ -46,14 +46,24 @@ func (s *Sqlobj) Connectsql() {
 	s.db = db
 }
 
+func (s *Sqlobj) Tableexist(name string) bool {
+	return s.db.Migrator().HasTable(name)
+}
+
 // CreateTable 建表
-func (s *Sqlobj) CreateTable() {
-	deletetable := fmt.Sprintf("drop table if exists %s;", s.Tablename)
-	if err := s.db.Exec(deletetable).Error; err != nil {
-		log.Fatalf("drop exist table failed.")
-	}
-	if err := s.db.Table(s.Tablename).AutoMigrate(&Basicdata{}); err != nil {
-		log.Fatalf("create table failed.")
+func (s *Sqlobj) OperateTable(name string) {
+	if !s.Tableexist(name) {
+		deletetable := fmt.Sprintf("drop table if exists %s;", s.Tablename)
+		if err := s.db.Exec(deletetable).Error; err != nil {
+			log.Fatalf("drop exist table failed.")
+		}
+		if err := s.db.Table(s.Tablename).AutoMigrate(&Basicdata{}); err != nil {
+			log.Fatalf("create table failed.")
+		}
+		s.AppendTable()
+		s.CreateRow()
+	} else {
+		s.CreateRow()
 	}
 }
 

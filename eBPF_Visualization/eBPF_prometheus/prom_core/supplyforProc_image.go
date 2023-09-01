@@ -58,9 +58,7 @@ func (p *ProcMetrics) UpdateSql() {
 func (p *ProcMetrics) Initsql() {
 	p.Sqlobj.Data = p.OriginalValue
 	p.Sqlobj.Connectsql()
-	p.Sqlobj.CreateTable()
-	p.Sqlobj.AppendTable()
-	p.Sqlobj.CreateRow()
+	p.Sqlobj.OperateTable("proc_image")
 	p.Sqlinted = true
 }
 
