@@ -103,7 +103,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
       argp_usage(state);
       exit(0);
     case 'p':  // -p --pid
-      env.pid = atoi(optarg);
+      env.pid = atoi(arg);
       if (env.pid < 0) {
         ERROR("Invalid pid: %d\n", env.pid);
         argp_usage(state);
@@ -170,11 +170,14 @@ bool symbolize(size_t addr) {
     if (name == NULL) return false;
     memcpy(buf, name, strlen(name));
     buf[strlen(name)] = 0;
-    free(name);
     return true;
   }
   return false;
 }
+
+static volatile bool exiting = false;
+
+static void sig_handler(int sig) { exiting = true; }
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
   static struct profile_record pending_r;
@@ -185,6 +188,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 
   if (r->exit) {
     // LOG("EXIT");
+    // LOG(" %llx\n", r->ustack);
     // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
@@ -282,6 +286,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  signal(SIGINT, sig_handler);
+  signal(SIGTERM, sig_handler);
+
   /* Set up libbpf errors and debug info callback */
   libbpf_set_print(libbpf_print_fn);
 
@@ -315,8 +322,7 @@ int main(int argc, char **argv) {
   }
 
   symtab = new_symbol_tab();
-  dyn_symset = new_dyn_symbol_set();
-  push_symbol_arr(symtab, new_symbol_arr(program, dyn_symset, 0));
+  push_symbol_arr(symtab, new_symbol_arr(program));
   for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
        sym++) {
     if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
@@ -356,10 +362,9 @@ int main(int argc, char **argv) {
     vmaps = new_vmap_list(pid);
     for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
          prev_vmap = vmap, vmap = vmap->next) {
-      printf("%s\n", vmap->libname);
       if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
       if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-      struct symbol_arr *symbols = new_symbol_arr(vmap->libname, dyn_symset, 1);
+      struct symbol_arr *symbols = new_symbol_arr(vmap->libname);
       if (!symbols) continue;
       push_symbol_arr(symtab, symbols);
       size_t pre_addr = 0;
@@ -375,7 +380,7 @@ int main(int argc, char **argv) {
         }
       }
     }
-    puts("HERE");
+
     /* Attach tracepoints */
     assert(utrace_bpf__attach(skel) == 0);
   } else {
@@ -431,7 +436,7 @@ int main(int argc, char **argv) {
            prev_vmap = vmap, vmap = vmap->next) {
         if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
         if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-        push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
+        push_symbol_arr(symtab, new_symbol_arr(vmap->libname));
         size_t pre_addr = 0;
         for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
              sym++) {
@@ -456,7 +461,7 @@ int main(int argc, char **argv) {
 
   log_header(env.cpuid, env.tid, env.timestamp);
   /* Process events */
-  while (true) {
+  while (!exiting) {
     err = ring_buffer__poll(records, 100 /* timeout, ms */);
     /* Ctrl-C will cause -EINTR */
     if (err == -EINTR) {
@@ -489,7 +494,6 @@ cleanup:
   utrace_bpf__destroy(skel);
 
   delete_symbol_tab(symtab);
-  delete_dyn_symbol_set(dyn_symset);
   delete_vmap_list(vmaps);
 
   free(program);
@@ -498,6 +502,6 @@ cleanup:
     ERROR("setrlimit error");
     exit(1);
   }
-
+  puts("finish");
   return err < 0 ? -err : 0;
 }

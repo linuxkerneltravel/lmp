@@ -49,6 +49,7 @@ void elf_head_end(struct elf_head* elf);
 struct elf_section {
   Elf_Scn* scn;   /**< ELF节 */
   GElf_Shdr shdr; /**< ELF节头 */
+  size_t str_idx; /**< 字符串表序号 */
 };
 
 /**
@@ -69,14 +70,26 @@ void elf_section_begin(struct elf_section* elf_s, struct elf_head* elf);
 int elf_section_next(struct elf_section* elf_s, struct elf_head* elf);
 
 /**
- * @brief 保存ELF条目
+ * @brief 保存ELF符号条目
  */
-struct elf_entry {
-  size_t i;       /**< 当前条目序号 */
-  size_t num;     /**< 条目总数 */
-  Elf_Data* data; /**< 具体数据 */
-  GElf_Sym sym;   /**< 符号表项 */
-  size_t str_idx; /**< 字符串表序号 */
+struct elf_sym_entry {
+  size_t i;           /**< 当前条目序号 */
+  size_t num;         /**< 条目总数 */
+  Elf_Data* sym_data; /**< 符号数据 */
+  GElf_Sym sym;       /**< 符号表项 */
+  size_t str_idx;     /**< 字符串表序号 */
+};
+
+/**
+ * @brief 保存ELF重定位条目
+ */
+struct elf_rela_entry {
+  size_t i;            /**< 当前条目序号 */
+  size_t num;          /**< 条目总数 */
+  Elf_Data* sym_data;  /**< 符号数据 */
+  Elf_Data* rela_data; /**< 重定位数据 */
+  GElf_Rela rela;      /**< 重定位表项 */
+  GElf_Sym sym;        /**< 符号表项 */
 };
 
 /**
@@ -84,7 +97,7 @@ struct elf_entry {
  * @param[out] elf_e 指向一个条目
  * @param[in] elf_s 被遍历的ELF节
  */
-void elf_symbol_entry_begin(struct elf_entry* elf_e, struct elf_section* elf_s);
+void elf_sym_entry_begin(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
 
 /**
  * @brief 移动到下一个ELF条目
@@ -92,8 +105,27 @@ void elf_symbol_entry_begin(struct elf_entry* elf_e, struct elf_section* elf_s);
  * @param[in] elf_s 被遍历的ELF节信息
  * @return 指示是否遍历结束
  * @retval 0 当前elf_e合法
- *            1 当前elf_e不合法，即遍历结束
+ *         1 当前elf_e不合法，即遍历结束
  */
-int elf_symbol_entry_next(struct elf_entry* elf_e, struct elf_section* elf_s);
+int elf_sym_entry_next(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
+
+/**
+ * @brief 开始遍历ELF节（.rela）中的各个条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节
+ * @param[in] dyn_sym_data 动态符号数据
+ */
+void elf_rela_entry_begin(struct elf_rela_entry* elf_e, struct elf_section* elf_s,
+                          Elf_Data* dyn_sym_data);
+
+/**
+ * @brief 移动到下一个ELF条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节信息
+ * @return 指示是否遍历结束
+ * @retval 0 当前elf_e合法
+ *         1 当前elf_e不合法，即遍历结束
+ */
+int elf_rela_entry_next(struct elf_rela_entry* elf_e, struct elf_section* elf_s);
 
 #endif  // UTRACE_ELF_H
