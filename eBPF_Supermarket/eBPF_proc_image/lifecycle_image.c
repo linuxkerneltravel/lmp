@@ -48,6 +48,7 @@ static const struct argp_option opts[] = {
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ "cs-reason", 'r', NULL, 0, "Process context switch reasons annotation" },
 	{ "stack", 's', "STACK-COUNT", 0, "The number of kernel stacks printed when the process is under the CPU" },
+	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
 
@@ -93,6 +94,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				target_stack_count = stack;
 				set_stack = true;
 				break;
+		case 'h':
+                argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+                break;
 		default:
 				return ARGP_ERR_UNKNOWN;
 		}

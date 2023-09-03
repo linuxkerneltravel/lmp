@@ -14,26 +14,27 @@
 //
 // author: zhangziheng0525@163.com
 //
-// eBPF map for the process mutex image
+// eBPF map for the new life image
 
-#ifndef __MUTEX_IMAGE_H
-#define __MUTEX_IMAGE_H
+#ifndef __NEWLIFE_IMAGE_H
+#define __NEWLIFE_IMAGE_H
 
-#define TASK_COMM_LEN 16
+struct bind_pid{
+    int pid;
+    int newlife_pid;
+};
 
-struct proc_mutex{
+struct newlife_start{
     int pad;
-    int pid;
-    long long unsigned int lock_ptr;
+    int flag;       // 1代表fork，2代表vfork，3代表pthread_create
+    long long unsigned int start;
 };
 
-struct mutex_event{
-    int pid;
-    char comm[TASK_COMM_LEN];
-    long long unsigned int lock_ptr;
-    long long unsigned int mutex_acq_time;
-    long long unsigned int mutex_lock_time;
-    long long unsigned int mutex_unlock_time;
+struct newlife_event{
+    int flag;
+    int newlife_pid;
+    long long unsigned int start;
+    long long unsigned int exit;
 };
 
-#endif /* __MUTEX_IMAGE_H */
+#endif /* __CHILD_IMAGE_H */
