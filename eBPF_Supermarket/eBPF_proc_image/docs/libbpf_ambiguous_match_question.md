@@ -2,7 +2,7 @@
 
 在libc.so.6库中若函数名存在如下情况：
 
-<div align='center'><img src="./docs/images/ambiguous_match.png"></div>
+<div align='center'><img src="./images/ambiguous_match.png"></div>
 
 则就会出现libbpf函数名模糊匹配问题，报错信息如下所示：
 
