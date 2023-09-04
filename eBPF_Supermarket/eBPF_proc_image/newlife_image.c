@@ -130,12 +130,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.enable_newthread = true;
 				break;
 		case 'h':
-                argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-                break;
+				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+				break;
 		default:
 				return ARGP_ERR_UNKNOWN;
 		}
-		return 0;
+	return 0;
 }
 
 static void sig_handler(int sig)
@@ -145,7 +145,7 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-    const struct newlife_event *e = data;
+	const struct newlife_event *e = data;
 	const char *c;
 	double exist_time;
 
@@ -183,7 +183,7 @@ static int attach(struct newlife_image_bpf *skel)
 {
 	int err;
 
-    ATTACH_URETPROBE_CHECKED(skel,fork,fork_exit);
+	ATTACH_URETPROBE_CHECKED(skel,fork,fork_exit);
 	ATTACH_URETPROBE_CHECKED(skel,vfork,vfork_exit);
 
 // libbpf: elf: ambiguous match for 'pthread_create', 'pthread_create' in '/usr/lib/x86_64-linux-gnu/libc.so.6'
@@ -229,7 +229,7 @@ int main(int argc, char **argv)
 
 	/* 更干净地处理Ctrl-C
 	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-       SIGTERM：请求中止进程，kill命令发送
+	   SIGTERM：请求中止进程，kill命令发送
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
