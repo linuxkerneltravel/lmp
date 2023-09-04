@@ -134,7 +134,7 @@ pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  o
 
 ## 六、test_proc 测试程序 
 
-目前[test_proc](./test/test_proc.c)测试程序所具备逻辑：
+目前 [test_proc](./test/test_proc.c) 测试程序所具备逻辑：
 
 - 逻辑1：加入sleep逻辑使进程睡眠3秒，即offCPU 3秒
 - 逻辑2：加入互斥锁逻辑，为了应对复杂场景，模拟进程异常地递归加锁解锁
