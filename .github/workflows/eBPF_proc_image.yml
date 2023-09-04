@@ -23,25 +23,25 @@ jobs:
       - name: Run lifecycle_image
         run: |
           cd eBPF_Supermarket/eBPF_proc_image
-          sudo make lifecycle
-          sudo ./lifecycle -t 1
+          make lifecycle_image
+          sudo ./lifecycle_image -t 1
 
       - name: Run lock_image
         run: |
           cd eBPF_Supermarket/eBPF_proc_image
-          sudo make lock_image
+          make lock_image
           sudo ./lock_image -t 1
       
       - name: Run newlife_image
         run: |
           cd eBPF_Supermarket/eBPF_proc_image
-          sudo make newlife_image
+          make newlife_image
           sudo ./newlife_image -t 1
 
       - name: Run proc_offcpu_time
         run: |
           cd eBPF_Supermarket/eBPF_proc_image/proc_offcpu_time
-          sudo make
+          make
           sudo ./proc_offcpu_time -t 1
 
       - name: Run mutex_test
