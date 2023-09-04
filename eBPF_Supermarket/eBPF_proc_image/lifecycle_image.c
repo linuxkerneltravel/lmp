@@ -32,11 +32,30 @@
 #define MAX_LINE_LENGTH 256
 
 static volatile bool exiting = false;
+
+static struct env {
+	int pid;
+	int time;
+	int cpu_id;
+	int stack_count;
+	bool set_stack;
+	bool enable_cs;
+} env = {
+	.pid = 0,
+	.time = 0,
+	.cpu_id = 0,
+	.stack_count = 0,
+	.set_stack = false,
+	.enable_cs = false,
+};
+
+/*
 static int target_pid = 0;
 static int target_cpu_id = 0;
 static int target_stack_count = 0;
 static bool set_stack = false;
 static bool enable_cs = false;
+*/
 
 static struct ksyms *ksyms = NULL;
 
@@ -56,7 +75,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
 	long cpu_id;
-	long time;
 	long stack;
 	switch (key) {
 		case 'p':
@@ -67,7 +85,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 					// 调用argp_usage函数，用于打印用法信息并退出程序
 					argp_usage(state);
 				}
-				target_pid = pid;
+				env.pid = pid;
 				break;
 		case 'C':
 				cpu_id = strtol(arg, NULL, 10);
@@ -75,14 +93,14 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 					warn("Invalid CPUID: %s\n", arg);
 					argp_usage(state);
 				}
-				target_cpu_id = cpu_id;
+				env.cpu_id = cpu_id;
 				break;
 		case 't':
-				time = strtol(arg, NULL, 10);
-				if(time) alarm(time);
+				env.time = strtol(arg, NULL, 10);
+				if(env.time) alarm(env.time);
 				break;
 		case 'r':
-				enable_cs = true;
+				env.enable_cs = true;
 				break;
 		case 's':
 				stack = strtol(arg, NULL, 10);
@@ -91,8 +109,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 					// 调用argp_usage函数，用于打印用法信息并退出程序
 					argp_usage(state);
 				}
-				target_stack_count = stack;
-				set_stack = true;
+				env.stack_count = stack;
+				env.set_stack = true;
 				break;
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -130,14 +148,14 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 		printf("flag:%d  pid:%d  comm:%s  oncpu_id :%d  oncpu_time(ns) :%llu  offcpu_id:%d  offcpu_time(ns):%llu  time(s):%lf\n",
 		e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
 	
-		if(enable_cs){
+		if(env.enable_cs){
 			printf("pid:%d,comm:%s,prio:%d -> pid:%d,comm:%s,prio:%d\n", e->pid,e->comm,e->prio,e->n_pid,e->n_comm,e->n_prio);
 			int count = e->kstack_sz / sizeof(long long unsigned int);
-			if(!set_stack)	target_stack_count = count;
-			if(e->kstack_sz>0 && target_stack_count!=0){
-				int t_count = target_stack_count;
+			if(!env.set_stack)	env.stack_count = count;
+			if(e->kstack_sz>0 && env.stack_count!=0){
+				int t_count = env.stack_count;
 	
-				if(target_stack_count > count)
+				if(env.stack_count > count)
 				{
 					t_count = count;
 				}
@@ -152,7 +170,7 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 		printf("flag:%d  pid:%d  comm:%s  offcpu_id:%d  offcpu_time(ns):%llu  oncpu_id :%d  oncpu_time(ns) :%llu  time(s):%lf\n",
 		e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
 	
-		if(enable_cs){
+		if(env.enable_cs){
 			printf("pid:%d,comm:%s,prio:%d -> pid:%d,comm:%s,prio:%d\n", e->n_pid,e->n_comm,e->n_prio,e->pid,e->comm,e->prio);
 		}
 	}
@@ -203,8 +221,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	skel->rodata->target_pid = target_pid;
-	skel->rodata->target_cpu_id = target_cpu_id;
+	skel->rodata->target_pid = env.pid;
+	skel->rodata->target_cpu_id = env.cpu_id;
 
 	/* 加载并验证BPF程序 */
 	err = lifecycle_image_bpf__load(skel);
