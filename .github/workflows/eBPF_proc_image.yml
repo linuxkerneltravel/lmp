@@ -20,6 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install dependencies and Init Env
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          git submodule update --init --recursive
+
       - name: Run lifecycle_image
         run: |
           cd eBPF_Supermarket/eBPF_proc_image
