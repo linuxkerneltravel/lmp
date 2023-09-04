@@ -44,7 +44,7 @@ const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
-    { "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
+    	{ "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ "cs-reason", 'r', NULL, 0, "Process context switch reasons annotation" },
 	{ "stack", 's', "STACK-COUNT", 0, "The number of kernel stacks printed when the process is under the CPU" },
@@ -55,7 +55,7 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
-    long cpu_id;
+    	long cpu_id;
 	long time;
 	long stack;
 	switch (key) {
@@ -70,14 +70,14 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				target_pid = pid;
 				break;
 		case 'C':
-                cpu_id = strtol(arg, NULL, 10);
-                if(cpu_id < 0){
-                    warn("Invalid CPUID: %s\n", arg);
-                    argp_usage(state);
-                }
-                target_cpu_id = cpu_id;
-                break;
-        case 't':
+		                cpu_id = strtol(arg, NULL, 10);
+		                if(cpu_id < 0){
+		                    warn("Invalid CPUID: %s\n", arg);
+		                    argp_usage(state);
+		                }
+		                target_cpu_id = cpu_id;
+		                break;
+        	case 't':
 				time = strtol(arg, NULL, 10);
 				if(time) alarm(time);
 				break;
@@ -95,12 +95,13 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				set_stack = true;
 				break;
 		case 'h':
-                argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-                break;
+		                argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+		                break;
 		default:
 				return ARGP_ERR_UNKNOWN;
-		}
-		return 0;
+	}
+	
+	return 0;
 }
 
 static void sig_handler(int sig)
@@ -122,20 +123,20 @@ static void print_stack(unsigned long long address)
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct cpu_event *e = data;
-    double time;
+	double time;
 
-    if(e->flag == 1){
-        time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%s  oncpu_id :%d  oncpu_time(ns) :%llu  offcpu_id:%d  offcpu_time(ns):%llu  time(s):%lf\n",
-        e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
-
+	if(e->flag == 1){
+		time = (e->offcpu_time - e->oncpu_time)*1.0/1000000000.0;
+		printf("flag:%d  pid:%d  comm:%s  oncpu_id :%d  oncpu_time(ns) :%llu  offcpu_id:%d  offcpu_time(ns):%llu  time(s):%lf\n",
+		e->flag,e->pid,e->comm,e->oncpu_id,e->oncpu_time,e->offcpu_id,e->offcpu_time,time);
+	
 		if(enable_cs){
 			printf("pid:%d,comm:%s,prio:%d -> pid:%d,comm:%s,prio:%d\n", e->pid,e->comm,e->prio,e->n_pid,e->n_comm,e->n_prio);
 			int count = e->kstack_sz / sizeof(long long unsigned int);
 			if(!set_stack)	target_stack_count = count;
 			if(e->kstack_sz>0 && target_stack_count!=0){
 				int t_count = target_stack_count;
-
+	
 				if(target_stack_count > count)
 				{
 					t_count = count;
@@ -146,15 +147,15 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 				}
 			}
 		}
-    }else if(e->flag == 0){
-        time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-        printf("flag:%d  pid:%d  comm:%s  offcpu_id:%d  offcpu_time(ns):%llu  oncpu_id :%d  oncpu_time(ns) :%llu  time(s):%lf\n",
-        e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
-
+	}else if(e->flag == 0){
+		time = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
+		printf("flag:%d  pid:%d  comm:%s  offcpu_id:%d  offcpu_time(ns):%llu  oncpu_id :%d  oncpu_time(ns) :%llu  time(s):%lf\n",
+		e->flag,e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,time);
+	
 		if(enable_cs){
 			printf("pid:%d,comm:%s,prio:%d -> pid:%d,comm:%s,prio:%d\n", e->n_pid,e->n_comm,e->n_prio,e->pid,e->comm,e->prio);
 		}
-    }
+	}
 
 	printf("\n");
     
@@ -189,7 +190,7 @@ int main(int argc, char **argv)
 
 	/* 更干净地处理Ctrl-C
 	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-       SIGTERM：请求中止进程，kill命令发送
+	   SIGTERM：请求中止进程，kill命令发送
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
@@ -203,7 +204,7 @@ int main(int argc, char **argv)
 	}
 
 	skel->rodata->target_pid = target_pid;
-    skel->rodata->target_cpu_id = target_cpu_id;
+	skel->rodata->target_cpu_id = target_cpu_id;
 
 	/* 加载并验证BPF程序 */
 	err = lifecycle_image_bpf__load(skel);
