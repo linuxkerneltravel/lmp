@@ -20,10 +20,7 @@
 
 #include <assert.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <unistd.h>
-
-#include "log.h"
 
 int elf_head_begin(struct elf_head* elf, const char* filename) {
   assert(elf_version(EV_CURRENT) != EV_NONE);
@@ -50,7 +47,7 @@ void elf_head_end(struct elf_head* elf) {
   close(elf->fd);
 }
 
-uint32_t get_entry_address(struct elf_head* elf) { return elf->ehdr.e_entry; }
+size_t get_entry_address(struct elf_head* elf) { return elf->ehdr.e_entry; }
 
 void elf_section_begin(struct elf_section* elf_s, struct elf_head* elf) {
   elf_getshdrstrndx(elf->e, &elf_s->str_idx);

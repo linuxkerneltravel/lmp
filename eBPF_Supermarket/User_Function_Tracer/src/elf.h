@@ -47,7 +47,7 @@ void elf_head_end(struct elf_head* elf);
  * @brief 得到程序的入口地址
  * @param[in] elf 初始化过的ELF头
  */
-uint32_t get_entry_address(struct elf_head* elf);
+size_t get_entry_address(struct elf_head* elf);
 
 /**
  * @brief 保存ELF节信息，包括节指针以及节头表
@@ -87,18 +87,6 @@ struct elf_sym_entry {
 };
 
 /**
- * @brief 保存ELF重定位条目
- */
-struct elf_rela_entry {
-  size_t i;            /**< 当前条目序号 */
-  size_t num;          /**< 条目总数 */
-  Elf_Data* sym_data;  /**< 符号数据 */
-  Elf_Data* rela_data; /**< 重定位数据 */
-  GElf_Rela rela;      /**< 重定位表项 */
-  GElf_Sym sym;        /**< 符号表项 */
-};
-
-/**
  * @brief 开始遍历ELF节（.symtab, .dynsym）中的各个条目
  * @param[out] elf_e 指向一个条目
  * @param[in] elf_s 被遍历的ELF节
@@ -114,6 +102,18 @@ void elf_sym_entry_begin(struct elf_sym_entry* elf_e, struct elf_section* elf_s)
  *         1 当前elf_e不合法，即遍历结束
  */
 int elf_sym_entry_next(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
+
+/**
+ * @brief 保存ELF重定位条目
+ */
+struct elf_rela_entry {
+  size_t i;            /**< 当前条目序号 */
+  size_t num;          /**< 条目总数 */
+  Elf_Data* sym_data;  /**< 符号数据 */
+  Elf_Data* rela_data; /**< 重定位数据 */
+  GElf_Rela rela;      /**< 重定位表项 */
+  GElf_Sym sym;        /**< 符号表项 */
+};
 
 /**
  * @brief 开始遍历ELF节（.rela）中的各个条目

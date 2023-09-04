@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
   struct utrace_bpf *skel;
   struct rlimit old_rlim;
   pid_t pid;
-  const char *program;
+  char *program;
   int err;
 
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
@@ -320,6 +320,20 @@ int main(int argc, char **argv) {
     program = get_program(vmap_list);
   } else {
     program = env.argv[0];
+    if (access(program, F_OK) != 0) {
+      char *path_env = getenv("PATH");
+      if (path_env != NULL) {
+        char *path_token = strtok(path_env, ":");
+        while (path_token != NULL) {
+          char full_path[256];
+          snprintf(full_path, sizeof(full_path), "%s/%s", path_token, program);
+          if (access(full_path, F_OK) == 0) {
+            program = strdup(full_path);
+          }
+          path_token = strtok(NULL, ":");
+        }
+      }
+    }
   }
 
   symtab = new_symbol_tab();
