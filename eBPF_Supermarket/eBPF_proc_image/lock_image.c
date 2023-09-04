@@ -258,8 +258,8 @@ int main(int argc, char **argv)
 	libbpf_set_print(libbpf_print_fn);
 
 	/* 更干净地处理Ctrl-C
-	SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-	SIGTERM：请求中止进程，kill命令发送
+	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
+	   SIGTERM：请求中止进程，kill命令发送
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
