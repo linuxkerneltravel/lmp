@@ -49,14 +49,6 @@ static struct env {
 	.enable_cs = false,
 };
 
-/*
-static int target_pid = 0;
-static int target_cpu_id = 0;
-static int target_stack_count = 0;
-static bool set_stack = false;
-static bool enable_cs = false;
-*/
-
 static struct ksyms *ksyms = NULL;
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
