@@ -134,8 +134,7 @@ static const struct argp argp = {
 };
 
 struct symbol_tab *symtab;
-struct dyn_symbol_set *dyn_symset;
-struct vmap_list *vmaps;
+static struct vmap_list *vmap_list;
 
 char buf[MAX_SYMBOL_LEN];
 char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
@@ -162,10 +161,10 @@ void uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t a
 }
 
 bool symbolize(size_t addr) {
-  struct vmap *vmap = find_vmap(vmaps, addr);
+  struct vmap *vmap = get_vmap(vmap_list, addr);
   if (vmap == NULL) return false;
   for (struct symbol_arr *symbols = symtab->head; symbols != NULL; symbols = symbols->next) {
-    if (strcmp(symbols->libname, basename(vmap->libname)) != 0) continue;
+    if (strcmp(symbols->libname, basename(vmap->module)) != 0) continue;
     char *name = find_symbol_name(symbols, addr - vmap->addr_st + vmap->offset);
     if (name == NULL) return false;
     memcpy(buf, name, strlen(name));
@@ -234,6 +233,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     status = 1;
   } else {
     // LOG("EXEC");
+    // LOG(" %llx\n", r->ustack);
     // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
     // if (symbolize(r->ustack[0])) {
     //    memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
   struct utrace_bpf *skel;
   struct rlimit old_rlim;
   pid_t pid;
-  char *program;
+  const char *program;
   int err;
 
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
@@ -316,9 +316,10 @@ int main(int argc, char **argv) {
 
   if (env.pid) {
     pid = env.pid;
-    program = get_program(pid);
+    vmap_list = init_vmap_list(pid);
+    program = get_program(vmap_list);
   } else {
-    program = strdup(env.argv[0]);
+    program = env.argv[0];
   }
 
   symtab = new_symbol_tab();
@@ -359,12 +360,11 @@ int main(int argc, char **argv) {
       }
     }
 
-    vmaps = new_vmap_list(pid);
-    for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
+    for (struct vmap *vmap = vmap_list->head, *prev_vmap = NULL; vmap != NULL;
          prev_vmap = vmap, vmap = vmap->next) {
-      if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
-      if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-      struct symbol_arr *symbols = new_symbol_arr(vmap->libname);
+      if (strcmp(basename(vmap->module), basename(program)) == 0) continue;
+      if (prev_vmap != NULL && strcmp(prev_vmap->module, vmap->module) == 0) continue;
+      struct symbol_arr *symbols = new_symbol_arr(vmap->module);
       if (!symbols) continue;
       push_symbol_arr(symtab, symbols);
       size_t pre_addr = 0;
@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
         else if (strcmp(sym->name, "__libc_start_main") == 0)
           continue;
         if (sym->addr != pre_addr) {
-          uprobe_attach(skel, pid, vmap->libname, sym->addr);
+          uprobe_attach(skel, pid, vmap->module, sym->addr);
           pre_addr = sym->addr;
         }
       }
@@ -384,13 +384,13 @@ int main(int argc, char **argv) {
     /* Attach tracepoints */
     assert(utrace_bpf__attach(skel) == 0);
   } else {
-    size_t break_addr = 0;
-    for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-         sym++) {
-      if (strcmp(sym->name, "_start") == 0) {
-        break_addr = sym->addr;
-        break;
-      }
+    struct elf_head elf;
+    elf_head_begin(&elf, program);
+    size_t break_addr = get_entry_address(&elf);
+    if (break_addr >= BASE_ADDR) break_addr -= BASE_ADDR;
+    elf_head_end(&elf);
+    if (!break_addr) {
+      exit(1);
     }
 
     pid = fork();
@@ -404,10 +404,11 @@ int main(int argc, char **argv) {
       ERROR("Execv %s error\n", program);
       exit(1);
     } else {
-      struct gdb *gdb = new_gdb(pid);
+      struct gdb *gdb = init_gdb(pid);
       wait_for_signal(gdb);
 
-      break_addr += get_base_addr(pid);
+      vmap_list = init_vmap_list(pid);
+      break_addr += get_prog_addr_st(vmap_list);
       DEBUG("break address: %zx\n", break_addr);
 
       enable_breakpoint(gdb, break_addr);
@@ -431,12 +432,11 @@ int main(int argc, char **argv) {
         }
       }
 
-      vmaps = new_vmap_list(pid);
-      for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
+      for (struct vmap *vmap = vmap_list->head, *prev_vmap = NULL; vmap != NULL;
            prev_vmap = vmap, vmap = vmap->next) {
-        if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
-        if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-        push_symbol_arr(symtab, new_symbol_arr(vmap->libname));
+        if (strcmp(basename(vmap->module), basename(program)) == 0) continue;
+        if (prev_vmap != NULL && strcmp(prev_vmap->module, vmap->module) == 0) continue;
+        push_symbol_arr(symtab, new_symbol_arr(vmap->module));
         size_t pre_addr = 0;
         for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
              sym++) {
@@ -445,7 +445,7 @@ int main(int argc, char **argv) {
           else if (strcmp(sym->name, "__libc_start_main") == 0)
             continue;
           if (sym->addr != pre_addr) {
-            uprobe_attach(skel, pid, vmap->libname, sym->addr);
+            uprobe_attach(skel, pid, vmap->module, sym->addr);
             pre_addr = sym->addr;
           }
         }
@@ -455,10 +455,9 @@ int main(int argc, char **argv) {
       assert(utrace_bpf__attach(skel) == 0);
 
       disable_breakpoint(gdb, break_addr);
-      delete_gdb(gdb);
+      free_gdb(gdb);
     }
   }
-
   log_header(env.cpuid, env.tid, env.timestamp);
   /* Process events */
   while (!exiting) {
@@ -494,14 +493,13 @@ cleanup:
   utrace_bpf__destroy(skel);
 
   delete_symbol_tab(symtab);
-  delete_vmap_list(vmaps);
-
-  free(program);
+  free_vmap_list(vmap_list);
 
   if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
     ERROR("setrlimit error");
     exit(1);
   }
-  puts("finish");
+
+  DEBUG("finish");
   return err < 0 ? -err : 0;
 }

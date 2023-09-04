@@ -31,7 +31,7 @@ struct elf_head {
 };
 
 /**
- * @brief 根绝文件名初始化ELF头信息
+ * @brief 根据文件名初始化ELF头信息
  * @param[out] elf 待初始化的ELF头
  * @param[in] filename 文件名
  */
@@ -42,6 +42,12 @@ int elf_head_begin(struct elf_head* elf, const char* filename);
  * @param[in] elf 经过elf_head_begin()初始化后的ELF头
  */
 void elf_head_end(struct elf_head* elf);
+
+/**
+ * @brief 得到程序的入口地址
+ * @param[in] elf 初始化过的ELF头
+ */
+uint32_t get_entry_address(struct elf_head* elf);
 
 /**
  * @brief 保存ELF节信息，包括节指针以及节头表

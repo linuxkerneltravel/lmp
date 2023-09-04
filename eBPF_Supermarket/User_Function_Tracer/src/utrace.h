@@ -21,7 +21,6 @@
 
 #define MAX_THREAD_NUM 32
 #define MAX_STACK_DEPTH 128
-#define MAX_MANGLED_LEN 128
 #define MAX_SYMBOL_LEN 1024
 #define MAX_PATH_LEN 256
 

@@ -26,16 +26,19 @@
 #include "log.h"
 
 int elf_head_begin(struct elf_head* elf, const char* filename) {
+  assert(elf_version(EV_CURRENT) != EV_NONE);
+
   elf->fd = open(filename, O_RDONLY);
   if (elf->fd < 0) {
     return -1;
   }
 
-  assert(elf_version(EV_CURRENT) != EV_NONE);
-
   elf->e = elf_begin(elf->fd, ELF_C_READ_MMAP, NULL);
   assert(elf->e);
 
+  if (elf_kind(elf->e) != ELF_K_ELF) {
+    return -1;
+  }
   if (!gelf_getehdr(elf->e, &elf->ehdr)) {
     return -1;
   }
@@ -46,6 +49,8 @@ void elf_head_end(struct elf_head* elf) {
   elf_end(elf->e);
   close(elf->fd);
 }
+
+uint32_t get_entry_address(struct elf_head* elf) { return elf->ehdr.e_entry; }
 
 void elf_section_begin(struct elf_section* elf_s, struct elf_head* elf) {
   elf_getshdrstrndx(elf->e, &elf_s->str_idx);
