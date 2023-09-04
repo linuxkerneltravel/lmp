@@ -66,7 +66,7 @@ lock_image 工具的参数信息：
 | -w, --user-rwlock-wr | 对进程用户态写模式下的读写锁进行画像              |
 | -h, --help           | 显示帮助信息                                      |
 
-用户态的自旋锁和信号量，在libbpf程序的开发过程中遇到了 libbpf: elf: ambiguous match  问题，目前这个问题社区也在讨论中，详情见 [libbpf_ambiguous_match_question.md](eBPF_Supermarket/eBPF_proc_image/docs/libbpf_ambiguous_match_question.md)。
+用户态的自旋锁和信号量，在libbpf程序的开发过程中遇到了 libbpf: elf: ambiguous match  问题，目前这个问题社区也在讨论中，详情见 [libbpf_ambiguous_match_question.md](./docs/libbpf_ambiguous_match_question.md)。
 
 ## 四、newlife_image 工具
 
