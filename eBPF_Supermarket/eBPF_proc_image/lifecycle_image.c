@@ -44,7 +44,7 @@ const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
-    	{ "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
+	{ "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ "cs-reason", 'r', NULL, 0, "Process context switch reasons annotation" },
 	{ "stack", 's', "STACK-COUNT", 0, "The number of kernel stacks printed when the process is under the CPU" },
@@ -55,7 +55,7 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
-    	long cpu_id;
+	long cpu_id;
 	long time;
 	long stack;
 	switch (key) {
@@ -70,14 +70,14 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				target_pid = pid;
 				break;
 		case 'C':
-		                cpu_id = strtol(arg, NULL, 10);
-		                if(cpu_id < 0){
-		                    warn("Invalid CPUID: %s\n", arg);
-		                    argp_usage(state);
-		                }
-		                target_cpu_id = cpu_id;
-		                break;
-        	case 't':
+				cpu_id = strtol(arg, NULL, 10);
+				if(cpu_id < 0){
+					warn("Invalid CPUID: %s\n", arg);
+					argp_usage(state);
+				}
+				target_cpu_id = cpu_id;
+				break;
+		case 't':
 				time = strtol(arg, NULL, 10);
 				if(time) alarm(time);
 				break;
@@ -95,8 +95,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				set_stack = true;
 				break;
 		case 'h':
-		                argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-		                break;
+				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+				break;
 		default:
 				return ARGP_ERR_UNKNOWN;
 	}
