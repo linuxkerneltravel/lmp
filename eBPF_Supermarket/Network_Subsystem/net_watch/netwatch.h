@@ -14,10 +14,10 @@
 //
 // author: blown.away@qq.com
 //
-// tcpwatch libbpf 内核<->用户 传递信息相关结构体
+// netwatch libbpf 内核<->用户 传递信息相关结构体
 
-#ifndef __TCPWATCH_H
-#define __TCPWATCH_H
+#ifndef __netwatch_H
+#define __netwatch_H
 
 #define ETH_P_IP 0x0800   /* Internet Protocol packet	*/
 #define ETH_P_IPV6 0x86DD /* IPv6 over bluebook		*/
@@ -70,16 +70,6 @@ struct conn_t {
 #define MAX_PACKET 1000
 #define MAX_HTTP_HEADER 256
 
-struct packet_tuple {
-    unsigned __int128 saddr_v6;
-    unsigned __int128 daddr_v6;
-    unsigned int saddr;
-    unsigned int daddr;
-    unsigned short sport;
-    unsigned short dport;
-    unsigned int seq;
-    unsigned int ack;
-};
 
 struct pack_t {
     int err;                     // no err(0) invalid seq(1) invalid checksum(2)
@@ -93,4 +83,4 @@ struct pack_t {
     int rx;                              // rx packet(1) or tx packet(0)
 };
 
-#endif /* __TCPWATCH_H */
+#endif /* __netwatch_H */

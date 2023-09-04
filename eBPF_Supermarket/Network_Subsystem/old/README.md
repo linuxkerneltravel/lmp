@@ -2,9 +2,8 @@
 
 ## 0. 介绍
 
-本目录基于eBPF机制对Linux系统网络子系统关键性能参数进行监测。
+本目录下的工具为基于eBPF机制对Linux系统网络子系统关键性能参数进行监测。
 
-`nic_throughput`, `tcp_connection`, `tcp_bytes`, `tcp_inerrs`, `delay_analysis`, `tcp_flow`文件夹下是用Python+eBPF构建的网络监测小工具。
 
 
 ## 1. 准备工作
@@ -74,7 +73,7 @@ RX
     [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 
+运行示例
 ``` shell
 sudo python tcp_connection.py --print -P 181    # only trace PID 181
 sudo python tcp_connection.py --print -p 80,81  # only trace port 80 and 81
@@ -114,7 +113,7 @@ TIME      PID     TASK         IP SADDR:SPORT                                DAD
     [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 
+运行示例
 ``` shell
 sudo python tcp_bytes.py --print           # trace TCP send/recv bytes by host
 sudo python tcp_bytes.py --print -P 181    # only trace PID 181
@@ -157,7 +156,7 @@ PID     COMM            SADDR6:SPORT                           DADDR6:DPORT     
     [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 
+运行示例
 ``` shell
 sudo python tcp_inerrs.py --print           # trace TCP send/recv by host
 sudo python tcp_inerrs.py --print -P 181    # only trace PID 181
@@ -202,7 +201,7 @@ inerrs的统计目前只统计了tcp_validate_incoming的seq，tcp_v4_do_rcv和t
     [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 
+运行示例
 ``` shell
 sudo python delay_analysis_in.py --print                # in packets delay analysis
 sudo python delay_analysis_in.py --print --sport 181    # only trace dport 181
@@ -258,7 +257,7 @@ SADDR:SPORT                                DADDR:DPORT                          
     [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 
+运行示例
 ``` shell
 sudo python delay_analysis_out.py --print               # in packets delay analysis
 sudo python delay_analysis_out.py --print --dport 181   # only trace dport 181
@@ -312,7 +311,7 @@ SADDR:SPORT                                DADDR:DPORT                          
     [可选] 将结果通过influxdb-grafana可视化
 ```
 
-运行示例 
+运行示例
 ``` shell
 sudo python tcp_flow.py --print             # tcp flow statistics
 sudo python tcp_flow.py --print --dport 181 # only trace dport 181
@@ -357,14 +356,14 @@ $ docker run -d -p 3000:3000 --name grafana -v /etc/localtime:/etc/localtime gra
 **4.数据收集**
 开启将结果通过influxdb-grafana可视化的功能，需在运行命令时添加`--visual`。
 
-运行示例 
+运行示例
 ``` shell
 sudo python nic_throughput.py --visual -n lo
 sudo python tcp_connection.py --visual
 sudo python tcp_bytes.py --visual
 sudo python tcp_inerrs.py --visual
 sudo python delay_analysis_in.py --visual
-sudo python delay_analysis_out.py --visual 
+sudo python delay_analysis_out.py --visual
 sudo python tcp_flow.py --visual
 ```
 
@@ -386,7 +385,6 @@ docs目录下主要放置了开发过程中，形成的文档
 | README | 网络子系统性能监测工具-项目介绍与各工具使用方法 |
 | apply | GitLink项目介绍与申请方案 |
 | Systems_Performance_Network.md | 《性能之巅》网络子系统相关部分阅读笔记 |
-| Traditional Network Tool | 传统网络性能监测分析工具 | 
-| notes | 开发过程中遇到的问题与解决方案 | 
-| Structures | 网络子系统的eBPF程序开发中常用的内核结构体解析 | 
-
+| Traditional Network Tool | 传统网络性能监测分析工具 |
+| notes | 开发过程中遇到的问题与解决方案 |
+| Structures | 网络子系统的eBPF程序开发中常用的内核结构体解析 |

@@ -14,10 +14,10 @@
 //
 // author: blown.away@qq.com
 //
-// tcpwatch libbpf 用户态代码
+// netwatch libbpf 用户态代码
 
-#include "tcpwatch.h"
-#include "tcpwatch.skel.h"
+#include "netwatch.h"
+#include "netwatch.skel.h"
 #include <argp.h>
 #include <arpa/inet.h>
 #include <bpf/bpf.h>
@@ -102,7 +102,7 @@ static void bytes_to_str(char *str, unsigned long long num) {
     }
 }
 
-static int print_conns(struct tcpwatch_bpf *skel) {
+static int print_conns(struct netwatch_bpf *skel) {
 
     FILE *file = fopen("./data/connects.log", "w");
     if (file == NULL) {
@@ -259,7 +259,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
 
 int main(int argc, char **argv) {
     struct ring_buffer *rb = NULL;
-    struct tcpwatch_bpf *skel;
+    struct netwatch_bpf *skel;
     int err;
     /* Parse command line arguments */
     if (argc > 1) {
@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
     signal(SIGTERM, sig_handler);
 
     /* Open load and verify BPF application */
-    skel = tcpwatch_bpf__open();
+    skel = netwatch_bpf__open();
     if (!skel) {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return 1;
@@ -289,14 +289,14 @@ int main(int argc, char **argv) {
     skel->rodata->http_info = http_info;
     skel->rodata->retrans_info = retrans_info;
 
-    err = tcpwatch_bpf__load(skel);
+    err = netwatch_bpf__load(skel);
     if (err) {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
         goto cleanup;
     }
 
     /* Attach tracepoint handler */
-    err = tcpwatch_bpf__attach(skel);
+    err = netwatch_bpf__attach(skel);
     if (err) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
@@ -343,6 +343,6 @@ int main(int argc, char **argv) {
     }
 
 cleanup:
-    tcpwatch_bpf__destroy(skel);
+    netwatch_bpf__destroy(skel);
     return err < 0 ? -err : 0;
 }
