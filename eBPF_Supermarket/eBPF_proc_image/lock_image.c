@@ -78,18 +78,18 @@ static volatile bool exiting = false;
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 static struct env {
 	int pid;
-    int time;
-    bool enable_u_mutex;
-    bool enable_k_mutex;
-    bool enable_u_rwlock_rd;
-    bool enable_u_rwlock_wr;
+	int time;
+	bool enable_u_mutex;
+	bool enable_k_mutex;
+	bool enable_u_rwlock_rd;
+	bool enable_u_rwlock_wr;
 } env = {
 	.pid = 0,
-    .time = 0,
-    .enable_u_mutex = false,
-    .enable_k_mutex = false,
-    .enable_u_rwlock_rd = false,
-    .enable_u_rwlock_wr = false,
+	.time = 0,
+	.enable_u_mutex = false,
+	.enable_k_mutex = false,
+	.enable_u_rwlock_rd = false,
+	.enable_u_rwlock_wr = false,
 };
 
 const char argp_program_doc[] ="Trace process to get lock image.\n";
@@ -99,17 +99,17 @@ static const struct argp_option opts[] = {
 	{ "time", 't', "TIME-SEC", 0, "max running time(0 for infinite)" },
 	{ "user-mutex", 'm', NULL, 0, "process user mutex image" },
 	{ "kernel-mutex", 'M', NULL, 0, "process kernel mutex image" },
-    { "user-rwlock-rd", 'r', NULL, 0, "process user rwlock image in read mode" },
-    { "user-rwlock-wr", 'w', NULL, 0, "process user rwlock image in write mode" },
-    { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
+	{ "user-rwlock-rd", 'r', NULL, 0, "process user rwlock image in read mode" },
+	{ "user-rwlock-wr", 'w', NULL, 0, "process user rwlock image in write mode" },
+	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
-    long pid;
-    switch (key) {
-        case 'p':
+	long pid;
+	switch (key) {
+		case 'p':
 				errno = 0;
 				pid = strtol(arg, NULL, 10);
 				if (errno || pid < 0) {
@@ -119,26 +119,26 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				}
 				env.pid = pid;
 				break;
-        case 't':
+		case 't':
 				env.time = strtol(arg, NULL, 10);
 				if(env.time) alarm(env.time);
 				break;
-        case 'm':
-                env.enable_u_mutex = true;
-                break;
-        case 'M':
-                env.enable_k_mutex = true;
-                break;
-        case 'r':
-                env.enable_u_rwlock_rd = true;
-                break;
-        case 'w':
-                env.enable_u_rwlock_wr = true;
-                break;
-        case 'h':
-                argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-                break;
-        default:
+		case 'm':
+				env.enable_u_mutex = true;
+				break;
+		case 'M':
+				env.enable_k_mutex = true;
+				break;
+		case 'r':
+				env.enable_u_rwlock_rd = true;
+				break;
+		case 'w':
+				env.enable_u_rwlock_wr = true;
+				break;
+		case 'h':
+				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+				break;
+		default:
 				return ARGP_ERR_UNKNOWN;
     }
 
@@ -152,28 +152,28 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
-    const struct lock_event *e = data;
-    const char *c;
-    double acq_time,hold_time;
+	const struct lock_event *e = data;
+	const char *c;
+	double acq_time,hold_time;
 
-    switch (e->type) {
-        case 1:
-                c = "u_mutex";
-                break;
-        case 2:
-                c = "k_mutex";
-                break;
-        case 3:
-                c = "u_rwlock_rd";
-                break;
-        case 4:
-                c = "u_rwlock_wr";
-                break;
-        default:
-                return 0;
-    }
+	switch (e->type) {
+		case 1:
+			c = "u_mutex";
+			break;
+		case 2:
+			c = "k_mutex";
+			break;
+		case 3:
+			c = "u_rwlock_rd";
+			break;
+		case 4:
+			c = "u_rwlock_wr";
+			break;
+		default:
+			return 0;
+	}
 
-    if(e->unlock_time!=0)
+	if(e->unlock_time!=0)
 	{
 		acq_time = (e->lock_time - e->lock_acq_time)*1.0/1000.0;
 		hold_time = (e->unlock_time - e->lock_time)*1.0/1000.0;
@@ -185,13 +185,13 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 		hold_time = 0;
 	}
 
-    printf("pid:%d  comm:%s  %s_ptr:%llu\n", e->pid,e->comm,c,e->lock_ptr);
+	printf("pid:%d  comm:%s  %s_ptr:%llu\n", e->pid,e->comm,c,e->lock_ptr);
 	printf("acq_time(ns):%-15llu lock_time(ns):%-15llu unlock_time(ns):%-15llu acq_time(us):%-15.3lf hold_time(us):%-15.3lf\n",
-                e->lock_acq_time,e->lock_time,e->unlock_time,acq_time,hold_time);
+		e->lock_acq_time,e->lock_time,e->unlock_time,acq_time,hold_time);
     
-    printf("\n");
-
-    return 0;
+	printf("\n");
+	
+	return 0;
 }
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
@@ -202,30 +202,30 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 static int attach(struct lock_image_bpf *skel)
 {
 	int err;
-    
-    ATTACH_UPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_exit);
-    ATTACH_UPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_exit);
-    ATTACH_UPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_exit);
-
-    ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_rdlock,__pthread_rwlock_rdlock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_rdlock,__pthread_rwlock_rdlock_exit);
-    ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_tryrdlock,__pthread_rwlock_tryrdlock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_tryrdlock,__pthread_rwlock_tryrdlock_exit);
-
-    ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_wrlock,__pthread_rwlock_wrlock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_wrlock,__pthread_rwlock_wrlock_exit);
-    ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_trywrlock,__pthread_rwlock_trywrlock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_trywrlock,__pthread_rwlock_trywrlock_exit);
-
-    ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_enter);
-    ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_exit);
-
-    err = lock_image_bpf__attach(skel);
+	
+	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_exit);
+	ATTACH_UPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_exit);
+	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_exit);
+	
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_rdlock,__pthread_rwlock_rdlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_rdlock,__pthread_rwlock_rdlock_exit);
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_tryrdlock,__pthread_rwlock_tryrdlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_tryrdlock,__pthread_rwlock_tryrdlock_exit);
+	
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_wrlock,__pthread_rwlock_wrlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_wrlock,__pthread_rwlock_wrlock_exit);
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_trywrlock,__pthread_rwlock_trywrlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_trywrlock,__pthread_rwlock_trywrlock_exit);
+	
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_exit);
+	
+	err = lock_image_bpf__attach(skel);
 	CHECK_ERR(err, "Failed to attach BPF skeleton");
-
+	
 	return 0;
 
 }
@@ -245,21 +245,21 @@ int main(int argc, char **argv)
 	if (err)
 		return err;
     
-    if(env.enable_u_mutex == false && env.enable_k_mutex == false && env.enable_u_rwlock_rd == false && env.enable_u_rwlock_wr == false)
-    {
-        env.enable_u_mutex = true;
-        env.enable_k_mutex = true;
-        env.enable_u_rwlock_rd = true;
-        env.enable_u_rwlock_wr = true;
-    }
+	if(env.enable_u_mutex == false && env.enable_k_mutex == false && env.enable_u_rwlock_rd == false && env.enable_u_rwlock_wr == false)
+	{
+		env.enable_u_mutex = true;
+		env.enable_k_mutex = true;
+		env.enable_u_rwlock_rd = true;
+		env.enable_u_rwlock_wr = true;
+	}
 
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
 
 	/* 更干净地处理Ctrl-C
-	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-       SIGTERM：请求中止进程，kill命令发送
+	SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
+	SIGTERM：请求中止进程，kill命令发送
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
@@ -273,10 +273,10 @@ int main(int argc, char **argv)
 	}
 
 	skel->rodata->target_pid = env.pid;
-    skel->rodata->enable_u_mutex = env.enable_u_mutex;
-    skel->rodata->enable_k_mutex = env.enable_k_mutex;
-    skel->rodata->enable_u_rwlock_rd = env.enable_u_rwlock_rd;
-    skel->rodata->enable_u_rwlock_wr = env.enable_u_rwlock_wr;
+	skel->rodata->enable_u_mutex = env.enable_u_mutex;
+	skel->rodata->enable_k_mutex = env.enable_k_mutex;
+	skel->rodata->enable_u_rwlock_rd = env.enable_u_rwlock_rd;
+	skel->rodata->enable_u_rwlock_wr = env.enable_u_rwlock_wr;
 
 	/* 加载并验证BPF程序 */
 	err = lock_image_bpf__load(skel);
