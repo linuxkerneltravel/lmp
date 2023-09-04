@@ -16,7 +16,7 @@
 //
 // tcpwatch libbpf 内核函数
 
-#include "tcpwatch.h"
+#include "netwatch.h"
 #include "vmlinux.h"
 #include <asm-generic/errno.h>
 #include <bpf/bpf_core_read.h>
@@ -33,6 +33,17 @@ struct ktime_info {                      // us time stamp info
     unsigned long long app_time;         // rx包离开tcp层时间戳
     void *sk;                            // 此包所属 socket
     unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
+};
+
+struct packet_tuple {
+    unsigned __int128 saddr_v6;
+    unsigned __int128 daddr_v6;
+    unsigned int saddr;
+    unsigned int daddr;
+    unsigned short sport;
+    unsigned short dport;
+    unsigned int seq;
+    unsigned int ack;
 };
 
 static __always_inline void *

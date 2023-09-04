@@ -1,3 +1,0 @@
-packet{sock="0xffff9961c24bc600",seq="532142419",ack="1749824002",mac_time="1",ip_time="3",tcp_time="14",http_info="GET / HTTP/1.1",rx="0"} 0
-packet{sock="0xffff9961c24bc600",seq="1749824002",ack="532142496",mac_time="89",ip_time="26",tcp_time="265",http_info="HTTP/1.1 200 OK",rx="1"} 0
-packet{sock="0xffff9961c24bc600",seq="1749825442",ack="532142496",mac_time="39",ip_time="3",tcp_time="195",http_info="-",rx="1"} 0
