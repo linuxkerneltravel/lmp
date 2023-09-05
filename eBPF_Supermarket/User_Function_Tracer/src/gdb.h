@@ -36,39 +36,39 @@ struct gdb {
  * @return 指向gdb结构体的指针
  * @note 从堆中申请空间
  */
-struct gdb* init_gdb(pid_t pid);
+struct gdb* gdb_init(pid_t pid);
 
 /*
  * @brief 设置一个断点
  * @param[in] gdb 指向一个gdb结构体
- * @param[in] addr 物理地址
+ * @param[in] addr 虚拟地址
  */
-void enable_breakpoint(struct gdb* gdb, size_t addr);
+long gdb_enable_breakpoint(struct gdb* gdb, size_t addr);
 
 /*
  * @brief 取消一个断点
  * @param[in] gdb 指向一个gdb结构体
- * @param[in] addr 物理地址
+ * @param[in] addr 虚拟地址
  * @note 需要保证之前调用过enable_breakpoint(gdb, pid, addr)
  */
-void disable_breakpoint(struct gdb* gdb, size_t addr);
+long gdb_disable_breakpoint(struct gdb* gdb, size_t addr);
 
 /*
  * @brief 继续执行
  * @param[in] gdb 指向一个gdb结构体
  */
-long continue_execution(struct gdb* gdb);
+long gdb_continue_execution(struct gdb* gdb);
 
 /*
  * @brief 等待进程收到信号
  * @param[in] gdb 指向一个gdb结构体
  */
-long wait_for_signal(struct gdb* gdb);
+long gdb_wait_for_signal(struct gdb* gdb);
 
 /*
  * @brief 取消ptrace并释放gdb结构体的空间
  * @param[in] gdb 指向要释放的gdb结构体
  */
-void free_gdb(struct gdb* gdb);
+void gdb_free(struct gdb* gdb);
 
 #endif  // UTRACE_GDB_H

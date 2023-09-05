@@ -33,12 +33,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "elf.h"
 #include "gdb.h"
 #include "log.h"
 #include "symbol.h"
-#include "vmap.h"
+#include "vmem.h"
 
-#define BASE_ADDR 0x400000  // for no-pie option
+#define BASE_ADDR 0x400000
 
 enum longopt {
   CPUID = 1000,
@@ -133,10 +134,8 @@ static const struct argp argp = {
     .doc = argp_program_doc,
 };
 
-struct symbol_tab *symtab;
-static struct vmap_list *vmap_list;
+static struct vmem_table *vmem_table;
 
-char buf[MAX_SYMBOL_LEN];
 char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
 int status = -1, pre_ustack_sz = 0;
 
@@ -160,20 +159,6 @@ void uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t a
   assert(skel->links.uretprobe);
 }
 
-bool symbolize(size_t addr) {
-  struct vmap *vmap = get_vmap(vmap_list, addr);
-  if (vmap == NULL) return false;
-  for (struct symbol_arr *symbols = symtab->head; symbols != NULL; symbols = symbols->next) {
-    if (strcmp(symbols->libname, basename(vmap->module)) != 0) continue;
-    char *name = find_symbol_name(symbols, addr - vmap->addr_st + vmap->offset);
-    if (name == NULL) return false;
-    memcpy(buf, name, strlen(name));
-    buf[strlen(name)] = 0;
-    return true;
-  }
-  return false;
-}
-
 static volatile bool exiting = false;
 
 static void sig_handler(int sig) { exiting = true; }
@@ -186,11 +171,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
   const struct profile_record *r = data;
 
   if (r->exit) {
-    // LOG("EXIT");
-    // LOG(" %llx\n", r->ustack);
-    // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
-    // LOG(" %s\n", stack_func[r->ustack_sz]);
-    // return 0;
     if (status == 0) {
       if (env.cpuid) {
         log_cpuid(pending_r.cpu_id);
@@ -232,14 +212,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     pending = 0;
     status = 1;
   } else {
-    // LOG("EXEC");
-    // LOG(" %llx\n", r->ustack);
-    // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
-    // if (symbolize(r->ustack[0])) {
-    //    memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
-    // }
-    // LOG(" %s\n", stack_func[r->ustack_sz]);
-    // return 0;
     if (status == 0) {
       if (env.cpuid) {
         log_cpuid(pending_r.cpu_id);
@@ -258,8 +230,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       log_char(' ', 2 * pending_r.ustack_sz);
       LOG("%s() {\n", stack_func[pending_r.global_sz]);
     }
-    if (symbolize(r->ustack)) {
-      memcpy(stack_func[r->global_sz], buf, sizeof(buf));
+    const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack);
+    if (sym) {
+      memcpy(stack_func[r->global_sz], sym->name, strlen(sym->name));
+      stack_func[r->global_sz][strlen(sym->name)] = '\0';
       pending_r = *r;
       pending = 1;
       status = 0;
@@ -314,10 +288,23 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
+  if (getrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
+    ERROR("getrlimit error");
+    exit(1);
+  }
+  struct rlimit rlim = {
+      .rlim_cur = 1 << 20,
+      .rlim_max = 1 << 20,
+  };
+  if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) {
+    ERROR("setrlimit error");
+    exit(1);
+  }
+
   if (env.pid) {
     pid = env.pid;
-    vmap_list = init_vmap_list(pid);
-    program = get_program(vmap_list);
+    vmem_table = vmem_table_init(pid);
+    program = vmem_table_get_prog_name(vmem_table);
   } else {
     program = env.argv[0];
     if (access(program, F_OK) != 0) {
@@ -336,62 +323,15 @@ int main(int argc, char **argv) {
     }
   }
 
-  symtab = new_symbol_tab();
-  push_symbol_arr(symtab, new_symbol_arr(program));
-  for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-       sym++) {
-    if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
-  }
-
-  if (getrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
-    ERROR("getrlimit error");
-    exit(1);
-  }
-  struct rlimit rlim = {
-      .rlim_cur = 1 << 20,
-      .rlim_max = 1 << 20,
-  };
-  if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) {
-    ERROR("setrlimit error");
-    exit(1);
-  }
-
   if (env.pid) {
-    size_t pre_addr = 0;
-    for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-         sym++) {
-      if (strcmp(sym->name, "_start") == 0)
-        continue;
-      else if (strcmp(sym->name, "__libc_csu_init") == 0)
-        continue;
-      else if (strcmp(sym->name, "__libc_csu_fini") == 0)
-        continue;
-      else if (strcmp(sym->name, "_dl_relocate_static_pie") == 0)
-        continue;
-      if (sym->addr != pre_addr) {
-        uprobe_attach(skel, pid, program, sym->addr);
-        pre_addr = sym->addr;
-      }
-    }
-
-    for (struct vmap *vmap = vmap_list->head, *prev_vmap = NULL; vmap != NULL;
-         prev_vmap = vmap, vmap = vmap->next) {
-      if (strcmp(basename(vmap->module), basename(program)) == 0) continue;
-      if (prev_vmap != NULL && strcmp(prev_vmap->module, vmap->module) == 0) continue;
-      struct symbol_arr *symbols = new_symbol_arr(vmap->module);
-      if (!symbols) continue;
-      push_symbol_arr(symtab, symbols);
-      size_t pre_addr = 0;
-      for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-           sym++) {
-        if (strcmp(sym->name, "__cxa_finalize") == 0)
-          continue;
-        else if (strcmp(sym->name, "__libc_start_main") == 0)
-          continue;
-        if (sym->addr != pre_addr) {
-          uprobe_attach(skel, pid, vmap->module, sym->addr);
-          pre_addr = sym->addr;
-        }
+    vmem_table = vmem_table_init(pid);
+    for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
+      const struct vmem *vmem = vmem_table_get(vmem_table, i);
+      if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;
+      vmem->module->symbol_table = symbol_table_init(module_get_name(vmem->module));
+      for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
+        const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
+        uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
       }
     }
 
@@ -418,60 +358,36 @@ int main(int argc, char **argv) {
       ERROR("Execv %s error\n", program);
       exit(1);
     } else {
-      struct gdb *gdb = init_gdb(pid);
-      wait_for_signal(gdb);
+      struct gdb *gdb = gdb_init(pid);
+      gdb_wait_for_signal(gdb);
 
-      vmap_list = init_vmap_list(pid);
-      break_addr += get_prog_addr_st(vmap_list);
-      DEBUG("break address: %zx\n", break_addr);
+      vmem_table = vmem_table_init(pid);
+      break_addr += vmem_table_get_prog_st_addr(vmem_table);
+      DEBUG("Break address: %zx\n", break_addr);
 
-      enable_breakpoint(gdb, break_addr);
-      continue_execution(gdb);
-      wait_for_signal(gdb);
+      gdb_enable_breakpoint(gdb, break_addr);
+      gdb_continue_execution(gdb);
+      gdb_wait_for_signal(gdb);
 
-      size_t pre_addr = 0;
-      for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-           sym++) {
-        if (strcmp(sym->name, "_start") == 0)
-          continue;
-        else if (strcmp(sym->name, "__libc_csu_init") == 0)
-          continue;
-        else if (strcmp(sym->name, "__libc_csu_fini") == 0)
-          continue;
-        else if (strcmp(sym->name, "_dl_relocate_static_pie") == 0)
-          continue;
-        if (sym->addr != pre_addr) {
-          uprobe_attach(skel, pid, program, sym->addr);
-          pre_addr = sym->addr;
-        }
-      }
-
-      for (struct vmap *vmap = vmap_list->head, *prev_vmap = NULL; vmap != NULL;
-           prev_vmap = vmap, vmap = vmap->next) {
-        if (strcmp(basename(vmap->module), basename(program)) == 0) continue;
-        if (prev_vmap != NULL && strcmp(prev_vmap->module, vmap->module) == 0) continue;
-        push_symbol_arr(symtab, new_symbol_arr(vmap->module));
-        size_t pre_addr = 0;
-        for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-             sym++) {
-          if (strcmp(sym->name, "__cxa_finalize") == 0)
-            continue;
-          else if (strcmp(sym->name, "__libc_start_main") == 0)
-            continue;
-          if (sym->addr != pre_addr) {
-            uprobe_attach(skel, pid, vmap->module, sym->addr);
-            pre_addr = sym->addr;
-          }
+      vmem_table = vmem_table_init(pid);
+      for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
+        const struct vmem *vmem = vmem_table_get(vmem_table, i);
+        if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;
+        vmem->module->symbol_table = symbol_table_init(module_get_name(vmem->module));
+        for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
+          const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
+          uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
         }
       }
 
       /* Attach tracepoints */
       assert(utrace_bpf__attach(skel) == 0);
 
-      disable_breakpoint(gdb, break_addr);
-      free_gdb(gdb);
+      gdb_disable_breakpoint(gdb, break_addr);
+      gdb_free(gdb);
     }
   }
+
   log_header(env.cpuid, env.tid, env.timestamp);
   /* Process events */
   while (!exiting) {
@@ -506,8 +422,7 @@ cleanup:
   ring_buffer__free(records);
   utrace_bpf__destroy(skel);
 
-  delete_symbol_tab(symtab);
-  free_vmap_list(vmap_list);
+  vmem_table_free(vmem_table);
 
   if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
     ERROR("setrlimit error");

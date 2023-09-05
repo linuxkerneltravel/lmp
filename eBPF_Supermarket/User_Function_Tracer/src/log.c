@@ -55,6 +55,7 @@ void log_header(int cpu, int tid, int timestamp) {
   log_split();
   LOG("  FUNCTION CALLS\n");
 }
+
 void log_split() { LOG(" | "); }
 
 void log_cpuid(int cpuid) { LOG("%4d", cpuid); }
