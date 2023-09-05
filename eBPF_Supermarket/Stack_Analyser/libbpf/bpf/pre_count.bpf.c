@@ -14,7 +14,7 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 内核态bpf的off-cpu模块代码
+// 内核态bpf的预读取分析模块代码
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -23,11 +23,15 @@
 
 #include "stack_analyzer.h"
 
-BPF_HASH(psid_count, psid, u32);
-BPF_HASH(start, u32, u64);
+#define MINBLOCK_US 1ULL
+#define MAXBLOCK_US 99999999ULL
+
 BPF_STACK_TRACE(stack_trace);
 BPF_HASH(pid_tgid, u32, u32);
 BPF_HASH(pid_comm, u32, comm);
+
+BPF_HASH(pid_size, u32, u64);
+BPF_HASH(psid_util, psid, tuple);
 
 const char LICENSE[] SEC("license") = "GPL";
 
@@ -35,38 +39,21 @@ int apid;
 char u, k;
 __u64 min, max;
 
-SEC("kprobe/finish_task_switch.isra.0")
-int BPF_KPROBE(do_stack, struct task_struct *curr)
-{
-    u32 pid = BPF_CORE_READ(curr, pid);
+SEC("kprobe/vfs_read")
+int BPF_KPROBE(vfs_read_enter) { 
+    u64 td = bpf_get_current_pid_tgid();
+    u32 pid = td >> 32;
 
-    if ((apid >= 0 && pid == apid) || (apid < 0 && pid))
-    {
-        // record next start time
-        u64 ts = bpf_ktime_get_ns();
-        bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);
-    }
-    
-    // calculate time delta
-    struct task_struct *next = (struct task_struct *)bpf_get_current_task();
-    pid = BPF_CORE_READ(next, pid);
-    u64 *tsp = bpf_map_lookup_elem(&start, &pid);
-    if (!tsp)
-        return 0;
-    bpf_map_delete_elem(&start, &pid);
-    u32 delta = (bpf_ktime_get_ns() - *tsp) >> 20;
-
-    if ((delta < min) || (delta > max))
+    if ((apid >= 0 && pid != apid) || !pid)
         return 0;
 
-    // record data
-    u32 tgid = BPF_CORE_READ(next, tgid);
+    u32 tgid = td;
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
     if (!p)
     {
         comm name;
-        bpf_probe_read_kernel_str(&name, COMM_LEN, next->comm);
+        bpf_get_current_comm(&name, COMM_LEN);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
     psid apsid = {
@@ -75,11 +62,32 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
         .ksid = k ? KERNEL_STACK : -1,
     };
 
+    u32 len = PT_REGS_PARM3(ctx);
+
     // record time delta
-    u32 *count = bpf_map_lookup_elem(&psid_count, &apsid);
-    if (count)
-        (*count) += delta;
-    else
-        bpf_map_update_elem(&psid_count, &apsid, &delta, BPF_NOEXIST);
+    u64 *expc = bpf_map_lookup_elem(&pid_size, &pid);
+    if(!expc) return 0;
+    tuple *d = bpf_map_lookup_elem(&psid_util, &apsid);
+    if(!d) {
+        tuple a = {.expect = *expc, .truth = len};
+        bpf_map_update_elem(&psid_util, &apsid, &a, BPF_ANY);
+    } else {
+        d->expect += *expc;
+        d->truth += len;
+    }
+    bpf_map_delete_elem(&pid_size, &pid);
+
+    return 0;
+}
+
+SEC("uprobe/read")
+int BPF_KPROBE(read_enter)
+{
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    if ((apid >= 0 && pid == apid) || (apid < 0 && !pid))
+    {
+        u64 len = PT_REGS_PARM3(ctx);
+        bpf_map_update_elem(&pid_size, &pid, &len, BPF_NOEXIST);
+    }
     return 0;
 }

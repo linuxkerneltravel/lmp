@@ -1,30 +1,176 @@
-# 依赖
+# 功能描述
 
-火焰图绘制程序 `FlameGraph/flamegraph.pl`，需要将该程序放入环境变量PATH中，一种方法：
+对操作系统各方面的调用栈进行计数，从中分析程序性能瓶颈。
+
+# 运行方法
+
+## libbpf版
+
+轻量，功能较少
+
+### 安装依赖
 
 ```shell
-sudo cp FlameGraph/flamegraph.pl /usr/bin/
+sudo apt update
+sudo apt install clang libelf1 libelf-dev zlib1g-dev
+sudo apt install libbpf-dev
+sudo apt install linux-tools-5.19.0-46-generic	
+sudo apt install linux-cloud-tools-5.19.0-46-generic
+sudo apt install libc6-dev-i386
+sudo cp FlameGraph/* /usr/bin/
 ```
 
-# libbpf/stack_analyzer
+### 工具编译
 
-用于对调用栈进行计数，libbpf版本
+```shell
+cd libbpf
+sudo make
+```
 
-## 计划安排
+### 运行
 
-- [x] 实时输出功能
-- [x] on-cpu 栈采集功能
-- [x] off-cpu 栈采集功能
-- [x] malloc-free 栈采集功能
-- [x] 保存为json文件功能
-- [ ] 火焰图绘制功能
-- [x] io-write栈采集功能
-- [ ] 收发包栈采集功能
-- [ ] 兼容perf数据
-- [ ] 栈数据智能分析功能
-- [ ] 加入排序功能
+```shell
+SYNOPSIS
+        ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] [-p <set the pid of sampled process>]
+                         [-U] [-K] [<simpling time>] [-v]
 
-## 实时输出测试结果
+        ./stack_analyzer off-cpu [-f] [-p <set the pid of sampled process>] [-U] [-K] [<simpling
+                         time>] [-v]
+
+        ./stack_analyzer mem [-f] [-p <set the pid of sampled process>] [-U] [-K] [<simpling time>]
+                         [-v]
+
+        ./stack_analyzer io [-f] [-p <set the pid of sampled process>] [-U] [-K] [<simpling time>]
+                         [-v]
+
+OPTIONS
+        on-cpu      sample the call stacks of on-cpu processes
+        <sampling frequency>
+                    sampling at a set frequency
+
+        off-cpu     sample the call stacks of off-cpu processes
+        mem         sample the memory usage of call stacks
+        io          sample the IO data volume of call stacks
+        -v, --version
+                    show version
+```
+
+## bcc版
+
+消耗较大，但功能较强，结合机器学习pca算法进行栈分析
+
+### 安装依赖
+
+```shell
+python -m pip install --upgrade pip
+sudo python -m pip install pyod
+sudo python -m pip install psutil
+sudo apt-get install -y linux-headers-$(uname -r)
+sudo apt-get install -y python-is-python3
+sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
+sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
+```
+
+### 编译依赖
+
+```shell
+cd bcc
+wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
+tar xf bcc-src-with-submodule.tar.gz
+cd bcc/
+mkdir build
+cd build/
+cmake -DCMAKE_INSTALL_PREFIX=/usr -DPYTHON_CMD=python3 ..
+make
+sudo make install
+cd ../../
+```
+
+### 运行
+
+stack_analyzer
+
+```shell
+usage: stack_count.py [-h] [-p PID | -t TID | -c Command | -u | -k] [-U | -K] [-a] [-d] [-f] [-s] [-m MODE] [--stack-storage-size STACK_STORAGE_SIZE]
+                      [--state STATE]
+                      [duration]
+
+Summarize on-CPU time by stack trace
+
+positional arguments:
+  duration              duration of trace, in seconds
+
+options:
+  -h, --help            show this help message and exit
+  -p PID, --pid PID     trace this PID only
+  -t TID, --tid TID     trace this TID only
+  -c Command, --cmd Command
+                        trace this command only
+  -u, --user-threads-only
+                        user threads only (no kernel threads)
+  -k, --kernel-threads-only
+                        kernel threads only (no user threads)
+  -U, --user-stacks-only
+                        show stacks from user space only (no kernel space stacks)
+  -K, --kernel-stacks-only
+                        show stacks from kernel space only (no user space stacks)
+  -a, --auto            analyzing stacks automatically
+  -d, --delimited       insert delimiter between kernel/user stacks
+  -f, --folded          output folded format
+  -s, --offset          show address offsets
+  -m MODE, --mode MODE  mode of stack counting, 'on_cpu'/'off_cpu'/'mem'
+  --stack-storage-size STACK_STORAGE_SIZE
+                        the number of unique stack traces that can be stored and displayed (default 16384)
+  --state STATE         filter on this thread state bitmask (eg, 2 == TASK_UNINTERRUPTIBLE) see include/linux/sched.h
+
+examples:
+    sudo -E ./stack_count.py             # trace on-CPU stack time until Ctrl-C
+    sudo -E ./stack_count.py -m off_cpu  # trace off-CPU stack time until Ctrl-C
+    sudo -E ./stack_count.py 5           # trace for 5 seconds only
+    sudo -E ./stack_count.py -f 5        # 5 seconds, and output as stack_count.svg in flame graph format
+    sudo -E ./stack_count.py -s 5        # 5 seconds, and show symbol offsets
+    sudo -E ./stack_count.py -p 185      # only trace threads for PID 185
+    sudo -E ./stack_count.py -t 188      # only trace thread 188
+    sudo -E ./stack_count.py -c cmdline  # only trace threads of cmdline
+    sudo -E ./stack_count.py -u          # only trace user threads (no kernel)
+    sudo -E ./stack_count.py -k          # only trace kernel threads (no user)
+    sudo -E ./stack_count.py -U          # only show user space stacks (no kernel)
+    sudo -E ./stack_count.py -K          # only show kernel space stacks (no user)
+    sudo -E ./stack_count.py -a          # anomaly detection for stack
+```
+
+load_monitor，计划将该工具以阈值控制选项的形式与stack_analyzer合并
+
+```shell
+usage: load_monitor.py [-h] [-t TIME] [-F FREQ] [-d DELAY] [-l THRESHOLD] [-r]
+
+Summarize on-CPU time by stack trace
+
+options:
+  -h, --help            show this help message and exit
+  -t TIME, --time TIME  running time
+  -F FREQ, --frequency FREQ
+                        monitor frequency
+  -d DELAY, --delay DELAY
+                        output delay(interval)
+  -l THRESHOLD, --threshold THRESHOLD
+                        load limit threshold
+  -r, --report
+
+examples:
+        ./load_monitor.py             # monitor system load until Ctrl-C
+        ./load_monitor.py -t 5           # monitor for 5 seconds only
+```
+
+# 运行效果
+
+展示工具的输出格式及说明
+
+## stack_analyzer
+
+采集在线的、离线的、内存申请释放、读写等调用栈。
+
+### 实时输出测试结果
 
 ```shell
 Stack_Analyser/libbpf$ sudo ./stack_analyzer -p 12532
@@ -44,7 +190,7 @@ Stack_Analyser/libbpf$ sudo ./stack_analyzer -p 12532
 
 代码示为on-cpu、off-cpu和内存栈数据分别采集stress-ng-malloc 5s的输出，由分割线分开，分割线中间的数字为map fd，分割线间，第一列为pid，第二列括号中用户栈id和内核栈id，第三列为栈的数量，计数单位略有不同，on-cpu计数单位为次，off-cpu计数单位为0.1ms，内存计数单位为1kB
 
-## json文件结果
+### json文件结果
 
 ```json
 {
@@ -67,72 +213,11 @@ Stack_Analyser/libbpf$ sudo ./stack_analyzer -p 12532
 
 以上代码为保存的json文件片段展开后的内容，是一个跟踪stress-ng-malloc采集到的内存栈信息，其内核栈标注为"MISSING KERNEL STACK"，表示内核栈没有被采集。
 
-# bcc/stack_count.py
-
-用于对调用栈进行计数，拥有对调用栈出现频次异常检测的能力。
-
-启动后每5s输出一次从开始起记录到的进程栈及数量等信息。
-
-在终止时将所有信息以json格式保存在`./stack_count.log`文件中。
-
-## 计划安排
-
-- [x] 实时输出功能
-- [x] on-cpu 栈采集功能
-- [x] off-cpu 栈采集功能
-- [x] malloc-free 栈采集功能
-- [x] 保存为json文件功能
-- [x] 火焰图绘制功能
-- [x] 栈数据智能分析功能
-- [ ] sync栈采集功能
-- [ ] 解决保存数据时卡顿的问题
-
-## 输出片段
-
-屏幕及文件输出：
-```json
-  "273755":{
-    "name":"node",
-    "pids":{
-      "273755":{
-        "40":{
-          "trace":[
-            "0x7fab3b4dd97b:__clock_gettime_2",
-            "0x1548615:uv_run",
-            "0xa3fa35:_ZN4node13SpinEventLoopEPNS_11EnvironmentE",
-            "0xb42c56:_ZN4node16NodeMainInstance3RunEv",
-            "0xac89bc:_ZN4node5StartEiPPc",
-            "0x7fab3b423510:__libc_start_call_main"
-          ],
-          "count":1,
-          "label":null
-        }
-      }
-    }
-  },
-```
-
-## 相关选项
-
-- `u`: 跟踪用户空间调用栈而不是内核空间调用栈
-- `pid "pids"`: 设定需要跟踪的进程pid，可以是多个。不设定此选项会跟踪除idel外的所有进程
-
-## 附加依赖
-
-python库：
-
-- psutil
-- pyod
-
-# bcc/load_monitor.py
+## bcc/load_monitor.py
 
 用于在计算机负载超过阈值时记录内核栈数量信息，每5s输出一次总记录。
 
 终止时将记录以 栈-数量 的格式保存在 `./stack.bpf` 中，并输出火焰图文件 `./stack.svg`
-
-## 计划列表
-
-- [ ] 优化触发逻辑和性能
 
 ## 输出片段
 
@@ -210,8 +295,18 @@ entry_SYSCALL_64_after_hwframe
 ```
 <center><img src="assets/stack.svg" alt="stack.svg" style="zoom:90%;" /></center>
 
-## 附加依赖
 
-程序：
-- `/usr/share/bcc/FlameGraph/stackcollapse-bpftrace.pl`
-- `/usr/share/bcc/FlameGraph/flamegraph.pl`
+# 计划安排
+
+- [x] 实时输出功能
+- [x] on-cpu 栈采集功能
+- [x] off-cpu 栈采集功能
+- [x] malloc-free 栈采集功能
+- [x] 保存为json文件功能
+- [x] 火焰图绘制功能
+- [x] io-write栈采集功能
+- [x] 加入排序功能
+- [ ] 收发包栈采集功能
+- [ ] 兼容perf数据
+- [ ] 栈数据智能分析功能
+- [ ] 解决保存数据时卡顿的问题
