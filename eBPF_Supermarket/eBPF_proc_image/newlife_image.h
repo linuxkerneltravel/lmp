@@ -14,39 +14,27 @@
 //
 // author: zhangziheng0525@163.com
 //
-// eBPF map for the process image
+// eBPF map for the new life image
 
-#ifndef __PROC_IMAGE_H
-#define __PROC_IMAGE_H
+#ifndef __NEWLIFE_IMAGE_H
+#define __NEWLIFE_IMAGE_H
 
-#define TASK_COMM_LEN 16
-
-// 以便于对0号进程进行画像（0号进程是每cpu进程）
-struct proc_id{
+struct bind_pid{
     int pid;
-    int cpu_id;
+    int newlife_pid;
 };
 
-struct proc_oncpu{
+struct newlife_start{
     int pad;
-    int oncpu_id;
-    long long unsigned int oncpu_time;
+    int flag;       // 1代表fork，2代表vfork，3代表pthread_create
+    long long unsigned int start;
 };
 
-struct proc_offcpu{
-    int pad;
-    int offcpu_id;
-    long long unsigned int offcpu_time;
-};
-
-struct cpu_event{
+struct newlife_event{
     int flag;
-    int pid;
-    char comm[TASK_COMM_LEN];
-    int oncpu_id;
-    long long unsigned int oncpu_time;
-    int offcpu_id;
-    long long unsigned int offcpu_time;
+    int newlife_pid;
+    long long unsigned int start;
+    long long unsigned int exit;
 };
 
-#endif /* __PROC_IMAGE_H */
+#endif /* __CHILD_IMAGE_H */
