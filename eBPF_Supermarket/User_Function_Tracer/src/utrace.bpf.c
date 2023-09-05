@@ -63,7 +63,6 @@ int BPF_KPROBE(uprobe) {
 
   r->tid = tid;
   r->cpu_id = cpu_id;
-  r->timestamp = 0;
   r->duration_ns = 0;
   bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
   depth_ptr = bpf_map_lookup_elem(&stack_depth, &tid);
@@ -72,11 +71,11 @@ int BPF_KPROBE(uprobe) {
   else
     r->ustack_sz = depth = 0;
   r->global_sz = global_sz;
+  r->timestamp = bpf_ktime_get_ns();
+  ts = r->timestamp;
   r->exit = 0;
-
   bpf_ringbuf_submit(r, 0);
 
-  ts = bpf_ktime_get_ns();
   bpf_map_update_elem(&function_start, &global_sz, &ts, BPF_NOEXIST);
   ++global_sz;
   bpf_map_update_elem(&stack_depth, &tid, &depth, BPF_ANY);
@@ -104,7 +103,7 @@ int BPF_KRETPROBE(uretprobe) {
 
   r->tid = tid;
   r->cpu_id = cpu_id;
-  r->timestamp = 0;
+  r->timestamp = end_ts;
   start_ts_ptr = bpf_map_lookup_elem(&function_start, &global_sz);
   if (start_ts_ptr) r->duration_ns = end_ts - *start_ts_ptr;
   bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
