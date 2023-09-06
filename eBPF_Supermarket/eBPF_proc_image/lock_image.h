@@ -14,26 +14,27 @@
 //
 // author: zhangziheng0525@163.com
 //
-// eBPF map for the process mutex image
+// eBPF map for the process lock image
 
-#ifndef __MUTEX_IMAGE_H
-#define __MUTEX_IMAGE_H
+#ifndef __LOCK_IMAGE_H
+#define __LOCK_IMAGE_H
 
 #define TASK_COMM_LEN 16
 
-struct proc_mutex{
+struct proc_lockptr{
     int pad;
     int pid;
     long long unsigned int lock_ptr;
 };
 
-struct mutex_event{
+struct lock_event{
+    int type;       // 1代表用户态互斥锁；2代表内核态互斥锁；3代表用户态读模式下的读写锁；4代表用户态写模式下的读写锁
     int pid;
     char comm[TASK_COMM_LEN];
     long long unsigned int lock_ptr;
-    long long unsigned int mutex_acq_time;
-    long long unsigned int mutex_lock_time;
-    long long unsigned int mutex_unlock_time;
+    long long unsigned int lock_acq_time;
+    long long unsigned int lock_time;
+    long long unsigned int unlock_time;
 };
 
-#endif /* __MUTEX_IMAGE_H */
+#endif /* __LOCK_IMAGE_H */

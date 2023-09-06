@@ -23,10 +23,7 @@
 
 #include "stack_analyzer.h"
 
-#define MINBLOCK_US 1ULL
-#define MAXBLOCK_US 99999999ULL
-
-BPF_HASH(psid_count, psid, u32);
+BPF_HASH(psid_count, psid, u64);
 BPF_STACK_TRACE(stack_trace);
 BPF_HASH(pid_tgid, u32, u32);
 BPF_HASH(pid_comm, u32, comm);
@@ -35,6 +32,7 @@ const char LICENSE[] SEC("license") = "GPL";
 
 int apid;
 char u, k;
+__u64 min, max;
 
 int do_stack(struct pt_regs *ctx)
 {
@@ -42,6 +40,10 @@ int do_stack(struct pt_regs *ctx)
     u32 pid = td >> 32;
 
     if ((apid >= 0 && pid != apid) || !pid)
+        return 0;
+
+    u64 len = PT_REGS_PARM3(ctx);
+    if(len < min || len > max)
         return 0;
 
     u32 tgid = td;
@@ -59,14 +61,13 @@ int do_stack(struct pt_regs *ctx)
         .ksid = k ? KERNEL_STACK : -1,
     };
 
-    u32 len = PT_REGS_PARM3(ctx);
-
     // record time delta
-    u32 *count = bpf_map_lookup_elem(&psid_count, &apsid);
+    u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);
     if (count)
         (*count) += len;
     else
         bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);
+
     return 0;
 }
 

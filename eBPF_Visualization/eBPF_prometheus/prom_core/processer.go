@@ -20,6 +20,7 @@ package prom_core
 
 import (
 	"ebpf_prometheus/checker"
+	"ebpf_prometheus/dao"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
@@ -30,9 +31,12 @@ import (
 )
 
 type MyMetrics struct {
-	mu      sync.Mutex
-	Maps    map[string]interface{}
-	Maplist []map[string]interface{}
+	BPFName   string
+	mu        sync.Mutex
+	Maps      map[string]interface{}
+	Maplist   []map[string]interface{}
+	Sqlobj    *dao.Sqlobj
+	Sqlinited bool
 }
 
 func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {}
@@ -46,6 +50,18 @@ func (m *MyMetrics) UpdateData() {
 		}
 	}
 	m.Maps = new_Dict
+}
+
+func (m *MyMetrics) UpdataSql() {
+	m.Sqlobj.Data = m.Maps
+	m.Sqlobj.CreateRow()
+}
+
+func (m *MyMetrics) Initsql() {
+	m.Sqlobj.Data = m.Maps
+	m.Sqlobj.Connectsql()
+	m.Sqlobj.OperateTable(m.BPFName)
+	m.Sqlinited = true
 }
 
 // Format_Dict format dict.

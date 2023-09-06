@@ -19,12 +19,14 @@
 #ifndef STACK_ANALYZER
 #define STACK_ANALYZER
 
-#define MAX_STACKS 32 // 栈最大深度
+#define MAX_STACKS 32      // 栈最大深度
 #define MAX_ENTRIES 102400 // map容量
-#define COMM_LEN 16 // 进程名最大长度
+#define COMM_LEN 16        // 进程名最大长度
 
 #include <asm/types.h>
 #include <linux/version.h>
+
+extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架
@@ -41,7 +43,7 @@
             skel->progs.prog_name,                               \
             pid,                                                 \
             object,                                              \
-            0,                                                   \
+            1,                                                   \
             &uprobe_opts);                                       \
     } while (false)
 #else
@@ -55,7 +57,7 @@
             skel->progs.prog_name,                               \
             pid,                                                 \
             object,                                              \
-            0,                                                   \
+            1,                                                   \
             &uprobe_opts);                                       \
     } while (false)
 #endif
@@ -119,8 +121,18 @@
 #define CHECK_ERR(cond, info)                               \
     if (cond)                                               \
     {                                                       \
-        fprintf(stderr, "[%s]" info "\n", strerror(errno));                                   \
+        fprintf(stderr, "[%s]" info "\n", strerror(errno)); \
         return -1;                                          \
+    }
+
+/// @brief 检查错误，若错误成立则打印带原因的错误信息并退出
+/// @param cond 被检查的条件表达式
+/// @param info 要打印的错误信息
+#define CHECK_ERR_EXIT(cond, info)                        \
+    if (cond)                                             \
+    {                                                     \
+        throw(stderr, "[%s]" info "\n", strerror(errno)); \
+        exit(-1);                                         \
     }
 
 /// @brief 创建一个指定名字的ebpf调用栈表
@@ -165,13 +177,14 @@
 /// @param mapfd 要遍历的ebpf表的描述符
 /// @param ktype ebpf表的键类型
 /// @param val 保存值的变量
-#define TRAVERSE_MAP_HEAD(mapfd, ktype, val)  \
-    for(ktype prev={0}, key; !bpf_map_get_next_key(mapfd, &prev, &key); prev = key) { \
+#define TRAVERSE_MAP_HEAD(mapfd, ktype, val)                                           \
+    for (ktype prev = {0}, key; !bpf_map_get_next_key(mapfd, &prev, &key); prev = key) \
+    {                                                                                  \
         bpf_map_lookup_elem(mapfd, &key, &val);
 
 /// @brief 遍历ebpf表值的循环尾部
 #define TRAVERSE_MAP_TAIL \
-    } 
+    }
 
 /// @brief 栈计数的键，可以唯一标识一个用户内核栈
 typedef struct
@@ -190,7 +203,7 @@ typedef struct
 /// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
 typedef struct
 {
-    void * addr;
+    void *addr;
     __u32 pid, o;
 } piddr;
 
@@ -205,10 +218,17 @@ typedef struct
 /// @brief 栈处理工具当前支持的采集模式
 typedef enum
 {
-    MOD_ON_CPU, // on—cpu模式
+    MOD_ON_CPU,  // on—cpu模式
     MOD_OFF_CPU, // off-cpu模式
-    MOD_MEM, // 内存模式
-    MOD_IO, // io模式
+    MOD_MEM,     // 内存模式
+    MOD_IO,      // io模式
+    MOD_PER,     // 预读取分析模式
 } MOD;
+
+typedef struct
+{
+    __u64 truth;
+    __u64 expect;
+} tuple;
 
 #endif

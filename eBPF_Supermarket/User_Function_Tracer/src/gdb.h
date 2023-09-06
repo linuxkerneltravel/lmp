@@ -36,14 +36,14 @@ struct gdb {
  * @return 指向gdb结构体的指针
  * @note 从堆中申请空间
  */
-struct gdb* new_gdb(pid_t pid);
+struct gdb* init_gdb(pid_t pid);
 
 /*
  * @brief 设置一个断点
  * @param[in] gdb 指向一个gdb结构体
  * @param[in] addr 物理地址
  */
-void enable_breakpoint(struct gdb* gdb, uint64_t addr);
+void enable_breakpoint(struct gdb* gdb, size_t addr);
 
 /*
  * @brief 取消一个断点
@@ -51,7 +51,7 @@ void enable_breakpoint(struct gdb* gdb, uint64_t addr);
  * @param[in] addr 物理地址
  * @note 需要保证之前调用过enable_breakpoint(gdb, pid, addr)
  */
-void disable_breakpoint(struct gdb* gdb, uint64_t addr);
+void disable_breakpoint(struct gdb* gdb, size_t addr);
 
 /*
  * @brief 继续执行
@@ -69,6 +69,6 @@ long wait_for_signal(struct gdb* gdb);
  * @brief 取消ptrace并释放gdb结构体的空间
  * @param[in] gdb 指向要释放的gdb结构体
  */
-void delete_gdb(struct gdb* gdb);
+void free_gdb(struct gdb* gdb);
 
 #endif  // UTRACE_GDB_H

@@ -22,21 +22,22 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 
-struct gdb* new_gdb(pid_t pid) {
-  struct gdb* gdb = (struct gdb*)malloc(sizeof(struct gdb));
+struct gdb* init_gdb(pid_t pid) {
+  struct gdb* gdb = malloc(sizeof(struct gdb));
   gdb->pid = pid;
+  gdb->inst = 0;
   return gdb;
 }
 
-void enable_breakpoint(struct gdb* gdb, uint64_t addr) {
+void enable_breakpoint(struct gdb* gdb, size_t addr) {
   long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
   gdb->inst = (uint8_t)data & 0xFF;
 
-  uint64_t int3 = 0xCC;
+  uint8_t int3 = 0xCC;
   ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | int3);
 }
 
-void disable_breakpoint(struct gdb* gdb, uint64_t addr) {
+void disable_breakpoint(struct gdb* gdb, size_t addr) {
   long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
   ptrace(PTRACE_POKEDATA, gdb->pid, (data & ~0xFF) | gdb->inst);
 }
@@ -49,7 +50,7 @@ long wait_for_signal(struct gdb* gdb) {
   return waitpid(gdb->pid, &wstatus, options);
 }
 
-void delete_gdb(struct gdb* gdb) {
+void free_gdb(struct gdb* gdb) {
   ptrace(PTRACE_DETACH, gdb->pid, NULL, NULL);
   free(gdb);
 }

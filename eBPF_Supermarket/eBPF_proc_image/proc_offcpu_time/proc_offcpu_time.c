@@ -62,7 +62,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		default:
 				return ARGP_ERR_UNKNOWN;
 		}
-		return 0;
+	return 0;
 }
 
 static void sig_handler(int sig)
@@ -73,11 +73,11 @@ static void sig_handler(int sig)
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct offcpu_event *e = data;
-    double offcputime = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
-    
-    printf("pid:%d  comm:%s  offcpu_id:%d  offcpu_time:%llu  oncpu_id:%d  oncpu_time:%llu  offcputime:%lf\n",
-    e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,offcputime);
-
+	double offcputime = (e->oncpu_time - e->offcpu_time)*1.0/1000000000.0;
+	
+	printf("pid:%d  comm:%s  offcpu_id:%d  offcpu_time:%llu  oncpu_id:%d  oncpu_time:%llu  offcputime:%lf\n",
+		e->pid,e->comm,e->offcpu_id,e->offcpu_time,e->oncpu_id,e->oncpu_time,offcputime);
+	
 	return 0;
 }
 	
@@ -109,7 +109,7 @@ int main(int argc, char **argv)
 
 	/* 更干净地处理Ctrl-C
 	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-       SIGTERM：请求中止进程，kill命令发送
+	   SIGTERM：请求中止进程，kill命令发送
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);

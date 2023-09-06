@@ -21,6 +21,7 @@ package collector
 import (
 	"bufio"
 	"ebpf_prometheus/checker"
+	"ebpf_prometheus/dao"
 	"ebpf_prometheus/prom_core"
 	"fmt"
 	"github.com/urfave/cli/v2"
@@ -109,12 +110,19 @@ func newProcCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 	return proc_imageCommand, nil
 }
 
+type BPF_name struct {
+	Name string
+}
+
 func simpleCollect(ctx *cli.Context) error {
 	filePath, err := checker.CollectCheck(ctx)
 	if err != nil {
 		return err
 	}
-	return Run(filePath)
+	path := strings.Fields(filePath)[0]
+	pathlist := strings.Split(path, "/")
+	n := BPF_name{Name: strings.ReplaceAll(pathlist[len(pathlist)-1], ".py", "")}
+	return n.Run(filePath)
 }
 
 func CheckFileType(filePath string) (specificcommand string) {
@@ -137,7 +145,7 @@ func CheckFileType(filePath string) (specificcommand string) {
 	}
 }
 
-func Run(filePath string) error {
+func (b *BPF_name) Run(filePath string) error {
 	cmdStr := CheckFileType(filePath)
 	cmd := exec.Command("sh", "-c", cmdStr)
 
@@ -161,7 +169,9 @@ func Run(filePath string) error {
 		log.Println("I am normal")
 	}
 
-	metricsobj := &prom_core.MyMetrics{}
+	metricsobj := &prom_core.MyMetrics{BPFName: b.Name, Sqlinited: false}
+	sqlobj := &dao.Sqlobj{Tablename: b.Name}
+	metricsobj.Sqlobj = sqlobj
 
 	go metricsobj.StartService()
 	// process chan from redirect Stdout
@@ -170,7 +180,13 @@ func Run(filePath string) error {
 			select {
 			case <-mapchan:
 				metricsobj.Maplist = <-mapchan
+				log.Println(metricsobj.Maplist)
 				metricsobj.UpdateData()
+				if metricsobj.Sqlinited {
+					metricsobj.UpdataSql()
+				} else {
+					metricsobj.Initsql()
+				}
 				<-mapchan
 			default:
 			}

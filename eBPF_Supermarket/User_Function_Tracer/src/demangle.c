@@ -16,37 +16,29 @@
 //
 // 还原C++重整后的符号
 
-#include "utrace.h"
-
-#include <stdlib.h>
-#include <string.h>
-
 #include "demangle.h"
 
+#include <string.h>
+
 char *demangle(const char *mangled_name) {
-  char *original_name;
-  long len = MAX_MANGLED_LEN;
-  long name_len;
+  char *demangled_name;
   int status;
 
+  // ensure mangled_name is really mangled (start with "_Z")
   if (strncmp(mangled_name, "_Z", 2) == 0) {
-    __cxa_demangle(mangled_name, NULL, &len, &status);
-    if (status < 0) {
-      return strdup(mangled_name);
-    }
-    original_name = malloc(len);
-    __cxa_demangle(mangled_name, original_name, &len, &status);
-
-    name_len = strlen(original_name);
-    if (original_name[name_len - 1] == ')') {
-      int cont = 1;
-      while (cont) {
-        --name_len;
-        if (original_name[name_len] == '(') cont = 0;
-        original_name[name_len] = 0;
+    demangled_name = __cxa_demangle(mangled_name, NULL, NULL, &status);
+    if (status == 0) {
+      size_t len = strlen(demangled_name);
+      if (demangled_name[len - 1] == ')') {  // convert "f()" to just "f"
+        while (1) {
+          --len;
+          char c = demangled_name[len];
+          demangled_name[len] = '\0';
+          if (c == '(') break;
+        }
       }
+      return demangled_name;
     }
-    return original_name;
   }
 
   return strdup(mangled_name);
