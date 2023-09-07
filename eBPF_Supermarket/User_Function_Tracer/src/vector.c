@@ -118,13 +118,13 @@ void vector_unique(struct vector* vec, int (*comparator)(const void*, const void
 }
 
 // assert vec != NULL && comparator != NULL
-const void* vector_binary_search(struct vector* vec, const void* key,
-                                 int (*comparator)(const void*, const void*)) {
+void* vector_binary_search(struct vector* vec, const void* key,
+                           int (*comparator)(const void*, const void*)) {
   if (!vector_empty(vec)) {
     size_t l = 0, r = vector_size(vec) - 1;
     while (l <= r) {
       size_t mid = (l + r) >> 1;
-      const void* element = vector_get(vec, mid);
+      void* element = vector_get(vec, mid);
       int cmp = comparator(element, key);
       if (!cmp) {
         return element;

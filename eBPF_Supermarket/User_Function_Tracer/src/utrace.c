@@ -434,13 +434,13 @@ int main(int argc, char **argv) {
       }
     }
   }
-  log_footer(env.output, env.cpuid, env.tid, env.timestamp);
+  log_footer(stderr, env.cpuid, env.tid, env.timestamp);
 
 cleanup:
   /* Clean up */
   ring_buffer__free(records);
 
-  LOG(env.output, "Detaching...\n");
+  LOG(stderr, "Detaching...\n");
   for (size_t i = 0; i < vector_size(bpf_links); i++) {
     bpf_link__destroy(*((struct bpf_link **)vector_get(bpf_links, i)));
   }

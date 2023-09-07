@@ -116,7 +116,7 @@ void vector_unique(struct vector* vec, int (*comparator)(const void*, const void
  * @param[in] key
  * @param[in] comparator
  */
-const void* vector_binary_search(struct vector* vec, const void* key,
-                                 int (*comparator)(const void*, const void*));
+void* vector_binary_search(struct vector* vec, const void* key,
+                           int (*comparator)(const void*, const void*));
 
 #endif  // UTRACE_VECTOR_H

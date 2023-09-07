@@ -30,6 +30,7 @@ struct symbol {
   size_t addr; /**< relative virtual address */
   size_t size; /**< symbol size */
   char* name;  /**< symbol name */
+  int demangled;
 };
 
 /**

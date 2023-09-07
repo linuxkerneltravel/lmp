@@ -75,6 +75,8 @@ struct symbol_table* symbol_table_init(const char* module) {
   }
 
   struct symbol sym;
+  sym.demangled = 0;
+
   size_t dyn_str_idx;
   Elf_Data* dyn_sym_data = NULL;
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
@@ -118,8 +120,7 @@ struct symbol_table* symbol_table_init(const char* module) {
           if (sym.size > 0) {
             continue;
           }
-          sym.name = elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name);
-          sym.name = demangle(sym.name);
+          sym.name = strdup(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
           vector_push_back(symbol_table->symbol_vec, &sym);
         }
       }
@@ -142,8 +143,7 @@ struct symbol_table* symbol_table_init(const char* module) {
           sym.addr -= BASE_ADDR;
         }
         sym.size = elf_e.sym.st_size;
-        sym.name = elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name);
-        sym.name = demangle(sym.name);
+        sym.name = strdup(elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name));
 
         vector_push_back(symbol_table->symbol_vec, &sym);
       }
@@ -194,5 +194,12 @@ static int symbol_addr_compare(const void* lhs, const void* rhs) {
 
 // assert symbol_table != NULL
 const struct symbol* symbol_table_find(struct symbol_table* symbol_table, size_t addr) {
-  return vector_binary_search(symbol_table->symbol_vec, &addr, symbol_addr_compare);
+  struct symbol* sym = vector_binary_search(symbol_table->symbol_vec, &addr, symbol_addr_compare);
+  if (!sym->demangled) {  // lazy demangle
+    char* mangled_name = sym->name;
+    sym->name = demangle(sym->name);
+    free(mangled_name);
+    sym->demangled = 1;
+  }
+  return sym;
 }

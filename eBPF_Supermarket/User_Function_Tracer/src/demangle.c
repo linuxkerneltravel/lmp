@@ -21,22 +21,100 @@
 #include <stdlib.h>
 #include <string.h>
 
+static char *simplify(char *name) {
+  size_t len = strlen(name);
+  size_t updated_len = 0;
+
+  for (size_t i = 0; i < len; i++) {  // remove chars inside "<>"
+    if (name[i] == '<') {
+      size_t j = i + 1;
+      int nested = 1;
+      while (j < len && nested > 0) {
+        if (name[j] == '<') {
+          ++nested;
+        } else if (name[j] == '>') {
+          --nested;
+        }
+        ++j;
+      }
+      i = j - 1;
+    } else {
+      name[updated_len] = name[i];
+      ++updated_len;
+    }
+  }
+  name[updated_len] = '\0';
+  len = updated_len;
+
+  if (len) {
+    for (size_t i = len - 1; i > 0; i--) {  // remove the last "(...)"
+      if (name[i] == ')') {
+        size_t j = i + 1;
+        int nested = 1;
+        while (i > 0) {
+          --i;
+          if (name[i] == ')') {
+            ++nested;
+          } else if (name[i] == '(') {
+            --nested;
+            if (!nested) break;
+          }
+        }
+        while (j < len) {
+          name[i] = name[j];
+          ++i;
+          ++j;
+        }
+        name[i] = '\0';
+        len = i;
+        break;
+      }
+    }
+  }
+
+  for (size_t i = 0; i < len; i++) {
+    if (name[i] == '{') {
+      size_t prei = i;
+      size_t j = i + 1;
+      int nested = 0;
+      while (j < len) {
+        if (name[j] == '(') {
+          if (!nested) {
+            i = j;
+            prei = i;
+          }
+          ++nested;
+        } else if (name[j] == ')') {
+          --nested;
+          if (!nested) {
+            ++j;
+            break;
+          }
+        }
+        ++j;
+      }
+      while (j < len) {
+        name[i] = name[j];
+        ++i;
+        ++j;
+      }
+      name[i] = '\0';
+      len = i;
+      i = prei;
+    }
+  }
+  return name;
+}
+
 char *demangle(const char *mangled_name) {
   char *demangled_name;
   int status;
-  size_t len;
 
   // ensure mangled_name is really mangled (start with "_Z")
   if (strncmp(mangled_name, "_Z", 2) == 0) {
     demangled_name = __cxa_demangle(mangled_name, NULL, NULL, &status);
     if (!status) {
-      len = strlen(demangled_name);
-      if (len >= 2 && demangled_name[len - 2] == '(' &&
-          demangled_name[len - 1] == ')') {  // convert "f()" to "f"
-        demangled_name[len - 2] = '\0';
-        return demangled_name;
-      }
-      return demangled_name;
+      return simplify(demangled_name);
     }
   }
 
