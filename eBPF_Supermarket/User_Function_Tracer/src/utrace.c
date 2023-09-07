@@ -40,17 +40,20 @@
 
 #define BASE_ADDR 0x400000
 
-enum longopt {
-  CPUID = 1000,
-  NOASLR,
-  TID,
-  TIMESTAMP,
+enum LONGOPT {
+  OPT_CPUID = 1000,
+  OPT_FLAT,
+  OPT_NOASLR,
+  OPT_TID,
+  OPT_TIMESTAMP,
 };
 
 static struct env {
   char **argv;
   int cpuid;
+  int flat;
   int noaslr;
+  FILE *output;
   pid_t pid;
   int tid;
   int timestamp;
@@ -66,12 +69,14 @@ const char argp_program_doc[] =
 
 static const struct argp_option opts[] = {
     {"command", 'c', "COMMAND", 0, "Command to run the program to be traced"},
-    {"cpuid", CPUID, NULL, 0, "Display cpuid information"},
+    {"cpuid", OPT_CPUID, NULL, 0, "Display cpuid information"},
     {"debug", 'd', NULL, 0, "Display debug information"},
-    {"no-aslr", NOASLR, NULL, 0, "Disable address space layout randomization (aslr)"},
-    {"pid", 'p', "P", 0, "PID of the program to be traced"},
-    {"tid", TID, NULL, 0, "Display tid information"},
-    {"timestamp", TIMESTAMP, NULL, 0, "Display timestamp information"},
+    {"flat", OPT_FLAT, NULL, 0, "Use flat output format"},
+    {"no-randomize-addr", OPT_NOASLR, NULL, 0, "Disable address space layout randomization (aslr)"},
+    {"output", 'o', "OUTPUT_FILE", 0, "Send trace output to file instead of stderr"},
+    {"pid", 'p', "PID", 0, "PID of the program to be traced"},
+    {"tid", OPT_TID, NULL, 0, "Display tid information"},
+    {"timestamp", OPT_TIMESTAMP, NULL, 0, "Display timestamp information"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -93,33 +98,46 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         }
       }
       break;
-    case CPUID:  // --cpuid
+    case OPT_CPUID:  // --cpuid
       env.cpuid = 1;
       break;
     case 'd':  // -d --debug
       debug = 1;
       break;
+    case OPT_FLAT:
+      env.flat = 1;
+      break;
     case 'h':  // -h --help
       argp_usage(state);
       exit(0);
+    case 'o':
+      env.output = fopen(arg, "w+");
+      if (!env.output) {
+        ERROR("Cannot write to %s\n", arg);
+        argp_usage(state);
+        exit(1);
+      }
+      break;
     case 'p':  // -p --pid
       env.pid = atoi(arg);
       if (env.pid < 0) {
         ERROR("Invalid pid: %d\n", env.pid);
         argp_usage(state);
+        exit(1);
       }
       break;
-    case NOASLR:  // --no-aslr
+    case OPT_NOASLR:  // --no-randomize-addr
       env.noaslr = 1;
       break;
-    case TID:  // --tid
+    case OPT_TID:  // --tid
       env.tid = 1;
       break;
-    case TIMESTAMP:  // --timestamp
+    case OPT_TIMESTAMP:  // --timestamp
       env.timestamp = 1;
       break;
     case ARGP_KEY_ARG:
       argp_usage(state);
+      exit(1);
       break;
     default:
       return ARGP_ERR_UNKNOWN;
@@ -144,10 +162,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 }
 
 static const char *skipped_functions[] = {
-    "_start",
-    "__libc_csu_init",
-    "__libc_csu_fini",
-    "_dl_relocate_static_pie",
+    "c_start", "_start", "__libc_csu_init", "__libc_csu_fini", "_dl_relocate_static_pie",
 };
 
 static bool skip_func(const char *func) {
@@ -191,67 +206,27 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
   static int pending = 0;
   static int status = -1; /**< 0: exec 1: exit */
 
-  const struct profile_record *r = data;
+  struct profile_record *r = data;
 
   if (r->exit) {
     if (status == 0) {
-      if (env.cpuid) {
-        log_cpuid(pending_r.cpu_id);
-        log_split();
-      }
-      if (env.tid) {
-        log_tid(pending_r.tid);
-        log_split();
-      }
-      if (env.timestamp) {
-        log_timestamp(pending_r.timestamp);
-        log_split();
-      }
-      log_duration(r->duration_ns);
-      log_split();
-      log_char(' ', 2 * pending_r.ustack_sz);
-      LOG("%s();\n", stack_func[pending_r.global_sz]);
+      log_trace_data(
+          env.output, env.cpuid ? &(pending_r.cpu_id) : NULL, env.tid ? &(pending_r.tid) : NULL,
+          env.timestamp ? &(pending_r.timestamp) : NULL, r->duration_ns, pending_r.ustack_sz,
+          stack_func[pending_r.global_sz], r->exit, status, env.flat);
     } else {  // status == 1
-      if (env.cpuid) {
-        log_cpuid(r->cpu_id);
-        log_split();
-      }
-      if (env.tid) {
-        log_tid(r->tid);
-        log_split();
-      }
-      if (env.timestamp) {
-        log_timestamp(r->timestamp);
-        log_split();
-      }
-      log_duration(r->duration_ns);
-      log_split();
-      log_char(' ', 2 * r->ustack_sz);
-      LOG("} ");
-      log_color(TERM_GRAY);
-      LOG("/* %s */\n", stack_func[r->global_sz]);
-      log_color(TERM_NC);
+      log_trace_data(env.output, env.cpuid ? &(r->cpu_id) : NULL, env.tid ? &(r->tid) : NULL,
+                     env.timestamp ? &(r->timestamp) : NULL, r->duration_ns, r->ustack_sz,
+                     stack_func[r->global_sz], r->exit, status, env.flat);
     }
     pending = 0;
     status = 1;
   } else {
     if (status == 0) {
-      if (env.cpuid) {
-        log_cpuid(pending_r.cpu_id);
-        log_split();
-      }
-      if (env.tid) {
-        log_tid(pending_r.tid);
-        log_split();
-      }
-      if (env.timestamp) {
-        log_timestamp(pending_r.timestamp);
-        log_split();
-      }
-      log_char(' ', 11);
-      log_split();
-      log_char(' ', 2 * pending_r.ustack_sz);
-      LOG("%s() {\n", stack_func[pending_r.global_sz]);
+      log_trace_data(env.output, env.cpuid ? &(pending_r.cpu_id) : NULL,
+                     env.tid ? &(pending_r.tid) : NULL,
+                     env.timestamp ? &(pending_r.timestamp) : NULL, 0, pending_r.ustack_sz,
+                     stack_func[pending_r.global_sz], r->exit, status, env.flat);
     }
 
     const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack[0]);
@@ -276,6 +251,8 @@ int main(int argc, char **argv) {
   const char *program;
   int err;
 
+  // Output to stderr by default
+  env.output = stderr;
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
   if (err || (env.argv == NULL && !env.pid)) {
     return err;
@@ -427,7 +404,9 @@ int main(int argc, char **argv) {
     }
   }
 
-  log_header(env.cpuid, env.tid, env.timestamp);
+  if (!env.flat) {
+    log_header(env.output, env.cpuid, env.tid, env.timestamp);
+  }
   /* Process events */
   while (!exiting) {
     err = ring_buffer__poll(records, 100 /* timeout, ms */);
@@ -455,12 +434,13 @@ int main(int argc, char **argv) {
       }
     }
   }
+  log_footer(env.output, env.cpuid, env.tid, env.timestamp);
 
 cleanup:
   /* Clean up */
   ring_buffer__free(records);
 
-  LOG("Detaching...\n");
+  LOG(env.output, "Detaching...\n");
   for (size_t i = 0; i < vector_size(bpf_links); i++) {
     bpf_link__destroy(*((struct bpf_link **)vector_get(bpf_links, i)));
   }

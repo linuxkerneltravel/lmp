@@ -24,47 +24,135 @@
 
 int debug;
 
-void log_color(const char* color) {
+void log_color(FILE* file, const char* color) {
   char* term = getenv("TERM");
-  if (isatty(fileno(stderr)) && !(term && !strcmp(term, "dumb"))) {
-    LOG("%s", color);
+  if (isatty(fileno(file)) && !(term && !strcmp(term, "dumb"))) {
+    LOG(file, "%s", color);
   }
 }
 
-void log_char(char c, int cnt) {
+void log_char(FILE* file, char c, int cnt) {
   while (cnt > 0) {
-    LOG("%c", c);
+    LOG(file, "%c", c);
     --cnt;
   }
 }
 
-void log_header(int cpu, int tid, int timestamp) {
+void log_header(FILE* file, int cpu, int tid, int timestamp) {
   if (cpu) {
-    LOG(" CPU");
-    log_split();
+    LOG(file, " CPU");
+    log_split(file);
   }
   if (tid) {
-    LOG("  TID ");
-    log_split();
+    LOG(file, "  TID ");
+    log_split(file);
   }
   if (timestamp) {
-    LOG("   TIMESTAMP  ");
-    log_split();
+    LOG(file, "   TIMESTAMP  ");
+    log_split(file);
   }
-  LOG("  DURATION ");
-  log_split();
-  LOG("  FUNCTION CALLS\n");
+  LOG(file, "  DURATION ");
+  log_split(file);
+  LOG(file, "  FUNCTION CALLS\n");
 }
 
-void log_split() { LOG(" | "); }
+void log_footer(FILE* file, int cpu, int tid, int timestamp) {
+  int cnt = 30;
+  if (cpu) {
+    cnt += 6;
+  }
+  if (tid) {
+    cnt += 8;
+  }
+  if (timestamp) {
+    cnt += 16;
+  }
+  log_char(file, '=', cnt);
+  log_char(file, '\n', 1);
+}
 
-void log_cpuid(int cpuid) { LOG("%4d", cpuid); }
+void log_split(FILE* file) { LOG(file, " | "); }
 
-void log_tid(int tid) { LOG("%6d", tid); }
+void log_cpuid(FILE* file, int cpuid) { LOG(file, "%4d", cpuid); }
 
-void log_timestamp(unsigned long long timestamp) { LOG("%llu", timestamp); }
+void log_tid(FILE* file, int tid) { LOG(file, "%6d", tid); }
 
-void log_duration(unsigned long long ns) {
+void log_timestamp(FILE* file, unsigned long long timestamp) { LOG(file, "%llu", timestamp); }
+
+void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
+                    unsigned long long* timestamp, unsigned long long duration,
+                    unsigned int stack_sz, const char* function_name, int exit, int status,
+                    int flat) {
+  const int INDENT = 2;
+  if (flat) {
+    if (exit) {
+      if (status) {
+        LOG(file, "← [%u] ", stack_sz);
+      } else {
+        LOG(file, "↔ [%u] ", stack_sz);
+      }
+      if (cpuid && tid) {
+        LOG(file, "%u/%u: ", *tid, *cpuid);
+      } else if (cpuid) {
+        LOG(file, "%u: ", *cpuid);
+      } else if (tid) {
+        LOG(file, "%u: ", *tid);
+      }
+      if (timestamp) {
+        LOG(file, "(%llu) ", *timestamp);
+      }
+      LOG(file, "%s [+", function_name);
+      log_duration(file, duration, 0);
+      LOG(file, "]\n");
+    } else {
+      LOG(file, "→ [%u] ", stack_sz);
+      if (cpuid && tid) {
+        LOG(file, "%u/%u: ", *tid, *cpuid);
+      } else if (cpuid) {
+        LOG(file, "%u: ", *cpuid);
+      } else if (tid) {
+        LOG(file, "%u: ", *tid);
+      }
+      if (timestamp) {
+        LOG(file, "(%llu) ", *timestamp);
+      }
+      LOG(file, "%s\n", function_name);
+    }
+  } else {
+    if (cpuid) {
+      log_cpuid(file, *cpuid);
+      log_split(file);
+    }
+    if (tid) {
+      log_tid(file, *tid);
+      log_split(file);
+    }
+    if (timestamp) {
+      log_timestamp(file, *timestamp);
+      log_split(file);
+    }
+    if (exit) {
+      log_duration(file, duration, 1);
+      log_split(file);
+      log_char(file, ' ', stack_sz * INDENT);
+      if (status) {
+        LOG(file, "} ");
+        log_color(file, TERM_GRAY);
+        LOG(file, "/* %s */\n", function_name);
+        log_color(file, TERM_NC);
+      } else {
+        LOG(file, "%s();\n", function_name);
+      }
+    } else {
+      log_char(file, ' ', 11);
+      log_split(file);
+      log_char(file, ' ', stack_sz * INDENT);
+      LOG(file, "%s() {\n", function_name);
+    }
+  }
+}
+
+void log_duration(FILE* file, unsigned long long ns, int blank) {
   static char* units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
@@ -81,5 +169,9 @@ void log_duration(unsigned long long ns) {
     ++i;
   }
 
-  LOG("%4llu.%03llu %s", t, t_mod, units[i]);
+  if (blank) {
+    LOG(file, "%4llu.%03llu %s", t, t_mod, units[i]);
+  } else {
+    LOG(file, "%llu.%03llu %s", t, t_mod, units[i]);
+  }
 }
