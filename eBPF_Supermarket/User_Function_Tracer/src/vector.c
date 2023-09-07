@@ -21,6 +21,7 @@
 #include <memory.h>
 #include <stdlib.h>
 
+#include "log.h"
 struct vector* vector_init(size_t element_size) {
   struct vector* vec = malloc(sizeof(struct vector));
   vec->size = 0;
@@ -73,6 +74,7 @@ int vector_push_back(struct vector* vec, void* element) {
       return -1;
     }
   }
+
   vector_set(vec, vec->size, element);
   ++vec->size;
   return 0;
@@ -119,7 +121,7 @@ void vector_unique(struct vector* vec, int (*comparator)(const void*, const void
 const void* vector_binary_search(struct vector* vec, const void* key,
                                  int (*comparator)(const void*, const void*)) {
   if (!vector_empty(vec)) {
-    size_t l = 0, r = vec->size - 1;
+    size_t l = 0, r = vector_size(vec) - 1;
     while (l <= r) {
       size_t mid = (l + r) >> 1;
       const void* element = vector_get(vec, mid);
@@ -128,8 +130,10 @@ const void* vector_binary_search(struct vector* vec, const void* key,
         return element;
       } else if (cmp < 0) {
         l = mid + 1;
-      } else {
+      } else if (mid > 0) {
         r = mid - 1;
+      } else {
+        break;
       }
     }
   }

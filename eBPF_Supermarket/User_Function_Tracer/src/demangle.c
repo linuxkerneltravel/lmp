@@ -18,24 +18,23 @@
 
 #include "demangle.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 char *demangle(const char *mangled_name) {
   char *demangled_name;
   int status;
+  size_t len;
 
   // ensure mangled_name is really mangled (start with "_Z")
   if (strncmp(mangled_name, "_Z", 2) == 0) {
     demangled_name = __cxa_demangle(mangled_name, NULL, NULL, &status);
-    if (status == 0) {
-      size_t len = strlen(demangled_name);
-      if (demangled_name[len - 1] == ')') {  // convert "f()" to just "f"
-        while (1) {
-          --len;
-          char c = demangled_name[len];
-          demangled_name[len] = '\0';
-          if (c == '(') break;
-        }
+    if (!status) {
+      len = strlen(demangled_name);
+      if (len >= 2 && demangled_name[len - 2] == '(' &&
+          demangled_name[len - 1] == ')') {  // convert "f()" to "f"
+        demangled_name[len - 2] = '\0';
+        return demangled_name;
       }
       return demangled_name;
     }

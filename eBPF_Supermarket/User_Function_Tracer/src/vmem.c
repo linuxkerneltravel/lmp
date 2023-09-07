@@ -98,7 +98,6 @@ const struct vmem* vmem_table_get(struct vmem_table* vmem_table, size_t index) {
 static int vmem_addr_compare(const void* lhs, const void* rhs) {
   const struct vmem* vmem = lhs;
   const size_t addr = *(const size_t*)rhs;
-
   if (vmem->ed_addr < addr) {
     return -1;
   } else if (vmem->st_addr > addr) {

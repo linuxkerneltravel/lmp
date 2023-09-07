@@ -27,7 +27,7 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 static int global_sz;
-static int current_pid;
+
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, __u32);
@@ -55,7 +55,7 @@ int BPF_KPROBE(uprobe) {
   __u32 *depth_ptr;
   __u32 depth;
 
-  current_pid = tid = (__u32)bpf_get_current_pid_tgid();
+  tid = (__u32)bpf_get_current_pid_tgid();
   cpu_id = bpf_get_smp_processor_id();
 
   r = bpf_ringbuf_reserve(&records, sizeof(*r), 0);
@@ -85,12 +85,13 @@ int BPF_KPROBE(uprobe) {
 SEC("uretprobe/trace")
 int BPF_KRETPROBE(uretprobe) {
   struct profile_record *r;
+  __u32 current_pid;
   pid_t tid, cpu_id;
   __u64 *start_ts_ptr;
   __u64 end_ts = bpf_ktime_get_ns();
   __u32 *depth_ptr;
 
-  current_pid = tid = (__u32)bpf_get_current_pid_tgid();
+  tid = (__u32)bpf_get_current_pid_tgid();
   cpu_id = bpf_get_smp_processor_id();
 
   depth_ptr = bpf_map_lookup_elem(&stack_depth, &tid);
@@ -106,7 +107,7 @@ int BPF_KRETPROBE(uretprobe) {
   r->timestamp = end_ts;
   start_ts_ptr = bpf_map_lookup_elem(&function_start, &global_sz);
   if (start_ts_ptr) r->duration_ns = end_ts - *start_ts_ptr;
-  bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
+  bpf_get_stack(ctx, r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
   r->ustack_sz = *depth_ptr;
   r->global_sz = global_sz;
   r->exit = 1;

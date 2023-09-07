@@ -22,8 +22,6 @@
 #include <argp.h>
 #include <assert.h>
 #include <bpf/libbpf.h>
-#include <ctype.h>
-#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,6 +35,7 @@
 #include "gdb.h"
 #include "log.h"
 #include "symbol.h"
+#include "vector.h"
 #include "vmem.h"
 
 #define BASE_ADDR 0x400000
@@ -134,29 +133,53 @@ static const struct argp argp = {
     .doc = argp_program_doc,
 };
 
-static struct vmem_table *vmem_table;
+struct vmem_table *vmem_table;
 
-char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
-int status = -1, pre_ustack_sz = 0;
+static char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
+static int status = -1, pre_ustack_sz = 0;
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
   if (level == LIBBPF_DEBUG) return 0;
   return vfprintf(stderr, format, args);
 }
 
-void uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t addr) {
-  DEBUG("Attach to %s:%zx with pid = %d\n", exe, addr, pid);
+static const char *skipped_functions[] = {
+    "_start",
+    "__libc_csu_init",
+    "__libc_csu_fini",
+    "_dl_relocate_static_pie",
+};
+
+static bool skip_func(const char *func) {
+  for (size_t i = 0, len = sizeof(skipped_functions) / sizeof(skipped_functions[0]); i < len; i++) {
+    if (!strcmp(func, skipped_functions[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+struct bpf_link *uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t addr) {
+  DEBUG("Attach uprobe to %s:%zx with pid = %d\n", exe, addr, pid);
 
   /* Attach tracepoint handler */
-  skel->links.uprobe =
+  struct bpf_link *link =
       bpf_program__attach_uprobe(skel->progs.uprobe, false /* not uretprobe */, pid, exe, addr);
+  assert(link);
 
-  assert(skel->links.uprobe);
+  return link;
+}
 
-  skel->links.uretprobe =
-      bpf_program__attach_uprobe(skel->progs.uretprobe, true /* uretprobe */, pid, exe, addr);
+struct bpf_link *uretprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe,
+                                  size_t addr) {
+  DEBUG("Attach uretprobe to %s:%zx with pid = %d\n", exe, addr, pid);
 
-  assert(skel->links.uretprobe);
+  /* Attach tracepoint handler */
+  struct bpf_link *link =
+      bpf_program__attach_uprobe(skel->progs.uretprobe, true /* not uretprobe */, pid, exe, addr);
+  assert(link);
+
+  return link;
 }
 
 static volatile bool exiting = false;
@@ -230,7 +253,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       log_char(' ', 2 * pending_r.ustack_sz);
       LOG("%s() {\n", stack_func[pending_r.global_sz]);
     }
-    const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack);
+
+    const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack[0]);
     if (sym) {
       memcpy(stack_func[r->global_sz], sym->name, strlen(sym->name));
       stack_func[r->global_sz][strlen(sym->name)] = '\0';
@@ -246,8 +270,10 @@ int main(int argc, char **argv) {
   struct ring_buffer *records = NULL;
   struct utrace_bpf *skel;
   struct rlimit old_rlim;
+  struct bpf_link *link;
+  struct vector *bpf_links;
   pid_t pid;
-  char *program;
+  const char *program;
   int err;
 
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
@@ -263,20 +289,14 @@ int main(int argc, char **argv) {
   signal(SIGINT, sig_handler);
   signal(SIGTERM, sig_handler);
 
+  libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
   /* Set up libbpf errors and debug info callback */
   libbpf_set_print(libbpf_print_fn);
 
-  /* Load and verify BPF application */
-  skel = utrace_bpf__open();
+  /* Load and verify BPF program */
+  skel = utrace_bpf__open_and_load();
   if (!skel) {
-    ERROR("Failed to open and load BPF skeleton\n");
-    return 1;
-  }
-
-  /* Load & verify BPF programs */
-  err = utrace_bpf__load(skel);
-  if (err) {
-    ERROR("Failed to load and verify BPF skeleton\n");
+    ERROR("Failed to open and load bpf program\n");
     goto cleanup;
   }
 
@@ -300,6 +320,8 @@ int main(int argc, char **argv) {
     ERROR("setrlimit error");
     exit(1);
   }
+
+  bpf_links = vector_init(sizeof(struct bpf_link *));
 
   if (env.pid) {
     pid = env.pid;
@@ -329,9 +351,16 @@ int main(int argc, char **argv) {
       const struct vmem *vmem = vmem_table_get(vmem_table, i);
       if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;
       vmem->module->symbol_table = symbol_table_init(module_get_name(vmem->module));
+      if (!vmem->module->symbol_table) continue;
       for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
         const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
-        uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
+        if (strstr(module_get_name(vmem->module), program))
+          if (!skip_func(sym->name)) {
+            link = uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
+            vector_push_back(bpf_links, &link);
+            link = uretprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
+            vector_push_back(bpf_links, &link);
+          }
       }
     }
 
@@ -369,16 +398,26 @@ int main(int argc, char **argv) {
       gdb_continue_execution(gdb);
       gdb_wait_for_signal(gdb);
 
+      int cnt = 0;
       vmem_table = vmem_table_init(pid);
       for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
         const struct vmem *vmem = vmem_table_get(vmem_table, i);
         if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;
         vmem->module->symbol_table = symbol_table_init(module_get_name(vmem->module));
+        if (!vmem->module->symbol_table) continue;
         for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
           const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
-          uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
+          if (strstr(module_get_name(vmem->module), program))
+            if (!skip_func(sym->name)) {
+              cnt += 2;
+              link = uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
+              vector_push_back(bpf_links, &link);
+              link = uretprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
+              vector_push_back(bpf_links, &link);
+            }
         }
       }
+      DEBUG("Attached total %d uprobes\n", cnt);
 
       /* Attach tracepoints */
       assert(utrace_bpf__attach(skel) == 0);
@@ -420,6 +459,15 @@ int main(int argc, char **argv) {
 cleanup:
   /* Clean up */
   ring_buffer__free(records);
+
+  LOG("Detaching...\n");
+  for (size_t i = 0; i < vector_size(bpf_links); i++) {
+    bpf_link__destroy(*((struct bpf_link **)vector_get(bpf_links, i)));
+  }
+  DEBUG("end destroy link\n");
+
+  vector_free(bpf_links);
+
   utrace_bpf__destroy(skel);
 
   vmem_table_free(vmem_table);
@@ -429,6 +477,5 @@ cleanup:
     exit(1);
   }
 
-  DEBUG("finish");
   return err < 0 ? -err : 0;
 }

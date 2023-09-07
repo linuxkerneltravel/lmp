@@ -62,7 +62,17 @@ struct symbol_table* symbol_table_init(const char* module) {
       break;
     }
   }
-  if (!plt_section_st_addr) return NULL;
+  if (!plt_section_st_addr) {
+    for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
+      if (elf_s.shdr.sh_type != SHT_PROGBITS) continue;
+
+      char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+      if (!strcmp(shstr, ".plt")) {
+        plt_section_st_addr = elf_s.shdr.sh_offset + 0x10;
+        break;
+      }
+    }
+  }
 
   struct symbol sym;
   size_t dyn_str_idx;
@@ -80,7 +90,7 @@ struct symbol_table* symbol_table_init(const char* module) {
       }
     }
 
-    if (elf_s.shdr.sh_type == SHT_RELA) {
+    if (elf_s.shdr.sh_type == SHT_RELA && plt_section_st_addr) {
       char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (strcmp(shstr, ".rela.plt")) continue;
 
@@ -173,8 +183,7 @@ const struct symbol* symbol_table_get(struct symbol_table* symbol_table, size_t 
 static int symbol_addr_compare(const void* lhs, const void* rhs) {
   const struct symbol* sym = lhs;
   const size_t addr = *(const size_t*)rhs;
-
-  if (sym->addr + sym->size < addr) {
+  if ((sym->size && sym->addr + sym->size <= addr) || (!sym->size && sym->addr < addr)) {
     return -1;
   } else if (sym->addr > addr) {
     return 1;
