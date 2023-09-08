@@ -81,14 +81,14 @@ void log_timestamp(FILE* file, unsigned long long timestamp) { LOG(file, "%llu",
 
 void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
                     unsigned long long* timestamp, unsigned long long duration,
-                    unsigned int stack_sz, const char* function_name, int exit, int status,
-                    int flat) {
+                    unsigned int stack_sz, const char* function_name, int exit,
+                    enum FUNCSTATE state, int flat) {
   const int INDENT = 2;
   if (flat) {
     if (exit) {
-      if (status) {
+      if (state == STATE_EXIT) {
         LOG(file, "← [%u] ", stack_sz);
-      } else {
+      } else if (state == STATE_EXEC) {
         LOG(file, "↔ [%u] ", stack_sz);
       }
       if (cpuid && tid) {
@@ -135,12 +135,12 @@ void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
       log_duration(file, duration, 1);
       log_split(file);
       log_char(file, ' ', stack_sz * INDENT);
-      if (status) {
+      if (state == STATE_EXIT) {
         LOG(file, "} ");
         log_color(file, TERM_GRAY);
         LOG(file, "/* %s */\n", function_name);
         log_color(file, TERM_NC);
-      } else {
+      } else if (state == STATE_EXEC) {
         LOG(file, "%s();\n", function_name);
       }
     } else {

@@ -37,7 +37,12 @@ static char *simplify(char *name) {
         }
         ++j;
       }
-      i = j - 1;
+      if (!nested) {
+        i = j - 1;
+      } else {
+        name[updated_len] = name[i];
+        ++updated_len;
+      }
     } else {
       name[updated_len] = name[i];
       ++updated_len;
@@ -102,6 +107,11 @@ static char *simplify(char *name) {
       len = i;
       i = prei;
     }
+  }
+
+  while (len > 0 && name[len - 1] == ' ') {
+    --len;
+    name[len] = '\0';
   }
   return name;
 }

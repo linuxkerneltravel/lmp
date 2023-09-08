@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// A dynamic array similar to std::vector, but is append-only
+// A dynamic array similar to std::vector, but has limit capabitily
 
 #ifndef UTRACE_VECTOR_H
 #define UTRACE_VECTOR_H
@@ -94,7 +94,14 @@ int vector_reserve(struct vector* vec, size_t size);
  * @param[in] vec
  * @param[in] element
  */
-int vector_push_back(struct vector* vector, void* element);
+int vector_push_back(struct vector* vector, const void* element);
+
+/**
+ * @brief pop the end element in the vector
+ * @param[in] vec
+ * @param[in] element
+ */
+void vector_pop_back(struct vector* vector);
 
 /**
  * @brief sort the vector

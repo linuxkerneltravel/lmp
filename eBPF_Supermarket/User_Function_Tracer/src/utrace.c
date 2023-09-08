@@ -35,6 +35,7 @@
 #include "gdb.h"
 #include "log.h"
 #include "symbol.h"
+#include "thread_local.h"
 #include "vector.h"
 #include "vmem.h"
 
@@ -152,9 +153,7 @@ static const struct argp argp = {
 };
 
 struct vmem_table *vmem_table;
-
-static char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
-static int status = -1, pre_ustack_sz = 0;
+struct thread_local *thread_local;
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
   if (level == LIBBPF_DEBUG) return 0;
@@ -202,40 +201,42 @@ static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
-  static struct profile_record pending_r;
-  static int pending = 0;
-  static int status = -1; /**< 0: exec 1: exit */
-
   struct profile_record *r = data;
 
-  if (r->exit) {
-    if (status == 0) {
-      log_trace_data(
-          env.output, env.cpuid ? &(pending_r.cpu_id) : NULL, env.tid ? &(pending_r.tid) : NULL,
-          env.timestamp ? &(pending_r.timestamp) : NULL, r->duration_ns, pending_r.ustack_sz,
-          stack_func[pending_r.global_sz], r->exit, status, env.flat);
-    } else {  // status == 1
+  unsigned int index = thread_local_get_index(thread_local, r->tid);
+  enum FUNCSTATE state = thread_local_get_state(thread_local, index);
+
+  if (r->ret) {
+    if (state == STATE_EXEC) {
+      struct profile_record *prer = thread_local_get_record(thread_local, index);
+      log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL, env.tid ? &(prer->tid) : NULL,
+                     env.timestamp ? &(prer->timestamp) : NULL, r->duration_ns, prer->ustack_sz,
+                     prer->name, r->ret, state, env.flat);
+      thread_local_pop_record(thread_local, index);
+    } else if (state == STATE_EXIT) {
+      struct profile_record *prer = thread_local_get_record(thread_local, index);
       log_trace_data(env.output, env.cpuid ? &(r->cpu_id) : NULL, env.tid ? &(r->tid) : NULL,
                      env.timestamp ? &(r->timestamp) : NULL, r->duration_ns, r->ustack_sz,
-                     stack_func[r->global_sz], r->exit, status, env.flat);
+                     prer->name, r->ret, state, env.flat);
+      thread_local_pop_record(thread_local, index);
     }
-    pending = 0;
-    status = 1;
+    thread_local_set_state(thread_local, index, STATE_EXIT);
   } else {
-    if (status == 0) {
-      log_trace_data(env.output, env.cpuid ? &(pending_r.cpu_id) : NULL,
-                     env.tid ? &(pending_r.tid) : NULL,
-                     env.timestamp ? &(pending_r.timestamp) : NULL, 0, pending_r.ustack_sz,
-                     stack_func[pending_r.global_sz], r->exit, status, env.flat);
+    if (state == STATE_EXEC) {
+      struct profile_record *prer = thread_local_get_record(thread_local, index);
+      log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL, env.tid ? &(prer->tid) : NULL,
+                     env.timestamp ? &(prer->timestamp) : NULL, 0, prer->ustack_sz, prer->name,
+                     r->ret, state, env.flat);
     }
 
     const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack[0]);
     if (sym) {
-      memcpy(stack_func[r->global_sz], sym->name, strlen(sym->name));
-      stack_func[r->global_sz][strlen(sym->name)] = '\0';
-      pending_r = *r;
-      pending = 1;
-      status = 0;
+      struct profile_record prer = *r;
+      prer.name = sym->name;
+      thread_local_push_record(thread_local, index, prer);
+      thread_local_set_state(thread_local, index, STATE_EXEC);
+    } else {
+      // ignore
     }
   }
   return 0;
@@ -300,6 +301,7 @@ int main(int argc, char **argv) {
 
   bpf_links = vector_init(sizeof(struct bpf_link *));
 
+  thread_local = thread_local_init();
   if (env.pid) {
     pid = env.pid;
     vmem_table = vmem_table_init(pid);
@@ -404,6 +406,9 @@ int main(int argc, char **argv) {
     }
   }
 
+  LOG(stderr, "Tracing...\n");
+  log_footer(stderr, env.cpuid, env.tid, env.timestamp);
+
   if (!env.flat) {
     log_header(env.output, env.cpuid, env.tid, env.timestamp);
   }
@@ -450,6 +455,7 @@ cleanup:
 
   utrace_bpf__destroy(skel);
 
+  thread_local_free(thread_local);
   vmem_table_free(vmem_table);
 
   if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {

@@ -22,6 +22,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "thread_local.h"
+
 /**
  * @brief 设置输出的颜色
  * @param[in] color 颜色控制符
@@ -78,8 +80,8 @@ void log_duration(FILE* file, unsigned long long ns, int blank);
 
 void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
                     unsigned long long* timestamp, unsigned long long duration,
-                    unsigned int stack_sz, const char* function_name, int exit, int status,
-                    int flat);
+                    unsigned int stack_sz, const char* function_name, int exit,
+                    enum FUNCSTATE state, int flat);
 
 /** 控制是否显示调试信息，在utrace.c中定义 */
 extern int debug;

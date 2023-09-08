@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// A dynamic array similar to std::vector in C++, but is appending-only
+// A dynamic array similar to std::vector in C++, but has limit capabitily
 
 #include "vector.h"
 
@@ -43,41 +43,10 @@ void vector_free(struct vector* vec) {
 // assert vec != NULL
 size_t vector_size(struct vector* vec) { return vec->size; }
 
-static size_t vector_size_grow(size_t size) { return !size ? 1 : size << 1; }
-
-// assert vec != NULL
-int vector_reserve(struct vector* vec, size_t size) {
-  if (vec->capacity < size) {
-    const size_t malloc_size = size * vec->element_size;
-    void* realloc_data = realloc(vec->data, malloc_size);
-    // when realloc_data is NULL, vec->data remains valid,
-    // it needs to be freed, and cannot be oeverwritten
-    if (!realloc_data) {
-      return -1;
-    }
-    vec->data = realloc_data;
-    vec->capacity = size;
-  }
-  return 0;
-}
-
 // assert vec != NULL && index >= 0 && index < vec->size
-static void vector_set(struct vector* vec, size_t index, void* element) {
+static void vector_set(struct vector* vec, size_t index, const void* element) {
   // element does not overlap with vec->data[index]
   memcpy(vec->data + (index * vec->element_size), element, vec->element_size);
-}
-
-// assert vec != NULL
-int vector_push_back(struct vector* vec, void* element) {
-  if (vec->size == vec->capacity) {
-    if (vector_reserve(vec, vector_size_grow(vec->size)) == -1) {
-      return -1;
-    }
-  }
-
-  vector_set(vec, vec->size, element);
-  ++vec->size;
-  return 0;
 }
 
 // assert vec != NULL
@@ -100,6 +69,39 @@ void* vector_back(struct vector* vec) {
   // (size_t)(0 - 1) is overflow, but it still returns NULL as expected
   return vector_get(vec, vector_size(vec) - 1);
 }
+
+static size_t vector_size_grow(size_t size) { return !size ? 1 : size << 1; }
+
+// assert vec != NULL
+int vector_reserve(struct vector* vec, size_t size) {
+  if (vec->capacity < size) {
+    const size_t malloc_size = size * vec->element_size;
+    void* realloc_data = realloc(vec->data, malloc_size);
+    // when realloc_data is NULL, vec->data remains valid,
+    // it needs to be freed, and cannot be oeverwritten
+    if (!realloc_data) {
+      return -1;
+    }
+    vec->data = realloc_data;
+    vec->capacity = size;
+  }
+  return 0;
+}
+
+// assert vec != NULL
+int vector_push_back(struct vector* vec, const void* element) {
+  if (vec->size == vec->capacity) {
+    if (vector_reserve(vec, vector_size_grow(vec->size)) == -1) {
+      return -1;
+    }
+  }
+
+  vector_set(vec, vec->size, element);
+  ++vec->size;
+  return 0;
+}
+
+void vector_pop_back(struct vector* vec) { --vec->size; }
 
 // assert vec != NULL && comparator != NULL
 void vector_sort(struct vector* vec, int (*comparator)(const void*, const void*)) {
