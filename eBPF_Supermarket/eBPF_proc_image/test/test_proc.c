@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
+#include <linux/fcntl.h>
 
 #define gettid() syscall(__NR_gettid)
 
@@ -40,14 +41,16 @@ int main() {
    int pid,stop;
    int err;
    pthread_t tid;
+   char *argv[] = { "ls", "-l", NULL };
+   char *envp[] = { "PATH=/bin", NULL };
 
    pid = getpid();
    printf("test进程的PID:%d\n", pid);
    printf("输入任意数字继续程序的运行:");
-   //scanf("%d",&stop);                   // 使用时将其取消注释
+   scanf("%d",&stop);                   // 使用时将其取消注释
    printf("程序开始执行...\n");
    printf("\n");
-
+/*
    // 逻辑1：加入sleep逻辑使进程睡眠3秒，即offCPU 3秒
    printf("逻辑1:\n");
    time_t now = time(NULL);
@@ -140,6 +143,23 @@ int main() {
    printf("进程成功解锁rwlock\n");
    pthread_rwlock_destroy(&rwlock);
    printf("\n");
-
+*/
+   // 逻辑6：加入execve逻辑
+   // 替换当前进程，ARGV和ENVP以NULL指针结束
+   // 若出错，返回-1；若成功，不返回
+   execve("/bin/ls", argv, envp);
+   perror("execve");
+   printf("\n");
+/*
+   // 逻辑6：加入execve逻辑
+   int dirfd = open("/bin", O_RDONLY);
+   if (dirfd == -1) {
+      perror("open");
+      exit(1);
+   }
+   execveat(dirfd, "ls", argv, envp, AT_EMPTY_PATH);
+   perror("execveat");
+   printf("\n");
+*/
    return 0;
 }
