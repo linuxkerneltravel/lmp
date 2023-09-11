@@ -44,6 +44,7 @@ struct profile_record {
   bool ret; /**< is function ret */
 
   const char* name; /**< function name, resolve in user-side */
+  const char* libname;
 };
 
 #endif  // UTRACE_UTRACE_H

@@ -22,123 +22,153 @@
 #include <argp.h>
 #include <assert.h>
 #include <bpf/libbpf.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <pwd.h>
 #include <sys/personality.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 #include "elf.h"
 #include "gdb.h"
+#include "glob.h"
 #include "log.h"
 #include "symbol.h"
 #include "thread_local.h"
+#include "util.h"
 #include "vector.h"
 #include "vmem.h"
 
-#define BASE_ADDR 0x400000
-
-enum LONGOPT {
-  OPT_CPUID = 1000,
+enum ARGP_SHORTOPT {
+  OPT_CPUID = 0x1234,
   OPT_FLAT,
-  OPT_NOASLR,
+  OPT_LIB,
+  OPT_LIBNAME,
+  OPT_NEST_LIB,
+  OPT_NO_ASLR,
+  OPT_NO_FUNCTION,
   OPT_TID,
   OPT_TIMESTAMP,
 };
 
-static struct env {
-  char **argv;
-  int cpuid;
-  int flat;
-  int noaslr;
-  FILE *output;
-  pid_t pid;
-  int tid;
-  int timestamp;
-} env;
-
 const char *argp_program_version = "eBPF-utrace 0.0";
 const char argp_program_doc[] =
-    "\neBPF user function tracer (utrace).\n"
+    "\nutrace: eBPF-based user function tracer for C/C++.\n"
     "\n"
     "Examples:\n"
-    "  sudo utrace -c \"$PROGRAM $ARGS\"\n"
-    "  sudo utrace -p $PID\n";
+    "  # trace the program specified by COMMAND\n"
+    "  sudo build/utrace -c \"$COMMAND\"\n"
+    "  # trace the program specified by PID\n"
+    "  sudo build/utrace -p $PID\n";
 
 static const struct argp_option opts[] = {
-    {"command", 'c', "COMMAND", 0, "Command to run the program to be traced"},
-    {"cpuid", OPT_CPUID, NULL, 0, "Display cpuid information"},
-    {"debug", 'd', NULL, 0, "Display debug information"},
-    {"flat", OPT_FLAT, NULL, 0, "Use flat output format"},
-    {"no-randomize-addr", OPT_NOASLR, NULL, 0, "Disable address space layout randomization (aslr)"},
-    {"output", 'o', "OUTPUT_FILE", 0, "Send trace output to file instead of stderr"},
-    {"pid", 'p', "PID", 0, "PID of the program to be traced"},
-    {"tid", OPT_TID, NULL, 0, "Display tid information"},
-    {"timestamp", OPT_TIMESTAMP, NULL, 0, "Display timestamp information"},
+    {"command", 'c', "COMMAND", 0,
+     "Specify the COMMAND to run the traced program (format: \"program arguments\")", 0},
+    {"cpuid", OPT_CPUID, NULL, 0, "Display CPU ID", 0},
+    {"debug", 'd', NULL, 0, "Show debug information", 0},
+    {"flat", OPT_FLAT, NULL, 0, "Display in a flat output format", 0},
+    {"function", 'f', "FUNC_PATTERN", 0,
+     "Only trace functions matching FUNC_PATTERN (in glob format, default \"*\")", 0},
+    {"lib", 'l', "LIB_PATTERN", 0,
+     "Only trace libcalls to libraries matching LIB_PATTERN (in glob format, default \"*\")", 0},
+    {"libname", OPT_LIBNAME, NULL, 0, "Append libname to symbol name", 0},
+    {"nest-lib", OPT_NEST_LIB, "NEST_LIB_PATTERN", 0,
+     "Also trace functions in libraries matching LIB_PATTERN (default \"\")", 0},
+    {"no-function", OPT_NO_FUNCTION, "FUNC_PATTERN", 0,
+     "Don't trace functions matching FUNC_PATTERN (in glob format, default \"\")", 0},
+    {"no-randomize-addr", OPT_NO_ASLR, NULL, 0, "Disable address space layout randomization (ASLR)",
+     0},
+    {"output", 'o', "OUTPUT_FILE", 0, "Send trace output to OUTPUT_FILE instead of stderr", 0},
+    {"pid", 'p', "PID", 0, "PID of the traced program", 0},
+    {"tid", OPT_TID, NULL, 0, "Display thread ID", 0},
+    {"timestamp", OPT_TIMESTAMP, NULL, 0, "Display timestamp", 0},
+    {"user", 'u', "USERNAME", 0, "Run the specified command as USERNAME", 0},
     {}};
+
+extern bool debug;  // -d/--debug
+static struct env {
+  char *argv[12];                // -c/-commond
+  bool cpuid;                    // --cpuid
+  bool flat;                     // --flat
+  const char *func_pattern;      // -f/--function
+  const char *lib_pattern;       // -l/--lib
+  bool libname;                  // --libname
+  const char *nest_lib_pattern;  // --nest-lib
+  const char *no_func_pattern;   // no-function
+  bool no_aslr;                  // --no-randomize-addr
+  FILE *output;                  // -o/--output
+  pid_t pid;                     // -p/--pid
+  bool tid;                      // --tid
+  bool timestamp;                // --timestamp
+  char *user;                    // -u/--user
+} env;
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
   switch (key) {
-    case 'c':  // -c --command
-      env.argv = (char **)malloc(sizeof(char *) * 16);
-      for (int i = 0, len = strlen(arg), c = 0; i < len; i++) {
+    case 'c':  // -c/--command
+      for (int i = 0, len = strlen(arg), cnt = 0, j; i < len; i++) {
         if (arg[i] != ' ') {
-          int j = i + 1;
-          while (j < len && arg[j] != ' ') {
-            ++j;
-          }
-          arg[j] = 0;
-          env.argv[c] = strdup(arg + i);
-          env.argv[c + 1] = NULL;
-          ++c;
+          j = i + 1;
+          while (j < len && arg[j] != ' ') ++j;
+          arg[j] = '\0';
+          env.argv[cnt] = strdup(arg + i);
+          env.argv[++cnt] = NULL;
           arg[j] = ' ';
           i = j;
         }
       }
       break;
     case OPT_CPUID:  // --cpuid
-      env.cpuid = 1;
+      env.cpuid = true;
       break;
-    case 'd':  // -d --debug
-      debug = 1;
+    case 'd':  // -d/--debug
+      debug = true;
       break;
-    case OPT_FLAT:
-      env.flat = 1;
+    case OPT_FLAT:  // --flat
+      env.flat = true;
       break;
-    case 'h':  // -h --help
-      argp_usage(state);
-      exit(0);
-    case 'o':
+    case 'f':  // -f/--function
+      env.func_pattern = arg;
+      break;
+    case 'l':  // -l/--lib
+      env.lib_pattern = arg;
+      break;
+    case OPT_LIBNAME:  // --libname
+      env.libname = true;
+      break;
+    case OPT_NEST_LIB:  // --nest-lib
+      env.nest_lib_pattern = arg;
+      break;
+    case OPT_NO_FUNCTION:  // --no-function
+      env.no_func_pattern = arg;
+      break;
+    case OPT_NO_ASLR:  // --no-randomize-addr
+      env.no_aslr = true;
+      break;
+    case 'o':  // -o/--output
       env.output = fopen(arg, "w+");
       if (!env.output) {
-        ERROR("Cannot write to %s\n", arg);
-        argp_usage(state);
+        perror("fopen");
         exit(1);
       }
       break;
-    case 'p':  // -p --pid
+    case 'p':  // -p/--pid
       env.pid = atoi(arg);
       if (env.pid < 0) {
-        ERROR("Invalid pid: %d\n", env.pid);
-        argp_usage(state);
+        perror("atoi");
         exit(1);
       }
       break;
-    case OPT_NOASLR:  // --no-randomize-addr
-      env.noaslr = 1;
-      break;
     case OPT_TID:  // --tid
-      env.tid = 1;
+      env.tid = true;
       break;
     case OPT_TIMESTAMP:  // --timestamp
-      env.timestamp = 1;
+      env.timestamp = true;
+      break;
+    case 'u':  // -u/--user
+      env.user = arg;
       break;
     case ARGP_KEY_ARG:
       argp_usage(state);
-      exit(1);
       break;
     default:
       return ARGP_ERR_UNKNOWN;
@@ -152,55 +182,88 @@ static const struct argp argp = {
     .doc = argp_program_doc,
 };
 
-struct vmem_table *vmem_table;
-struct thread_local *thread_local;
-
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
   if (level == LIBBPF_DEBUG) return 0;
   return vfprintf(stderr, format, args);
 }
 
-static const char *skipped_functions[] = {
+static volatile bool exiting = false;
+static void sig_handler(int sig) {
+  if (sig == SIGINT || sig == SIGTERM) exiting = true;
+}
+
+static struct bpf_link *uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe,
+                                      size_t addr) {
+  DEBUG("Attach uprobe to %s:%zx with pid = %d\n", exe, addr, pid);
+
+  // Attach uprobe
+  struct bpf_link *link = bpf_program__attach_uprobe(skel->progs.uprobe, false, pid, exe, addr);
+  return link;
+}
+
+static struct bpf_link *uretprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe,
+                                         size_t addr) {
+  DEBUG("Attach uretprobe to %s:%zx with pid = %d\n", exe, addr, pid);
+
+  // Attach uretprobe
+  struct bpf_link *link = bpf_program__attach_uprobe(skel->progs.uretprobe, true, pid, exe, addr);
+  return link;
+}
+
+static const char *default_skipped_func[] = {
     "c_start", "_start", "__libc_csu_init", "__libc_csu_fini", "_dl_relocate_static_pie",
 };
 
-static bool skip_func(const char *func) {
-  for (size_t i = 0, len = sizeof(skipped_functions) / sizeof(skipped_functions[0]); i < len; i++) {
-    if (!strcmp(func, skipped_functions[i])) {
-      return true;
-    }
-  }
+static bool skip_symbol(const struct symbol *symbol) {
+  // skip libcalls don't match lib_pattern
+  if (env.libname && symbol->libname && !glob_match(symbol->libname, env.lib_pattern)) return true;
+  // skip functions don't match func_pattern
+  if (env.func_pattern && !glob_match(symbol->name, env.func_pattern)) return true;
+  // skip functions match no_func_pattern
+  if (env.no_func_pattern && glob_match(symbol->name, env.no_func_pattern)) return true;
+  // skip some useless functions
+  for (size_t i = 0; i < ARRAY_SIZE(default_skipped_func); i++)
+    if (!strcmp(symbol->name, default_skipped_func[i])) return true;
   return false;
 }
 
-struct bpf_link *uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t addr) {
-  DEBUG("Attach uprobe to %s:%zx with pid = %d\n", exe, addr, pid);
+struct vmem_table *vmem_table;
+struct thread_local *thread_local;
+static int bpf_probe_attach(struct utrace_bpf *skel, struct vector *bpf_links, pid_t pid) {
+  int probe_cnt = 0;
+  struct bpf_link *link;
 
-  /* Attach tracepoint handler */
-  struct bpf_link *link =
-      bpf_program__attach_uprobe(skel->progs.uprobe, false /* not uretprobe */, pid, exe, addr);
-  assert(link);
-
-  return link;
+  vmem_table = vmem_table_init(pid);
+  for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
+    const struct vmem *vmem = vmem_table_get(vmem_table, i);
+    if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;  // duplicate
+    const char *module_name = module_get_name(vmem->module);
+    const char *base_module_name = base_name(module_name);
+    // only trace libraries matching env.nest_lib_pattern
+    if (env.nest_lib_pattern && is_library(base_module_name) &&
+        !glob_match(base_module_name, env.nest_lib_pattern))
+      continue;
+    vmem->module->symbol_table = symbol_table_init(module_name);
+    if (!vmem->module->symbol_table) continue;
+    for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
+      const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
+      if (!skip_symbol(sym)) {
+        link = uprobe_attach(skel, pid, module_name, sym->addr);
+        ++probe_cnt;
+        vector_push_back(bpf_links, &link);
+        link = uretprobe_attach(skel, pid, module_name, sym->addr);
+        vector_push_back(bpf_links, &link);
+        ++probe_cnt;
+      }
+    }
+  }
+  return probe_cnt;
 }
-
-struct bpf_link *uretprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe,
-                                  size_t addr) {
-  DEBUG("Attach uretprobe to %s:%zx with pid = %d\n", exe, addr, pid);
-
-  /* Attach tracepoint handler */
-  struct bpf_link *link =
-      bpf_program__attach_uprobe(skel->progs.uretprobe, true /* not uretprobe */, pid, exe, addr);
-  assert(link);
-
-  return link;
-}
-
-static volatile bool exiting = false;
-
-static void sig_handler(int sig) { exiting = true; }
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
+  (void)ctx;
+  (void)data_sz;
+
   struct profile_record *r = data;
 
   unsigned int index = thread_local_get_index(thread_local, r->tid);
@@ -211,13 +274,13 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       struct profile_record *prer = thread_local_get_record(thread_local, index);
       log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL, env.tid ? &(prer->tid) : NULL,
                      env.timestamp ? &(prer->timestamp) : NULL, r->duration_ns, prer->ustack_sz,
-                     prer->name, r->ret, state, env.flat);
+                     prer->name, prer->libname, r->ret, state, env.flat, env.libname);
       thread_local_pop_record(thread_local, index);
     } else if (state == STATE_EXIT) {
       struct profile_record *prer = thread_local_get_record(thread_local, index);
       log_trace_data(env.output, env.cpuid ? &(r->cpu_id) : NULL, env.tid ? &(r->tid) : NULL,
                      env.timestamp ? &(r->timestamp) : NULL, r->duration_ns, r->ustack_sz,
-                     prer->name, r->ret, state, env.flat);
+                     prer->name, prer->libname, r->ret, state, env.flat, env.libname);
       thread_local_pop_record(thread_local, index);
     }
     thread_local_set_state(thread_local, index, STATE_EXIT);
@@ -226,13 +289,14 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       struct profile_record *prer = thread_local_get_record(thread_local, index);
       log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL, env.tid ? &(prer->tid) : NULL,
                      env.timestamp ? &(prer->timestamp) : NULL, 0, prer->ustack_sz, prer->name,
-                     r->ret, state, env.flat);
+                     prer->libname, r->ret, state, env.flat, env.libname);
     }
 
     const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack[0]);
     if (sym) {
       struct profile_record prer = *r;
       prer.name = sym->name;
+      prer.libname = sym->libname;
       thread_local_push_record(thread_local, index, prer);
       thread_local_set_state(thread_local, index, STATE_EXEC);
     } else {
@@ -243,133 +307,130 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 }
 
 int main(int argc, char **argv) {
+  struct utrace_bpf *skel = NULL;
   struct ring_buffer *records = NULL;
-  struct utrace_bpf *skel;
+  struct vector *bpf_links = NULL;  // Store all bpf links
+
   struct rlimit old_rlim;
-  struct bpf_link *link;
-  struct vector *bpf_links;
-  pid_t pid;
   const char *program;
+  pid_t pid;
   int err;
 
-  // Output to stderr by default
-  env.output = stderr;
+  env.func_pattern = "*";     // Trace all functions by default
+  env.lib_pattern = "*";      // Trace all libcalls by default
+  env.nest_lib_pattern = "";  // Don't trace libraries by default
+  env.no_func_pattern = "";
+  env.output = stderr;  // Output to stderr by default
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
-  if (err || (env.argv == NULL && !env.pid)) {
+  if (!env.argv[0] && !env.pid) {
+    exit(1);
+  } else if (err) {
     return err;
   }
 
+  // Ensure root permission
   if (geteuid() != 0) {
     ERROR("Failed to run %s: permission denied\n", argv[0]);
     return 1;
   }
 
+  // Register handlers for Ctrl-C
   signal(SIGINT, sig_handler);
   signal(SIGTERM, sig_handler);
 
   libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-  /* Set up libbpf errors and debug info callback */
+  // Set up libbpf errors and debug info callback
   libbpf_set_print(libbpf_print_fn);
 
-  /* Load and verify BPF program */
+  // Load and verify BPF program
   skel = utrace_bpf__open_and_load();
   if (!skel) {
     ERROR("Failed to open and load bpf program\n");
     goto cleanup;
   }
 
-  /* Set up ring buffer polling */
+  // Set up ring buffer polling
   records = ring_buffer__new(bpf_map__fd(skel->maps.records), handle_event, NULL, NULL);
   if (!records) {
-    err = -1;
+    err = 1;
     ERROR("Failed to create ring buffer\n");
     goto cleanup;
   }
 
+  // Save the old rlimit
   if (getrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
-    ERROR("getrlimit error");
+    perror("getrlimit");
     exit(1);
   }
   struct rlimit rlim = {
       .rlim_cur = 1 << 20,
       .rlim_max = 1 << 20,
   };
+  // Maximize the number of file descriptors
   if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) {
-    ERROR("setrlimit error");
+    perror("setrlimit");
     exit(1);
   }
 
   bpf_links = vector_init(sizeof(struct bpf_link *));
-
+  // Store local states for each thread
   thread_local = thread_local_init();
+
+  // Set pid and/or program
   if (env.pid) {
     pid = env.pid;
     vmem_table = vmem_table_init(pid);
     program = vmem_table_get_prog_name(vmem_table);
   } else {
-    program = env.argv[0];
-    if (access(program, F_OK) != 0) {
-      char *path_env = getenv("PATH");
-      if (path_env != NULL) {
-        char *path_token = strtok(path_env, ":");
-        while (path_token != NULL) {
-          char full_path[256];
-          snprintf(full_path, sizeof(full_path), "%s/%s", path_token, program);
-          if (access(full_path, F_OK) == 0) {
-            program = strdup(full_path);
-          }
-          path_token = strtok(NULL, ":");
-        }
-      }
-    }
+    program = resolve_full_path(env.argv[0]);
+  }
+  if (!program) {
+    ERROR("Cannot find the traced program");
+    goto cleanup;
   }
 
   if (env.pid) {
-    vmem_table = vmem_table_init(pid);
-    for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
-      const struct vmem *vmem = vmem_table_get(vmem_table, i);
-      if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;
-      vmem->module->symbol_table = symbol_table_init(module_get_name(vmem->module));
-      if (!vmem->module->symbol_table) continue;
-      for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
-        const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
-        if (strstr(module_get_name(vmem->module), program))
-          if (!skip_func(sym->name)) {
-            link = uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
-            vector_push_back(bpf_links, &link);
-            link = uretprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
-            vector_push_back(bpf_links, &link);
-          }
-      }
-    }
+    int cnt = bpf_probe_attach(skel, bpf_links, pid);
+    DEBUG("Attached total %d uprobes\n", cnt);
 
-    /* Attach tracepoints */
-    assert(utrace_bpf__attach(skel) == 0);
+    if (utrace_bpf__attach(skel) != 0) {
+      ERROR("Failed to attach BPF skeleton\n");
+      goto cleanup;
+    }
   } else {
-    struct elf_head elf;
-    elf_head_begin(&elf, program);
-    size_t break_addr = get_entry_address(&elf);
-    if (break_addr >= BASE_ADDR) break_addr -= BASE_ADDR;
-    elf_head_end(&elf);
+    size_t break_addr = get_entry_address(program);
     if (!break_addr) {
+      ERROR("Can not find entry address for breaking");
       exit(1);
     }
 
     pid = fork();
     if (pid < 0) {
-      ERROR("Fork error\n");
-      goto cleanup;
+      perror("fork");
+      exit(1);
     } else if (pid == 0) {
-      if (env.noaslr) personality(ADDR_NO_RANDOMIZE);
+      if (env.no_aslr) personality(ADDR_NO_RANDOMIZE);
       ptrace(PTRACE_TRACEME, 0, 0, 0);
+      if (env.user) {
+        struct passwd *user_info = getpwnam(env.user);
+        if (!user_info) {
+          ERROR("Invalid username: %s\n", env.user);
+          exit(1);
+        }
+        if (setuid(user_info->pw_uid)) {
+          perror("setuid");
+          exit(1);
+        }
+      }
       execv(program, env.argv);
-      ERROR("Execv %s error\n", program);
+      perror("execv");
       exit(1);
     } else {
       struct gdb *gdb = gdb_init(pid);
       gdb_wait_for_signal(gdb);
 
       vmem_table = vmem_table_init(pid);
+      if (break_addr >= BASE_ADDR) break_addr -= BASE_ADDR;
       break_addr += vmem_table_get_prog_st_addr(vmem_table);
       DEBUG("Break address: %zx\n", break_addr);
 
@@ -377,29 +438,13 @@ int main(int argc, char **argv) {
       gdb_continue_execution(gdb);
       gdb_wait_for_signal(gdb);
 
-      int cnt = 0;
-      vmem_table = vmem_table_init(pid);
-      for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
-        const struct vmem *vmem = vmem_table_get(vmem_table, i);
-        if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;
-        vmem->module->symbol_table = symbol_table_init(module_get_name(vmem->module));
-        if (!vmem->module->symbol_table) continue;
-        for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
-          const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
-          if (strstr(module_get_name(vmem->module), program))
-            if (!skip_func(sym->name)) {
-              cnt += 2;
-              link = uprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
-              vector_push_back(bpf_links, &link);
-              link = uretprobe_attach(skel, pid, module_get_name(vmem->module), sym->addr);
-              vector_push_back(bpf_links, &link);
-            }
-        }
-      }
+      int cnt = bpf_probe_attach(skel, bpf_links, pid);
       DEBUG("Attached total %d uprobes\n", cnt);
 
-      /* Attach tracepoints */
-      assert(utrace_bpf__attach(skel) == 0);
+      if (utrace_bpf__attach(skel) != 0) {
+        ERROR("Failed to attach BPF skeleton\n");
+        goto cleanup;
+      }
 
       gdb_disable_breakpoint(gdb, break_addr);
       gdb_free(gdb);
@@ -408,14 +453,12 @@ int main(int argc, char **argv) {
 
   LOG(stderr, "Tracing...\n");
   log_footer(stderr, env.cpuid, env.tid, env.timestamp);
+  if (!env.flat) log_header(env.output, env.cpuid, env.tid, env.timestamp);
 
-  if (!env.flat) {
-    log_header(env.output, env.cpuid, env.tid, env.timestamp);
-  }
-  /* Process events */
+  // Process events
   while (!exiting) {
     err = ring_buffer__poll(records, 100 /* timeout, ms */);
-    /* Ctrl-C will cause -EINTR */
+    // Ctrl-C will cause -EINTR
     if (err == -EINTR) {
       err = 0;
       break;
@@ -439,17 +482,17 @@ int main(int argc, char **argv) {
       }
     }
   }
+
   log_footer(stderr, env.cpuid, env.tid, env.timestamp);
 
 cleanup:
-  /* Clean up */
+  // Clean up
   ring_buffer__free(records);
 
   LOG(stderr, "Detaching...\n");
   for (size_t i = 0; i < vector_size(bpf_links); i++) {
     bpf_link__destroy(*((struct bpf_link **)vector_get(bpf_links, i)));
   }
-  DEBUG("end destroy link\n");
 
   vector_free(bpf_links);
 
@@ -459,9 +502,9 @@ cleanup:
   vmem_table_free(vmem_table);
 
   if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
-    ERROR("setrlimit error");
+    perror("setrlimit");
     exit(1);
   }
 
-  return err < 0 ? -err : 0;
+  return err ? abs(err) : 0;
 }

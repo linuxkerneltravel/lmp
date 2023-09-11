@@ -20,6 +20,7 @@
 #define UTRACE_ELF_H
 
 #include <gelf.h>
+#include <stdbool.h>
 
 /**
  * @brief 保存ELF头信息
@@ -35,7 +36,7 @@ struct elf_head {
  * @param[out] elf 待初始化的ELF头
  * @param[in] filename 文件名
  */
-int elf_head_begin(struct elf_head* elf, const char* filename);
+bool elf_head_begin(struct elf_head* elf, const char* filename);
 
 /**
  * @brief 在使用完ELF头信息后释放资源
@@ -47,7 +48,7 @@ void elf_head_end(struct elf_head* elf);
  * @brief 得到程序的入口地址
  * @param[in] elf 初始化过的ELF头
  */
-size_t get_entry_address(struct elf_head* elf);
+size_t get_entry_address(const char* filename);
 
 /**
  * @brief 保存ELF节信息，包括节指针以及节头表
@@ -73,14 +74,14 @@ void elf_section_begin(struct elf_section* elf_s, struct elf_head* elf);
  * @retval 0 当前elf_s合法
  *            1 当前elf_s不合法，即遍历结束
  */
-int elf_section_next(struct elf_section* elf_s, struct elf_head* elf);
+bool elf_section_next(struct elf_section* elf_s, struct elf_head* elf);
 
 /**
  * @brief 保存ELF符号条目
  */
 struct elf_sym_entry {
   size_t i;           /**< 当前条目序号 */
-  size_t num;         /**< 条目总数 */
+  size_t nentries;    /**< 条目总数 */
   Elf_Data* sym_data; /**< 符号数据 */
   GElf_Sym sym;       /**< 符号表项 */
   size_t str_idx;     /**< 字符串表序号 */
@@ -101,14 +102,14 @@ void elf_sym_entry_begin(struct elf_sym_entry* elf_e, struct elf_section* elf_s)
  * @retval 0 当前elf_e合法
  *         1 当前elf_e不合法，即遍历结束
  */
-int elf_sym_entry_next(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
+bool elf_sym_entry_next(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
 
 /**
  * @brief 保存ELF重定位条目
  */
 struct elf_rela_entry {
   size_t i;            /**< 当前条目序号 */
-  size_t num;          /**< 条目总数 */
+  size_t nentries;     /**< 条目总数 */
   Elf_Data* sym_data;  /**< 符号数据 */
   Elf_Data* rela_data; /**< 重定位数据 */
   GElf_Rela rela;      /**< 重定位表项 */
@@ -132,6 +133,83 @@ void elf_rela_entry_begin(struct elf_rela_entry* elf_e, struct elf_section* elf_
  * @retval 0 当前elf_e合法
  *         1 当前elf_e不合法，即遍历结束
  */
-int elf_rela_entry_next(struct elf_rela_entry* elf_e, struct elf_section* elf_s);
+bool elf_rela_entry_next(struct elf_rela_entry* elf_e, struct elf_section* elf_s);
+
+struct elf_versym_entry {
+  size_t i;              /**< 当前条目序号 */
+  size_t num;            /**< 条目总数 */
+  Elf_Data* versym_data; /**< 符号数据 */
+  GElf_Versym versym;    /**< 符号表项 */
+};
+
+/**
+ * @brief 开始遍历ELF节（.rela）中的各个条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节
+ * @param[in] dyn_sym_data 动态符号数据
+ */
+void elf_versym_entry_begin(struct elf_versym_entry* elf_e, struct elf_section* elf_s);
+
+/**
+ * @brief 移动到下一个ELF条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节信息
+ * @return 指示是否遍历结束
+ * @retval 0 当前elf_e合法
+ *         1 当前elf_e不合法，即遍历结束
+ */
+bool elf_versym_entry_next(struct elf_versym_entry* elf_e, struct elf_section* elf_s);
+
+struct elf_verdef_entry {
+  size_t offset; /**< 当前条目序号 */
+  size_t i;
+  Elf_Data* verdef_data; /**< 符号数据 */
+  GElf_Verdef verdef;    /**< 符号表项 */
+  size_t str_idx;        /**< 字符串表序号 */
+};
+
+/**
+ * @brief 开始遍历ELF节（.rela）中的各个条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节
+ * @param[in] dyn_sym_data 动态符号数据
+ */
+void elf_verdef_entry_begin(struct elf_verdef_entry* elf_e, struct elf_section* elf_s);
+
+/**
+ * @brief 移动到下一个ELF条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节信息
+ * @return 指示是否遍历结束
+ * @retval 0 当前elf_e合法
+ *         1 当前elf_e不合法，即遍历结束
+ */
+bool elf_verdef_entry_next(struct elf_verdef_entry* elf_e, struct elf_section* elf_s);
+
+struct elf_verneed_entry {
+  size_t offset; /**< 当前条目序号 */
+  size_t i;
+  Elf_Data* verneed_data; /**< 符号数据 */
+  GElf_Verneed verneed;   /**< 符号表项 */
+  size_t str_idx;         /**< 字符串表序号 */
+};
+
+/**
+ * @brief 开始遍历ELF节（.rela）中的各个条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节
+ * @param[in] dyn_sym_data 动态符号数据
+ */
+void elf_verneed_entry_begin(struct elf_verneed_entry* elf_e, struct elf_section* elf_s);
+
+/**
+ * @brief 移动到下一个ELF条目
+ * @param[out] elf_e 指向一个条目
+ * @param[in] elf_s 被遍历的ELF节信息
+ * @return 指示是否遍历结束
+ * @retval 0 当前elf_e合法
+ *         1 当前elf_e不合法，即遍历结束
+ */
+bool elf_verneed_entry_next(struct elf_verneed_entry* elf_e, struct elf_section* elf_s);
 
 #endif  // UTRACE_ELF_H

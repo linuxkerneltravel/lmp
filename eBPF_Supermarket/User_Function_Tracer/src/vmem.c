@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "log.h"
+#include "util.h"
 
 #define VMEM_MAX_LEN 256
 

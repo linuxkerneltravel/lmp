@@ -41,7 +41,7 @@ struct {
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
-  __uint(max_entries, 256 * 4096);
+  __uint(max_entries, 2048 * 4096);
 } records SEC(".maps");
 
 SEC("uprobe/trace")

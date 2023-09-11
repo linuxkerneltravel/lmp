@@ -76,15 +76,16 @@ void log_timestamp(FILE* file, unsigned long long timestamp);
  * @param[in] ns 时间（单位纳秒）
  * @details 从[ns,us,ms,s,m,h]中选择合适的单位输出时间信息
  */
-void log_duration(FILE* file, unsigned long long ns, int blank);
+void log_duration(FILE* file, unsigned long long ns, bool need_blank, bool need_color,
+                  bool need_sign);
 
 void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
                     unsigned long long* timestamp, unsigned long long duration,
-                    unsigned int stack_sz, const char* function_name, int exit,
-                    enum FUNCSTATE state, int flat);
+                    unsigned int stack_sz, const char* function_name, const char* libname, bool ret,
+                    enum FUNCSTATE state, bool flat, bool lib);
 
 /** 控制是否显示调试信息，在utrace.c中定义 */
-extern int debug;
+extern bool debug;
 
 /**
  * @brief 输出调试信息
@@ -118,7 +119,9 @@ extern int debug;
 
 #define TERM_RED "\033[0;31m"
 #define TERM_GREEN "\033[0;32m"
+#define TERM_YELLOW "\033[0;33m"
+#define TERM_MAGENTA "\033[0;35m"
 #define TERM_GRAY "\033[0;90m"
-#define TERM_NC "\033[0m"
+#define TERM_RESET "\033[0m"
 
 #endif  // UTRACE_LOG_H

@@ -22,7 +22,7 @@
 #include <string.h>
 #include <unistd.h>
 
-int debug;
+bool debug;
 
 void log_color(FILE* file, const char* color) {
   char* term = getenv("TERM");
@@ -81,11 +81,12 @@ void log_timestamp(FILE* file, unsigned long long timestamp) { LOG(file, "%llu",
 
 void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
                     unsigned long long* timestamp, unsigned long long duration,
-                    unsigned int stack_sz, const char* function_name, int exit,
-                    enum FUNCSTATE state, int flat) {
+                    unsigned int stack_sz, const char* function_name, const char* libname, bool ret,
+                    enum FUNCSTATE state, bool flat, bool lib) {
   const int INDENT = 2;
+
   if (flat) {
-    if (exit) {
+    if (ret) {
       if (state == STATE_EXIT) {
         LOG(file, "← [%u] ", stack_sz);
       } else if (state == STATE_EXEC) {
@@ -101,8 +102,16 @@ void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
       if (timestamp) {
         LOG(file, "(%llu) ", *timestamp);
       }
-      LOG(file, "%s [+", function_name);
-      log_duration(file, duration, 0);
+      LOG(file, "%s", function_name);
+      if (lib && libname) {
+        log_char(file, '@', 1);
+        for (int i = 0, len = strlen(libname); i < len; i++) {
+          if (i + 2 < len && !strncmp(libname + i, ".so", 3)) break;
+          log_char(file, libname[i], 1);
+        }
+      }
+      LOG(file, " [");
+      log_duration(file, duration, false, false, true);
       LOG(file, "]\n");
     } else {
       LOG(file, "→ [%u] ", stack_sz);
@@ -116,7 +125,11 @@ void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
       if (timestamp) {
         LOG(file, "(%llu) ", *timestamp);
       }
-      LOG(file, "%s\n", function_name);
+      LOG(file, "%s", function_name);
+      if (lib && libname) {
+        LOG(file, "@%s", libname);
+      }
+      LOG(file, "\n");
     }
   } else {
     if (cpuid) {
@@ -131,47 +144,79 @@ void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
       log_timestamp(file, *timestamp);
       log_split(file);
     }
-    if (exit) {
-      log_duration(file, duration, 1);
+    if (ret) {
+      log_duration(file, duration, true, true, false);
       log_split(file);
       log_char(file, ' ', stack_sz * INDENT);
       if (state == STATE_EXIT) {
         LOG(file, "} ");
         log_color(file, TERM_GRAY);
-        LOG(file, "/* %s */\n", function_name);
-        log_color(file, TERM_NC);
+        LOG(file, "/* ");
+        LOG(file, "%s", function_name);
+        if (lib && libname) {
+          LOG(file, "@%s", libname);
+        }
+        LOG(file, " */\n");
+        log_color(file, TERM_RESET);
       } else if (state == STATE_EXEC) {
-        LOG(file, "%s();\n", function_name);
+        LOG(file, "%s", function_name);
+        if (lib && libname) {
+          LOG(file, "@%s", libname);
+        }
+        LOG(file, "();\n");
       }
     } else {
       log_char(file, ' ', 11);
       log_split(file);
       log_char(file, ' ', stack_sz * INDENT);
-      LOG(file, "%s() {\n", function_name);
+      LOG(file, "%s", function_name);
+      if (lib && libname) {
+        LOG(file, "@%s", libname);
+      }
+      LOG(file, "() {\n");
     }
   }
 }
 
-void log_duration(FILE* file, unsigned long long ns, int blank) {
+void log_duration(FILE* file, unsigned long long ns, bool need_blank, bool need_color,
+                  bool need_sign) {
   static char* units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
-  static unsigned long long limit[] = {
+  static char* colors[] = {
+      "", "", TERM_GREEN, TERM_YELLOW, TERM_MAGENTA, TERM_RED,
+  };
+  static char signs[] = {
+      ' ', ' ', '+', '#', '!', '*',
+  };
+  static unsigned long long limits[] = {
       1000, 1000, 1000, 1000, 60, 24, 0,
   };
 
-  unsigned long long t = ns, t_mod = 0;
-  int i = 0;
+  unsigned long long t = ns, t_mod = ns;
+  unsigned long i = 0;
   while (i < sizeof(units) / sizeof(units[0]) - 1) {
-    if (t < limit[i]) break;
-    t_mod = t % limit[i];
-    t = t / limit[i];
+    if (t < limits[i]) break;
+    t_mod = t % limits[i];
+    t = t / limits[i];
     ++i;
   }
 
-  if (blank) {
-    LOG(file, "%4llu.%03llu %s", t, t_mod, units[i]);
+  if (need_sign) {
+    if (signs[i] != ' ') {
+      log_char(file, signs[i], 1);
+    }
+  }
+  if (need_blank) {
+    LOG(file, "%4llu.%03llu ", t, t_mod);
   } else {
-    LOG(file, "%llu.%03llu %s", t, t_mod, units[i]);
+    LOG(file, "%llu.%03llu ", t, t_mod);
+  }
+  if (need_color) {
+    log_color(file, colors[i]);
+  }
+  LOG(file, "%s", units[i]);
+  if (need_color) {
+    log_color(file, TERM_RESET);
   }
 }
