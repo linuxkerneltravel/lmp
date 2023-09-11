@@ -22,6 +22,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "util.h"
+
 bool debug;
 
 void log_color(FILE* file, const char* color) {
@@ -195,7 +197,7 @@ void log_duration(FILE* file, unsigned long long ns, bool need_blank, bool need_
 
   unsigned long long t = ns, t_mod = ns;
   unsigned long i = 0;
-  while (i < sizeof(units) / sizeof(units[0]) - 1) {
+  while (i < ARRAY_SIZE(units) - 1) {
     if (t < limits[i]) break;
     t_mod = t % limits[i];
     t = t / limits[i];

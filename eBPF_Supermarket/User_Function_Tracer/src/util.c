@@ -1,5 +1,6 @@
 #include "util.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,4 +41,33 @@ bool is_library(const char* file) {
   size_t len = strlen(file);
   if (len < 3) return false;
   return !strcmp(file + len - 3, ".so");
+}
+
+unsigned long long strduration2ns(const char* duration) {
+  static char* units[] = {
+      "ns", "us", "ms", "s", "m", "h",
+  };
+  static unsigned long long limits[] = {
+      1000, 1000, 1000, 1000, 60, 24, 0,
+  };
+
+  unsigned long long d = 0, t = 1;
+
+  const char* unit = duration;
+  while (*unit != '\0' && !isalpha(*unit)) {
+    if (isdigit(*unit))
+      d = d * 10 + (unsigned long long)(*unit - '0');
+    else
+      return 0;
+    ++unit;
+  }
+  if (*unit == '\0') return 0;
+
+  for (unsigned long i = 0; i < ARRAY_SIZE(units); i++) {
+    if (!strcmp(unit, units[i])) {
+      return d * t;
+    }
+    t *= limits[i];
+  }
+  return 0;
 }

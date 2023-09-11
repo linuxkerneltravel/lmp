@@ -43,10 +43,12 @@ enum ARGP_SHORTOPT {
   OPT_FLAT,
   OPT_LIB,
   OPT_LIBNAME,
+  OPT_MAX_DEPTH,
   OPT_NEST_LIB,
   OPT_NO_ASLR,
   OPT_NO_FUNCTION,
   OPT_TID,
+  OPT_TIME_FILTER,
   OPT_TIMESTAMP,
 };
 
@@ -71,6 +73,8 @@ static const struct argp_option opts[] = {
     {"lib", 'l', "LIB_PATTERN", 0,
      "Only trace libcalls to libraries matching LIB_PATTERN (in glob format, default \"*\")", 0},
     {"libname", OPT_LIBNAME, NULL, 0, "Append libname to symbol name", 0},
+    {"max-depth", OPT_MAX_DEPTH, "DEPTH", 0, "Hide functions with stack depths greater than DEPTH",
+     0},
     {"nest-lib", OPT_NEST_LIB, "NEST_LIB_PATTERN", 0,
      "Also trace functions in libraries matching LIB_PATTERN (default \"\")", 0},
     {"no-function", OPT_NO_FUNCTION, "FUNC_PATTERN", 0,
@@ -80,26 +84,29 @@ static const struct argp_option opts[] = {
     {"output", 'o', "OUTPUT_FILE", 0, "Send trace output to OUTPUT_FILE instead of stderr", 0},
     {"pid", 'p', "PID", 0, "PID of the traced program", 0},
     {"tid", OPT_TID, NULL, 0, "Display thread ID", 0},
+    {"time-filter", OPT_TIME_FILTER, "TIME", 0, "Hide functions when they run less than TIME", 0},
     {"timestamp", OPT_TIMESTAMP, NULL, 0, "Display timestamp", 0},
     {"user", 'u', "USERNAME", 0, "Run the specified command as USERNAME", 0},
     {}};
 
 extern bool debug;  // -d/--debug
 static struct env {
-  char *argv[12];                // -c/-commond
-  bool cpuid;                    // --cpuid
-  bool flat;                     // --flat
-  const char *func_pattern;      // -f/--function
-  const char *lib_pattern;       // -l/--lib
-  bool libname;                  // --libname
-  const char *nest_lib_pattern;  // --nest-lib
-  const char *no_func_pattern;   // no-function
-  bool no_aslr;                  // --no-randomize-addr
-  FILE *output;                  // -o/--output
-  pid_t pid;                     // -p/--pid
-  bool tid;                      // --tid
-  bool timestamp;                // --timestamp
-  char *user;                    // -u/--user
+  char *argv[12];                   // -c/-commond
+  bool cpuid;                       // --cpuid
+  bool flat;                        // --flat
+  const char *func_pattern;         // -f/--function
+  const char *lib_pattern;          // -l/--lib
+  bool libname;                     // --libname
+  int max_depth;                    // --max-depth
+  const char *nest_lib_pattern;     // --nest-lib
+  const char *no_func_pattern;      // no-function
+  bool no_aslr;                     // --no-randomize-addr
+  FILE *output;                     // -o/--output
+  pid_t pid;                        // -p/--pid
+  bool tid;                         // --tid
+  bool timestamp;                   // --timestamp
+  unsigned long long min_duration;  // --time-filter
+  char *user;                       // -u/--user
 } env;
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -135,6 +142,13 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case OPT_LIBNAME:  // --libname
       env.libname = true;
       break;
+    case OPT_MAX_DEPTH:  // --max-depth
+      env.max_depth = atoi(arg);
+      if (env.max_depth <= 0) {
+        ERROR("The parameter for --max-depth should be greater than 0");
+        exit(1);
+      }
+      break;
     case OPT_NEST_LIB:  // --nest-lib
       env.nest_lib_pattern = arg;
       break;
@@ -153,13 +167,16 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
       break;
     case 'p':  // -p/--pid
       env.pid = atoi(arg);
-      if (env.pid < 0) {
-        perror("atoi");
+      if (env.pid <= 0) {
+        ERROR("The parameter for -p/--pid should be greater than 0");
         exit(1);
       }
       break;
     case OPT_TID:  // --tid
       env.tid = true;
+      break;
+    case OPT_TIME_FILTER:  // -time-filter
+      env.min_duration = strduration2ns(arg);
       break;
     case OPT_TIMESTAMP:  // --timestamp
       env.timestamp = true;
@@ -271,25 +288,54 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 
   if (r->ret) {
     if (state == STATE_EXEC) {
-      struct profile_record *prer = thread_local_get_record(thread_local, index);
-      log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL, env.tid ? &(prer->tid) : NULL,
-                     env.timestamp ? &(prer->timestamp) : NULL, r->duration_ns, prer->ustack_sz,
-                     prer->name, prer->libname, r->ret, state, env.flat, env.libname);
-      thread_local_pop_record(thread_local, index);
+      struct profile_record *prer = thread_local_get_record_back(thread_local, index);
+      if (env.min_duration) {
+        while (prer->ustack_sz != r->ustack_sz) {
+          if (!thread_local_record_size(thread_local, index)) {
+            prer = NULL;
+            break;
+          } else {
+            thread_local_pop_record(thread_local, index);
+            prer = thread_local_get_record_back(thread_local, index);
+          }
+        }
+        for (size_t i = 0; i + 1 < thread_local_record_size(thread_local, index); i++) {
+          struct profile_record *prer = thread_local_get_record(thread_local, index, i);
+          if (prer->tid) {
+            log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL,
+                           env.tid ? &(prer->tid) : NULL, env.timestamp ? &(prer->timestamp) : NULL,
+                           0, prer->ustack_sz, prer->name, prer->libname, prer->ret, state,
+                           env.flat, env.libname);
+            prer->tid = 0;  // mark
+          }
+        }
+      }
+
+      if (prer) {
+        log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL,
+                       env.tid ? &(prer->tid) : NULL, env.timestamp ? &(prer->timestamp) : NULL,
+                       r->duration_ns, prer->ustack_sz, prer->name, prer->libname, r->ret,
+                       prer->tid ? state : STATE_EXIT, env.flat, env.libname);
+        thread_local_pop_record(thread_local, index);
+        thread_local_set_state(thread_local, index, STATE_EXIT);
+      }
     } else if (state == STATE_EXIT) {
-      struct profile_record *prer = thread_local_get_record(thread_local, index);
+      struct profile_record *prer = thread_local_get_record_back(thread_local, index);
       log_trace_data(env.output, env.cpuid ? &(r->cpu_id) : NULL, env.tid ? &(r->tid) : NULL,
                      env.timestamp ? &(r->timestamp) : NULL, r->duration_ns, r->ustack_sz,
                      prer->name, prer->libname, r->ret, state, env.flat, env.libname);
       thread_local_pop_record(thread_local, index);
+      thread_local_set_state(thread_local, index, STATE_EXIT);
     }
-    thread_local_set_state(thread_local, index, STATE_EXIT);
   } else {
     if (state == STATE_EXEC) {
-      struct profile_record *prer = thread_local_get_record(thread_local, index);
-      log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL, env.tid ? &(prer->tid) : NULL,
-                     env.timestamp ? &(prer->timestamp) : NULL, 0, prer->ustack_sz, prer->name,
-                     prer->libname, r->ret, state, env.flat, env.libname);
+      if (!env.min_duration) {
+        struct profile_record *prer = thread_local_get_record_back(thread_local, index);
+        log_trace_data(env.output, env.cpuid ? &(prer->cpu_id) : NULL,
+                       env.tid ? &(prer->tid) : NULL, env.timestamp ? &(prer->timestamp) : NULL, 0,
+                       prer->ustack_sz, prer->name, prer->libname, r->ret, state, env.flat,
+                       env.libname);
+      }
     }
 
     const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack[0]);
@@ -297,7 +343,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       struct profile_record prer = *r;
       prer.name = sym->name;
       prer.libname = sym->libname;
-      thread_local_push_record(thread_local, index, prer);
+      if (thread_local_record_size(thread_local, index) &&
+          thread_local_get_record_back(thread_local, index)->ustack_sz + 1 != prer.ustack_sz)
+        thread_local_pop_record(thread_local, index);
+      thread_local_push_record(thread_local, index, &prer);
       thread_local_set_state(thread_local, index, STATE_EXEC);
     } else {
       // ignore
@@ -319,6 +368,7 @@ int main(int argc, char **argv) {
   env.func_pattern = "*";     // Trace all functions by default
   env.lib_pattern = "*";      // Trace all libcalls by default
   env.nest_lib_pattern = "";  // Don't trace libraries by default
+  env.max_depth = MAX_STACK_SIZE;
   env.no_func_pattern = "";
   env.output = stderr;  // Output to stderr by default
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
@@ -343,9 +393,18 @@ int main(int argc, char **argv) {
   libbpf_set_print(libbpf_print_fn);
 
   // Load and verify BPF program
-  skel = utrace_bpf__open_and_load();
+  skel = utrace_bpf__open();
   if (!skel) {
-    ERROR("Failed to open and load bpf program\n");
+    fprintf(stderr, "Failed to open and load BPF skeleton\n");
+    return 1;
+  }
+
+  skel->rodata->max_depth = env.max_depth;
+  skel->rodata->min_duration = env.min_duration;
+
+  err = utrace_bpf__load(skel);
+  if (err) {
+    fprintf(stderr, "Failed to load and verify BPF skeleton\n");
     goto cleanup;
   }
 

@@ -41,12 +41,17 @@ void thread_local_set_state(struct thread_local* thread_local, unsigned int inde
                             enum FUNCSTATE state);
 
 struct profile_record* thread_local_get_record(struct thread_local* thread_local,
-                                               unsigned int index);
+                                               unsigned int index, unsigned int i);
+
+struct profile_record* thread_local_get_record_back(struct thread_local* thread_local,
+                                                    unsigned int index);
 
 void thread_local_push_record(struct thread_local* thread_local, unsigned int index,
-                              struct profile_record record);
+                              struct profile_record* record);
 
 void thread_local_pop_record(struct thread_local* thread_local, unsigned int index);
+
+size_t thread_local_record_size(struct thread_local* thread_local, unsigned int index);
 
 void thread_local_free(struct thread_local* thread_local);
 

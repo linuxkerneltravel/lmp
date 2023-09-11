@@ -56,17 +56,26 @@ void thread_local_set_state(struct thread_local* thread_local, unsigned int inde
 }
 
 struct profile_record* thread_local_get_record(struct thread_local* thread_local,
-                                               unsigned int index) {
+                                               unsigned int index, unsigned int i) {
+  return (struct profile_record*)(vector_get(thread_local->records[index], i));
+}
+
+struct profile_record* thread_local_get_record_back(struct thread_local* thread_local,
+                                                    unsigned int index) {
   return (struct profile_record*)(vector_back(thread_local->records[index]));
 }
 
 void thread_local_push_record(struct thread_local* thread_local, unsigned int index,
-                              struct profile_record record) {
-  vector_push_back(thread_local->records[index], &record);
+                              struct profile_record* record) {
+  vector_push_back(thread_local->records[index], record);
 }
 
 void thread_local_pop_record(struct thread_local* thread_local, unsigned int index) {
   vector_pop_back(thread_local->records[index]);
+}
+
+size_t thread_local_record_size(struct thread_local* thread_local, unsigned int index) {
+  return vector_size(thread_local->records[index]);
 }
 
 void thread_local_free(struct thread_local* thread_local) {

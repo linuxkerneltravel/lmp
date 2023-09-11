@@ -23,4 +23,6 @@ const char* base_name(const char* file);
 
 bool is_library(const char* file);
 
+unsigned long long strduration2ns(const char* duration);
+
 #endif  // UTRACE_UTIL_H
