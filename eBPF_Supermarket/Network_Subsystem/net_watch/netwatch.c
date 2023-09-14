@@ -242,7 +242,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         } else {
             printf("%-22p %-10u %-10u %-10s %-10s %-10s %-5d %s\n",
                    pack_info->sock, pack_info->seq, pack_info->ack, "-", "-",
-                   "-", pack_info->rx, "-");
+                   "-", pack_info->rx, http_data);
             fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
                     "mac_time=\"-\",ip_time=\"-\",tcp_time=\"-\",http_"
