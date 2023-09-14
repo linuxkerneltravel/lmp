@@ -44,6 +44,7 @@ func getDefaultKubeConfigFile() string {
 		os.Getenv("KUBECONFIG"),
 		path.Join(home, ".kube/config"),
 		"/etc/kubernetes/admin.conf",
+		"/root/.kube/config",
 		// "/home/runner/.kube/config", // for GitHib Workflow only
 	}
 

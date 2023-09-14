@@ -49,7 +49,7 @@ type SiegeResponse struct {
 func siegeService(siegePodName string, service *v1.Service) (*SiegeResponse, error) {
 	log.Println("Start Sieging")
 	// kubectl exec siege -- siege -c 5 -r 20000 http://sisyphe-sfs.default.svc.cluster.local
-	out, err := exec.Command("kubectl", "exec", siegePodName, "--", "siege", "-c", "20", "-r", "40000", "http://"+service.Spec.ClusterIPs[0]).Output()
+	out, err := exec.Command("kubectl", "exec", siegePodName, "--", "siege", "-c", "20", "-r", "20000", "http://"+service.Spec.ClusterIPs[0]).Output()
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func TestServicePerformance(t *testing.T) {
 	}
 
 	// fmt.Println(service.Spec.ClusterIP, strconv.Itoa(int(service.Spec.Ports[0].Port)))
-	programs.InsertServiceItem(service.Spec.ClusterIP, strconv.Itoa(int(service.Spec.Ports[0].Port)), len(pods.Items))
+	programs.InsertServiceItem(service.Spec.ClusterIP, strconv.Itoa(int(service.Spec.Ports[0].Port)), len(pods.Items), bpf.RandomAction)
 	for i := 0; i < len(pods.Items); i++ {
 		// fmt.Println(strconv.Itoa(int(pods.Items[i].Spec.Containers[0].Ports[0].ContainerPort)))
 		programs.AutoInsertBackend(service.Spec.ClusterIP, strconv.Itoa(int(service.Spec.Ports[0].Port)), pods.Items[i].Status.PodIP, strconv.Itoa(int(pods.Items[i].Spec.Containers[0].Ports[0].ContainerPort)), i+1, float64(1/float64(len(pods.Items))))

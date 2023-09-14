@@ -1,2 +1,2 @@
-packet{sock="0xffff9991c51ff1c0",seq="1298954574",ack="574016002",mac_time="1",ip_time="3",tcp_time="12",http_info="GET / HTTP/1.1",rx="0"} 0
-packet{sock="0xffff9991c51ff1c0",seq="574016002",ack="1298954651",mac_time="45",ip_time="9",tcp_time="870",http_info="HTTP/1.1 200 OK",rx="1"} 0
+packet{sock="0xffff9d1ecb3b9180",seq="3705894662",ack="522176002",mac_time="-",ip_time="-",tcp_time="-",http_info="GET / HTTP/1.1",rx="0"} 0
+packet{sock="0xffff9d1ecb3b9180",seq="522176002",ack="3705894739",mac_time="-",ip_time="-",tcp_time="-",http_info="HTTP/1.1 200 OK",rx="1"} 0

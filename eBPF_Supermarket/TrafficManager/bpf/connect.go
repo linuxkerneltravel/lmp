@@ -138,7 +138,7 @@ func (p *Programs) Close() {
 }
 
 // InsertServiceItem inserts a service item into service map
-func (p *Programs) InsertServiceItem(serviceIP string, servicePort string, backendNumber int) bool {
+func (p *Programs) InsertServiceItem(serviceIP string, servicePort string, backendNumber int, action Action) bool {
 	servicePortInt, err := strconv.Atoi(servicePort)
 	if err != nil {
 		fmt.Println("[ERROR] InsertServiceItem: servicePort parse failed: ", err)
@@ -146,7 +146,7 @@ func (p *Programs) InsertServiceItem(serviceIP string, servicePort string, backe
 	}
 	serviceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePortInt), u8proto.ANY, 0, 0)
 	// use index 0 to indicate service item, of course the possibility is zero, which is never be used
-	serviceValue := NewService4Value(Backend4Key{0}, uint16(backendNumber), Possibility{0})
+	serviceValue := NewService4Value(Backend4Key{0}, uint16(backendNumber), Possibility{0}, action)
 	err = p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Update(serviceKey.ToNetwork(), serviceValue.ToNetwork(), ebpf.UpdateAny)
 	if err != nil {
 		fmt.Println("[ERROR] InsertServiceItem: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Update failed: ", err)
@@ -174,7 +174,8 @@ func (p *Programs) InsertBackendItem(serviceIP string, servicePort int, backendI
 	// Use allocated backendID to point to and store backend information
 	backendKey := Backend4Key{uint32(backendID)}
 	backendServiceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePort), u8proto.ANY, 0, uint16(slotIndex))
-	backendServiceValue := NewService4Value(backendKey, 0, Possibility{possibility})
+	// We don't specify action for backendItem, but it seems that it can be expanded in the future.
+	backendServiceValue := NewService4Value(backendKey, 0, Possibility{possibility}, DefaultAction)
 	err := p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Update(backendServiceKey.ToNetwork(), backendServiceValue.ToNetwork(), ebpf.UpdateAny)
 	if err != nil {
 		fmt.Println("[ERROR] InsertBackendItem: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Update failed:", err)
@@ -204,15 +205,22 @@ func (p *Programs) DeleteBackendItem(backendID int) bool {
 }
 
 // AutoInsertService inserts an organized service item into map
-func (p *Programs) AutoInsertService(service Service, backendList []Backend) {
-	p.InsertServiceItem(service.IP, service.Port, len(backendList))
+func (p *Programs) AutoInsertService(service Service, backendList []Backend, action Action, affiliatedServiceList []Service) {
+	// We only need affiliatedServiceList if the action is RedirectAction
+	if action != RedirectAction {
+		affiliatedServiceList = nil
+	}
+	p.InsertServiceItem(service.IP, service.Port, len(backendList), action) // +len(affiliatedServiceList)
 	for i, backend := range backendList {
 		p.AutoInsertBackend(service.IP, service.Port, backend.IP, backend.Port, i+1, backend.Possibility)
+	}
+	for i, affiliatedService := range affiliatedServiceList {
+		p.AutoInsertBackend(service.IP, service.Port, affiliatedService.IP, affiliatedService.Port, len(backendList)+i+1, affiliatedService.Possibility)
 	}
 }
 
 // AutoDeleteService deletes an organized service item with backend items from map
-func (p *Programs) AutoDeleteService(service Service) bool {
+func (p *Programs) AutoDeleteService(service Service, affiliatedServiceList []Service) bool {
 	serviceIP := service.IP
 	servicePort, err := strconv.Atoi(service.Port)
 	if err != nil {
@@ -220,17 +228,17 @@ func (p *Programs) AutoDeleteService(service Service) bool {
 		return false
 	}
 	serviceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePort), u8proto.ANY, 0, 0)
-	serviceValue := NewService4Value(Backend4Key{0}, uint16(0), Possibility{0})
+	serviceValue := NewService4Value(Backend4Key{0}, uint16(0), Possibility{0}, DefaultAction)
 	err = p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup(serviceKey.ToNetwork(), serviceValue)
 	if err != nil {
 		fmt.Println("[ERROR] AutoDeleteService: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup failed:", err)
 		return false
 	}
-	fmt.Println("[DEBUG] To delete service", serviceKey.String())
+	fmt.Println("[DEBUG] To delete service:", serviceKey.String())
 	p.DeleteServiceItem(serviceIP, servicePort, 0)
 	for i := 1; i <= int(serviceValue.Count); i++ {
 		backendServiceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePort), u8proto.ANY, 0, uint16(i))
-		backendServiceValue := NewService4Value(Backend4Key{uint32(0)}, 0, Possibility{0})
+		backendServiceValue := NewService4Value(Backend4Key{uint32(0)}, 0, Possibility{0}, DefaultAction)
 		err := p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup(backendServiceKey.ToNetwork(), backendServiceValue)
 		if err != nil {
 			fmt.Println("[WARNING] AutoDeleteService: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup failed:", err)
@@ -240,14 +248,37 @@ func (p *Programs) AutoDeleteService(service Service) bool {
 		p.AutoDeleteBackend(int(backendServiceValue.BackendID.ID))
 		p.DeleteServiceItem(serviceIP, servicePort, i)
 	}
+	for i := 0; i < len(affiliatedServiceList); i++ {
+		if err != nil {
+			fmt.Println("[ERROR] AutoDeleteService: servicePort parse failed: ", err)
+			return false
+		}
+		backendServiceKey := NewService4Key(net.ParseIP(serviceIP), uint16(servicePort), u8proto.ANY, 0, uint16(int(serviceValue.Count)+i+1))
+		backendServiceValue := NewService4Value(Backend4Key{uint32(0)}, 0, Possibility{0}, DefaultAction)
+		err = p.connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup(backendServiceKey.ToNetwork(), backendServiceValue)
+		if err != nil {
+			fmt.Println("[WARNING] AutoDeleteService: connectObj.bpf_connectMaps.LB4SERVICES_MAP_V2.Lookup failed:", err)
+			break
+		}
+		fmt.Println("[DEBUG] To delete affiliatedService:", backendServiceKey.String())
+		p.DeleteServiceItem(serviceIP, servicePort, int(serviceValue.Count)+i+1)
+		p.AutoDeleteBackend(int(backendServiceValue.BackendID.ID))
+	}
 	fmt.Printf("[INFO] AutoDeleteService succeeded: serviceIP: %s servicePort: %d\n", serviceIP, servicePort)
 	return true
 }
 
-// AutoInsertBackend inserts an organized backend item into map
-func (p *Programs) AutoInsertBackend(serviceIP string, servicePortStr string, backendIP string, backendPortStr string, slotIndex int, possibility float64) bool {
+// DeclareBackendID gets an increasing backendID
+func (p *Programs) DeclareBackendID() int {
+	// TODO: concurrency protection
 	backendID := p.currentIndex
 	p.currentIndex++
+	return backendID
+}
+
+// AutoInsertBackend inserts an organized backend item into map
+func (p *Programs) AutoInsertBackend(serviceIP string, servicePortStr string, backendIP string, backendPortStr string, slotIndex int, possibility float64) (bool, int) {
+	backendID := p.DeclareBackendID()
 	servicePort, _ := strconv.Atoi(servicePortStr)
 	backendPort, _ := strconv.Atoi(backendPortStr)
 	ok := p.InsertBackendItem(serviceIP, servicePort, backendIP, backendPort, backendID, slotIndex, possibility)
@@ -255,7 +286,7 @@ func (p *Programs) AutoInsertBackend(serviceIP string, servicePortStr string, ba
 		p.backEndSet[backendID] = true
 		fmt.Printf("[INFO] AutoInsertBackend succeeded: serviceIP: %s, servicePort: %d, backendIP: %s, backendPort: %d, backendID: %d, slotIndex: %d, possibility: %.2f\n", serviceIP, servicePort, backendIP, backendPort, backendID, slotIndex, possibility)
 	}
-	return ok
+	return ok, backendID
 }
 
 // AutoDeleteBackend deletes an backend item from map
@@ -269,8 +300,9 @@ func (p *Programs) AutoDeleteBackend(backendID int) bool {
 }
 
 type Service struct {
-	IP   string
-	Port string
+	IP          string
+	Port        string
+	Possibility float64
 }
 
 type Backend struct {
@@ -287,8 +319,9 @@ func Sample() {
 	}
 
 	s := Service{
-		IP:   "1.1.1.1",
-		Port: "80", // TODO: 0 means it will not be modified
+		IP:          "1.1.1.1",
+		Port:        "80",
+		Possibility: 0.5,
 	}
 	b := []Backend{
 		{
@@ -302,7 +335,21 @@ func Sample() {
 		},
 	}
 
-	progs.AutoInsertService(s, b)
+	progs.AutoInsertService(s, b, WeightedAction, nil)
+
+	s2 := Service{
+		IP:   "1.1.1.1",
+		Port: "80",
+	}
+	b2 := []Backend{
+		{
+			IP:          "8.130.110.45",
+			Port:        "80",
+			Possibility: 0.5,
+		},
+	}
+
+	progs.AutoInsertService(s2, b2, RedirectAction, []Service{s})
 
 	// serviceIP := "1.1.1.1"
 	// servicePort := "80"
@@ -320,7 +367,7 @@ func Sample() {
 
 	time.Sleep(time.Minute)
 	fmt.Println("[INFO] Time is up...")
-	progs.AutoDeleteService(s)
+	progs.AutoDeleteService(s, nil)
 	// c := make(chan os.Signal, 1)
 	// signal.Notify(c)
 	// <-c

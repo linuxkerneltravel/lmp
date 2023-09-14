@@ -29,7 +29,7 @@ minikube start --kubernetes-version=1.26.6 --force
 
 # Install eBPF development tools
 apt update -y
-apt install -y llvm clang
+apt install -y llvm clang make gcc
 apt install -y libbfd-dev libcap-dev libelf-dev
 git clone --recurse-submodules https://github.com/libbpf/bpftool.git
 make install -C bpftool/src/
