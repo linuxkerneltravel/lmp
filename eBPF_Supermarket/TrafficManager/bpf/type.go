@@ -19,6 +19,7 @@ package bpf
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -26,7 +27,7 @@ import (
 	"github.com/cilium/cilium/pkg/u8proto"
 )
 
-const maxPossibilityUnit = 2048
+const maxPossibilityUnit = 1024
 
 type pad2uint8 [2]uint8
 
@@ -71,23 +72,38 @@ func (k *Service4Key) String() string {
 	if kHost.Scope == loadbalancer.ScopeInternal {
 		addr += "/i"
 	}
+	if k.BackendSlot != 0 {
+		addr += " slot:" + strconv.Itoa(int(k.BackendSlot))
+	}
 	return addr
+}
+
+type Action uint16
+
+const (
+	DefaultAction  Action = 0
+	RandomAction   Action = 0
+	WeightedAction Action = 1
+	RedirectAction Action = 32768
+)
+
+type ActionAttribute struct {
 }
 
 type Service4Value struct {
 	BackendID   Backend4Key `align:"backend_id"`
 	Count       uint16      `align:"count"`
 	Possibility uint16      `align:"possibility"`
-	Flags       uint8       `align:"flags"`
-	Flags2      uint8       `align:"flags2"`
+	Action      Action      `align:"action"`
 	Pad         pad2uint8   `align:"pad"`
 }
 
-func NewService4Value(backendId Backend4Key, count uint16, possibility Possibility) *Service4Value {
+func NewService4Value(backendId Backend4Key, count uint16, possibility Possibility, action Action) *Service4Value {
 	value := Service4Value{
 		BackendID:   backendId,
 		Count:       count,
 		Possibility: uint16(possibility.percentage * maxPossibilityUnit),
+		Action:      action,
 	}
 
 	return &value
@@ -95,7 +111,7 @@ func NewService4Value(backendId Backend4Key, count uint16, possibility Possibili
 
 func (s *Service4Value) String() string {
 	sHost := s.ToHost()
-	return fmt.Sprintf("%d %d (%d) [0x%x 0x%x]", sHost.BackendID, sHost.Count, sHost.Possibility, sHost.Flags, sHost.Flags2)
+	return fmt.Sprintf("%d %d (%d) [0x%x]", sHost.BackendID, sHost.Count, sHost.Possibility, sHost.Action)
 }
 
 func (s *Service4Value) ToNetwork() *Service4Value {

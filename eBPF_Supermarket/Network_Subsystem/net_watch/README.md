@@ -163,5 +163,5 @@ SOCK                   SEQ        ACK        MAC_TIME   IP_TIME    TCP_TIME   RX
 ```
 python visual.py
 ```
-## 代码实现细节
+## 四、代码实现细节
 - 见`doc/implement.md`

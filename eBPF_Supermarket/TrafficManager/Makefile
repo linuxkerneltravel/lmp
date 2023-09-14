@@ -42,6 +42,5 @@ test:
 	kubectl get nodes
 	kubectl get pods -owide -A
 	kubectl get services
-
-	sudo go test -c acceptance/performance_test.go
-	sudo ./acceptance.test
+	sudo make build
+	sudo go test -v ./...

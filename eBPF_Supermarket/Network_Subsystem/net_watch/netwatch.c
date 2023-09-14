@@ -32,6 +32,10 @@
 
 static volatile bool exiting = false;
 
+static char connects_file_path[1024];
+static char err_file_path[1024];
+static char packets_file_path[1024];
+
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0; // flag
@@ -104,7 +108,7 @@ static void bytes_to_str(char *str, unsigned long long num) {
 
 static int print_conns(struct netwatch_bpf *skel) {
 
-    FILE *file = fopen("./data/connects.log", "w+");
+    FILE *file = fopen(connects_file_path, "w+");
     if (file == NULL) {
         fprintf(stderr, "Failed to open connects.log: (%s)\n", strerror(errno));
         return 0;
@@ -194,7 +198,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
 
     const struct pack_t *pack_info = packet_info;
     if (pack_info->err) {
-        FILE *file = fopen("./data/err.log", "a");
+        FILE *file = fopen(err_file_path, "a");
         char reason[20];
         if (pack_info->err == 1) {
             printf("[X] invalid SEQ: sock = %p,seq= %u,ack = %u\n",
@@ -213,7 +217,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
                 pack_info->sock, pack_info->seq, pack_info->ack, reason);
         fclose(file);
     } else {
-        FILE *file = fopen("./data/packets.log", "a");
+        FILE *file = fopen(packets_file_path, "a");
         char http_data[256];
         if (strstr((char *)pack_info->data, "HTTP/1")) {
             for (int i = 0; i < sizeof(pack_info->data); ++i) {
@@ -258,6 +262,16 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
 }
 
 int main(int argc, char **argv) {
+    char *last_slash = strrchr(argv[0], '/');
+    if (last_slash) {
+        *last_slash = '\0';
+    }
+    strcpy(connects_file_path, argv[0]);
+    strcpy(err_file_path, argv[0]);
+    strcpy(packets_file_path, argv[0]);
+    strcat(connects_file_path, "/data/connects.log");
+    strcat(err_file_path, "/data/err.log");
+    strcat(packets_file_path, "/data/packets.log");
     struct ring_buffer *rb = NULL;
     struct netwatch_bpf *skel;
     int err;
@@ -312,13 +326,13 @@ int main(int argc, char **argv) {
 
     printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
            "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
-    FILE *err_file = fopen("./data/err.log", "w+");
+    FILE *err_file = fopen(err_file_path, "w+");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
         return 0;
     }
     fclose(err_file);
-    FILE *packet_file = fopen("./data/packets.log", "w+");
+    FILE *packet_file = fopen(packets_file_path, "w+");
     if (packet_file == NULL) {
         fprintf(stderr, "Failed to open packets.log: (%s)\n", strerror(errno));
         return 0;
