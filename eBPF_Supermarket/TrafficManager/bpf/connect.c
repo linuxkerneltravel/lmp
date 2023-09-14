@@ -46,37 +46,49 @@ static int sock4_forward_entry(struct bpf_sock_addr *ctx)
     svc = lb4_lookup_service(&key);
     if (!svc || svc->count == 0)
         return -ENXIO;
+
     // bpf_printk("dest: %08x:%04x", ori_dst_ip, ori_dst_port);
     // bpf_printk("1. Service backend ID (must be zero): %d", svc->backend_id);
 
-//    // 2. find backend slots from service
-//    // TODO: provide more (lightweight) selection logic later
-//    int keep_possibility = MAX_BACKEND_SELECTION;
-//    for (int i = 1; i <= MAX_BACKEND_SELECTION; i++) {
-//        if(i > svc->count)
-//            return -ENETRESET;
-//
-//        key.backend_slot = i;
-//        backend_slot = lookup_lb4_backend_slot(&key);
-//        if (!backend_slot)
-//            return -ENOENT;
-//
-//        u32 random_value = bpf_get_prandom_u32();
-//        // bpf_printk("evaluate: %d < %d ? remain: %d", random_value % keep_possibility, backend_slot->possibility, keep_possibility);
-//
-//        if((random_value % keep_possibility) < backend_slot->possibility) {
-//            key.backend_slot = i;
-//            break;
-//        }
-//
-//        keep_possibility -= backend_slot->possibility;
-//        if(keep_possibility < 0)
-//            return -ENOENT;
-//    }
-
     // 2. find backend slots from service
-    key.backend_slot = sock_select_random_slot(svc->count);
+    if(svc->action == SVC_ACTION_NORMAL) {  // default action
+        key.backend_slot = sock_select_random_slot(svc->count);
+    } else if(svc->action == SVC_ACTION_WEIGHT) {
+        int slot_index = sock_select_weighted_slot(svc->count, key);
+        if(slot_index < 0)
+            return slot_index;
+        key.backend_slot = slot_index;
+    } else if(svc->action & SVC_ACTION_REDIRECT_SVC) {
+        int slot_index = sock_select_weighted_slot(svc->count + 1, key);
+        if(slot_index > svc->count) {
+            key.backend_slot = slot_index;
+            // 3. lookup backend slot from constructed backend key
+            backend_slot = lookup_lb4_backend_slot(&key);
+            if (!backend_slot)
+                return -ENOENT;
+            bpf_printk("3.5. find backend slot: %d", backend_slot->backend_id);
+            backend_id = backend_slot->backend_id;
 
+            // 4. find the info of real backend
+            backend = lookup_lb4_backend(backend_id);
+            if (!backend)
+                return -ENOENT;
+            key.backend_slot = 0;
+            key.address = backend->address;
+            key.dport = backend->port;
+            slot_index = sock_select_weighted_slot(svc->count, key);
+            if(slot_index < 0)
+                return slot_index;
+            key.backend_slot = slot_index;
+        } else {
+            if(slot_index < 0)
+                return slot_index;
+            key.backend_slot = slot_index;
+        }
+    } else {
+        bpf_printk("?, %d", svc->action);
+        return -1;
+    }
     // bpf_printk("2. select backend from service slot: %d", key.backend_slot);
 
     // 3. lookup backend slot from constructed backend key
