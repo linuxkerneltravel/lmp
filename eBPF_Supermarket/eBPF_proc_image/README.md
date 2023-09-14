@@ -42,7 +42,7 @@ lifecycle_image工具是Linux进程生命周期画像工具，该工具由多个
 
 ## 三、lock_image 工具
 
-lock_image工具是进程/线程持有锁的区间画像，该工具目前可以对进程的用户态互斥锁、内核态互斥锁和用户态读写锁进行画像。
+lock_image工具可以对进程/线程持有锁的区间进行画像，该工具目前可以对进程的用户态互斥锁、内核态互斥锁和用户态读写锁进行画像。
 
 <div align='center'><img src="./docs/images/lock_image.png"></div>
 
