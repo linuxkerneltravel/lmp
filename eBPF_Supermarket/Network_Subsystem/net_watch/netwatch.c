@@ -104,7 +104,7 @@ static void bytes_to_str(char *str, unsigned long long num) {
 
 static int print_conns(struct netwatch_bpf *skel) {
 
-    FILE *file = fopen("./data/connects.log", "w");
+    FILE *file = fopen("./data/connects.log", "w+");
     if (file == NULL) {
         fprintf(stderr, "Failed to open connects.log: (%s)\n", strerror(errno));
         return 0;
@@ -312,13 +312,13 @@ int main(int argc, char **argv) {
 
     printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
            "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
-    FILE *err_file = fopen("./data/err.log", "w");
+    FILE *err_file = fopen("./data/err.log", "w+");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
         return 0;
     }
     fclose(err_file);
-    FILE *packet_file = fopen("./data/packets.log", "w");
+    FILE *packet_file = fopen("./data/packets.log", "w+");
     if (packet_file == NULL) {
         fprintf(stderr, "Failed to open packets.log: (%s)\n", strerror(errno));
         return 0;
