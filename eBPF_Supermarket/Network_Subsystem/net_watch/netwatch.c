@@ -264,14 +264,14 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
-        *last_slash = '\0';
+        *(last_slash+1) = '\0';
     }
     strcpy(connects_file_path, argv[0]);
     strcpy(err_file_path, argv[0]);
     strcpy(packets_file_path, argv[0]);
-    strcat(connects_file_path, "/data/connects.log");
-    strcat(err_file_path, "/data/err.log");
-    strcat(packets_file_path, "/data/packets.log");
+    strcat(connects_file_path, "data/connects.log");
+    strcat(err_file_path, "data/err.log");
+    strcat(packets_file_path, "data/packets.log");
     struct ring_buffer *rb = NULL;
     struct netwatch_bpf *skel;
     int err;
