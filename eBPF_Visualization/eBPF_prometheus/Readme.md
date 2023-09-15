@@ -47,14 +47,28 @@ proc_image:
 $ make
 $ ./data-visual proc_image
 ```
-打开 localhost:8090/metrics 可查看输出的信息。
 
+打开 localhost:8090/metrics 可查看输出的信息。
 启动grafana服务，在grafana中安装JSON API,之后选择使用JSON API连接，使用stateTimeline作为展示图，配置方式如下所示：
 ![8](https://github.com/Gui-Yue/lmp/assets/78520005/60c4f70b-b51f-409a-9715-4fe3c8a0d87d)
 ![9](https://github.com/Gui-Yue/lmp/assets/78520005/4bf9a907-1a59-4051-a6e4-133d917f96a7)
 
 效果图如下：
 ![10](https://github.com/Gui-Yue/lmp/assets/78520005/d053b7ef-82a8-4f61-9a68-fd852c987bea)
+
+lock_image:
+先打开/collector/tmux_proc_setting.yaml进行初始化适配，填入需要的信息
+```bash
+$ make
+$ ./data-visual tmux
+```
+打开 localhost:8090/metrics 可查看输出的信息。
+启动grafana服务，在grafana中安装JSON API,之后选择使用JSON API连接，使用stateTimeline作为展示图，配置方式如下所示：
+![tmux](https://github.com/Gui-Yue/lmp/assets/78520005/02198183-52b7-49f8-a2bb-43b4458e3552)
+![tmuxmap](https://github.com/Gui-Yue/lmp/assets/78520005/262b7b04-9009-48f4-86a9-9bf016458eb3)
+
+效果图如下：
+![tmuxexhibition](https://github.com/Gui-Yue/lmp/assets/78520005/1e15f09d-ada4-4742-a3ee-e513ede3bb86)
 
 ### 使用prometheus-server的docker镜像监控metrics
 
