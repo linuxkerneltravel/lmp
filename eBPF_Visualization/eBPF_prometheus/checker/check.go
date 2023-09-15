@@ -114,7 +114,13 @@ func IsTCPwatchFirst(string2 string) bool {
 }
 
 func IsTcpObjection(string2 string) bool {
-	pattern := `tcpwatch`
+	pattern := `netwatch`
+	match, _ := regexp.MatchString(pattern, string2)
+	return match
+}
+
+func IsProcimage(string2 string) bool {
+	pattern := `proc`
 	match, _ := regexp.MatchString(pattern, string2)
 	return match
 }
@@ -128,4 +134,14 @@ func InvalidTcpData(string2 string) bool {
 		return true
 	}
 	return false
+}
+
+func Istmuxlineone(string2 string) bool {
+	is, _ := regexp.MatchString(`pid`, string2)
+	return is
+}
+
+func Istmuxlinetwo(string2 string) bool {
+	is, _ := regexp.MatchString(`acq_time`, string2)
+	return is
 }
