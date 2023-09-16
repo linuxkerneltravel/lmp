@@ -277,8 +277,8 @@ func (p *Programs) AutoDeleteService(service Service, affiliatedServiceList []Se
 	return true
 }
 
-// DeclareBackendID gets an increasing backendID
-func (p *Programs) DeclareBackendID() int {
+// declareBackendID gets an increasing backendID
+func (p *Programs) declareBackendID() int {
 	// TODO: concurrency protection
 	backendID := p.currentIndex
 	p.currentIndex++
@@ -287,7 +287,7 @@ func (p *Programs) DeclareBackendID() int {
 
 // AutoInsertBackend inserts an organized backend item into map
 func (p *Programs) AutoInsertBackend(serviceIP string, servicePortStr string, backendIP string, backendPortStr string, slotIndex int, possibility float64, possibilityUpperBound float64) (bool, int) {
-	backendID := p.DeclareBackendID()
+	backendID := p.declareBackendID()
 	servicePort, _ := strconv.Atoi(servicePortStr)
 	backendPort, _ := strconv.Atoi(backendPortStr)
 	ok := p.InsertBackendItem(serviceIP, servicePort, backendIP, backendPort, backendID, slotIndex, possibility, possibilityUpperBound)
