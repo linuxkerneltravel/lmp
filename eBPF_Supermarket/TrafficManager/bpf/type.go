@@ -73,7 +73,7 @@ func (k *Service4Key) String() string {
 		addr += "/i"
 	}
 	if k.BackendSlot != 0 {
-		addr += " slot:" + strconv.Itoa(int(k.BackendSlot))
+		addr += " slot: " + strconv.Itoa(int(k.BackendSlot))
 	}
 	return addr
 }
@@ -91,19 +91,20 @@ type ActionAttribute struct {
 }
 
 type Service4Value struct {
-	BackendID   Backend4Key `align:"backend_id"`
-	Count       uint16      `align:"count"`
-	Possibility uint16      `align:"possibility"`
-	Action      Action      `align:"action"`
-	Pad         pad2uint8   `align:"pad"`
+	BackendID        Backend4Key `align:"backend_id"`
+	Count            uint16      `align:"count"`
+	Possibility      uint16      `align:"possibility"`
+	Action           Action      `align:"action"`
+	WeightRangeUpper uint16      `align:"weight_range_upper"`
 }
 
 func NewService4Value(backendId Backend4Key, count uint16, possibility Possibility, action Action) *Service4Value {
 	value := Service4Value{
-		BackendID:   backendId,
-		Count:       count,
-		Possibility: uint16(possibility.percentage * maxPossibilityUnit),
-		Action:      action,
+		BackendID:        backendId,
+		Count:            count,
+		Possibility:      uint16(possibility.percentage * maxPossibilityUnit),
+		Action:           action,
+		WeightRangeUpper: uint16(possibility.currentPercentageRangeUpper * maxPossibilityUnit),
 	}
 
 	return &value
@@ -160,7 +161,8 @@ func (v *Backend4Value) ToNetwork() *Backend4Value {
 }
 
 type Possibility struct {
-	percentage float64
+	percentage                  float64
+	currentPercentageRangeUpper float64
 }
 
 // func tes() {

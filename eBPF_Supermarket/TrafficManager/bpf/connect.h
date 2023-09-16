@@ -75,7 +75,7 @@ struct lb4_service {
 	__u16 count;
 	__u16 possibility;
 	__u16 action;
-	__u8  pad[2];
+	__u16 weight_range_upper;
 };
 
 struct lb4_backend {
@@ -186,4 +186,29 @@ static __always_inline int sock_select_weighted_slot(int sbc, struct lb4_key key
             return -ENOENT;
     }
     return key.backend_slot;
+}
+
+static __always_inline int sock_fast_select_weighted_slot(int sbc, struct lb4_key key)
+{
+    int l = 1, r = sbc;
+    struct lb4_service *backend_slot;
+    int random_point = bpf_get_prandom_u32() % MAX_BACKEND_SELECTION;
+    for(int i = 0; i < 10; i++) { // 10 = log_2(MAX_BACKEND_SELECTION)
+        if(l == r) return l;
+        int mid = (l + r) >> 1;
+        bpf_printk("%d", mid);
+        key.backend_slot = mid;
+        backend_slot = lookup_lb4_backend_slot(&key);
+        if (!backend_slot)
+            return -ENOENT;
+        if(backend_slot->weight_range_upper == random_point) {
+            if(backend_slot->possibility > 0) return mid;
+            // We can not reach here except setting the item's weight to 0,
+            // then we have a probability of triggering this
+            else return -ENOENT;
+        }
+        else if(backend_slot->weight_range_upper < random_point) l = mid + 1;
+        else r = mid;
+    }
+    return -ENOENT; // infinite loop
 }
