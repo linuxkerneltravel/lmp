@@ -13,3 +13,6 @@
 [submodule "eBPF_Supermarket/eBPF_proc_image/libbpf-bootstrap"]
 	path = eBPF_Supermarket/eBPF_proc_image/libbpf-bootstrap
 	url = https://github.com/libbpf/libbpf-bootstrap.git
+[submodule "eBPF_Hub/libbpf-bootstrap-android"]
+	path = eBPF_Hub/libbpf-bootstrap-android
+	url = https://github.com/JiaHuann/libbpf-bootstrap-android
