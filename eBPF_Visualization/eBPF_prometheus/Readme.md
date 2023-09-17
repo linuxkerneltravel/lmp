@@ -84,3 +84,48 @@ $ ./data-visual tmux
 
 ### 通过sqlite3查看收集到的数据
 进入/dao目录可以看到data.db数据库文件，通过sqlite3访问查看收集到的数据。
+
+# Grafana配置指南
+
+利用eBPF_prometheus工具，可以搭建其metrics页面和Prometheus服务，之后在grafana中进行简单的配置即可获取直观的可视化数据展示。以下是使用`/lmp/eBPF_Supermarket/Network_Subsystem/net_watch`中的`net_watch`工具作为示例展示如何配置多样化的可视化方案。
+
+## Step1 启动相关服务
+
+在启动监控程序之前，先配置`/lmp/eBPF_Visualization/eBPF_prometheus/prom_core/prometheus.yaml`，scrape_interval是采集密度，即两次采集之间的时间差，targets为metrics服务地址，默认127.0.0.1:8090。
+
+```bash
+$ make 
+$ make start_service
+$ ./data-visual c path/net_watch -t
+```
+
+## Step2 配置grafana服务
+
+利用浏览器打开`127.0.0.1:3000`,使用初始密码登录（user:admin   pswd: admin）进入管理界面。
+
+1、建立与Prometheus服务器的连接
+
+![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana1.PNG)
+
+2、选择Prometheus，并按照如图所示进行配置，配置完后点击`Save&test`完成连接的配置
+
+![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana2.PNG)
+
+![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana3.PNG)
+
+3、可视化配置
+
+按图中所示点击Add，选择Visualization，进入配置界面
+
+![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana4.PNG)
+
+在下方query处进行如图所示的配置，点击Run queries即可以可视化的方式监控MAC_TIME字段的输出数据
+
+![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana5.PNG)
+
+仪表盘右侧是对图像的一些调整，可以选择想要的可视化效果，也可对图像效果进行调整，例如颜色图形样式等。读者可以自行尝试。
+
+![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana6.PNG)
+
+配置完成后点击Apply,即可保存可视化方案。
+
