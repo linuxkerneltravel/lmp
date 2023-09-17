@@ -173,13 +173,7 @@ func (b *BPF_name) Run(filePath string) error {
 
 	mapchan := make(chan []map[string]interface{}, 2)
 
-	if checker.IsTcpObjection(cmdStr) {
-		log.Println("I am NETWatch")
-		go RedirectTcpWatch(stdout, mapchan)
-	} else {
-		go redirectStdout(stdout, mapchan)
-		log.Println("I am normal")
-	}
+	go redirectStdout(stdout, mapchan)
 
 	metricsobj := &prom_core.MyMetrics{BPFName: b.Name, Sqlinited: false}
 	sqlobj := &dao.Sqlobj{Tablename: b.Name}
