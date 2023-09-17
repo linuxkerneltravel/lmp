@@ -105,27 +105,32 @@ $ ./data-visual c path/net_watch -t
 
 1、建立与Prometheus服务器的连接
 
-![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana1.PNG)
+![grafana1](https://github.com/Gui-Yue/lmp/assets/78520005/e9b5a550-2f26-4253-a8a4-2fba5e365f9b)
+
 
 2、选择Prometheus，并按照如图所示进行配置，配置完后点击`Save&test`完成连接的配置
 
-![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana2.PNG)
+![grafana2](https://github.com/Gui-Yue/lmp/assets/78520005/6a10b977-0aed-4b9b-aac6-305734c6a4a3)
 
-![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana3.PNG)
+
+![grafana3](https://github.com/Gui-Yue/lmp/assets/78520005/018aa95a-9ff2-4d6b-9024-495eb906d3b6)
 
 3、可视化配置
 
 按图中所示点击Add，选择Visualization，进入配置界面
 
-![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana4.PNG)
+![grafana4](https://github.com/Gui-Yue/lmp/assets/78520005/6d182d46-0f1e-47a3-b282-0f9c65a48a57)
+
 
 在下方query处进行如图所示的配置，点击Run queries即可以可视化的方式监控MAC_TIME字段的输出数据
 
-![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana5.PNG)
+![grafana5](https://github.com/Gui-Yue/lmp/assets/78520005/91669ba0-b2bf-43e6-9179-1eac68bffa3b)
+
 
 仪表盘右侧是对图像的一些调整，可以选择想要的可视化效果，也可对图像效果进行调整，例如颜色图形样式等。读者可以自行尝试。
 
-![](C:\Users\17294\Desktop\学习环境\开源之夏2023\文档图片\grafana6.PNG)
+![grafana6](https://github.com/Gui-Yue/lmp/assets/78520005/2d86b7bd-1f86-4e00-97c9-35c5a7ce380d)
+
 
 配置完成后点击Apply,即可保存可视化方案。
 
