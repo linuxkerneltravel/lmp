@@ -54,19 +54,19 @@ static int sock4_forward_entry(struct bpf_sock_addr *ctx)
     if(svc->action == SVC_ACTION_NORMAL) {  // default action
         key.backend_slot = sock_select_random_slot(svc->count);
     } else if(svc->action == SVC_ACTION_WEIGHT) {
-        int slot_index = sock_select_weighted_slot(svc->count, key);
+        int slot_index = sock_fast_select_weighted_slot(svc->count, key);
         if(slot_index < 0)
             return slot_index;
         key.backend_slot = slot_index;
     } else if(svc->action & SVC_ACTION_REDIRECT_SVC) {
-        int slot_index = sock_select_weighted_slot(svc->count + 1, key);
+        int slot_index = sock_fast_select_weighted_slot(svc->count + 1, key);
         if(slot_index > svc->count) {
             key.backend_slot = slot_index;
             // 3. lookup backend slot from constructed backend key
             backend_slot = lookup_lb4_backend_slot(&key);
             if (!backend_slot)
                 return -ENOENT;
-            bpf_printk("3.5. find backend slot: %d", backend_slot->backend_id);
+            // bpf_printk("3.5. find backend slot: %d", backend_slot->backend_id);
             backend_id = backend_slot->backend_id;
 
             // 4. find the info of real backend
@@ -76,7 +76,7 @@ static int sock4_forward_entry(struct bpf_sock_addr *ctx)
             key.backend_slot = 0;
             key.address = backend->address;
             key.dport = backend->port;
-            slot_index = sock_select_weighted_slot(svc->count, key);
+            slot_index = sock_fast_select_weighted_slot(svc->count, key);
             if(slot_index < 0)
                 return slot_index;
             key.backend_slot = slot_index;
