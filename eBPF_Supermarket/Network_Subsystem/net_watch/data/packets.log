@@ -1,2 +1,0 @@
-packet{sock="0xffff9d1ecb3b9180",seq="3705894662",ack="522176002",mac_time="-",ip_time="-",tcp_time="-",http_info="GET / HTTP/1.1",rx="0"} 0
-packet{sock="0xffff9d1ecb3b9180",seq="522176002",ack="3705894739",mac_time="-",ip_time="-",tcp_time="-",http_info="HTTP/1.1 200 OK",rx="1"} 0
