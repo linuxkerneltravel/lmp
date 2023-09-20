@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/tcp_watch/**'
+      - 'eBPF_Supermarket/Network_Subsystem/net_watch/**'
       - '.github/workflows/network_monitor.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/tcp_watch/**'
+      - 'eBPF_Supermarket/Network_Subsystem/net_watch/**'
       - '.github/workflows/network_monitor.yml'
 
 permissions:
@@ -31,8 +31,13 @@ jobs:
 
       - name: Build and Run
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/tcp_watch/
+          cd eBPF_Supermarket/Network_Subsystem/net_watch/
           make
           # run
-          sudo timeout -s SIGINT 20 ./tcpwatch || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatch || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatch -a || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatch -e || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatch -i || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatch -r || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatch -t || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
         timeout-minutes: 5

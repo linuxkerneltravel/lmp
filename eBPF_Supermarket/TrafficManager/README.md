@@ -1,39 +1,52 @@
-# eBPF Traffic Manager
+# Traffic Manager
 
-## Install tutorial
+[![Traffic Manager](https://github.com/linuxkerneltravel/lmp/actions/workflows/net_traffic_manager.yml/badge.svg)](https://github.com/linuxkerneltravel/lmp/actions/workflows/net_traffic_manager.yml)
+[![LICENSE](https://img.shields.io/github/license/linuxkerneltravel/lmp.svg?style=square)](https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE)
 
-### Ubuntu 22.04
+## Introduction
 
-```bash
-# Install Go
-wget https://go.dev/dl/go1.20.5.linux-amd64.tar.gz
-rm -rf /usr/local/go && tar -C /usr/local -xzf go1.20.5.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
+Traffic Manager is an eBPF-based traffic management tool. It leverages **non-intrusive, high-speed kernel programmable mechanism** to achieve cost-effective and dynamic microservice traffic orchestration.
 
-# Install Docker
-sudo snap refresh
-sudo snap install docker
+![Architecture](doc/img/architecture.svg)
 
-# Install and start local Kubernetes
-sudo snap install kubectl --classic
-curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-sudo install minikube-linux-amd64 /usr/local/bin/minikube
-sudo minikube start --kubernetes-version=1.26.6 --force
+## Capabilities
 
-# Install eBPF development tools
-sudo apt install -y llvm clang
-sudo apt install libbfd-dev libcap-dev libelf-dev
-git clone --recurse-submodules https://github.com/libbpf/bpftool.git
-sudo make install -C bpftool/src/
-sudo cp bpftool/src/bpftool /usr/bin/
-sudo rm -rf bpftool/
-```
+Based on abstractions of Kubernetes Services and Pods, as well as the modification of network request events, this project can achieve the following functionalities through refined operational logic:
 
-```bash
-sudo make init
-sudo make
-```
+**Service Resolution**: It directs request of Service directly to backend Pods, bypassing massive iptables lookups and iptables NAT.
 
-## Usage
+**Non-intrusive Traffic Management**: It offers the ability to modify traffic across Pods and Services. Callers can invoke particular versions of a service, facilitating traffic migration or version rolling upgrades.
 
-Developing...
+**Metric-Based Traffic Management:** By using metric inputs, it filters and eliminates abnormal Pods, preventing requests from reaching malfunctioning Pods. If all Pods are unable to work correctly, the request is denied outright (as shown in the diagram below).
+
+![Dynamic Control](doc/img/dynamic-control.svg)
+
+## Getting Started
+
+For installation and initialization instructions, please refer to the documentation: [INSTALL.md](INSTALL.md).
+
+To get started, check out the introductory guide [here](doc/getting-started.md).
+
+## Documentation
+
+Conceptual documentation is here to provide an understanding of overall architecture and implementation details: [CONCEPT.md](CONCEPT.md).
+
+You can refer to some eBPF development documents at: [eBPF Development Tutorial](../sidecar/bpf/README.md#functional-bpf-programs).
+
+## Roadmap
+
+The roadmap provides an overview of the project's development plans and completion status. 
+
+Detailed changelogs can be found here: [CHANGELOG.md](CHANGELOG.md).
+
+- [x] Build the basic development framework and automatic compilation pipeline.
+- [x] Implement kernel abstraction of Service and Pod, and design corresponding maps for storage and information transfer.
+- [x] Implement cluster metadata analysis and map read and write update in user mode. Consider using the Kubernetes Controller's control loop to monitor changes to the current cluster and keep the metadata in the map always up to date.
+- [x] Performance optimization and development framework arrangement.
+- [x] Investigate and develop grayscale release function of traffic, such as canary release and blue-green release, which provides cross-Service traffic modification capabilities.
+- [x] Implement filtering out specific abnormal nodes and Pods based on external cluster monitoring information.
+- [x] Performance optimization.
+- [x] Documentation and tutorials.
+- [ ] Access more monitoring data sources, guide TrafficManager to conduct traffic management through more complex indicators, and even AI Ops mechanisms.
+- [ ] Compress and reuse Map space, and minimize Map space through mechanisms such as `Union`.
+- [ ] Dynamically update the Map mechanism instead of updating by deleting and re-inserting.

@@ -19,12 +19,15 @@ package bpf
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/types"
 	"github.com/cilium/cilium/pkg/u8proto"
 )
+
+const maxPossibilityUnit = 1024
 
 type pad2uint8 [2]uint8
 
@@ -64,24 +67,44 @@ func (k *Service4Key) ToHost() *Service4Key {
 }
 
 func (k *Service4Key) String() string {
-	kHost := k.ToHost()
+	kHost := k // .ToHost()
 	addr := net.JoinHostPort(kHost.Address.String(), fmt.Sprintf("%d", kHost.Port))
 	if kHost.Scope == loadbalancer.ScopeInternal {
 		addr += "/i"
 	}
+	if k.BackendSlot != 0 {
+		addr += " slot: " + strconv.Itoa(int(k.BackendSlot))
+	}
 	return addr
 }
 
-type Service4Value struct {
-	BackendID Backend4Key `align:"backend_id"`
-	Count     uint16      `align:"count"`
-	Pad       pad2uint8   `align:"pad"`
+type Action uint16
+
+const (
+	DefaultAction  Action = 0
+	RandomAction   Action = 0
+	WeightedAction Action = 1
+	RedirectAction Action = 32768
+)
+
+type ActionAttribute struct {
 }
 
-func NewService4Value(backendId Backend4Key, count uint16) *Service4Value {
+type Service4Value struct {
+	BackendID        Backend4Key `align:"backend_id"`
+	Count            uint16      `align:"count"`
+	Possibility      uint16      `align:"possibility"`
+	Action           Action      `align:"action"`
+	WeightRangeUpper uint16      `align:"weight_range_upper"`
+}
+
+func NewService4Value(backendId Backend4Key, count uint16, possibility Possibility, action Action) *Service4Value {
 	value := Service4Value{
-		BackendID: backendId,
-		Count:     count,
+		BackendID:        backendId,
+		Count:            count,
+		Possibility:      uint16(possibility.percentage * maxPossibilityUnit),
+		Action:           action,
+		WeightRangeUpper: uint16(possibility.currentPercentageRangeUpper * maxPossibilityUnit),
 	}
 
 	return &value
@@ -89,17 +112,21 @@ func NewService4Value(backendId Backend4Key, count uint16) *Service4Value {
 
 func (s *Service4Value) String() string {
 	sHost := s.ToHost()
-	return fmt.Sprintf("%d %d", sHost.BackendID, sHost.Count)
+	return fmt.Sprintf("%d %d (%d) [0x%x]", sHost.BackendID, sHost.Count, sHost.Possibility, sHost.Action)
 }
 
 func (s *Service4Value) ToNetwork() *Service4Value {
 	n := *s
+	// TODO: need more test
+	// n.Possibility = byteorder.HostToNetwork16(n.Possibility)
 	return &n
 }
 
 // ToHost converts Service4Value to host byte order.
 func (s *Service4Value) ToHost() *Service4Value {
 	h := *s
+	// TODO: need more test
+	// h.Possibility = byteorder.NetworkToHost16(h.Possibility)
 	return &h
 }
 
@@ -114,21 +141,17 @@ type Backend4Value struct {
 	Flags   uint8           `align:"flags"`
 }
 
-func NewBackend4Value(ip net.IP, port uint16, proto u8proto.U8proto, state loadbalancer.BackendState) (*Backend4Value, error) {
-	ip4 := ip.To4()
-	if ip4 == nil {
-		return nil, fmt.Errorf("not an IPv4 address")
-	}
+func NewBackend4Value(ip net.IP, port uint16, proto u8proto.U8proto, state loadbalancer.BackendState) *Backend4Value {
 	flags := loadbalancer.NewBackendFlags(state)
 
-	val := Backend4Value{
+	value := Backend4Value{
 		Port:  port,
 		Proto: proto,
 		Flags: flags,
 	}
-	copy(val.Address[:], ip.To4())
+	copy(value.Address[:], ip.To4())
 
-	return &val, nil
+	return &value
 }
 
 func (v *Backend4Value) ToNetwork() *Backend4Value {
@@ -136,3 +159,15 @@ func (v *Backend4Value) ToNetwork() *Backend4Value {
 	n.Port = byteorder.HostToNetwork16(n.Port)
 	return &n
 }
+
+type Possibility struct {
+	percentage                  float64
+	currentPercentageRangeUpper float64
+}
+
+// func tes() {
+//	IP := net.ParseIP("1.1.1.1")
+//	var Port uint16 = 8080
+//
+//	svcKey := NewService4Key(IP, Port, u8proto.ANY, 0, 0)
+// }

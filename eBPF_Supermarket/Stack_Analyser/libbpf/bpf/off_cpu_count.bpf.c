@@ -23,9 +23,6 @@
 
 #include "stack_analyzer.h"
 
-#define MINBLOCK_US 1ULL
-#define MAXBLOCK_US 99999999ULL
-
 BPF_HASH(psid_count, psid, u32);
 BPF_HASH(start, u32, u64);
 BPF_STACK_TRACE(stack_trace);
@@ -35,21 +32,21 @@ BPF_HASH(pid_comm, u32, comm);
 const char LICENSE[] SEC("license") = "GPL";
 
 int apid;
-char u,k;
+char u, k;
+__u64 min, max;
 
 SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     u32 pid = BPF_CORE_READ(curr, pid);
 
-    if((apid >= 0 && pid != apid) || !pid)
-        return 0;
-
-    // record next start time
-    u32 tgid = BPF_CORE_READ(curr, tgid);
-    u64 ts = bpf_ktime_get_ns();
-    bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);
-
+    if ((apid >= 0 && pid == apid) || (apid < 0 && pid))
+    {
+        // record next start time
+        u64 ts = bpf_ktime_get_ns();
+        bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);
+    }
+    
     // calculate time delta
     struct task_struct *next = (struct task_struct *)bpf_get_current_task();
     pid = BPF_CORE_READ(next, pid);
@@ -59,23 +56,23 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
     bpf_map_delete_elem(&start, &pid);
     u32 delta = (bpf_ktime_get_ns() - *tsp) >> 20;
 
-    if ((delta < MINBLOCK_US) || (delta > MAXBLOCK_US))
+    if ((delta < min) || (delta > max))
         return 0;
 
     // record data
-    tgid = BPF_CORE_READ(next, tgid);
+    u32 tgid = BPF_CORE_READ(next, tgid);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
     if (!p)
     {
         comm name;
-        bpf_probe_read_kernel_str(&name, TASK_COMM_LEN, next->comm);
+        bpf_probe_read_kernel_str(&name, COMM_LEN, next->comm);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
     }
     psid apsid = {
         .pid = pid,
-        .usid = u?USER_STACK:-1,
-        .ksid = k?KERNEL_STACK:-1,
+        .usid = u ? USER_STACK : -1,
+        .ksid = k ? KERNEL_STACK : -1,
     };
 
     // record time delta

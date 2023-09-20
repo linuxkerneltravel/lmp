@@ -15,7 +15,6 @@ find_package(BpfObject REQUIRED)
 find_package(LibBpf REQUIRED)
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build)
-set(CMAKE_EXE_LINKER_FLAGS "-lstdc++ -lelf")
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src)
 

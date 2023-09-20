@@ -4,12 +4,15 @@
 [submodule "eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap"]
 	path = eBPF_Supermarket/Network_Subsystem/libbpf-bootstrap
 	url = https://github.com/libbpf/libbpf-bootstrap
-[submodule "eBPF_Supermarket/Stack_Analyser/FlameGraph"]
-	path = eBPF_Supermarket/Stack_Analyser/FlameGraph
-	url = https://github.com/brendangregg/FlameGraph.git
 [submodule "eBPF_Supermarket/XDP_Res-Application/tools/lib/libbpf"]
 	path = eBPF_Supermarket/XDP_Res-Application/tools/lib/libbpf
 	url = https://github.com/libbpf/libbpf.git
 [submodule "eBPF_Supermarket/XDP_Res-Application/tools/lib/xdp-tools"]
 	path = eBPF_Supermarket/XDP_Res-Application/tools/lib/xdp-tools
 	url = https://github.com/xdp-project/xdp-tools.git
+[submodule "eBPF_Supermarket/eBPF_proc_image/libbpf-bootstrap"]
+	path = eBPF_Supermarket/eBPF_proc_image/libbpf-bootstrap
+	url = https://github.com/libbpf/libbpf-bootstrap.git
+[submodule "eBPF_Hub/libbpf-bootstrap-android"]
+	path = eBPF_Hub/libbpf-bootstrap-android
+	url = https://github.com/JiaHuann/libbpf-bootstrap-android

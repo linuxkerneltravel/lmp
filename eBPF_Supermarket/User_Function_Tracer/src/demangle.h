@@ -14,12 +14,15 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 还原C++重整符号
+// 还原C++重整后的符号
 
 #ifndef UTRACE_DEMANGLE_H
 #define UTRACE_DEMANGLE_H
 
-extern char *__cxa_demangle(const char *name, char *output, long *len, int *status);
+#include <stddef.h>
+
+extern char *__cxa_demangle(const char *mangled_name, char *output_buffer, size_t *length,
+                            int *status);
 
 /**
  * @brief 还原重整符号

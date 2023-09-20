@@ -19,17 +19,22 @@
 #ifndef UTRACE_UTRACE_H
 #define UTRACE_UTRACE_H
 
-#define MAX_SYMBOL_LEN 64
+#define MAX_THREAD_NUM 32
 #define MAX_STACK_DEPTH 128
+#define MAX_SYMBOL_LEN 1024
 #define MAX_PATH_LEN 256
 
-typedef unsigned long long stack_trace_t[MAX_STACK_DEPTH];
+typedef unsigned long long stack_trace_t;
 
 /**
  * @brief 内核态传给用户态的数据
  */
 struct profile_record {
-  unsigned int tid;               /**< 线程编号 */
+  unsigned int tid;      /**< 线程编号 */
+  unsigned int next_tid; /**< 切换后的线程编号 */
+  unsigned int cpu_id;   /**< CPU编号 */
+
+  unsigned long long timestamp;   /**< 时间戳 */
   unsigned long long duration_ns; /**< 函数时延 */
 
   unsigned int kstack_sz; /**< 内核栈大小 */
@@ -37,6 +42,8 @@ struct profile_record {
 
   unsigned int ustack_sz; /**< 用户栈大小 */
   stack_trace_t ustack;   /**< 用户栈 */
+
+  unsigned int global_sz; /**< 当前函数深度（考虑了多线程） */
 
   int exit; /**< 是否为函数退出时 */
 };

@@ -18,28 +18,60 @@
 
 #include "log.h"
 
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-void print_char(char c, int cnt) {
+int debug;
+
+void log_color(const char* color) {
+  char* term = getenv("TERM");
+  if (isatty(fileno(stderr)) && !(term && !strcmp(term, "dumb"))) {
+    LOG("%s", color);
+  }
+}
+
+void log_char(char c, int cnt) {
   while (cnt > 0) {
-    printf("%c", c);
+    LOG("%c", c);
     --cnt;
   }
 }
 
-void print_header() { printf("# DURATION     TID     FUNCTION\n"); }
+void log_header(int cpu, int tid, int timestamp) {
+  if (cpu) {
+    LOG(" CPU");
+    log_split();
+  }
+  if (tid) {
+    LOG("  TID ");
+    log_split();
+  }
+  if (timestamp) {
+    LOG("   TIMESTAMP  ");
+    log_split();
+  }
+  LOG("  DURATION ");
+  log_split();
+  LOG("  FUNCTION CALLS\n");
+}
+void log_split() { LOG(" | "); }
 
-void print_tid(int tid) { printf("[%6d]", tid); }
+void log_cpuid(int cpuid) { LOG("%4d", cpuid); }
 
-void print_time_unit(size_t ns) {
-  static char *units[] = {
+void log_tid(int tid) { LOG("%6d", tid); }
+
+void log_timestamp(unsigned long long timestamp) { LOG("%llu", timestamp); }
+
+void log_duration(unsigned long long ns) {
+  static char* units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
-  static size_t limit[] = {
+  static unsigned long long limit[] = {
       1000, 1000, 1000, 1000, 60, 24, 0,
   };
 
-  size_t t = ns, t_mod = 0;
+  unsigned long long t = ns, t_mod = 0;
   int i = 0;
   while (i < sizeof(units) / sizeof(units[0]) - 1) {
     if (t < limit[i]) break;
@@ -48,5 +80,5 @@ void print_time_unit(size_t ns) {
     ++i;
   }
 
-  printf("%3zu.%03zu %s", t, t_mod, units[i]);
+  LOG("%4llu.%03llu %s", t, t_mod, units[i]);
 }

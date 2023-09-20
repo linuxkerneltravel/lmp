@@ -27,16 +27,23 @@ jobs:
           path: bpftool
           key: bpftool-v7.2.0-amd64
 
-#      - name: Install Docker
-#        run: |
-#          sudo snap refresh
-#          sudo snap install docker
+      #      - name: Install Docker
+      #        run: |
+      #          sudo snap refresh
+      #          sudo snap install docker
 
-#      - name: Install Minikube
-#        run: |
-#          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-#          sudo install minikube-linux-amd64 /usr/local/bin/minikube
-#          sudo minikube start --kubernetes-version=1.26.6 --force
+      - name: Install Minikube
+        uses: medyagh/setup-minikube@latest
+        id: minikube
+      #        with:
+      #          driver: docker
+      #          minikube-version: 1.24.0
+      #          kubernetes-version: v1.26.6
+      #          container-runtime: containerd
+
+      - name: Setup testing environments
+        run: |
+          kubectl apply -f eBPF_Supermarket/TrafficManager/acceptance/testdata/k8s/
 
       - name: Install eBPF development tools
         run: |
@@ -77,3 +84,8 @@ jobs:
         run: |
           cd eBPF_Supermarket/TrafficManager/
           sudo -E timeout 10 ./main || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
+
+      - name: Test
+        run: |
+          cd eBPF_Supermarket/TrafficManager/
+          make test
