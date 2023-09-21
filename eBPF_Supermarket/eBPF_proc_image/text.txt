@@ -1,6 +1,0 @@
-fork_pid:9793  start(ns):2518806573517
-fork_pid:9793  start(ns):2518806573517  exit(ns):2521807636907  exist_time(us):3001063.390000
-vfork_pid:9833  start(ns):2521808149116
-vfork_pid:9833  start(ns):2521808149116  exit(ns):2524808555055  exist_time(us):3000405.939000
-newthread_pid:9845  start(ns):2524808800843
-newthread_pid:9845  start(ns):2524808800843  exit(ns):2527809932052  exist_time(us):3001131.209000
