@@ -117,8 +117,13 @@ func TestWeight(t *testing.T) {
 		}
 
 		progs.InsertServiceItem(targetIP, targetPort, len(serverPortList), bpf.WeightedAction)
+		totalPercentage := 0.0
 		for i := 0; i < len(serverPortList); i++ {
-			progs.AutoInsertBackend(targetIP, targetPort, "127.0.0.1", serverPortList[i], i+1, tc.weights[i])
+			totalPercentage += tc.weights[i]
+			progs.AutoInsertBackend(targetIP, targetPort, "127.0.0.1", serverPortList[i], i+1, tc.weights[i], totalPercentage)
+		}
+		if math.Abs(totalPercentage-1) > 0.005 {
+			fmt.Printf("[WARNING] Total weight for service %s:%s is not 1, but %f.\n", targetIP, targetPort, totalPercentage)
 		}
 
 		err = progs.Attach()
