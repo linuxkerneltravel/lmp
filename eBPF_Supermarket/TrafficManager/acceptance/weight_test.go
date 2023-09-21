@@ -19,34 +19,27 @@ package acceptance
 import (
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
-	"strings"
 	"testing"
 
 	"lmp/eTrafficManager/bpf"
 )
 
-type testCase struct {
-	weights   []float64
-	repeatNum int64
-}
-
-const (
-	targetIP   = "1.1.1.1"
-	targetPort = "80"
-)
-
-var serverPortList = []string{
-	"8001",
-	"8002",
-	"8003",
-}
-
-var repeatNum int64 = 10000
-
 func TestWeight(t *testing.T) {
+	const (
+		targetIP   = "1.1.1.1"
+		targetPort = "80"
+	)
+
+	var serverPortList = []string{
+		"7001",
+		"7002",
+		"7003",
+	}
+
+	var repeatNum int64 = 10000
+
 	go startServer(serverPortList[0])
 	go startServer(serverPortList[1])
 	go startServer(serverPortList[2])
@@ -56,7 +49,10 @@ func TestWeight(t *testing.T) {
 	//	_ = c1.Start()
 	// }()
 
-	for _, tc := range []testCase{
+	for _, tc := range []struct {
+		weights   []float64
+		repeatNum int64
+	}{
 		{
 			weights: []float64{
 				1,
@@ -99,17 +95,17 @@ func TestWeight(t *testing.T) {
 		},
 		{
 			weights: []float64{
-				0.33333,
-				0.33333,
-				0.33333,
-			},
-			repeatNum: repeatNum,
-		},
-		{
-			weights: []float64{
-				0.2,
-				0.3,
+				0.25,
+				0.25,
 				0.5,
+			},
+			repeatNum: repeatNum,
+		},
+		{
+			weights: []float64{
+				0.125,
+				0.25,
+				0.625,
 			},
 			repeatNum: repeatNum,
 		},
@@ -120,9 +116,14 @@ func TestWeight(t *testing.T) {
 			return
 		}
 
-		progs.InsertServiceItem(targetIP, targetPort, len(serverPortList))
+		progs.InsertServiceItem(targetIP, targetPort, len(serverPortList), bpf.WeightedAction)
+		totalPercentage := 0.0
 		for i := 0; i < len(serverPortList); i++ {
-			progs.AutoInsertBackend(targetIP, targetPort, "127.0.0.1", serverPortList[i], i+1, tc.weights[i])
+			totalPercentage += tc.weights[i]
+			progs.AutoInsertBackend(targetIP, targetPort, "127.0.0.1", serverPortList[i], i+1, tc.weights[i], totalPercentage)
+		}
+		if math.Abs(totalPercentage-1) > 0.005 {
+			fmt.Printf("[WARNING] Total weight for service %s:%s is not 1, but %f.\n", targetIP, targetPort, totalPercentage)
 		}
 
 		err = progs.Attach()
@@ -167,10 +168,10 @@ func TestWeight(t *testing.T) {
 		for i := 0; i < len(serverPortList); i++ {
 			expectNumber := tc.weights[i] * float64(tc.repeatNum)
 			actualNumber := float64(countBucket[serverPortList[i]])
-			if math.Abs(actualNumber-expectNumber)/expectNumber > 0.05 && false {
+			if math.Abs(actualNumber-expectNumber)/expectNumber > 0.05 {
 				t.Errorf("For port: %s, expectNumber: %f, but actualNumber: %d, rate: %f. Maybe retesting will fix this", serverPortList[i], expectNumber, int64(actualNumber), math.Abs(actualNumber-expectNumber)/expectNumber)
 			} else {
-				fmt.Printf("For port: %s, expectNumber: %f, but actualNumber: %d, rate: %f.\n", serverPortList[i], expectNumber, int64(actualNumber), math.Abs(actualNumber-expectNumber)/expectNumber)
+				fmt.Printf("For port: %s, expectNumber: %f, got actualNumber: %d, rate: %f.\n", serverPortList[i], expectNumber, int64(actualNumber), math.Abs(actualNumber-expectNumber)/expectNumber)
 			}
 		}
 
@@ -179,37 +180,7 @@ func TestWeight(t *testing.T) {
 			IP:   targetIP,
 			Port: targetPort,
 		}
-		progs.AutoDeleteService(s)
+		progs.AutoDeleteService(s, nil)
 		progs.Close()
 	}
-}
-
-type Router struct {
-	Route map[string]map[string]http.HandlerFunc
-}
-
-func (r *Router) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if f, ok := r.Route[request.Method][request.URL.Path]; ok {
-		f(writer, request)
-	}
-}
-
-func (r *Router) HandleFunc(method, path string, f http.HandlerFunc) {
-	method = strings.ToUpper(method)
-	if r.Route == nil {
-		r.Route = make(map[string]map[string]http.HandlerFunc)
-	}
-	if r.Route[method] == nil {
-		r.Route[method] = make(map[string]http.HandlerFunc)
-	}
-	r.Route[method][path] = f
-}
-
-func startServer(portStr string) {
-	route := Router{}
-	route.HandleFunc("GET", "/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, portStr)
-	})
-
-	log.Fatal(http.ListenAndServe("localhost:"+portStr, &route))
 }

@@ -44,7 +44,12 @@
 
 #define CONDITIONAL_PREALLOC 0
 
-#define MAX_BACKEND_SELECTION 2048
+#define MAX_BACKEND_SELECTION 1024
+
+#define SVC_ACTION_NORMAL 0
+#define SVC_ACTION_WEIGHT 1
+#define SVC_ACTION_MIGRATE 2
+#define SVC_ACTION_REDIRECT_SVC 32768
 
 // sudo cat /sys/kernel/debug/tracing/trace_pipe
 
@@ -69,9 +74,8 @@ struct lb4_service {
     __u32 backend_id;	    /* Backend ID in lb4_backends */
 	__u16 count;
 	__u16 possibility;
-	__u8 flags;     // TODO: timeout flag
-	__u8 flags2;
-	__u8  pad[2];
+	__u16 action;
+	__u16 weight_range_upper;
 };
 
 struct lb4_backend {
@@ -139,12 +143,6 @@ static __always_inline struct lb4_service *lb4_lookup_service(struct lb4_key *ke
 	return NULL;
 }
 
-static __always_inline __u64 sock_select_random_slot(int sbc)
-{
-    int slot_index = bpf_get_prandom_u32() % sbc;
-	return slot_index + 1;
-}
-
 static __always_inline struct lb4_service *lookup_lb4_backend_slot(struct lb4_key *key)
 {
 	return bpf_map_lookup_elem(&LB4_SERVICES_MAP_V2, key);
@@ -153,4 +151,64 @@ static __always_inline struct lb4_service *lookup_lb4_backend_slot(struct lb4_ke
 static __always_inline struct lb4_backend *lookup_lb4_backend(__u32 backend_id)
 {
 	return bpf_map_lookup_elem(&LB4_BACKEND_MAP_V2, &backend_id);
+}
+
+static __always_inline __u64 sock_select_random_slot(int sbc)
+{
+    int slot_index = bpf_get_prandom_u32() % sbc;
+	return slot_index + 1;
+}
+
+static __always_inline int sock_select_weighted_slot(int sbc, struct lb4_key key)
+{
+    // TODO: provide more (lightweight) selection logic
+    int keep_possibility = MAX_BACKEND_SELECTION;
+    struct lb4_service *backend_slot;
+    for (int i = 1; i <= MAX_BACKEND_SELECTION; i++) {
+        if(i > sbc)
+            return -ENETRESET;
+
+        key.backend_slot = i;
+        backend_slot = lookup_lb4_backend_slot(&key);
+        if (!backend_slot)
+            return -ENOENT;
+
+        u32 random_value = bpf_get_prandom_u32();
+        // bpf_printk("evaluate: %d < %d ? remain: %d", random_value % keep_possibility, backend_slot->possibility, keep_possibility);
+
+        if((random_value % keep_possibility) < backend_slot->possibility) {
+            key.backend_slot = i;
+            break;
+        }
+
+        keep_possibility -= backend_slot->possibility;
+        if(keep_possibility < 0)
+            return -ENOENT;
+    }
+    return key.backend_slot;
+}
+
+static __always_inline int sock_fast_select_weighted_slot(int sbc, struct lb4_key key)
+{
+    int l = 1, r = sbc;
+    struct lb4_service *backend_slot;
+    int random_point = bpf_get_prandom_u32() % MAX_BACKEND_SELECTION;
+    for(int i = 0; i < 10; i++) { // 10 = log_2(MAX_BACKEND_SELECTION)
+        if(l == r) return l;
+        int mid = (l + r) >> 1;
+        bpf_printk("%d", mid);
+        key.backend_slot = mid;
+        backend_slot = lookup_lb4_backend_slot(&key);
+        if (!backend_slot)
+            return -ENOENT;
+        if(backend_slot->weight_range_upper == random_point) {
+            if(backend_slot->possibility > 0) return mid;
+            // We can not reach here except setting the item's weight to 0,
+            // then we have a probability of triggering this
+            else return -ENOENT;
+        }
+        else if(backend_slot->weight_range_upper < random_point) l = mid + 1;
+        else r = mid;
+    }
+    return -ENOENT; // infinite loop
 }
