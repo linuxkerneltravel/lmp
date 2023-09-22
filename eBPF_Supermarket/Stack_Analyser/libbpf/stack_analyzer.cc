@@ -690,7 +690,8 @@ public:
 			.size = sizeof(attr),
 			.config = PERF_COUNT_SW_CPU_CLOCK,
 			.sample_freq = freq,
-						.freq = 1, // use freq instead of period
+			.inherit = 1,
+			.freq = 1, // use freq instead of period
 		};
 		skel = 0;
 	};
