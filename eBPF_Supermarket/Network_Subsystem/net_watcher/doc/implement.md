@@ -1,5 +1,13 @@
 # netwatcher设计文档
 - 本文详细说明netwatcher的代码设计
+## 监控流程
+![监控流程图](image/process.png)
+
+如图所示，`netwatcher`监控每个建立的TCP连接与各个连接上的数据包：
+- 当TCP连接建立时，`netwatcher`记录下此TCP连接的基本信息，即连接id,连接socket地址,相关COMMAND,连接四元组以及连接方向
+- 当数据包到来时，`netwatcher`首先记录此数据包的基础信息，即SEQ,ACK,TCP包sock地址（用于明确TCP连接），接着根据指定参数
+  - 记录数据包的额外信息
+  - 更新相关TCP连接的额外信息
 ## 数据结构
 ### kernal struct
 - `struct ktime_info`
