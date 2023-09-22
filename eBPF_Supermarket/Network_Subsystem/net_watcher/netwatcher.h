@@ -14,10 +14,10 @@
 //
 // author: blown.away@qq.com
 //
-// netwatch libbpf 内核<->用户 传递信息相关结构体
+// netwatcher libbpf 内核<->用户 传递信息相关结构体
 
-#ifndef __netwatch_H
-#define __netwatch_H
+#ifndef __NETWATCHER_H
+#define __NETWATCHER_H
 
 #define ETH_P_IP 0x0800   /* Internet Protocol packet	*/
 #define ETH_P_IPV6 0x86DD /* IPv6 over bluebook		*/
@@ -83,4 +83,4 @@ struct pack_t {
     int rx;                              // rx packet(1) or tx packet(0)
 };
 
-#endif /* __netwatch_H */
+#endif /* __NETWATCHER_H */
