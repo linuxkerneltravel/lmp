@@ -5,6 +5,8 @@ go 1.20
 require (
 	github.com/cilium/cilium v1.14.0-snapshot.6
 	github.com/cilium/ebpf v0.11.0
+	github.com/prometheus/client_golang v1.16.0
+	github.com/prometheus/common v0.42.0
 	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
 	k8s.io/client-go v0.27.2
