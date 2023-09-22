@@ -283,7 +283,27 @@ protected:
 
 			for (auto id : *D)
 			{
-				printf("%6d\t(%6d,%6d)\t%lf\n", d.pid, d.ksid, d.usid, d.val);
+				__u64 ip[MAX_STACKS];
+				if (id.usid >= 0)
+				{
+					bpf_map_lookup_elem(trace_fd, &id.usid, ip);
+					std::string symbol;
+					struct symbol sym;
+					elf_file file;
+					for (auto p : ip)
+					{
+						if (!p)
+							break;
+						sym.reset(p);
+
+						if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
+							continue;
+						if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+							g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+							g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+					}
+				}
+				printf("%6d\t(%6d,%6d)\t%.2lf\n", id.pid, id.ksid, id.usid, id.val);
 			}
 			delete D;
 		};
@@ -423,7 +443,7 @@ public:
 								s = &sym.name;
 						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
 							}
-							if (!s)
+							else
 							{
 								char a[19];
 								sprintf(a, "0x%016llx", p);
@@ -431,8 +451,7 @@ public:
 								line = s + ';' + line;
 								g_symbol_parser.putin_symbol_cache(pid, p, s);
 							}
-else
-						line = *s + ';' + line;
+
 							deep++;
 						}
 					}
@@ -573,33 +592,20 @@ else
 					sym.reset(p);
 					std::string *s = NULL;
 					if (g_symbol_parser.find_symbol_in_cache(id->pid, p, symbol))
-					s = &symbol;
-					else if (g_symbol_parser.get_symbol_info(id->pid, sym, file) &&
-							 g_symbol_parser.find_elf_symbol(sym, file, id->pid, id->pid))
 					{
-						s = &(sym.name);
-						g_symbol_parser.putin_symbol_cache(id->pid, p, sym.name);
+						s = &symbol;
+						unsigned offset = p - sym.start;
+						char offs[20];
+						sprintf(offs, " +0x%x", offset);
+						*s = *s + std::string(offs);
+						trace->PV(s->c_str());
 					}
-					if (!s)
+					else
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string addr_s(a);
 						trace->PV(a);
-					g_symbol_parser.putin_symbol_cache(id->pid, p, addr_s);
-					}
-					else
-					{
-						if (kill(id->pid, 0))
-							trace->PV(s->c_str());
-						else
-						{
-							unsigned offset = p - sym.start;
-							char offs[20];
-							sprintf(offs, " +0x%x", offset);
-							*s = *s + std::string(offs);
-							trace->PV(s->c_str());
-						}
 					}
 				}
 			}
