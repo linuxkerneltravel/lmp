@@ -55,15 +55,6 @@ extern "C"
 }
 #endif
 
-/// @brief  printing help information
-/// @param progname progname printed in the help info
-static void show_help(const char *progname)
-{
-	printf("Usage: %s [-F <frequency>=49] [-p <pid>=-1] [-T <time>=INT_MAX] [-m <0 on cpu|1 off cpu|2 mem|3 io|4 preread>=0] "
-		   "[-U user stack only] [-K kernel stack only] [-f flame graph but not json] [-h help] \n",
-		   progname);
-}
-
 /// @brief staring perf event
 /// @param hw_event attribution of the perf event
 /// @param pid the pid to track. 0 for the calling process. -1 for all processes.
