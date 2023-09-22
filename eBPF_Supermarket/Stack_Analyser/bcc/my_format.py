@@ -19,10 +19,10 @@ def map2dict(b, get_mutant: callable, need_delimiter=True, show_offset=False) ->
                        ][psid.pid].setdefault('stacks', dict())
         stks_d[str(psid.ksid)+','+str(psid.usid)] = {
             'trace': (
-                (["%#08x:%s" % (j, b.ksym(j).decode())
+                (["%#016x:%s" % (j, b.ksym(j).decode())
                   for j in stack_trace.walk(psid.ksid)] if psid.ksid >= 0 else ['[Missed Kernel Stack]']) +
                 (['-'*50] if need_delimiter else []) +
-                (["%#08x:%s" % (j, b.sym(j, psid.pid, show_offset=show_offset).decode())
+                (["%#016x:" % (j)
                  for j in stack_trace.walk(psid.usid)] if psid.usid >= 0 else ['[Missed User Stack]'])
             ), 'count': n, 'label': get_mutant(psid)
         }

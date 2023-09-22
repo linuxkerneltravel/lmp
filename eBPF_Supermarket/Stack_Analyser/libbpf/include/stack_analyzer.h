@@ -118,21 +118,23 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 /// @brief 检查错误，若错误成立则打印带原因的错误信息并使上层函数返回-1
 /// @param cond 被检查的条件表达式
 /// @param info 要打印的错误信息
-#define CHECK_ERR(cond, info)                               \
+#define CHECK_ERR(cond, ...)                               \
     if (cond)                                               \
     {                                                       \
-        fprintf(stderr, "[%s]" info "\n", strerror(errno)); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, " [%s]\n", strerror(errno)); \
         return -1;                                          \
     }
 
 /// @brief 检查错误，若错误成立则打印带原因的错误信息并退出
 /// @param cond 被检查的条件表达式
 /// @param info 要打印的错误信息
-#define CHECK_ERR_EXIT(cond, info)                        \
+#define CHECK_ERR_EXIT(cond, ...)                        \
     if (cond)                                             \
-    {                                                     \
-        throw(stderr, "[%s]" info "\n", strerror(errno)); \
-        exit(-1);                                         \
+    {                                                       \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, " [%s]\n", strerror(errno)); \
+        exit(EXIT_FAILURE);                                         \
     }
 
 /// @brief 创建一个指定名字的ebpf调用栈表
@@ -222,7 +224,7 @@ typedef enum
     MOD_OFF_CPU, // off-cpu模式
     MOD_MEM,     // 内存模式
     MOD_IO,      // io模式
-    MOD_PER,     // 预读取分析模式
+    MOD_RA,     // 预读取分析模式
 } MOD;
 
 typedef struct
@@ -230,5 +232,6 @@ typedef struct
     __u64 truth;
     __u64 expect;
 } tuple;
+
 
 #endif
