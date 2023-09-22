@@ -14,7 +14,7 @@
 //
 // author: Gui-Yue
 //
-// 数据可视化处理的核心逻辑
+// proc_image数据可视化处理的核心逻辑
 
 package prom_core
 
@@ -50,6 +50,7 @@ func (p *ProcMetrics) Getorigindata(originalvalue chan map[string]interface{}) {
 	p.OriginalValue = <-originalvalue
 }
 
+// 数据库操作
 func (p *ProcMetrics) UpdateSql() {
 	p.Sqlobj.Data = p.OriginalValue
 	p.Sqlobj.CreateRow()

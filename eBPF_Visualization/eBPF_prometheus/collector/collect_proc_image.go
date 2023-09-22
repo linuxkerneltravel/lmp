@@ -29,6 +29,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -36,10 +37,10 @@ import (
 
 // Pro_Setting 定义了设置项，通过读取同目录下的proc_setting.yaml实现对基本信息的设置。
 type Proc_Setting struct {
-	Name        string `yaml:"name"`
-	Path        string `yaml:"path"`
-	Pid         string `yaml:"pid"`
-	Max_Records int    `yaml:"max_records"`
+	Name        string `yaml:"proc_name"`
+	Path        string `yaml:"proc_path"`
+	Pid         string `yaml:"proc_pid"`
+	Max_Records int    `yaml:"proc_max_records"`
 }
 
 var proc_imageCommand = cli.Command{
@@ -50,33 +51,48 @@ var proc_imageCommand = cli.Command{
 }
 
 // Get_Setting 函数用于获取设置的信息
-func Get_Setting() (error, string, int) {
+func Get_Setting(which string) (error, string, int) {
 	currentDir, _ := os.Getwd()
-	content, err := os.ReadFile(currentDir + "/collector/proc_setting.yaml")
+	content, err := os.ReadFile(currentDir + "/collector/tmux_proc_setting.yaml")
 	if err != nil {
 		log.Fatalf("Error reading file: %v", err)
 		return err, "", 0
 	}
-	var setting Proc_Setting
-	err = yaml.Unmarshal(content, &setting)
-	if err != nil {
-		log.Fatalf("Error unmarshaling YAML :%v", err)
-		return err, "", 0
-	}
+	command := ""
+	maxrecords := 0
+	if which == "proc" {
+		var setting Proc_Setting
+		err = yaml.Unmarshal(content, &setting)
+		if err != nil {
+			log.Fatalf("Error unmarshaling YAML :%v", err)
+			return err, "", 0
+		}
 
-	command := setting.Path + " -p " + setting.Pid
-	maxrecords := setting.Max_Records
+		command = setting.Path + " -p " + setting.Pid
+		maxrecords = setting.Max_Records
+	} else if which == "tmux" {
+		var setting Tmux_Setting
+		err = yaml.Unmarshal(content, &setting)
+		if err != nil {
+			log.Fatalf("Error unmarshaling YAML :%v", err)
+			return err, "", 0
+		}
+
+		command = setting.Path + " -p " + setting.Pid
+		maxrecords = setting.Max_Records
+	} else {
+		log.Fatalf("select setting failed.")
+	}
 	return nil, command, maxrecords
 }
 
 func procCollect(ctx *cli.Context) error {
-	_, command, _ := Get_Setting()
+	_, command, _ := Get_Setting("proc")
 	return ProcRun(command)
 }
 
 // ProcRun 是收集器的主函数，通过goroutin的方式实现数据收集，重定向，与prom_core包实现通信。
 func ProcRun(command string) error {
-	_, _, maxrecords := Get_Setting()
 	cmdStr := CheckFileType(command)
 	cmd := exec.Command("sh", "-c", cmdStr)
 
@@ -93,30 +109,65 @@ func ProcRun(command string) error {
 
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	currenttime := float64(time.Now().In(loc).UnixNano()) / 1e9
-	go redirectProc(stdout, mapchan)
 
-	procdata := prom_core.ProcMetrics{Max_records: maxrecords, NowTime: currenttime}
-	sqlobj := &dao.Sqlobj{Tablename: "proc_image_data"}
-	procdata.Sqlobj = sqlobj
-	// process chan from redirectProc Stdout
-	go procdata.BootProcService()
+	pathlist := strings.Split(command, "/")
+	is_proc, _ := regexp.MatchString(`proc`, pathlist[len(pathlist)-1])
+	is_lifecycle, _ := regexp.MatchString(`lifecycle`, pathlist[len(pathlist)-1])
+	is_lock, _ := regexp.MatchString(`lock`, pathlist[len(pathlist)-1])
 
-	go func() {
-		for {
-			select {
-			case <-mapchan:
-				procdata.Getorigindata(mapchan)
-				if procdata.Sqlinted {
-					procdata.UpdateSql()
-				} else {
-					procdata.Initsql()
+	if is_proc || is_lifecycle {
+		log.Println("This is lifecycle")
+		_, _, maxrecords := Get_Setting("proc")
+		go redirectProc(stdout, mapchan)
+
+		procdata := prom_core.ProcMetrics{Max_records: maxrecords, NowTime: currenttime}
+		sqlobj := &dao.Sqlobj{Tablename: "proc_image_data"}
+		procdata.Sqlobj = sqlobj
+		// process chan from redirectProc Stdout
+		go procdata.BootProcService()
+
+		go func() {
+			for {
+				select {
+				case <-mapchan:
+					procdata.Getorigindata(mapchan)
+					if procdata.Sqlinted {
+						procdata.UpdateSql()
+					} else {
+						procdata.Initsql()
+					}
+					procdata.UpdateRecords()
+					<-mapchan
+				default:
 				}
-				procdata.UpdateRecords()
-				<-mapchan
-			default:
 			}
-		}
-	}()
+		}()
+
+	} else if is_lock {
+		log.Println("This is lock_image.")
+		_, _, maxrecords := Get_Setting("tmux")
+		go redirectTmux(stdout, mapchan)
+		tmuxdata := prom_core.TmuxMetrics{Max_records: maxrecords, NowTime: currenttime}
+		sqlobj := &dao.Sqlobj{Tablename: "tmux_data"}
+		tmuxdata.Sqlobj = sqlobj
+		go tmuxdata.BootProcService()
+		go func() {
+			for {
+				select {
+				case <-mapchan:
+					tmuxdata.Getorigindata(mapchan)
+					if tmuxdata.Sqlinted {
+						tmuxdata.UpdateSql()
+					} else {
+						tmuxdata.Initsql()
+					}
+					tmuxdata.UpdateRecords()
+					<-mapchan
+				default:
+				}
+			}
+		}()
+	}
 
 	err = cmd.Start()
 	if err != nil {

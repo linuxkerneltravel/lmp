@@ -100,6 +100,14 @@ func init() {
 		log.Fatalf("Failed to load ... error:%s\n", err)
 		return
 	}
+	tmuxSvc := Aservice{
+		Name:    "tmuxCollectData",
+		Desc:    "collect data from lock_image",
+		NewInst: newTmuxCmd}
+	if err := AddAService(&tmuxSvc); err != nil {
+		log.Fatalf("Failed to load ... error:%s\n", err)
+		return
+	}
 }
 
 func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
@@ -108,6 +116,10 @@ func newCollectCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 
 func newProcCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
 	return proc_imageCommand, nil
+}
+
+func newTmuxCmd(ctx *cli.Context, opts ...interface{}) (interface{}, error) {
+	return tmux_command, nil
 }
 
 type BPF_name struct {
@@ -161,13 +173,7 @@ func (b *BPF_name) Run(filePath string) error {
 
 	mapchan := make(chan []map[string]interface{}, 2)
 
-	if checker.IsTcpObjection(cmdStr) {
-		log.Println("I am TCPWatch")
-		go RedirectTcpWatch(stdout, mapchan)
-	} else {
-		go redirectStdout(stdout, mapchan)
-		log.Println("I am normal")
-	}
+	go redirectStdout(stdout, mapchan)
 
 	metricsobj := &prom_core.MyMetrics{BPFName: b.Name, Sqlinited: false}
 	sqlobj := &dao.Sqlobj{Tablename: b.Name}
