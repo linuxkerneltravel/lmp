@@ -1,4 +1,0 @@
-name: proc_image
-path: ~/tmp/proc_image/proc_image
-pid: 1201
-max_records: 20    # 一次展示的最大数量
