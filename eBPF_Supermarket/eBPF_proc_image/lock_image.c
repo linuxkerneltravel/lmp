@@ -186,7 +186,7 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 	}
 
 	printf("pid:%d  comm:%s  %s_ptr:%llu\n", e->pid,e->comm,c,e->lock_ptr);
-	printf("acq_time(ns):%-15llu lock_time(ns):%-15llu unlock_time(ns):%-15llu acq_time(us):%-15.3lf hold_time(us):%-15.3lf\n",
+	printf("lock_acq_time(ns):%-15llu lock_time(ns):%-15llu unlock_time(ns):%-15llu acq_time(us):%-15.3lf hold_time(us):%-15.3lf\n",
 		e->lock_acq_time,e->lock_time,e->unlock_time,acq_time,hold_time);
     
 	printf("\n");

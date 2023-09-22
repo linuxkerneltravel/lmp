@@ -29,7 +29,6 @@
 #include "trace_helpers.h"
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
-#define MAX_LINE_LENGTH 256
 
 static volatile bool exiting = false;
 
@@ -51,7 +50,7 @@ static struct env {
 
 static struct ksyms *ksyms = NULL;
 
-const char argp_program_doc[] ="Trace process to get process image.\n";
+const char argp_program_doc[] ="Trace process to get process life cycle image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
@@ -151,7 +150,7 @@ static int handle_event(void *ctx, void *data,unsigned long data_sz)
 				{
 					t_count = count;
 				}
-				printf("offCPU_Kernel_stack:\n");
+				printf("offcpu_kernel_stack:\n");
 				for(int i=0 ; i<t_count ; i++){
 					print_stack(e->kstack[i]);
 				}

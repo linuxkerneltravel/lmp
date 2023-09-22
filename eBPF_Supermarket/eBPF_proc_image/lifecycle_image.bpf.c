@@ -49,7 +49,7 @@ struct {
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next)
 {
-    pid_t next_pid = BPF_CORE_READ(next,pid);
+	pid_t next_pid = BPF_CORE_READ(next,pid);
 	pid_t prev_pid = BPF_CORE_READ(prev,pid);
 	int cpu_id = bpf_get_smp_processor_id();
 

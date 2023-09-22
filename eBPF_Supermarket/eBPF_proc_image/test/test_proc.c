@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
+#include <linux/fcntl.h>
 
 #define gettid() syscall(__NR_gettid)
 
@@ -40,11 +41,13 @@ int main() {
    int pid,stop;
    int err;
    pthread_t tid;
+   char *argv[] = { "ls", "-l", NULL };
+   char *envp[] = { "PATH=/bin", NULL };
 
    pid = getpid();
-   printf("test进程的PID:%d\n", pid);
+   printf("test_proc进程的PID:%d\n", pid);
    printf("输入任意数字继续程序的运行:");
-   //scanf("%d",&stop);                   // 使用时将其取消注释
+//   scanf("%d",&stop);                   // 使用时将其取消注释
    printf("程序开始执行...\n");
    printf("\n");
 
@@ -64,7 +67,7 @@ int main() {
    printf("程序睡眠3s!\n");
    printf("\n");
 
-   // 逻辑2：加入互斥锁逻辑，为了应对复杂场景，模拟进程异常地递归加锁解锁
+   // 逻辑2：加入用户态互斥锁逻辑，为了应对复杂场景，模拟进程异常地递归加锁解锁
    printf("逻辑2:\n");
    pthread_mutex_t mutex1;
    pthread_mutex_t mutex2;
@@ -73,10 +76,10 @@ int main() {
    printf("mutex1_ptr:%llu\n",(long long unsigned int)&mutex1);
    printf("mutex2_ptr:%llu\n",(long long unsigned int)&mutex2);
    pthread_mutex_lock(&mutex1);
-   printf("进程成功持有锁mutex1\n");
+   printf("进程成功持有用户态互斥锁mutex1\n");
    sleep(3);
    pthread_mutex_lock(&mutex2);
-   printf("进程成功持有锁mutex2\n");
+   printf("进程成功持有用户态互斥锁mutex2\n");
    pthread_mutex_unlock(&mutex1);
    printf("进程成功解锁mutex1\n");
    sleep(3);
@@ -123,23 +126,38 @@ int main() {
    sleep(6);      // 等待新线程执行完毕
    printf("\n");
 
-   // 逻辑5：加入读写锁逻辑，在读模式或写模式下上锁后睡眠3s，以表示持有锁时间
+   // 逻辑5：加入用户态读写锁逻辑，在读模式或写模式下上锁后睡眠3s，以表示持有锁时间
    printf("逻辑5:\n");
    pthread_rwlock_t rwlock;
    pthread_rwlock_init(&rwlock,NULL);
    printf("rwlock_ptr:%llu\n",(long long unsigned int)&rwlock);
    pthread_rwlock_rdlock(&rwlock);
-   printf("进程在读模式下锁定读写锁rwlock\n");
+   printf("进程在读模式下锁定用户态读写锁rwlock\n");
    sleep(3);
    pthread_rwlock_unlock(&rwlock);
    printf("进程成功解锁rwlock\n");
    pthread_rwlock_wrlock(&rwlock);
-   printf("进程在写模式下锁定读写锁rwlock\n");
+   printf("进程在写模式下锁定用户态读写锁rwlock\n");
    sleep(3);
    pthread_rwlock_unlock(&rwlock);
    printf("进程成功解锁rwlock\n");
    pthread_rwlock_destroy(&rwlock);
    printf("\n");
+
+   // 逻辑6：加入execve逻辑
+   // 替换当前进程，ARGV和ENVP以NULL指针结束
+   // 若出错，返回-1；若成功，不返回
+   printf("逻辑6:\n");
+   execve("/bin/ls", argv, envp);
+   perror("execve");
+   printf("\n");
+
+   // 逻辑7：加入exit逻辑
+   printf("逻辑7:\n");
+   int error_code;
+   printf("请输入程序退出的error_code值:");
+   scanf("%d",&error_code);
+   exit(error_code);
 
    return 0;
 }

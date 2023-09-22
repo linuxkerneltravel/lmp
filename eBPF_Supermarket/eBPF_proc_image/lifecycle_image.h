@@ -16,8 +16,8 @@
 //
 // eBPF map for the process life cycle image
 
-#ifndef __PROC_IMAGE_H
-#define __PROC_IMAGE_H
+#ifndef __LIFECYCLE_IMAGE_H
+#define __LIFECYCLE_IMAGE_H
 
 #define TASK_COMM_LEN 16
 #define MAX_STACK_DEPTH 128
@@ -58,4 +58,4 @@ struct cpu_event{
     stack_trace_t kstack;
 };
 
-#endif /* __PROC_IMAGE_H */
+#endif /* __LIFECYCLE_IMAGE_H */
