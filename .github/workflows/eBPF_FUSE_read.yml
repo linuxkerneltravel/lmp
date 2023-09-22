@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/eBPF_FUSE_read/**'
+      - 'eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read/**'
       - '.github/workflows/ebpf_FUSE_read.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/eBPF_FUSE_read/**'
+      - 'eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read/**'
       - '.github/workflows/ebpf_FUSE_read.yml'
   
 jobs:
