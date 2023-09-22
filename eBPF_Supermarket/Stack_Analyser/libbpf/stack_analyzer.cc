@@ -542,8 +542,12 @@ public:
 					std::string pid_s = std::to_string(id->pid);
 					stacks = &(ajson[tgid_s.c_str()][pid_s.c_str()]["stacks"]);
 				}
-				auto sid_c = (std::to_string(id->usid) + "," + std::to_string(id->ksid)).c_str();
-								stacks->KV(sid_c, rapidjson::kObjectType);
+				const char *sid_c;
+				{
+					auto sid = std::to_string(id->usid) + "," + std::to_string(id->ksid);
+					sid_c = sid.c_str();
+				}
+				stacks->KV(sid_c, rapidjson::kObjectType);
 				(*stacks)[sid_c].CKV("count", id->val);
 				(*stacks)[sid_c].CKV("trace", rapidjson::kArrayType);
 				trace = &((*stacks)[sid_c]["trace"]);
