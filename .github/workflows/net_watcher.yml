@@ -31,7 +31,7 @@ jobs:
 
       - name: Build and Run
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/net_watch/
+          cd eBPF_Supermarket/Network_Subsystem/net_watcher/
           make
           # run
           sudo timeout -s SIGINT 5 ./netwatcher || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
