@@ -426,7 +426,10 @@ public:
 			else
 				line = "[MISSING KERNEL STACK];" + line;
 			line = std::string("----------------;") + line;
-								unsigned deep = 0;
+			{
+				std::string usr_strace("");
+				{
+					unsigned deep = 0;
 					if (id.usid >= 0)
 					{
 						bpf_map_lookup_elem(trace_fd, &id.usid, ip);
@@ -440,16 +443,16 @@ public:
 
 							if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
 							{
-								s = &sym.name;
-						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+								s = &symbol;
+								usr_strace = *s + ';' + usr_strace;
 							}
 							else
 							{
 								char a[19];
 								sprintf(a, "0x%016llx", p);
 								std::string s(a);
-								line = s + ';' + line;
-								g_symbol_parser.putin_symbol_cache(pid, p, s);
+								usr_strace = s + ';' + usr_strace;
+								g_symbol_parser.putin_symbol_cache(id.pid, p, s);
 							}
 
 							deep++;
@@ -457,7 +460,7 @@ public:
 					}
 					else
 					{
-						line = std::string("[MISSING USER STACK];") + line;
+						usr_strace = std::string("[MISSING USER STACK];");
 						deep = 1;
 					}
 					deep = max_deep - deep;
@@ -465,7 +468,10 @@ public:
 					{
 						line = ".;" + line;
 					}
-							{
+				}
+				line = usr_strace + line;
+			}
+			{
 				char cmd[COMM_LEN];
 				bpf_map_lookup_elem(comm_fd, &id.pid, cmd);
 				line = std::string(cmd) + ':' + std::to_string(id.pid) + ';' + line;
