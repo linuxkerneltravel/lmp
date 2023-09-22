@@ -35,12 +35,13 @@ const char LICENSE[] SEC("license") = "GPL";
 
 char u /*user stack flag*/, k /*kernel stack flag*/;
 int apid;
+__u64 min, max;
 
 int gen_alloc_enter(size_t size)
 {
     // bpf_printk("malloc_enter");
     // record data
-    if (!size)
+    if (size < min || size > max)
         return 0;
     u64 pt = bpf_get_current_pid_tgid();
     u32 pid = pt >> 32;

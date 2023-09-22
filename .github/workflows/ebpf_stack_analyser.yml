@@ -35,7 +35,7 @@ jobs:
         run: |
           cd eBPF_Supermarket/Stack_Analyser/libbpf
           sudo make
-          sudo ./stack_analyzer -p 1 -T 5
+          sudo ./stack_analyzer 5 -p 1
 
   bcc-project-build-and-test:
     runs-on: ubuntu-22.04

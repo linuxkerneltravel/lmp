@@ -19,6 +19,7 @@
 package prom_core
 
 import (
+	"ebpf_prometheus/dao"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -33,6 +34,8 @@ type ProcMetrics struct {
 	mu            sync.Mutex
 	OriginalValue map[string]interface{}
 	Records       []OneRecord
+	Sqlinted      bool
+	Sqlobj        *dao.Sqlobj
 }
 
 // 原始数据处理后所保留的基本数据
@@ -45,6 +48,18 @@ type OneRecord struct {
 // Getorigindata 实现通信，获取原始数据
 func (p *ProcMetrics) Getorigindata(originalvalue chan map[string]interface{}) {
 	p.OriginalValue = <-originalvalue
+}
+
+func (p *ProcMetrics) UpdateSql() {
+	p.Sqlobj.Data = p.OriginalValue
+	p.Sqlobj.CreateRow()
+}
+
+func (p *ProcMetrics) Initsql() {
+	p.Sqlobj.Data = p.OriginalValue
+	p.Sqlobj.Connectsql()
+	p.Sqlobj.OperateTable("proc_image")
+	p.Sqlinted = true
 }
 
 // processJson 实现将原始数据进行处理，获取展示所需要的基本数据

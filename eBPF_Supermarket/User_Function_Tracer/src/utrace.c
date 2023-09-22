@@ -16,11 +16,10 @@
 //
 // 基于eBPF的用户态函数观测主程序
 
-#include <getopt.h>
-
 #include "utrace.h"
 #include "utrace.skel.h"
 
+#include <argp.h>
 #include <assert.h>
 #include <bpf/libbpf.h>
 #include <ctype.h>
@@ -41,94 +40,101 @@
 
 #define BASE_ADDR 0x400000  // for no-pie option
 
-#define NOASLR 1000
-static const struct option longopts[] = {{"command", required_argument, NULL, 'c'},
-                                         {"pid", required_argument, NULL, 'p'},
-                                         {"no-ASLR", no_argument, NULL, NOASLR},
-                                         {"help", no_argument, NULL, 'h'},
-                                         {NULL, 0, NULL, 0}};
-
-static const char *optstring = "c:p:hd";
-
-struct args {
-  pid_t pid;
-  int aslr;
-  char **argv;
+enum longopt {
+  CPUID = 1000,
+  NOASLR,
+  TID,
+  TIMESTAMP,
 };
 
-void print_usage(char *program) {
-  LOG("Usage: %s [$OPTIONS...]\n", program);
-  LOG("\n");
-  LOG("Options:\n");
-  LOG("  -c --command: the command to run the program to be traced.\n");
-  LOG("  -p --pid: the PID of the program to be traced.\n");
-  LOG("  -d --debug: enable debug mode.\n");
-  LOG("     --no-ASLR: disable Address Space Layout Randomization (ASLR).\n");
-  LOG("  -h --help: disaply this usage information.\n");
-  LOG("\n");
-  LOG("Examples:\n");
-  LOG("  sudo %s -c \"$PROGRAM $ARGS\"\n", program);
-  LOG("  sudo %s -p $PID\n", program);
-}
+static struct env {
+  char **argv;
+  int cpuid;
+  int noaslr;
+  pid_t pid;
+  int tid;
+  int timestamp;
+} env;
 
-void parse_args(int argc, char *argv[], struct args *arg) {
-  int len, c = 0;
+const char *argp_program_version = "eBPF-utrace 0.0";
+const char argp_program_doc[] =
+    "\neBPF user function tracer (utrace).\n"
+    "\n"
+    "Examples:\n"
+    "  sudo utrace -c \"$PROGRAM $ARGS\"\n"
+    "  sudo utrace -p $PID\n";
 
-  arg->pid = 0;
-  arg->aslr = 1;
-  arg->argv = (char **)malloc(sizeof(char *) * 16);
+static const struct argp_option opts[] = {
+    {"command", 'c', "COMMAND", 0, "Command to run the program to be traced"},
+    {"cpuid", CPUID, NULL, 0, "Display cpuid information"},
+    {"debug", 'd', NULL, 0, "Display debug information"},
+    {"no-aslr", NOASLR, NULL, 0, "Disable address space layout randomization (aslr)"},
+    {"pid", 'p', "P", 0, "PID of the program to be traced"},
+    {"tid", TID, NULL, 0, "Display tid information"},
+    {"timestamp", TIMESTAMP, NULL, 0, "Display timestamp information"},
+    {}};
 
-  debug = 0;
-
-  int opt, opt_index = 1;
-  while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) {
-    switch (opt) {
-      case 'c':  // -c --command
-        len = strlen(optarg);
-        for (int i = 0; i < len; i++) {
-          if (optarg[i] != ' ') {
-            int j = i + 1;
-            while (j < len && optarg[j] != ' ') {
-              ++j;
-            }
-            optarg[j] = 0;
-            arg->argv[c] = strdup(optarg + i);
-            ++c;
-            optarg[j] = ' ';
-            i = j;
+static error_t parse_arg(int key, char *arg, struct argp_state *state) {
+  switch (key) {
+    case 'c':  // -c --command
+      env.argv = (char **)malloc(sizeof(char *) * 16);
+      for (int i = 0, len = strlen(arg), c = 0; i < len; i++) {
+        if (arg[i] != ' ') {
+          int j = i + 1;
+          while (j < len && arg[j] != ' ') {
+            ++j;
           }
+          arg[j] = 0;
+          env.argv[c] = strdup(arg + i);
+          env.argv[c + 1] = NULL;
+          ++c;
+          arg[j] = ' ';
+          i = j;
         }
-        arg->argv[c] = NULL;
-        opt_index += 2;
-        break;
-      case 'p':  // -p --pid
-        arg->pid = atoi(optarg);
-        opt_index += 2;
-        break;
-      case 'd':  // -d --debug
-        debug = 1;
-        opt_index += 1;
-        break;
-      case NOASLR:
-        arg->aslr = 0;
-        break;
-      case 'h':  // -h --help
-        print_usage(argv[0]);
-        exit(0);
-      default:
-        print_usage(argv[0]);
-        exit(1);
-    }
+      }
+      break;
+    case CPUID:  // --cpuid
+      env.cpuid = 1;
+      break;
+    case 'd':  // -d --debug
+      debug = 1;
+      break;
+    case 'h':  // -h --help
+      argp_usage(state);
+      exit(0);
+    case 'p':  // -p --pid
+      env.pid = atoi(arg);
+      if (env.pid < 0) {
+        ERROR("Invalid pid: %d\n", env.pid);
+        argp_usage(state);
+      }
+      break;
+    case NOASLR:  // --no-aslr
+      env.noaslr = 1;
+      break;
+    case TID:  // --tid
+      env.tid = 1;
+      break;
+    case TIMESTAMP:  // --timestamp
+      env.timestamp = 1;
+      break;
+    case ARGP_KEY_ARG:
+      argp_usage(state);
+      break;
+    default:
+      return ARGP_ERR_UNKNOWN;
   }
-  if (!c && !arg->pid) {
-    print_usage(argv[0]);
-    exit(1);
-  }
+  return 0;
 }
+
+static const struct argp argp = {
+    .options = opts,
+    .parser = parse_arg,
+    .doc = argp_program_doc,
+};
 
 struct symbol_tab *symtab;
-struct dyn_symbol_set *dyn_symset;
-struct vmap_list *vmaps;
+static struct vmap_list *vmap_list;
 
 char buf[MAX_SYMBOL_LEN];
 char stack_func[MAX_STACK_DEPTH][MAX_SYMBOL_LEN];
@@ -155,19 +161,22 @@ void uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe, size_t a
 }
 
 bool symbolize(size_t addr) {
-  struct vmap *vmap = find_vmap(vmaps, addr);
+  struct vmap *vmap = get_vmap(vmap_list, addr);
   if (vmap == NULL) return false;
   for (struct symbol_arr *symbols = symtab->head; symbols != NULL; symbols = symbols->next) {
-    if (strcmp(symbols->libname, basename(vmap->libname)) != 0) continue;
+    if (strcmp(symbols->libname, basename(vmap->module)) != 0) continue;
     char *name = find_symbol_name(symbols, addr - vmap->addr_st + vmap->offset);
     if (name == NULL) return false;
     memcpy(buf, name, strlen(name));
     buf[strlen(name)] = 0;
-    free(name);
     return true;
   }
   return false;
 }
+
+static volatile bool exiting = false;
+
+static void sig_handler(int sig) { exiting = true; }
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
   static struct profile_record pending_r;
@@ -178,24 +187,41 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 
   if (r->exit) {
     // LOG("EXIT");
+    // LOG(" %llx\n", r->ustack);
     // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
     if (status == 0) {
-      log_cpuid(pending_r.cpu_id);
-      log_split();
-      log_tid(pending_r.tid);
-      log_split();
-      log_time(r->duration_ns);
+      if (env.cpuid) {
+        log_cpuid(pending_r.cpu_id);
+        log_split();
+      }
+      if (env.tid) {
+        log_tid(pending_r.tid);
+        log_split();
+      }
+      if (env.timestamp) {
+        log_timestamp(pending_r.timestamp);
+        log_split();
+      }
+      log_duration(r->duration_ns);
       log_split();
       log_char(' ', 2 * pending_r.ustack_sz);
       LOG("%s();\n", stack_func[pending_r.global_sz]);
     } else {  // status == 1
-      log_cpuid(r->cpu_id);
-      log_split();
-      log_tid(r->tid);
-      log_split();
-      log_time(r->duration_ns);
+      if (env.cpuid) {
+        log_cpuid(r->cpu_id);
+        log_split();
+      }
+      if (env.tid) {
+        log_tid(r->tid);
+        log_split();
+      }
+      if (env.timestamp) {
+        log_timestamp(r->timestamp);
+        log_split();
+      }
+      log_duration(r->duration_ns);
       log_split();
       log_char(' ', 2 * r->ustack_sz);
       LOG("} ");
@@ -207,6 +233,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     status = 1;
   } else {
     // LOG("EXEC");
+    // LOG(" %llx\n", r->ustack);
     // for (int i = 0; i < r->ustack_sz; i++) LOG(" %llx", r->ustack[i]);
     // if (symbolize(r->ustack[0])) {
     //    memcpy(stack_func[r->ustack_sz], buf, sizeof(buf));
@@ -214,10 +241,18 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     // LOG(" %s\n", stack_func[r->ustack_sz]);
     // return 0;
     if (status == 0) {
-      log_cpuid(pending_r.cpu_id);
-      log_split();
-      log_tid(pending_r.tid);
-      log_split();
+      if (env.cpuid) {
+        log_cpuid(pending_r.cpu_id);
+        log_split();
+      }
+      if (env.tid) {
+        log_tid(pending_r.tid);
+        log_split();
+      }
+      if (env.timestamp) {
+        log_timestamp(pending_r.timestamp);
+        log_split();
+      }
       log_char(' ', 11);
       log_split();
       log_char(' ', 2 * pending_r.ustack_sz);
@@ -236,18 +271,23 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 int main(int argc, char **argv) {
   struct ring_buffer *records = NULL;
   struct utrace_bpf *skel;
-  struct args arg;
   struct rlimit old_rlim;
   pid_t pid;
   char *program;
   int err;
 
-  parse_args(argc, argv, &arg);
+  err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
+  if (err || (env.argv == NULL && !env.pid)) {
+    return err;
+  }
 
   if (geteuid() != 0) {
     ERROR("Failed to run %s: permission denied\n", argv[0]);
     return 1;
   }
+
+  signal(SIGINT, sig_handler);
+  signal(SIGTERM, sig_handler);
 
   /* Set up libbpf errors and debug info callback */
   libbpf_set_print(libbpf_print_fn);
@@ -274,16 +314,30 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-  if (arg.pid) {
-    pid = arg.pid;
-    program = get_program(pid);
+  if (env.pid) {
+    pid = env.pid;
+    vmap_list = init_vmap_list(pid);
+    program = get_program(vmap_list);
   } else {
-    program = strdup(arg.argv[0]);
+    program = env.argv[0];
+    if (access(program, F_OK) != 0) {
+      char *path_env = getenv("PATH");
+      if (path_env != NULL) {
+        char *path_token = strtok(path_env, ":");
+        while (path_token != NULL) {
+          char full_path[256];
+          snprintf(full_path, sizeof(full_path), "%s/%s", path_token, program);
+          if (access(full_path, F_OK) == 0) {
+            program = strdup(full_path);
+          }
+          path_token = strtok(NULL, ":");
+        }
+      }
+    }
   }
 
   symtab = new_symbol_tab();
-  dyn_symset = new_dyn_symbol_set();
-  push_symbol_arr(symtab, new_symbol_arr(program, dyn_symset, 0));
+  push_symbol_arr(symtab, new_symbol_arr(program));
   for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
        sym++) {
     if (sym->addr >= BASE_ADDR) sym->addr -= BASE_ADDR;
@@ -302,7 +356,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  if (arg.pid) {
+  if (env.pid) {
     size_t pre_addr = 0;
     for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
          sym++) {
@@ -312,18 +366,21 @@ int main(int argc, char **argv) {
         continue;
       else if (strcmp(sym->name, "__libc_csu_fini") == 0)
         continue;
+      else if (strcmp(sym->name, "_dl_relocate_static_pie") == 0)
+        continue;
       if (sym->addr != pre_addr) {
         uprobe_attach(skel, pid, program, sym->addr);
         pre_addr = sym->addr;
       }
     }
 
-    vmaps = new_vmap_list(pid);
-    for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
+    for (struct vmap *vmap = vmap_list->head, *prev_vmap = NULL; vmap != NULL;
          prev_vmap = vmap, vmap = vmap->next) {
-      if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
-      if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-      push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
+      if (strcmp(basename(vmap->module), basename(program)) == 0) continue;
+      if (prev_vmap != NULL && strcmp(prev_vmap->module, vmap->module) == 0) continue;
+      struct symbol_arr *symbols = new_symbol_arr(vmap->module);
+      if (!symbols) continue;
+      push_symbol_arr(symtab, symbols);
       size_t pre_addr = 0;
       for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
            sym++) {
@@ -332,7 +389,7 @@ int main(int argc, char **argv) {
         else if (strcmp(sym->name, "__libc_start_main") == 0)
           continue;
         if (sym->addr != pre_addr) {
-          uprobe_attach(skel, pid, vmap->libname, sym->addr);
+          uprobe_attach(skel, pid, vmap->module, sym->addr);
           pre_addr = sym->addr;
         }
       }
@@ -341,13 +398,13 @@ int main(int argc, char **argv) {
     /* Attach tracepoints */
     assert(utrace_bpf__attach(skel) == 0);
   } else {
-    size_t break_addr = 0;
-    for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
-         sym++) {
-      if (strcmp(sym->name, "_start") == 0) {
-        break_addr = sym->addr;
-        break;
-      }
+    struct elf_head elf;
+    elf_head_begin(&elf, program);
+    size_t break_addr = get_entry_address(&elf);
+    if (break_addr >= BASE_ADDR) break_addr -= BASE_ADDR;
+    elf_head_end(&elf);
+    if (!break_addr) {
+      exit(1);
     }
 
     pid = fork();
@@ -355,16 +412,17 @@ int main(int argc, char **argv) {
       ERROR("Fork error\n");
       goto cleanup;
     } else if (pid == 0) {
-      if (!arg.aslr) personality(ADDR_NO_RANDOMIZE);
+      if (env.noaslr) personality(ADDR_NO_RANDOMIZE);
       ptrace(PTRACE_TRACEME, 0, 0, 0);
-      execv(program, arg.argv);
+      execv(program, env.argv);
       ERROR("Execv %s error\n", program);
       exit(1);
     } else {
-      struct gdb *gdb = new_gdb(pid);
+      struct gdb *gdb = init_gdb(pid);
       wait_for_signal(gdb);
 
-      break_addr += get_base_addr(pid);
+      vmap_list = init_vmap_list(pid);
+      break_addr += get_prog_addr_st(vmap_list);
       DEBUG("break address: %zx\n", break_addr);
 
       enable_breakpoint(gdb, break_addr);
@@ -388,12 +446,11 @@ int main(int argc, char **argv) {
         }
       }
 
-      vmaps = new_vmap_list(pid);
-      for (struct vmap *vmap = vmaps->head, *prev_vmap = NULL; vmap != NULL;
+      for (struct vmap *vmap = vmap_list->head, *prev_vmap = NULL; vmap != NULL;
            prev_vmap = vmap, vmap = vmap->next) {
-        if (strcmp(basename(vmap->libname), basename(program)) == 0) continue;
-        if (prev_vmap != NULL && strcmp(prev_vmap->libname, vmap->libname) == 0) continue;
-        push_symbol_arr(symtab, new_symbol_arr(vmap->libname, dyn_symset, 1));
+        if (strcmp(basename(vmap->module), basename(program)) == 0) continue;
+        if (prev_vmap != NULL && strcmp(prev_vmap->module, vmap->module) == 0) continue;
+        push_symbol_arr(symtab, new_symbol_arr(vmap->module));
         size_t pre_addr = 0;
         for (struct symbol *sym = symtab->head->sym; sym != symtab->head->sym + symtab->head->size;
              sym++) {
@@ -402,7 +459,7 @@ int main(int argc, char **argv) {
           else if (strcmp(sym->name, "__libc_start_main") == 0)
             continue;
           if (sym->addr != pre_addr) {
-            uprobe_attach(skel, pid, vmap->libname, sym->addr);
+            uprobe_attach(skel, pid, vmap->module, sym->addr);
             pre_addr = sym->addr;
           }
         }
@@ -412,13 +469,12 @@ int main(int argc, char **argv) {
       assert(utrace_bpf__attach(skel) == 0);
 
       disable_breakpoint(gdb, break_addr);
-      delete_gdb(gdb);
+      free_gdb(gdb);
     }
   }
-
-  log_header();
+  log_header(env.cpuid, env.tid, env.timestamp);
   /* Process events */
-  while (true) {
+  while (!exiting) {
     err = ring_buffer__poll(records, 100 /* timeout, ms */);
     /* Ctrl-C will cause -EINTR */
     if (err == -EINTR) {
@@ -430,7 +486,7 @@ int main(int argc, char **argv) {
       break;
     }
     if (err == 0) {
-      if (arg.pid) {
+      if (env.pid) {
         if (kill(pid, 0)) break;
       } else {
         int wstatus;
@@ -451,15 +507,13 @@ cleanup:
   utrace_bpf__destroy(skel);
 
   delete_symbol_tab(symtab);
-  delete_dyn_symbol_set(dyn_symset);
-  delete_vmap_list(vmaps);
-
-  free(program);
+  free_vmap_list(vmap_list);
 
   if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
     ERROR("setrlimit error");
     exit(1);
   }
 
+  DEBUG("finish");
   return err < 0 ? -err : 0;
 }

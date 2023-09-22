@@ -37,45 +37,9 @@ static int addrsort(const void* lhs, const void* rhs) {
   return 0;
 }
 
-static int namesort(const void* lhs, const void* rhs) {
-  const char** namel = (const char**)lhs;
-  const char** namer = (const char**)rhs;
-  return strcmp(*namel, *namer);
-}
-
-struct dyn_symbol_set* new_dyn_symbol_set() {
-  struct dyn_symbol_set* dyn_symset = (struct dyn_symbol_set*)malloc(sizeof(struct dyn_symbol_set));
-  dyn_symset->size = 0;
-  dyn_symset->cap = 16;
-  dyn_symset->names = (char**)malloc(dyn_symset->cap * sizeof(char*));
-  return dyn_symset;
-}
-
-static void insert_dyn_symbol(struct dyn_symbol_set* dyn_symset, char* name) {
-  if (dyn_symset->size == dyn_symset->cap) {
-    dyn_symset->cap <<= 1;
-    dyn_symset->names = (char**)realloc(dyn_symset->names, dyn_symset->cap * sizeof(char*));
-  }
-  dyn_symset->names[dyn_symset->size] = strdup(name);
-  dyn_symset->size++;
-}
-
-static int contain_dyn_symbol(struct dyn_symbol_set* dyn_symset, char* name) {
-  return (char*)bsearch(&name, dyn_symset->names, dyn_symset->size, sizeof(char*), namesort) !=
-         NULL;
-}
-
-void delete_dyn_symbol_set(struct dyn_symbol_set* dyn_symset) {
-  for (int i = 0; i < dyn_symset->size; i++) {
-    free(dyn_symset->names[i]);
-  }
-  free(dyn_symset->names);
-  free(dyn_symset);
-}
-
-struct symbol_arr* new_symbol_arr(char* libname, struct dyn_symbol_set* dyn_symset, int lib) {
+struct symbol_arr* new_symbol_arr(char* libname) {
   struct elf_head elf;
-  elf_head_begin(&elf, libname);
+  if (elf_head_begin(&elf, libname)) return NULL;
 
   struct symbol_arr* symbols = (struct symbol_arr*)malloc(sizeof(struct symbol_arr));
   symbols->size = 0;
@@ -83,37 +47,90 @@ struct symbol_arr* new_symbol_arr(char* libname, struct dyn_symbol_set* dyn_syms
   symbols->sym = (struct symbol*)malloc(symbols->cap * sizeof(struct symbol));
   symbols->next = NULL;
   symbols->libname = strdup(basename(libname));
+
   struct elf_section elf_s;
+  size_t plt_section_off = 0;
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
-    if (elf_s.shdr.sh_type != SHT_SYMTAB && elf_s.shdr.sh_type != SHT_DYNSYM) continue;
-    struct elf_entry elf_e;
-    struct symbol sym;
-    for (elf_symbol_entry_begin(&elf_e, &elf_s); elf_symbol_entry_next(&elf_e, &elf_s);) {
-      if (GELF_ST_TYPE(elf_e.sym.st_info) != STT_FUNC &&
-          // GELF_ST_TYPE(elf_e.sym.st_info) != STT_OBJECT &&
-          GELF_ST_TYPE(elf_e.sym.st_info) != STT_GNU_IFUNC)
-        continue;
+    if (elf_s.shdr.sh_type != SHT_PROGBITS) continue;
 
-      sym.addr = elf_e.sym.st_value;
-      sym.size = elf_e.sym.st_size;
-      sym.name = elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name);
-      sym.name = demangle(sym.name);
+    char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+    if (strcmp(shstr, ".plt.sec") == 0) {
+      plt_section_off = elf_s.shdr.sh_offset;
+      break;
+    }
+  }
 
-      if (!lib && elf_s.shdr.sh_type == SHT_DYNSYM) {
-        insert_dyn_symbol(dyn_symset, sym.name);
-        DEBUG("Dynamic symbol: %s\n", sym.name);
+  struct symbol sym;
+  size_t dyn_str_idx;
+  Elf_Data* dyn_sym_data = NULL;
+  for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
+    if (elf_s.shdr.sh_type != SHT_DYNSYM && elf_s.shdr.sh_type != SHT_RELA &&
+        elf_s.shdr.sh_type != SHT_SYMTAB)
+      continue;
+
+    char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+    if (strcmp(shstr, ".dynsym") != 0 && strcmp(shstr, ".rela.plt") != 0 &&
+        strcmp(shstr, ".symtab") != 0)
+      continue;
+
+    if (elf_s.shdr.sh_type == SHT_DYNSYM || elf_s.shdr.sh_type == SHT_SYMTAB) {
+      struct elf_sym_entry elf_e;
+      for (elf_sym_entry_begin(&elf_e, &elf_s); elf_sym_entry_next(&elf_e, &elf_s);) {
+        if (elf_s.shdr.sh_type == SHT_DYNSYM) {
+          if (dyn_sym_data == NULL) {
+            dyn_str_idx = elf_e.str_idx;
+            dyn_sym_data = elf_e.sym_data;
+          }
+          continue;
+        }
+
+        if (GELF_ST_TYPE(elf_e.sym.st_info) != STT_FUNC &&
+            GELF_ST_TYPE(elf_e.sym.st_info) != STT_GNU_IFUNC)
+          continue;
+        if (elf_e.sym.st_shndx == STN_UNDEF) continue;
+        if (elf_e.sym.st_size == 0) continue;
+
+        sym.addr = elf_e.sym.st_value;
+        sym.size = elf_e.sym.st_size;
+        sym.name = elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name);
+        sym.name = demangle(sym.name);
+
+        push_symbol(symbols, &sym);
+      }
+    }
+
+    if (elf_s.shdr.sh_type == SHT_RELA) {
+      struct elf_rela_entry elf_e;
+
+      int valid = 1;  // TODO
+      for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
+           elf_rela_entry_next(&elf_e, &elf_s);) {
+        if (strlen(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name)) == 0) {
+          valid = 0;
+          break;
+        }
       }
 
-      if (elf_e.sym.st_shndx == STN_UNDEF) continue;
-      if (sym.size == 0) continue;
-      if (lib && !contain_dyn_symbol(dyn_symset, sym.name)) continue;
-
-      push_symbol(symbols, &sym);
+      if (valid) {
+        int plt_entry_cnt = 0;
+        for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
+             elf_rela_entry_next(&elf_e, &elf_s);) {
+          sym.addr = plt_section_off + plt_entry_cnt * 0x10;
+          ++plt_entry_cnt;
+          sym.size = elf_e.sym.st_size;
+          if (sym.size > 0) {
+            continue;
+          }
+          sym.name = elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name);
+          sym.name = demangle(sym.name);
+          push_symbol(symbols, &sym);
+        }
+      }
     }
   }
   elf_head_end(&elf);
+
   qsort(symbols->sym, symbols->size, sizeof(struct symbol), addrsort);
-  if (!lib) qsort(dyn_symset->names, dyn_symset->size, sizeof(char*), namesort);
 
   DEBUG("Symbols in %s:\n", libname);
   int i = 0;
@@ -161,7 +178,9 @@ void delete_symbol_tab(struct symbol_tab* symbol_tab) {
 char* find_symbol_name(struct symbol_arr* symbols, size_t addr) {
   for (struct symbol* sym = symbols->sym; sym != symbols->sym + symbols->size; sym++) {
     if (sym->addr <= addr && addr < sym->addr + sym->size) {
-      return demangle(sym->name);
+      return sym->name;
+    } else if (sym->addr == addr && sym->size == 0) {
+      return sym->name;
     }
   }
   return NULL;
