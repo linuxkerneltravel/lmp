@@ -5,3 +5,6 @@ all:
 
 start_service:
 	./runimages.sh
+
+clean_data:
+	rm ./dao/data.db
