@@ -183,7 +183,8 @@ protected:
 	bool ustack;  // 是否跟踪用户栈
 	bool kstack;  // 是否跟踪内核栈
 	uint64_t min, max;
-	
+	void *data_buf;
+
 /// @brief 获取epbf程序中指定表的文件描述符
 /// @param name 表的名字
 #define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
@@ -232,6 +233,11 @@ protected:
 /// @param v 要添加的字符串变量
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
+	virtual double data_value()
+	{
+		return *(uint64_t *)data_buf * 1.;
+	};
+
 	class pksid_val
 	{
 	public:
@@ -248,49 +254,24 @@ protected:
 		bool operator<(const pksid_val b) { return val < b.val; };
 	};
 
-class value_class
-	{
-	public:
-		void *p;
-		virtual double value() = 0;
-		virtual ~value_class(){};
-	};
-
-	class count_class : public value_class
-	{
-	protected:
-		uint64_t val;
-
-	public:
-		count_class() { p = &val; };
-		double value() override
-		{
-			return val * 1.;
-		};
-	};
-
-	template <class T>
 	std::vector<pksid_val> *sortD()
 	{
 		if (value_fd < 0)
 			return NULL;
 		std::vector<pksid_val> *D = new std::vector<pksid_val>();
-auto *val = static_cast<value_class *>(new T());
 		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
 		{
-			bpf_map_lookup_elem(value_fd, &id, val->p);
-			pksid_val d(id.pid, id.ksid, id.usid, val->value());
+			bpf_map_lookup_elem(value_fd, &id, data_buf);
+			pksid_val d(id.pid, id.ksid, id.usid, data_value());
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
 		}
-delete val;
 		return D;
 	};
 
 	/// @brief 每隔5s输出计数表中的栈及数量
 	/// @param time 输出的持续时间
 	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
-	template <class T>
-	int val_log(int time)
+	int log(int time)
 	{
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		/*for traverse map*/
@@ -298,8 +279,9 @@ delete val;
 		{
 			printf("---------%d---------\n", value_fd);
 			sleep(5);
-			auto D = sortD<T>();
-			for (auto d : *D)
+			auto D = sortD();
+
+			for (auto id : *D)
 			{
 				printf("%6d\t(%6d,%6d)\t%lf\n", d.pid, d.ksid, d.usid, d.val);
 			}
@@ -349,7 +331,13 @@ public:
 	{
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
-			};
+		data_buf = new uint64_t(0);
+	};
+
+	virtual ~bpf_loader()
+	{
+		delete (uint64_t *)data_buf;
+	};
 
 	/// @brief 负责ebpf程序的加载、参数设置和打开操作
 	/// @param  无
@@ -431,9 +419,6 @@ public:
 							sym.reset(p);
 
 							if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
-s = &symbol;
-					else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-							 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
 							{
 								s = &sym.name;
 						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
@@ -466,9 +451,8 @@ else
 				bpf_map_lookup_elem(comm_fd, &id.pid, cmd);
 				line = std::string(cmd) + ':' + std::to_string(id.pid) + ';' + line;
 			}
-			int count;
-			bpf_map_lookup_elem(value_fd, &id, &count);
-			line += " " + std::to_string(count) + "\n";
+			bpf_map_lookup_elem(value_fd, &id, data_buf);
+			line += " " + std::to_string(data_value()) + "\n";
 			tex << line;
 		}
 		std::string tex_s = tex.str();
@@ -528,7 +512,7 @@ else
 			ajson[tgid_s.c_str()][pid_s.c_str()].CKV("name", cmd.str, alc);
 		}
 
-		auto D = sortD<count_class>();
+		auto D = sortD();
 		for (auto id = D->rbegin(); id != D->rend(); ++id)
 		{
 			rapidjson::Value *trace;
@@ -632,8 +616,6 @@ else
 		fclose(fp);
 		return 0;
 	};
-
-	virtual int log(int time) { return val_log<count_class>(time); };
 
 	/// @brief 一个执行ebpf程序的总流程
 	/// @param  无
@@ -906,7 +888,9 @@ public:
 	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
 	{
 		skel = 0;
-			};
+		delete (uint64_t *)data_buf;
+		data_buf = new tuple{0};
+	};
 	int load(void) override
 	{
 		LO(pre_count, psid_util, {
@@ -936,20 +920,16 @@ public:
 		skel = 0;
 	};
 
-	class tuple_class : public value_class
+	double data_value() override
 	{
-	protected:
-		tuple val;
-
-	public:
-		tuple_class() { p = &val; };
-		double value() override
-	{
-		return val.truth * 1. / val.expect;
-		};
+		tuple *p = (tuple *)data_buf;
+		return (p->expect - p->truth) * 1.;
 	};
 
-	int log(int time) override { return val_log<tuple_class>(time); };
+	~pre_loader() override
+	{
+		delete (tuple *)data_buf;
+	}
 };
 
 typedef bpf_loader *(*bpf_load)();
