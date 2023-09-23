@@ -26,33 +26,27 @@
 #include "log.h"
 #include "vector.h"
 
-static int symbol_addr_less(const void* lhs, const void* rhs) {
-  const size_t addr1 = ((const struct symbol*)lhs)->addr;
-  const size_t addr2 = ((const struct symbol*)rhs)->addr;
+static int symbol_addr_less(const void *lhs, const void *rhs) {
+  const size_t addr1 = ((const struct symbol *)lhs)->addr;
+  const size_t addr2 = ((const struct symbol *)rhs)->addr;
 
-  if (addr1 < addr2) {
-    return -1;
-  } else if (addr1 > addr2) {
-    return 1;
-  } else {
-    return 0;
-  }
+  return addr1 < addr2 ? -1 : (addr1 > addr2 ? 1 : 0);
 }
 
-struct symbol_table* symbol_table_init(const char* module) {
+struct symbol_table *symbol_table_init(const char *module_name) {
   struct elf_head elf;
-  if (!elf_head_begin(&elf, module)) return NULL;
+  if (!elf_head_init(&elf, module_name)) return NULL;
 
-  struct symbol_table* symbol_table = malloc(sizeof(struct symbol_table));
+  struct symbol_table *symbol_table = malloc(sizeof(struct symbol_table));
   symbol_table->symbol_vec = vector_init(sizeof(struct symbol));
-  vector_reserve(symbol_table->symbol_vec, 16);
+  vector_reserve(symbol_table->symbol_vec, 16);  // initial capability
 
   struct elf_section elf_s;
   size_t plt_section_st_addr = 0;
   // get the start address of PLT section
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (!plt_section_st_addr && elf_s.shdr.sh_type == SHT_PROGBITS) {
-      char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+      char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (!strcmp(shstr, ".plt.sec")) plt_section_st_addr = elf_s.shdr.sh_offset;
     }
   }
@@ -60,7 +54,7 @@ struct symbol_table* symbol_table_init(const char* module) {
     for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
       if (elf_s.shdr.sh_type != SHT_PROGBITS) continue;
 
-      char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+      char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (!strcmp(shstr, ".plt")) {
         plt_section_st_addr = elf_s.shdr.sh_offset + 0x10;
         break;
@@ -68,13 +62,13 @@ struct symbol_table* symbol_table_init(const char* module) {
     }
   }
 
-  struct vector* libs = vector_init(sizeof(char*));
+  struct vector *libs = vector_init(sizeof(char *));
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (elf_s.shdr.sh_type == SHT_GNU_verdef) {
       struct elf_verdef_entry elf_e;
 
       int cnt = 0;
-      const char* lib = NULL;
+      const char *lib = NULL;
       for (elf_verdef_entry_begin(&elf_e, &elf_s); elf_verdef_entry_next(&elf_e, &elf_s);) {
         GElf_Verdaux verdaux;
         gelf_getverdaux(elf_e.verdef_data, elf_e.offset + elf_e.verdef.vd_aux, &verdaux);
@@ -91,7 +85,7 @@ struct symbol_table* symbol_table_init(const char* module) {
       struct elf_verneed_entry elf_e;
 
       for (elf_verneed_entry_begin(&elf_e, &elf_s); elf_verneed_entry_next(&elf_e, &elf_s);) {
-        const char* lib = elf_strptr(elf.e, elf_e.str_idx, elf_e.verneed.vn_file);
+        const char *lib = elf_strptr(elf.e, elf_e.str_idx, elf_e.verneed.vn_file);
         for (int i = 0; i < elf_e.verneed.vn_cnt; i++) {
           vector_push_back(libs, &lib);
         }
@@ -99,7 +93,7 @@ struct symbol_table* symbol_table_init(const char* module) {
     }
   }
 
-  struct vector* poss = vector_init(sizeof(size_t));
+  struct vector *poss = vector_init(sizeof(size_t));
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (elf_s.shdr.sh_type == SHT_GNU_versym) {
       struct elf_versym_entry elf_e;
@@ -113,13 +107,13 @@ struct symbol_table* symbol_table_init(const char* module) {
   }
 
   size_t dyn_str_idx = 0;
-  Elf_Data* dyn_sym_data = NULL;
+  Elf_Data *dyn_sym_data = NULL;
   struct symbol sym;
-  sym.demangled = 0;
+  sym.has_demangled = 0;
   int cnt = -1;
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (elf_s.shdr.sh_type == SHT_DYNSYM) {
-      char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+      char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (strcmp(shstr, ".dynsym")) continue;
 
       struct elf_sym_entry elf_e;
@@ -139,9 +133,9 @@ struct symbol_table* symbol_table_init(const char* module) {
         }
         sym.size = elf_e.sym.st_size;
         sym.name = strdup(elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name));
-        size_t pos = *((size_t*)vector_const_get(poss, cnt));
+        size_t pos = *((size_t *)vector_const_get(poss, cnt));
         if (pos >= 2) {
-          sym.libname = *((const char**)(vector_const_get(libs, pos - 2)));
+          sym.libname = *((const char **)(vector_const_get(libs, pos - 2)));
         } else {
           sym.libname = NULL;
         }
@@ -151,8 +145,8 @@ struct symbol_table* symbol_table_init(const char* module) {
   }
 
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
-    if (elf_s.shdr.sh_type == SHT_RELA && plt_section_st_addr) {
-      char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+    if (elf_s.shdr.sh_type == SHT_RELA && plt_section_st_addr && dyn_sym_data) {
+      char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (strcmp(shstr, ".rela.plt")) continue;
 
       struct elf_rela_entry elf_e;
@@ -180,9 +174,9 @@ struct symbol_table* symbol_table_init(const char* module) {
             continue;
           }
           sym.name = strdup(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
-          size_t pos = *((size_t*)vector_const_get(poss, elf_e.rela.r_info >> 32));
+          size_t pos = *((size_t *)vector_const_get(poss, elf_e.rela.r_info >> 32));
           if (pos >= 2) {
-            sym.libname = strdup(*((const char**)(vector_const_get(libs, pos - 2))));
+            sym.libname = strdup(*((const char **)(vector_const_get(libs, pos - 2))));
           } else {
             sym.libname = NULL;
           }
@@ -192,7 +186,7 @@ struct symbol_table* symbol_table_init(const char* module) {
     }
 
     if (elf_s.shdr.sh_type == SHT_SYMTAB) {
-      char* shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+      char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (strcmp(shstr, ".symtab")) continue;
 
       struct elf_sym_entry elf_e;
@@ -215,19 +209,19 @@ struct symbol_table* symbol_table_init(const char* module) {
     }
   }
 
-  elf_head_end(&elf);
+  elf_head_free(&elf);
 
   vector_sort(symbol_table->symbol_vec, symbol_addr_less);
   vector_unique(symbol_table->symbol_vec, symbol_addr_less);
 
   {
-    DEBUG("Symbols in %s:\n", module);
+    DEBUG("Symbols in %s:", module_name);
     for (size_t i = 0; i < vector_size(symbol_table->symbol_vec); i++) {
-      const struct symbol* sym = vector_const_get(symbol_table->symbol_vec, i);
+      const struct symbol *sym = vector_const_get(symbol_table->symbol_vec, i);
       if (sym->libname)
-        DEBUG("[%zu] %lx %lx %s %s\n", i + 1, sym->addr, sym->size, sym->name, sym->libname);
+        DEBUG("[%zu] %lx %lx %s %s", i + 1, sym->addr, sym->size, sym->name, sym->libname);
       else
-        DEBUG("[%zu] %lx %lx %s\n", i + 1, sym->addr, sym->size, sym->name);
+        DEBUG("[%zu] %lx %lx %s", i + 1, sym->addr, sym->size, sym->name);
     }
   }
 
@@ -235,23 +229,27 @@ struct symbol_table* symbol_table_init(const char* module) {
 }
 
 // assert symbol_table != NULL
-void symbol_table_free(struct symbol_table* symbol_table) {
-  vector_free(symbol_table->symbol_vec);
-  free(symbol_table);
+void symbol_table_free(struct symbol_table *symbol_table) {
+  if (symbol_table) {
+    vector_free(symbol_table->symbol_vec);
+    free(symbol_table);
+    symbol_table = NULL;
+  }
 }
 
-size_t symbol_table_size(struct symbol_table* symbol_table) {
+size_t symbol_table_size(const struct symbol_table *symbol_table) {
   return vector_size(symbol_table->symbol_vec);
 }
 
-const struct symbol* symbol_table_get(struct symbol_table* symbol_table, size_t index) {
+const struct symbol *symbol_table_get(const struct symbol_table *symbol_table, size_t index) {
   return vector_get(symbol_table->symbol_vec, index);
 }
 
-static int symbol_addr_compare(const void* lhs, const void* rhs) {
-  const struct symbol* sym = lhs;
-  const size_t addr = *(const size_t*)rhs;
-  if ((sym->size && sym->addr + sym->size <= addr) || (!sym->size && sym->addr < addr)) {
+static int symbol_addr_compare(const void *lhs, const void *rhs) {
+  const struct symbol *sym = lhs;
+  const size_t addr = *(const size_t *)rhs;
+
+  if ((sym->size > 0 && sym->addr + sym->size <= addr) || (!sym->size && sym->addr < addr)) {
     return -1;
   } else if (sym->addr > addr) {
     return 1;
@@ -261,13 +259,13 @@ static int symbol_addr_compare(const void* lhs, const void* rhs) {
 }
 
 // assert symbol_table != NULL
-const struct symbol* symbol_table_find(struct symbol_table* symbol_table, size_t addr) {
-  struct symbol* sym = vector_binary_search(symbol_table->symbol_vec, &addr, symbol_addr_compare);
-  if (!sym->demangled) {  // lazy demangle
-    char* mangled_name = sym->name;
+const struct symbol *symbol_table_find(const struct symbol_table *symbol_table, size_t addr) {
+  struct symbol *sym = vector_binary_search(symbol_table->symbol_vec, &addr, symbol_addr_compare);
+  if (!sym->has_demangled) {  // lazy demangle
+    char *mangled_name = sym->name;
     sym->name = demangle(sym->name);
     free(mangled_name);
-    sym->demangled = 1;
+    sym->has_demangled = true;
   }
   return sym;
 }

@@ -29,7 +29,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, __u32);
   __type(value, __u64);
-  __uint(max_entries, MAX_THREAD_NUM *MAX_STACK_SIZE);
+  __uint(max_entries, (MAX_THREAD_NUM) * (MAX_STACK_SIZE));
 } function_start SEC(".maps");
 
 struct {
@@ -44,7 +44,7 @@ struct {
   __uint(max_entries, 2048 * 4096);
 } records SEC(".maps");
 
-const volatile int max_depth = 0;
+const volatile unsigned int max_depth = 0;
 const volatile unsigned long long min_duration = 0;
 
 SEC("uprobe/trace")
@@ -75,10 +75,11 @@ int uprobe(struct pt_regs *ctx) {
 
   bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
 
-  if (local_size_pt)
+  if (local_size_pt) {
     r->ustack_sz = local_size = *local_size_pt + 1;
-  else
+  } else {
     r->ustack_sz = local_size = 0;
+  }
 
   r->timestamp = ts = bpf_ktime_get_ns();
   r->ret = false;
@@ -86,7 +87,7 @@ int uprobe(struct pt_regs *ctx) {
 
   bpf_map_update_elem(&stack_size, &tid, &local_size, BPF_ANY);
 
-  global_id = (tid << 10) | local_size;
+  global_id = (tid << MAGIC_COMB) | local_size;
   bpf_map_update_elem(&function_start, &global_id, &ts, BPF_ANY);
 
   return 0;
@@ -105,20 +106,21 @@ int uretprobe(struct pt_regs *ctx) {
   cpu_id = bpf_get_smp_processor_id();
 
   local_size_pt = bpf_map_lookup_elem(&stack_size, &tid);
-  if (!local_size_pt)
+  if (!local_size_pt) {
     return 0;
-  else if (*local_size_pt + 1 > max_depth) {  // depth filter
+  } else if (*local_size_pt + 1 > max_depth) {  // depth filter
     --*local_size_pt;
     bpf_map_update_elem(&stack_size, &tid, local_size_pt, BPF_ANY);
     return 0;
   }
 
-  global_id = (tid << 10) | *local_size_pt;
+  global_id = (tid << MAGIC_COMB) | *local_size_pt;
   start_ts_pt = bpf_map_lookup_elem(&function_start, &global_id);
-  if (start_ts_pt)
+  if (start_ts_pt) {
     duration_ns = end_ts - *start_ts_pt;
-  else
+  } else {
     return 0;
+  }
 
   if (duration_ns < min_duration) {  // time filter
     --*local_size_pt;

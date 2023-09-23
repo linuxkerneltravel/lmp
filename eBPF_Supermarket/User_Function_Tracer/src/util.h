@@ -1,28 +1,42 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: jinyufeng2000@gmail.com
+//
+// Utility functions
+
 #ifndef UTRACE_UTIL_H
 #define UTRACE_UTIL_H
 
 #include <stdbool.h>
 
-#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-#endif
 
-#define MAX_PATH_LEN 256
+#define die(msg)        \
+  do {                  \
+    perror(msg);        \
+    exit(EXIT_FAILURE); \
+  } while (0)
 
-#ifndef unlikely
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#endif
+char *restrcat(char *str1, const char *str2);
 
-#ifndef likely
-#define likely(x) __builtin_expect(!!(x), 1)
-#endif
+char *resolve_full_path(const char *file);
 
-const char* resolve_full_path(const char* file);
+const char *base_name(const char *file);
 
-const char* base_name(const char* file);
+bool is_library(const char *file);
 
-bool is_library(const char* file);
-
-unsigned long long strduration2ns(const char* duration);
+unsigned long long duration_str2ns(const char *duration);
 
 #endif  // UTRACE_UTIL_H

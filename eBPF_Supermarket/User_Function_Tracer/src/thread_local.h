@@ -23,36 +23,36 @@
 
 #include "vector.h"
 
-enum FUNCSTATE { STATE_UNINIT, STATE_EXEC, STATE_EXIT };
+enum FUNC_STATE { STATE_UNINIT, STATE_EXEC, STATE_EXIT };
 
 struct thread_local {
   unsigned int tids[MAX_THREAD_NUM];
-  enum FUNCSTATE states[MAX_THREAD_NUM];
-  struct vector* records[MAX_THREAD_NUM];
+  enum FUNC_STATE states[MAX_THREAD_NUM];
+  struct vector *records[MAX_THREAD_NUM];
 };
 
-struct thread_local* thread_local_init();
+struct thread_local *thread_local_init();
 
-unsigned int thread_local_get_index(struct thread_local* thread_local, unsigned int tid);
+unsigned int thread_local_get_index(struct thread_local *thread_local, unsigned int tid);
 
-enum FUNCSTATE thread_local_get_state(struct thread_local* thread_local, unsigned int index);
+enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local, unsigned int index);
 
-void thread_local_set_state(struct thread_local* thread_local, unsigned int index,
-                            enum FUNCSTATE state);
+void thread_local_set_state(struct thread_local *thread_local, unsigned int index,
+                            enum FUNC_STATE state);
 
-struct profile_record* thread_local_get_record(struct thread_local* thread_local,
+struct profile_record *thread_local_get_record(struct thread_local *thread_local,
                                                unsigned int index, unsigned int i);
 
-struct profile_record* thread_local_get_record_back(struct thread_local* thread_local,
+struct profile_record *thread_local_get_record_back(struct thread_local *thread_local,
                                                     unsigned int index);
 
-void thread_local_push_record(struct thread_local* thread_local, unsigned int index,
-                              struct profile_record* record);
+void thread_local_push_record(struct thread_local *thread_local, unsigned int index,
+                              struct profile_record *record);
 
-void thread_local_pop_record(struct thread_local* thread_local, unsigned int index);
+void thread_local_pop_record(struct thread_local *thread_local, unsigned int index);
 
-size_t thread_local_record_size(struct thread_local* thread_local, unsigned int index);
+size_t thread_local_record_size(const struct thread_local *thread_local, unsigned int index);
 
-void thread_local_free(struct thread_local* thread_local);
+void thread_local_free(struct thread_local *thread_local);
 
 #endif  // UTRACE_THREAD_LOCAL_H

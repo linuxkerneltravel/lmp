@@ -19,15 +19,15 @@
 #ifndef UTRACE_GDB_H
 #define UTRACE_GDB_H
 
-#include <stdint.h>
-#include <unistd.h>
+#include <stdint.h>     // for uint8_t
+#include <sys/types.h>  // for pid_t
 
 /*
  * @brief 记录跨函数传递的信息
  */
 struct gdb {
-  pid_t pid;    /**< gdb附加到的进程的编号 */
-  uint8_t inst; /**< 被int3覆盖的单字节指令 */
+  pid_t pid;          /**< gdb附加到的进程的编号 */
+  uint8_t saved_inst; /**< 被int3覆盖的单字节指令 */
 };
 
 /*
@@ -36,14 +36,14 @@ struct gdb {
  * @return 指向gdb结构体的指针
  * @note 从堆中申请空间
  */
-struct gdb* gdb_init(pid_t pid);
+struct gdb *gdb_init(pid_t pid);
 
 /*
  * @brief 设置一个断点
  * @param[in] gdb 指向一个gdb结构体
  * @param[in] addr 虚拟地址
  */
-long gdb_enable_breakpoint(struct gdb* gdb, size_t addr);
+long gdb_enable_breakpoint(struct gdb *gdb, size_t addr);
 
 /*
  * @brief 取消一个断点
@@ -51,24 +51,30 @@ long gdb_enable_breakpoint(struct gdb* gdb, size_t addr);
  * @param[in] addr 虚拟地址
  * @note 需要保证之前调用过enable_breakpoint(gdb, pid, addr)
  */
-long gdb_disable_breakpoint(struct gdb* gdb, size_t addr);
+long gdb_disable_breakpoint(const struct gdb *gdb, size_t addr);
 
 /*
  * @brief 继续执行
  * @param[in] gdb 指向一个gdb结构体
  */
-long gdb_continue_execution(struct gdb* gdb);
+long gdb_continue_execution(const struct gdb *gdb);
 
 /*
  * @brief 等待进程收到信号
  * @param[in] gdb 指向一个gdb结构体
  */
-long gdb_wait_for_signal(struct gdb* gdb);
+long gdb_wait_for_signal(const struct gdb *gdb);
+
+/*
+ * @brief detach
+ * @param[in] gdb 指向要释放的gdb结构体
+ */
+long gdb_detach(const struct gdb *gdb);
 
 /*
  * @brief 取消ptrace并释放gdb结构体的空间
  * @param[in] gdb 指向要释放的gdb结构体
  */
-void gdb_free(struct gdb* gdb);
+void gdb_free(struct gdb *gdb);
 
 #endif  // UTRACE_GDB_H

@@ -1,7 +1,29 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: jinyufeng2000@gmail.com
+//
+// extended glob pattern match
+
 #include "glob.h"
 
-bool glob_match(const char *text, const char *pattern) {
-  bool matched, complemented;
+#include <stdlib.h>
+#include <string.h>
+
+static bool glob_match(const char *text, const char *pattern) {
+  bool matched;
+  bool complemented;
 
   while (*text != '\0' && *pattern != '\0') {
     switch (*pattern) {
@@ -11,20 +33,19 @@ bool glob_match(const char *text, const char *pattern) {
         break;
 
       case '*':
-        if (glob_match(text, pattern + 1)) return true;
+        if (glob_match(text, pattern + 1)) return true;  // non-greedy
         ++text;
         break;
 
       case '[':
-        matched = complemented = false;
+        matched = false;
+        complemented = false;
 
         ++pattern;
-
         if (*pattern == '!') {
           complemented = true;
           ++pattern;
         }
-
         if (*pattern == '\0') return false;
 
         char ch = *pattern;  // ch may be ']' or '-', just treat it normally
@@ -81,6 +102,21 @@ bool glob_match(const char *text, const char *pattern) {
     while (*pattern == '*') ++pattern;
     if (*pattern == '\0') return true;
   }
-
   return false;
+}
+
+bool glob_match_ext(const char *text, const char *pattern) {
+  char *dup_pattern = strdup(pattern);
+  char *glob_pattern = strtok(dup_pattern, ",");
+
+  bool matched = false;
+  while (glob_pattern) {
+    if (glob_match(text, glob_pattern)) {
+      matched = true;
+      break;
+    }
+    glob_pattern = strtok(NULL, ",");
+  }
+  free(dup_pattern);
+  return matched;
 }

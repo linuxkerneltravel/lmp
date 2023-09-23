@@ -19,8 +19,6 @@
 #ifndef UTRACE_SYMBOL_H
 #define UTRACE_SYMBOL_H
 
-#include <stddef.h>
-
 #include "vector.h"
 
 #define BASE_ADDR 0x400000  // for no-pie option
@@ -31,9 +29,9 @@
 struct symbol {
   size_t addr; /**< relative virtual address */
   size_t size; /**< symbol size */
-  char* name;  /**< symbol name */
-  int demangled;
-  const char* libname;
+  char *name;  /**< symbol name */
+  bool has_demangled;
+  const char *libname;
 };
 
 /**
@@ -41,7 +39,7 @@ struct symbol {
  * @details stored in a dynamic array
  */
 struct symbol_table {
-  struct vector* symbol_vec;
+  struct vector *symbol_vec;
 };
 
 /**
@@ -53,13 +51,13 @@ struct symbol_table {
  *          如果是进程（lib = 0），将.dynsym节的符号加入到dyn_symset集合中
  *          是动态库（lib = 1），只解析在dyn_symset集合中的符号
  */
-struct symbol_table* symbol_table_init(const char* module);
+struct symbol_table *symbol_table_init(const char *module_name);
 
-void symbol_table_free(struct symbol_table* symbol_table);
+void symbol_table_free(struct symbol_table *symbol_table);
 
-size_t symbol_table_size(struct symbol_table* symbol_table);
+size_t symbol_table_size(const struct symbol_table *symbol_table);
 
-const struct symbol* symbol_table_get(struct symbol_table* symbol_table, size_t index);
+const struct symbol *symbol_table_get(const struct symbol_table *symbol_table, size_t index);
 
 /**
  * @brief 从一个符号数组中查找一个虚拟地址对应的符号名称
@@ -67,6 +65,6 @@ const struct symbol* symbol_table_get(struct symbol_table* symbol_table, size_t 
  * @param[in] addr 待查找的虚拟地址
  * @return addr对应的符号名称
  */
-const struct symbol* symbol_table_find(struct symbol_table* symbol_table, size_t addr);
+const struct symbol *symbol_table_find(const struct symbol_table *symbol_table, size_t addr);
 
 #endif  // UTRACE_SYMTAB_H

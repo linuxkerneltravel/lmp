@@ -29,93 +29,93 @@ struct vector {
   size_t size;         /**< stored number of element */
   size_t capacity;     /**< allocated number of element */
   size_t element_size; /**< size of one element */
-  void* data;          /**< element array */
+  void *data;          /**< element array */
 };
 
 /**
  * @brief creates a empty vector that stores element with size element_size
  * @param[in] element_size size of one element to be stored
  */
-struct vector* vector_init(size_t element_size);
+struct vector *vector_init(size_t element_size);
 
 /**
  * @brief free the vector
  * @param[in] vec
  */
-void vector_free(struct vector* vec);
+void vector_free(struct vector *vec);
 
 /**
  * @brief get the size of the input vector
  * @param[in] vec
  */
-size_t vector_size(struct vector* vec);
+size_t vector_size(const struct vector *vec);
 
 /**
  * @brief check if the input vector is empty, i.e., size is 0
  * @param[in] vec
  */
-bool vector_empty(struct vector* vec);
+bool vector_empty(const struct vector *vec);
 
 /**
  * @brief get the index th element of the input vecotr
  * @param[in] vec
  * @param[in] index array index
  */
-void* vector_get(struct vector* vec, size_t index);
+void *vector_get(struct vector *vec, size_t index);
 
 /**
  * @brief get the const version of the index th element of the input vecotr
  * @param[in] vec
  * @param[in] index array index
  */
-const void* vector_const_get(struct vector* vec, size_t index);
+const void *vector_const_get(const struct vector *vec, size_t index);
 
 /**
  * @brief get the first element of the input vecotr
  * @param[in] vec
  */
-void* vector_front(struct vector* vec);
+void *vector_front(struct vector *vec);
 
 /**
  * @brief get the last element of the input vecotr
  * @param[in] vec
  */
-void* vector_back(struct vector* vec);
+void *vector_back(struct vector *vec);
 
 /**
  * @brief allocate at least size * element_size memory
  * @param[in] vec
  * @param[in] size
  */
-int vector_reserve(struct vector* vec, size_t size);
+int vector_reserve(struct vector *vec, size_t size);
 
 /**
  * @brief insert one element to the vector at the end
  * @param[in] vec
  * @param[in] element
  */
-int vector_push_back(struct vector* vector, const void* element);
+int vector_push_back(struct vector *vector, const void *element);
 
 /**
  * @brief pop the end element in the vector
  * @param[in] vec
  * @param[in] element
  */
-void vector_pop_back(struct vector* vector);
+void vector_pop_back(struct vector *vector);
 
 /**
  * @brief sort the vector
  * @param[in] vec
  * @param[in] comparator
  */
-void vector_sort(struct vector* vec, int (*comparator)(const void*, const void*));
+void vector_sort(struct vector *vec, int (*comparator)(const void *, const void *));
 
 /**
  * @brief unique the vector
  * @param[in] vec
  * @param[in] comparator
  */
-void vector_unique(struct vector* vec, int (*comparator)(const void*, const void*));
+void vector_unique(struct vector *vec, int (*comparator)(const void *, const void *));
 
 /**
  * @brief search key in the vector
@@ -123,7 +123,7 @@ void vector_unique(struct vector* vec, int (*comparator)(const void*, const void
  * @param[in] key
  * @param[in] comparator
  */
-void* vector_binary_search(struct vector* vec, const void* key,
-                           int (*comparator)(const void*, const void*));
+void *vector_binary_search(struct vector *vec, const void *key,
+                           int (*comparator)(const void *, const void *));
 
 #endif  // UTRACE_VECTOR_H

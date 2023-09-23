@@ -21,10 +21,9 @@
 
 #include <stdbool.h>
 
-#define MAX_THREAD_NUM 32
 #define MAX_STACK_SIZE 32
-#define MAX_SYMBOL_LEN 1024
-#define MAX_PATH_LEN 256
+#define MAX_THREAD_NUM 64
+#define MAGIC_COMB 10
 
 /**
  * @brief Represent the data recorded in kernel-side and passed to user-side
@@ -43,8 +42,8 @@ struct profile_record {
 
   bool ret; /**< is function ret */
 
-  const char* name; /**< function name, resolve in user-side */
-  const char* libname;
+  const char *name; /**< function name, resolve in user-side */
+  const char *libname;
 };
 
 #endif  // UTRACE_UTRACE_H

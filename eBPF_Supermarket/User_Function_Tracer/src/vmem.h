@@ -19,7 +19,7 @@
 #ifndef UTRACE_VMEM_H
 #define UTRACE_VMEM_H
 
-#include <sys/types.h>
+#include <sys/types.h>  // for pid_t
 
 #include "module.h"
 #include "vector.h"
@@ -32,7 +32,7 @@ struct vmem {
   size_t ed_addr; /**< end address */
   size_t offset;  /**< offset */
 
-  struct module* module; /**< name of the program/shared lib corresponding to this vmem */
+  struct module *module; /**< name of the program/shared lib corresponding to this vmem */
 };
 
 /**
@@ -40,7 +40,7 @@ struct vmem {
  * @details stored in a dynamic array
  */
 struct vmem_table {
-  struct vector* vmem_vec; /**< vmem vector */
+  struct vector *vmem_vec; /**< vmem vector */
 };
 
 /**
@@ -49,17 +49,17 @@ struct vmem_table {
  * @return a vmem table
  * @details parse the virtual file "/proc/{{pid}}/maps"
  */
-struct vmem_table* vmem_table_init(pid_t pid);
+struct vmem_table *vmem_table_init(pid_t pid);
 
 /**
  * @brief free the vmem table
  * @param[in] vmem_table initialized by function vmem_table_init
  */
-void vmem_table_free(struct vmem_table* vmem_table);
+void vmem_table_free(struct vmem_table *vmem_table);
 
-size_t vmem_table_size(struct vmem_table* vmem_table);
+size_t vmem_table_size(const struct vmem_table *vmem_table);
 
-const struct vmem* vmem_table_get(struct vmem_table* vmem_table, size_t index);
+const struct vmem *vmem_table_get(const struct vmem_table *vmem_table, size_t index);
 
 /**
  * @brief find the vmem that contains the input address
@@ -70,9 +70,9 @@ const struct vmem* vmem_table_get(struct vmem_table* vmem_table, size_t index);
  *         NULL when failed
  * @details binary search the vmem_table (O(log))
  */
-const struct vmem* vmem_table_find(struct vmem_table* vmem_table, size_t addr);
+const struct vmem *vmem_table_find(const struct vmem_table *vmem_table, size_t addr);
 
-const struct symbol* vmem_table_symbolize(struct vmem_table* vmem_table, size_t addr);
+const struct symbol *vmem_table_symbolize(const struct vmem_table *vmem_table, size_t addr);
 
 /**
  * @brief get the start address of the program to be observed
@@ -80,13 +80,13 @@ const struct symbol* vmem_table_symbolize(struct vmem_table* vmem_table, size_t 
  * @return start address
  * @details the program is at the lowest address, i.e., its vmem is at the begin of vmem_table
  */
-size_t vmem_table_get_prog_st_addr(struct vmem_table* vmem_table);
+size_t vmem_table_get_prog_st_addr(const struct vmem_table *vmem_table);
 
 /**
  * @brief get the program name to be observed
  * @param[in] vmem_table
  * @return name
  */
-const char* vmem_table_get_prog_name(struct vmem_table* vmem_table);
+const char *vmem_table_get_prog_name(const struct vmem_table *vmem_table);
 
 #endif  // UTRACE_VMEM_H

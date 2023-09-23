@@ -24,32 +24,30 @@
 
 #include "util.h"
 
-bool debug;
-
-void log_color(FILE* file, const char* color) {
-  char* term = getenv("TERM");
+void log_color(FILE *file, const char *color) {
+  char *term = getenv("TERM");
   if (isatty(fileno(file)) && !(term && !strcmp(term, "dumb"))) {
     LOG(file, "%s", color);
   }
 }
 
-void log_char(FILE* file, char c, int cnt) {
+void log_char(FILE *file, char c, int cnt) {
   while (cnt > 0) {
     LOG(file, "%c", c);
     --cnt;
   }
 }
 
-void log_header(FILE* file, int cpu, int tid, int timestamp) {
-  if (cpu) {
+void log_header(FILE *file, bool show_cpuid, bool show_tid, bool show_timestamp) {
+  if (show_cpuid) {
     LOG(file, " CPU");
     log_split(file);
   }
-  if (tid) {
+  if (show_tid) {
     LOG(file, "  TID ");
     log_split(file);
   }
-  if (timestamp) {
+  if (show_timestamp) {
     LOG(file, "   TIMESTAMP  ");
     log_split(file);
   }
@@ -58,33 +56,27 @@ void log_header(FILE* file, int cpu, int tid, int timestamp) {
   LOG(file, "  FUNCTION CALLS\n");
 }
 
-void log_footer(FILE* file, int cpu, int tid, int timestamp) {
-  int cnt = 30;
-  if (cpu) {
-    cnt += 6;
-  }
-  if (tid) {
-    cnt += 8;
-  }
-  if (timestamp) {
-    cnt += 16;
-  }
-  log_char(file, '=', cnt);
+void log_footer(FILE *file, bool show_cpuid, bool show_tid, bool show_timestamp) {
+  int width = 30;
+  if (show_cpuid) width += 6;
+  if (show_tid) width += 8;
+  if (show_timestamp) width += 16;
+  log_char(file, '=', width);
   log_char(file, '\n', 1);
 }
 
-void log_split(FILE* file) { LOG(file, " | "); }
+void log_split(FILE *file) { LOG(file, " | "); }
 
-void log_cpuid(FILE* file, int cpuid) { LOG(file, "%4d", cpuid); }
+void log_cpuid(FILE *file, int cpuid) { LOG(file, "%4d", cpuid); }
 
-void log_tid(FILE* file, int tid) { LOG(file, "%6d", tid); }
+void log_tid(FILE *file, int tid) { LOG(file, "%6d", tid); }
 
-void log_timestamp(FILE* file, unsigned long long timestamp) { LOG(file, "%llu", timestamp); }
+void log_timestamp(FILE *file, unsigned long long timestamp) { LOG(file, "%llu", timestamp); }
 
-void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
-                    unsigned long long* timestamp, unsigned long long duration,
-                    unsigned int stack_sz, const char* function_name, const char* libname, bool ret,
-                    enum FUNCSTATE state, bool flat, bool lib) {
+void log_trace_data(FILE *file, unsigned int *cpuid, unsigned int *tid,
+                    unsigned long long *timestamp, unsigned long long duration,
+                    unsigned int stack_sz, const char *function_name, const char *libname, bool ret,
+                    enum FUNC_STATE state, bool flat, bool lib) {
   const int INDENT = 2;
 
   if (flat) {
@@ -180,12 +172,12 @@ void log_trace_data(FILE* file, unsigned int* cpuid, unsigned int* tid,
   }
 }
 
-void log_duration(FILE* file, unsigned long long ns, bool need_blank, bool need_color,
+void log_duration(FILE *file, unsigned long long ns, bool need_blank, bool need_color,
                   bool need_sign) {
-  static char* units[] = {
+  static char *units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
-  static char* colors[] = {
+  static char *colors[] = {
       "", "", TERM_GREEN, TERM_YELLOW, TERM_MAGENTA, TERM_RED,
   };
   static char signs[] = {
@@ -204,21 +196,13 @@ void log_duration(FILE* file, unsigned long long ns, bool need_blank, bool need_
     ++i;
   }
 
-  if (need_sign) {
-    if (signs[i] != ' ') {
-      log_char(file, signs[i], 1);
-    }
-  }
+  if (need_sign && signs[i] != ' ') log_char(file, signs[i], 1);
   if (need_blank) {
     LOG(file, "%4llu.%03llu ", t, t_mod);
   } else {
     LOG(file, "%llu.%03llu ", t, t_mod);
   }
-  if (need_color) {
-    log_color(file, colors[i]);
-  }
+  if (need_color) log_color(file, colors[i]);
   LOG(file, "%s", units[i]);
-  if (need_color) {
-    log_color(file, TERM_RESET);
-  }
+  if (need_color) log_color(file, TERM_RESET);
 }

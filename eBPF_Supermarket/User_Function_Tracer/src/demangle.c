@@ -14,117 +14,132 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 还原C++重整后的符号
+// demangle mangled C++ symbols
 
 #include "demangle.h"
 
+#include <stdio.h>  // for perror
 #include <stdlib.h>
 #include <string.h>
 
+#include "util.h"
+
+// simplify the demangled symbol name
 static char *simplify(char *name) {
   size_t len = strlen(name);
-  size_t updated_len = 0;
+  if (!len) return name;
 
-  for (size_t i = 0; i < len; i++) {  // remove chars inside "<>"
+  // remove function template "<...>"
+  for (size_t i = 0; i < len; i++) {
     if (name[i] == '<') {
-      size_t j = i + 1;
+      size_t j = i;
       int nested = 1;
-      while (j < len && nested > 0) {
+      while (j + 1 < len) {
+        ++j;
         if (name[j] == '<') {
           ++nested;
         } else if (name[j] == '>') {
           --nested;
+          if (!nested) break;
         }
-        ++j;
       }
-      if (!nested) {
-        i = j - 1;
-      } else {
-        name[updated_len] = name[i];
-        ++updated_len;
-      }
-    } else {
-      name[updated_len] = name[i];
-      ++updated_len;
-    }
-  }
-  name[updated_len] = '\0';
-  len = updated_len;
-
-  if (len) {
-    for (size_t i = len - 1; i > 0; i--) {  // remove the last "(...)"
-      if (name[i] == ')') {
-        size_t j = i + 1;
-        int nested = 1;
-        while (i > 0) {
-          --i;
-          if (name[i] == ')') {
-            ++nested;
-          } else if (name[i] == '(') {
-            --nested;
-            if (!nested) break;
-          }
-        }
-        while (j < len) {
-          name[i] = name[j];
-          ++i;
-          ++j;
-        }
-        name[i] = '\0';
-        len = i;
-        break;
-      }
+      memmove(name + i, name + j + 1, len - j);
+      len -= j - i + 1;
+      break;
     }
   }
 
+  // remove function cv-qualifier
+  for (size_t i = len - 1; i > 0; i--) {
+    if (name[i] == ' ' && name[i - 1] == ')') {
+      name[i] = '\0';
+      len = i;
+      break;
+    }
+  }
+
+  // remove lambda function parameters, i.e., {lambda(...)}
   for (size_t i = 0; i < len; i++) {
-    if (name[i] == '{') {
-      size_t prei = i;
-      size_t j = i + 1;
-      int nested = 0;
-      while (j < len) {
+    if (strncmp(name + i, "{lambda", 7) == 0) {
+      i += 7;  // name[i] == '('
+      size_t j = i;
+      int nested = 1;
+      while (j + 1 < len) {
+        ++j;
         if (name[j] == '(') {
-          if (!nested) {
-            i = j;
-            prei = i;
-          }
           ++nested;
         } else if (name[j] == ')') {
           --nested;
-          if (!nested) {
-            ++j;
-            break;
-          }
+          if (!nested) break;
         }
-        ++j;
       }
-      while (j < len) {
-        name[i] = name[j];
-        ++i;
-        ++j;
-      }
-      name[i] = '\0';
-      len = i;
-      i = prei;
+      memmove(name + i, name + j + 1, len - j);
+      len -= j - i + 1;
+      break;
     }
   }
 
-  while (len > 0 && name[len - 1] == ' ') {
-    --len;
-    name[len] = '\0';
+  // remove function parameters, i.e., the last "(...)"
+  for (size_t i = len - 1; i > 0; i--) {
+    if (name[i] == ')') {
+      size_t j = i;
+      int nested = 1;
+      while (i > 0) {
+        --i;
+        if (name[i] == ')') {
+          ++nested;
+        } else if (name[i] == '(') {
+          --nested;
+          if (!nested) break;
+        }
+      }
+      memmove(name + i, name + j + 1, len - j);
+      len -= j - i + 1;
+      // remove function return type
+      for (j = 0; j < i; j++) {
+        if (name[j] == ' ') {
+          if (j != 8 || strncmp(name, "operator", 8)) {
+            memmove(name, name + j + 1, len - j);
+            len -= j + 1;
+          }
+          break;
+        }
+      }
+      break;
+    }
   }
+
+  // remove trailing space
+  while (len >= 1 && name[len - 1] == ' ') --len;
+
   return name;
 }
 
 char *demangle(const char *mangled_name) {
+  const char *GLOBAL_PREFIX = "_GLOBAL__sub_I_";
+  const size_t LEN = 15;
+
   char *demangled_name;
+  size_t demangled_len;
   int status;
+  size_t offset = 0;
+
+  // handle symbols starting with GLOBAL_PREFIX introduced by <iostream>
+  if (strncmp(mangled_name, GLOBAL_PREFIX, LEN) == 0) offset = LEN;
 
   // ensure mangled_name is really mangled (start with "_Z")
-  if (strncmp(mangled_name, "_Z", 2) == 0) {
-    demangled_name = __cxa_demangle(mangled_name, NULL, NULL, &status);
+  if (strncmp(mangled_name + offset, "_Z", 2) == 0) {
+    demangled_name = __cxa_demangle(mangled_name + offset, NULL, NULL, &status);
     if (!status) {
-      return simplify(demangled_name);
+      demangled_name = simplify(demangled_name);
+      demangled_len = strlen(demangled_name);
+      if (offset > 0) {
+        demangled_name = realloc(demangled_name, demangled_len + 1 + LEN);
+        if (!demangled_name) die("realloc");
+        memmove(demangled_name + LEN, demangled_name, demangled_len + 1);
+        memcpy(demangled_name, GLOBAL_PREFIX, LEN);
+      }
+      return demangled_name;
     }
   }
 

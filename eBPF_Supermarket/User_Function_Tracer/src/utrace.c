@@ -26,7 +26,9 @@
 #include <sys/personality.h>
 #include <sys/ptrace.h>
 #include <sys/resource.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include "elf.h"
 #include "gdb.h"
@@ -38,7 +40,7 @@
 #include "vector.h"
 #include "vmem.h"
 
-enum ARGP_SHORTOPT {
+enum {
   OPT_CPUID = 0x1234,
   OPT_FLAT,
   OPT_LIB,
@@ -52,15 +54,15 @@ enum ARGP_SHORTOPT {
   OPT_TIMESTAMP,
 };
 
-const char *argp_program_version = "eBPF-utrace 0.0";
+const char *argp_program_version = "eBPF-utrace 0.1";
 const char argp_program_doc[] =
-    "\nutrace: eBPF-based user function tracer for C/C++.\n"
+    "\neBPF-utrace: eBPF-based user function tracer for C/C++.\n"
     "\n"
     "Examples:\n"
     "  # trace the program specified by COMMAND\n"
-    "  sudo build/utrace -c \"$COMMAND\"\n"
+    "  $ sudo build/utrace -c \"$COMMAND\"\n"
     "  # trace the program specified by PID\n"
-    "  sudo build/utrace -p $PID\n";
+    "  $ sudo build/utrace -p $PID\n";
 
 static const struct argp_option opts[] = {
     {"command", 'c', "COMMAND", 0,
@@ -89,17 +91,17 @@ static const struct argp_option opts[] = {
     {"user", 'u', "USERNAME", 0, "Run the specified command as USERNAME", 0},
     {}};
 
-extern bool debug;  // -d/--debug
+bool debug;  // -d/--debug
 static struct env {
   char *argv[12];                   // -c/-commond
   bool cpuid;                       // --cpuid
   bool flat;                        // --flat
-  const char *func_pattern;         // -f/--function
-  const char *lib_pattern;          // -l/--lib
+  char *func_pattern;               // -f/--function
+  char *lib_pattern;                // -l/--lib
   bool libname;                     // --libname
-  int max_depth;                    // --max-depth
-  const char *nest_lib_pattern;     // --nest-lib
-  const char *no_func_pattern;      // no-function
+  unsigned int max_depth;           // --max-depth
+  char *nest_lib_pattern;           // --nest-lib
+  char *no_func_pattern;            // no-function
   bool no_aslr;                     // --no-randomize-addr
   FILE *output;                     // -o/--output
   pid_t pid;                        // -p/--pid
@@ -134,10 +136,20 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
       env.flat = true;
       break;
     case 'f':  // -f/--function
-      env.func_pattern = arg;
+      if (env.func_pattern) {
+        env.func_pattern = restrcat(env.func_pattern, ",");
+        env.func_pattern = restrcat(env.func_pattern, arg);
+      } else {
+        env.func_pattern = strdup(arg);
+      }
       break;
     case 'l':  // -l/--lib
-      env.lib_pattern = arg;
+      if (env.lib_pattern) {
+        env.lib_pattern = restrcat(env.lib_pattern, ",");
+        env.lib_pattern = restrcat(env.lib_pattern, arg);
+      } else {
+        env.lib_pattern = strdup(arg);
+      }
       break;
     case OPT_LIBNAME:  // --libname
       env.libname = true;
@@ -146,37 +158,45 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
       env.max_depth = atoi(arg);
       if (env.max_depth <= 0) {
         ERROR("The parameter for --max-depth should be greater than 0");
-        exit(1);
+        return 1;
       }
       break;
     case OPT_NEST_LIB:  // --nest-lib
-      env.nest_lib_pattern = arg;
+      if (env.nest_lib_pattern) {
+        env.nest_lib_pattern = restrcat(env.nest_lib_pattern, ",");
+        env.nest_lib_pattern = restrcat(env.nest_lib_pattern, arg);
+      } else {
+        env.nest_lib_pattern = strdup(arg);
+      }
       break;
     case OPT_NO_FUNCTION:  // --no-function
       env.no_func_pattern = arg;
+      if (env.lib_pattern) {
+        env.no_func_pattern = restrcat(env.no_func_pattern, ",");
+        env.no_func_pattern = restrcat(env.no_func_pattern, arg);
+      } else {
+        env.no_func_pattern = strdup(arg);
+      }
       break;
     case OPT_NO_ASLR:  // --no-randomize-addr
       env.no_aslr = true;
       break;
     case 'o':  // -o/--output
       env.output = fopen(arg, "w+");
-      if (!env.output) {
-        perror("fopen");
-        exit(1);
-      }
+      if (env.output == NULL) die("fopen");
       break;
     case 'p':  // -p/--pid
       env.pid = atoi(arg);
       if (env.pid <= 0) {
         ERROR("The parameter for -p/--pid should be greater than 0");
-        exit(1);
+        return 1;
       }
       break;
     case OPT_TID:  // --tid
       env.tid = true;
       break;
     case OPT_TIME_FILTER:  // -time-filter
-      env.min_duration = strduration2ns(arg);
+      env.min_duration = duration_str2ns(arg);
       break;
     case OPT_TIMESTAMP:  // --timestamp
       env.timestamp = true;
@@ -211,7 +231,7 @@ static void sig_handler(int sig) {
 
 static struct bpf_link *uprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe,
                                       size_t addr) {
-  DEBUG("Attach uprobe to %s:%zx with pid = %d\n", exe, addr, pid);
+  DEBUG("Attach uprobe to %s:%zx with pid = %d", exe, addr, pid);
 
   // Attach uprobe
   struct bpf_link *link = bpf_program__attach_uprobe(skel->progs.uprobe, false, pid, exe, addr);
@@ -220,7 +240,7 @@ static struct bpf_link *uprobe_attach(struct utrace_bpf *skel, pid_t pid, const 
 
 static struct bpf_link *uretprobe_attach(struct utrace_bpf *skel, pid_t pid, const char *exe,
                                          size_t addr) {
-  DEBUG("Attach uretprobe to %s:%zx with pid = %d\n", exe, addr, pid);
+  DEBUG("Attach uretprobe to %s:%zx with pid = %d", exe, addr, pid);
 
   // Attach uretprobe
   struct bpf_link *link = bpf_program__attach_uprobe(skel->progs.uretprobe, true, pid, exe, addr);
@@ -233,14 +253,15 @@ static const char *default_skipped_func[] = {
 
 static bool skip_symbol(const struct symbol *symbol) {
   // skip libcalls don't match lib_pattern
-  if (env.libname && symbol->libname && !glob_match(symbol->libname, env.lib_pattern)) return true;
+  if (env.libname && symbol->libname && !glob_match_ext(symbol->libname, env.lib_pattern))
+    return true;
   // skip functions don't match func_pattern
-  if (env.func_pattern && !glob_match(symbol->name, env.func_pattern)) return true;
+  if (env.func_pattern && !glob_match_ext(symbol->name, env.func_pattern)) return true;
   // skip functions match no_func_pattern
-  if (env.no_func_pattern && glob_match(symbol->name, env.no_func_pattern)) return true;
+  if (env.no_func_pattern && glob_match_ext(symbol->name, env.no_func_pattern)) return true;
   // skip some useless functions
   for (size_t i = 0; i < ARRAY_SIZE(default_skipped_func); i++)
-    if (!strcmp(symbol->name, default_skipped_func[i])) return true;
+    if (strcmp(symbol->name, default_skipped_func[i]) == 0) return true;
   return false;
 }
 
@@ -258,10 +279,9 @@ static int bpf_probe_attach(struct utrace_bpf *skel, struct vector *bpf_links, p
     const char *base_module_name = base_name(module_name);
     // only trace libraries matching env.nest_lib_pattern
     if (env.nest_lib_pattern && is_library(base_module_name) &&
-        !glob_match(base_module_name, env.nest_lib_pattern))
+        !glob_match_ext(base_module_name, env.nest_lib_pattern))
       continue;
-    vmem->module->symbol_table = symbol_table_init(module_name);
-    if (!vmem->module->symbol_table) continue;
+    if (!module_init_symbol_table(vmem->module)) continue;
     for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
       const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
       if (!skip_symbol(sym)) {
@@ -284,7 +304,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
   struct profile_record *r = data;
 
   unsigned int index = thread_local_get_index(thread_local, r->tid);
-  enum FUNCSTATE state = thread_local_get_state(thread_local, index);
+  enum FUNC_STATE state = thread_local_get_state(thread_local, index);
 
   if (r->ret) {
     if (state == STATE_EXEC) {
@@ -338,15 +358,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
       }
     }
 
-    const struct symbol *sym = vmem_table_symbolize(vmem_table, r->ustack[0]);
-    if (sym) {
-      struct profile_record prer = *r;
-      prer.name = sym->name;
-      prer.libname = sym->libname;
+    const struct symbol *symbol = vmem_table_symbolize(vmem_table, r->ustack[0]);
+    if (symbol) {
+      struct profile_record curr = *r;
+      curr.name = symbol->name;  // TODO refactor
+      curr.libname = symbol->libname;
       if (thread_local_record_size(thread_local, index) &&
-          thread_local_get_record_back(thread_local, index)->ustack_sz + 1 != prer.ustack_sz)
+          thread_local_get_record_back(thread_local, index)->ustack_sz + 1 != curr.ustack_sz)
         thread_local_pop_record(thread_local, index);
-      thread_local_push_record(thread_local, index, &prer);
+      thread_local_push_record(thread_local, index, &curr);
       thread_local_set_state(thread_local, index, STATE_EXEC);
     } else {
       // ignore
@@ -355,34 +375,38 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
   return 0;
 }
 
+#define fail(fmt, ...)         \
+  do {                         \
+    ERROR(fmt, ##__VA_ARGS__); \
+    err = 1;                   \
+    goto cleanup;              \
+  } while (0)
+
 int main(int argc, char **argv) {
+  int err = 0;
+
   struct utrace_bpf *skel = NULL;
   struct ring_buffer *records = NULL;
   struct vector *bpf_links = NULL;  // Store all bpf links
 
-  struct rlimit old_rlim;
-  const char *program;
+  char *program = NULL;
   pid_t pid;
-  int err;
 
-  env.func_pattern = "*";     // Trace all functions by default
-  env.lib_pattern = "*";      // Trace all libcalls by default
-  env.nest_lib_pattern = "";  // Don't trace libraries by default
   env.max_depth = MAX_STACK_SIZE;
-  env.no_func_pattern = "";
   env.output = stderr;  // Output to stderr by default
   err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
-  if (!env.argv[0] && !env.pid) {
-    exit(1);
-  } else if (err) {
-    return err;
+  if (err) {
+    goto cleanup;
+  } else if (!env.argv[0] && !env.pid) {
+    fail("Please specify the traced program or its pid");
   }
+  if (!env.func_pattern) env.func_pattern = strdup("*");         // Trace all functions by default
+  if (!env.lib_pattern) env.lib_pattern = strdup("*");           // Trace all libcalls by default
+  if (!env.nest_lib_pattern) env.nest_lib_pattern = strdup("");  // Don't trace libraries by default
+  if (!env.no_func_pattern) env.no_func_pattern = strdup("");    // Don't trace libraries by default
 
   // Ensure root permission
-  if (geteuid() != 0) {
-    ERROR("Failed to run %s: permission denied\n", argv[0]);
-    return 1;
-  }
+  if (geteuid() != 0) fail("Failed to run %s: permission denied", argv[0]);
 
   // Register handlers for Ctrl-C
   signal(SIGINT, sig_handler);
@@ -394,42 +418,27 @@ int main(int argc, char **argv) {
 
   // Load and verify BPF program
   skel = utrace_bpf__open();
-  if (!skel) {
-    fprintf(stderr, "Failed to open and load BPF skeleton\n");
-    return 1;
-  }
+  if (!skel) fail("Failed to open and load BPF skeleton");
 
   skel->rodata->max_depth = env.max_depth;
   skel->rodata->min_duration = env.min_duration;
 
   err = utrace_bpf__load(skel);
-  if (err) {
-    fprintf(stderr, "Failed to load and verify BPF skeleton\n");
-    goto cleanup;
-  }
+  if (err) fail("Failed to load and verify BPF skeleton");
 
   // Set up ring buffer polling
   records = ring_buffer__new(bpf_map__fd(skel->maps.records), handle_event, NULL, NULL);
-  if (!records) {
-    err = 1;
-    ERROR("Failed to create ring buffer\n");
-    goto cleanup;
-  }
+  if (!records) fail("Failed to create ring buffer");
 
   // Save the old rlimit
-  if (getrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
-    perror("getrlimit");
-    exit(1);
-  }
+  struct rlimit old_rlim;
+  if (getrlimit(RLIMIT_NOFILE, &old_rlim) == -1) die("getrlimit");
   struct rlimit rlim = {
       .rlim_cur = 1 << 20,
       .rlim_max = 1 << 20,
   };
   // Maximize the number of file descriptors
-  if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) {
-    perror("setrlimit");
-    exit(1);
-  }
+  if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) die("setrlimit");
 
   bpf_links = vector_init(sizeof(struct bpf_link *));
   // Store local states for each thread
@@ -439,73 +448,54 @@ int main(int argc, char **argv) {
   if (env.pid) {
     pid = env.pid;
     vmem_table = vmem_table_init(pid);
-    program = vmem_table_get_prog_name(vmem_table);
+    program = strdup(vmem_table_get_prog_name(vmem_table));
   } else {
     program = resolve_full_path(env.argv[0]);
   }
-  if (!program) {
-    ERROR("Cannot find the traced program");
-    goto cleanup;
-  }
+  if (!program) fail("Cannot find the traced program");
 
   if (env.pid) {
     int cnt = bpf_probe_attach(skel, bpf_links, pid);
-    DEBUG("Attached total %d uprobes\n", cnt);
+    DEBUG("Attached total %d uprobes", cnt);
 
-    if (utrace_bpf__attach(skel) != 0) {
-      ERROR("Failed to attach BPF skeleton\n");
-      goto cleanup;
-    }
+    if (utrace_bpf__attach(skel) != 0) fail("Failed to attach BPF skeleton");
   } else {
     size_t break_addr = get_entry_address(program);
-    if (!break_addr) {
-      ERROR("Can not find entry address for breaking");
-      exit(1);
-    }
+    if (!break_addr) fail("Can not find entry address for breaking");
 
     pid = fork();
     if (pid < 0) {
-      perror("fork");
-      exit(1);
+      die("fork");
     } else if (pid == 0) {
       if (env.no_aslr) personality(ADDR_NO_RANDOMIZE);
-      ptrace(PTRACE_TRACEME, 0, 0, 0);
+      if (ptrace(PTRACE_TRACEME, 0, 0, 0) == -1) die("perror");
       if (env.user) {
         struct passwd *user_info = getpwnam(env.user);
-        if (!user_info) {
-          ERROR("Invalid username: %s\n", env.user);
-          exit(1);
-        }
-        if (setuid(user_info->pw_uid)) {
-          perror("setuid");
-          exit(1);
-        }
+        if (!user_info) fail("Invalid username: %s", env.user);
+        if (setuid(user_info->pw_uid)) die("setuid");
       }
       execv(program, env.argv);
-      perror("execv");
-      exit(1);
+      die("execv");
     } else {
       struct gdb *gdb = gdb_init(pid);
-      gdb_wait_for_signal(gdb);
+      if (gdb_wait_for_signal(gdb) == -1) die("perror");
 
       vmem_table = vmem_table_init(pid);
       if (break_addr >= BASE_ADDR) break_addr -= BASE_ADDR;
       break_addr += vmem_table_get_prog_st_addr(vmem_table);
-      DEBUG("Break address: %zx\n", break_addr);
+      DEBUG("Break address: %zx", break_addr);
 
-      gdb_enable_breakpoint(gdb, break_addr);
-      gdb_continue_execution(gdb);
-      gdb_wait_for_signal(gdb);
+      if (gdb_enable_breakpoint(gdb, break_addr) == -1) die("perror");
+      if (gdb_continue_execution(gdb) == -1) die("perror");
+      if (gdb_wait_for_signal(gdb) == -1) die("perror");
 
       int cnt = bpf_probe_attach(skel, bpf_links, pid);
-      DEBUG("Attached total %d uprobes\n", cnt);
+      DEBUG("Attached total %d uprobes", cnt);
 
-      if (utrace_bpf__attach(skel) != 0) {
-        ERROR("Failed to attach BPF skeleton\n");
-        goto cleanup;
-      }
+      if (utrace_bpf__attach(skel) != 0) fail("Failed to attach BPF skeleton");
 
-      gdb_disable_breakpoint(gdb, break_addr);
+      if (gdb_disable_breakpoint(gdb, break_addr) == -1) die("perror");
+      if (gdb_detach(gdb) == -1) die("perror");
       gdb_free(gdb);
     }
   }
@@ -516,27 +506,24 @@ int main(int argc, char **argv) {
 
   // Process events
   while (!exiting) {
-    err = ring_buffer__poll(records, 100 /* timeout, ms */);
+    err = ring_buffer__poll(records, 100 /* timeout (ms) */);
     // Ctrl-C will cause -EINTR
     if (err == -EINTR) {
       err = 0;
       break;
     }
     if (err < 0) {
-      ERROR("Error polling perf buffer: %d\n", err);
-      break;
-    }
-    if (err == 0) {
+      fail("Error polling perf buffer: %d", err);
+    } else if (err == 0) {
       if (env.pid) {
         if (kill(pid, 0)) break;
       } else {
         int wstatus;
         pid_t ret = waitpid(pid, &wstatus, WNOHANG);
-        if (ret > 0)
+        if (ret > 0) {
           break;
-        else if (ret < 0) {
-          ERROR("Exec %s error\n", program);
-          break;
+        } else if (ret < 0) {
+          fail("Exec %s error", program);
         }
       }
     }
@@ -545,12 +532,19 @@ int main(int argc, char **argv) {
   log_footer(stderr, env.cpuid, env.tid, env.timestamp);
 
 cleanup:
-  // Clean up
+  free(env.func_pattern);
+  free(env.lib_pattern);
+  free(env.nest_lib_pattern);
+  free(env.no_func_pattern);
+  free(program);
+
   ring_buffer__free(records);
 
-  LOG(stderr, "Detaching...\n");
-  for (size_t i = 0; i < vector_size(bpf_links); i++) {
-    bpf_link__destroy(*((struct bpf_link **)vector_get(bpf_links, i)));
+  if (bpf_links && !vector_empty(bpf_links)) {
+    LOG(stderr, "Detaching...\n");
+    for (size_t i = 0; i < vector_size(bpf_links); i++) {
+      bpf_link__destroy(*((struct bpf_link **)vector_get(bpf_links, i)));
+    }
   }
 
   vector_free(bpf_links);
@@ -560,10 +554,7 @@ cleanup:
   thread_local_free(thread_local);
   vmem_table_free(vmem_table);
 
-  if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) {
-    perror("setrlimit");
-    exit(1);
-  }
+  if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) die("setrlimit");
 
-  return err ? abs(err) : 0;
+  return err ? EXIT_FAILURE : EXIT_SUCCESS;
 }
