@@ -149,6 +149,7 @@ namespace env
 	static volatile sig_atomic_t exiting, child_exited;			  /*exiting flag*/
 	static int child_exec_event_fd = -1;
 	std::string command = "";
+	bool count = true; /*for io counts*/
 }
 
 void __handler(int signo)
@@ -268,7 +269,7 @@ protected:
 		/*for traverse map*/
 		for (; !env::exiting && time > 0 && (env::pid < 0 || !kill(env::pid, 0)); time -= 5)
 		{
-			printf("---------%d---------\n", value_fd);
+			printf("---------fd:%d---------\n", value_fd);
 			sleep(5);
 			auto D = sortD();
 
@@ -294,7 +295,7 @@ protected:
 							g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
 					}
 				}
-				printf("%6d\t(%6d,%6d)\t%.2lf\n", id.pid, id.ksid, id.usid, id.val);
+				printf("pid:%-6d\tksid:%-6d,usid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
 			}
 			delete D;
 		};
@@ -853,11 +854,13 @@ class io_loader : public bpf_loader
 {
 protected:
 	struct io_count_bpf *skel;
+	bool in_count;
 
 public:
-	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
+	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, bool cot = env::count) : bpf_loader(p, c, u, k)
 	{
 		skel = 0;
+		in_count = cot;
 	};
 	int load(void) override
 	{
@@ -865,6 +868,7 @@ public:
 			skel->bss->apid = pid;
 			skel->bss->u = ustack;
 			skel->bss->k = kstack;
+			skel->bss->cot = in_count;
 		});
 		return 0;
 	};
@@ -948,7 +952,8 @@ int main(int argc, char *argv[])
 					  clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency");
 	auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
 	auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
-	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks");
+	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
+				   clipp::option("-C", "--in-count").set(env::count, true));
 	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
 	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla),
 				 (
