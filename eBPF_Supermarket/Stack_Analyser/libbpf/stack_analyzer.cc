@@ -150,6 +150,8 @@ namespace env
 	static int child_exec_event_fd = -1;
 	std::string command = "";
 	bool count = true; /*for io counts*/
+	int max = __INT_MAX__;
+	int min = 0;
 }
 
 void __handler(int signo)
@@ -295,7 +297,7 @@ protected:
 							g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
 					}
 				}
-				printf("pid:%-6d\tksid:%-6d,usid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
+				printf("pid:%-6d\tusid:%-6d\tksid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
 			}
 			delete D;
 		};
@@ -338,8 +340,8 @@ public:
 		int c = env::cpu,
 		bool u = env::u,
 		bool k = env::k,
-		uint64_t n = 1ull,
-		uint64_t m = UINT64_MAX) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m)
+		uint64_t n = env::min,
+		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m)
 	{
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
@@ -956,11 +958,12 @@ int main(int argc, char *argv[])
 				   clipp::option("-C", "--in-count").set(env::count, true));
 	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
 	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla),
-				 (
-					 clipp::option("-p", "--pid") & clipp::value("set the pid of sampled process", env::pid)) |
+				 (clipp::option("-p", "--pid") & clipp::value("set the pid of sampled process", env::pid)) |
 					 (clipp::option("-c", "--command") & clipp::value("set the sampled command to run", env::command)),
 				 clipp::option("-U", "--user-stack-only").set(env::k, false),
 				 clipp::option("-K", "--kernel-stack-only").set(env::u, false),
+				 clipp::option("-m", "--max-value") & clipp::value("set the max value of sampled process", env::max),
+				 clipp::option("-n", "--min-value") & clipp::value("set the min value of sampled process", env::min),
 				 clipp::opt_value("simpling time", env::run_time));
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,
