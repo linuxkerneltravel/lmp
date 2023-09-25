@@ -248,17 +248,17 @@ static struct bpf_link *uretprobe_attach(struct utrace_bpf *skel, pid_t pid, con
 }
 
 static const char *default_skipped_func[] = {
-    "c_start", "_start", "__libc_csu_init", "__libc_csu_fini", "_dl_relocate_static_pie",
+    "c_start", "_start", "__libc_csu_init", "__libc_csu_fini", "__libc_start_main", "_dl_relocate_static_pie", "__x86.get_pc_thunk.bx",
 };
 
 static bool skip_symbol(const struct symbol *symbol) {
   // skip libcalls don't match lib_pattern
-  if (env.libname && symbol->libname && !glob_match_ext(symbol->libname, env.lib_pattern))
+  if (symbol->libname && !glob_match_ext(symbol->libname, env.lib_pattern))
     return true;
   // skip functions don't match func_pattern
-  if (env.func_pattern && !glob_match_ext(symbol->name, env.func_pattern)) return true;
+  if (!glob_match_ext(symbol->name, env.func_pattern)) return true;
   // skip functions match no_func_pattern
-  if (env.no_func_pattern && glob_match_ext(symbol->name, env.no_func_pattern)) return true;
+  if (glob_match_ext(symbol->name, env.no_func_pattern)) return true;
   // skip some useless functions
   for (size_t i = 0; i < ARRAY_SIZE(default_skipped_func); i++)
     if (strcmp(symbol->name, default_skipped_func[i]) == 0) return true;
@@ -278,7 +278,7 @@ static int bpf_probe_attach(struct utrace_bpf *skel, struct vector *bpf_links, p
     const char *module_name = module_get_name(vmem->module);
     const char *base_module_name = base_name(module_name);
     // only trace libraries matching env.nest_lib_pattern
-    if (env.nest_lib_pattern && is_library(base_module_name) &&
+    if (is_library(base_module_name) &&
         !glob_match_ext(base_module_name, env.nest_lib_pattern))
       continue;
     if (!module_init_symbol_table(vmem->module)) continue;
@@ -403,7 +403,7 @@ int main(int argc, char **argv) {
   if (!env.func_pattern) env.func_pattern = strdup("*");         // Trace all functions by default
   if (!env.lib_pattern) env.lib_pattern = strdup("*");           // Trace all libcalls by default
   if (!env.nest_lib_pattern) env.nest_lib_pattern = strdup("");  // Don't trace libraries by default
-  if (!env.no_func_pattern) env.no_func_pattern = strdup("");    // Don't trace libraries by default
+  if (!env.no_func_pattern) env.no_func_pattern = strdup(""); 
 
   // Ensure root permission
   if (geteuid() != 0) fail("Failed to run %s: permission denied", argv[0]);
@@ -481,7 +481,7 @@ int main(int argc, char **argv) {
       if (gdb_wait_for_signal(gdb) == -1) die("perror");
 
       vmem_table = vmem_table_init(pid);
-      if (break_addr >= BASE_ADDR) break_addr -= BASE_ADDR;
+      break_addr = resolve_addr(break_addr);
       break_addr += vmem_table_get_prog_st_addr(vmem_table);
       DEBUG("Break address: %zx", break_addr);
 
@@ -554,7 +554,7 @@ cleanup:
   thread_local_free(thread_local);
   vmem_table_free(vmem_table);
 
-  if (setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) die("setrlimit");
+  if (geteuid() == 0 && setrlimit(RLIMIT_NOFILE, &old_rlim) == -1) die("setrlimit");
 
   return err ? EXIT_FAILURE : EXIT_SUCCESS;
 }

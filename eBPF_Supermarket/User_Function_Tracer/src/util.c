@@ -102,3 +102,9 @@ unsigned long long duration_str2ns(const char *duration) {
   }
   return 0;
 }
+
+size_t resolve_addr(size_t addr) {
+  if (addr > 0x8048000) return addr - 0x8048000; // 32-bit load addr
+  if (addr > 0x400000) return addr - 0x400000; // 64-bit load addr
+  return addr;
+}

@@ -20,6 +20,7 @@
 #define UTRACE_UTIL_H
 
 #include <stdbool.h>
+#include <stddef.h> // for size_t
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -38,5 +39,7 @@ const char *base_name(const char *file);
 bool is_library(const char *file);
 
 unsigned long long duration_str2ns(const char *duration);
+
+size_t resolve_addr(size_t addr);
 
 #endif  // UTRACE_UTIL_H

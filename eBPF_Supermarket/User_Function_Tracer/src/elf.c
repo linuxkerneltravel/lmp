@@ -95,6 +95,23 @@ bool elf_rela_entry_next(struct elf_rela_entry *elf_e, struct elf_section *elf_s
   return true;
 }
 
+void elf_rel_entry_begin(struct elf_rel_entry *elf_e, struct elf_section *elf_s,
+                          Elf_Data *dyn_sym_data) {
+  elf_e->i = 0;
+  elf_e->nentries = elf_s->shdr.sh_size / elf_s->shdr.sh_entsize;
+  elf_e->rel_data = elf_getdata(elf_s->scn, NULL);
+  elf_e->sym_data = dyn_sym_data;
+}
+
+bool elf_rel_entry_next(struct elf_rel_entry *elf_e, struct elf_section *elf_s) {
+  (void)elf_s;
+  if (elf_e->i >= elf_e->nentries) return false;
+  gelf_getrel(elf_e->rel_data, elf_e->i, &elf_e->rel);
+  gelf_getsym(elf_e->sym_data, GELF_R_SYM(elf_e->rel.r_info), &elf_e->sym);
+  elf_e->i++;
+  return true;
+}
+
 void elf_versym_entry_begin(struct elf_versym_entry *elf_e, struct elf_section *elf_s) {
   elf_e->i = 0;
   elf_e->nentries = elf_s->shdr.sh_size / elf_s->shdr.sh_entsize;

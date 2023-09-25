@@ -21,8 +21,6 @@
 
 #include "vector.h"
 
-#define BASE_ADDR 0x400000  // for no-pie option
-
 /**
  * @brief represent a symbol
  */
