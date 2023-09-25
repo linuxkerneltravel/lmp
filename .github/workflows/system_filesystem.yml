@@ -15,30 +15,43 @@ on:
       - '.github/workflows/system_filesystem.yml'
 
 jobs:
-  build-and-test:
+  bcc-project-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-    
+
+      - name: Cache BCC build directory
+        id: cache-bcc
+        uses: actions/cache@v3
+        with:
+          path: bcc
+          key: ${{ runner.os }}-bcc
+
       - name: Set up Python 3.10
         uses: actions/setup-python@v3
         with:
           python-version: "3.10"
 
-      - name: Build BCC
+      - name: Install dependencies
         run: |
-          sudo apt install -y bison build-essential cmake flex git libedit-dev \
-          libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
-          mkdir bcc/build; cd bcc/build
-          cmake ..
+          python -m pip install --upgrade pip
+          sudo python -m pip install pyod
+          sudo python -m pip install psutil
+          sudo apt-get install -y linux-headers-$(uname -r)
+          sudo apt-get install -y python-is-python3
+          sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
+          sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
+
+      - name: Build BCC
+        if: steps.cache-bcc.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
+          tar xf bcc-src-with-submodule.tar.gz
+          cd bcc/
+          mkdir build
+          cd build/
+          cmake -DCMAKE_INSTALL_PREFIX=/usr -DPYTHON_CMD=python3 ..
           make
-          sudo make install
-          cmake -DPYTHON_CMD=python3 .. # build python3 binding
-          pushd src/python/
-          make
-          sudo make install
-          popd
 
       - name: Run Main
         run: |
