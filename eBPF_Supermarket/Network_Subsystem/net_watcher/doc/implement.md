@@ -1,5 +1,13 @@
-# netwatch设计文档
-- 本文详细说明netwatch的代码设计
+# netwatcher设计文档
+- 本文详细说明netwatcher的代码设计
+## 监控流程
+![监控流程图](image/process.png)
+
+如图所示，`netwatcher`监控每个建立的TCP连接与各个连接上的数据包：
+- 当TCP连接建立时，`netwatcher`记录下此TCP连接的基本信息，即连接id,连接socket地址,相关COMMAND,连接四元组以及连接方向
+- 当数据包到来时，`netwatcher`首先记录此数据包的基础信息，即SEQ,ACK,TCP包sock地址（用于明确TCP连接），接着根据指定参数
+  - 记录数据包的额外信息
+  - 更新相关TCP连接的额外信息
 ## 数据结构
 ### kernal struct
 - `struct ktime_info`
@@ -31,7 +39,7 @@
 ### APP层
 #### `kprobe/skb_copy_datagram_iter`
 - rx数据包经过TCP层处理后进入此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录rx数据包到达APP层的时间戳，存入`timestamps`
   - 根据`timestamps`中的时间戳计算数据包的各层处理时间
   - 从`sock`中提取出用户数据，从而供user space提取出HTTP1/1.1请求头
@@ -41,45 +49,45 @@
 
 #### `kretprobe/inet_csk_accept`
 - `accept()`系统调用最终会调用此函数，成功后此函数会返回一个`struct sock* sk`，此`sk`管理着被accept的tcp连接
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 根据`sk`记录tcp连接的基本信息并存入`conns_info`
   - 由于是accept，将conn的方向设为server
 #### `kprobe/tcp_v4/v6_connect`
 - `connect(struct sock* sk)`系统调用最终会调用此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录`ptid`与`sk`的对应关系，并存入`sock_stores`
 #### `kretprobe/tcp_v4/v6_connect`
 - `connect(struct sock* sk)`系统调用最终会调用此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 根据`kprobe`中记录的信息，将tcp连接的基本信息存入`conns_info`
   - 由于是connect，将conn的方向设为client
 #### `kprobe/tcp_set_state`
 - 每次tcp连接状态发生变化会调用此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 若未指定运行参数`-a`，则当tcp连接状态变为`TCP_CLOSE`时，将此tcp连接信息从`sock_stores`与`conns_info`中删去（如果有的话）
 #### `kprobe/tcp_v4/v6_rcv`
 - 当rx数据包到达TCP层时，会调用此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录IP数据包到达TCP层的时间戳，存入`timestamps`
 #### `tcp_v4/v6_do_rcv`
 - `tcp_v4/v6_rcv`在此函数进一步处理rx包
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 根据`sock`得到`tcp_sock`，更新tcp连接的额外信息到相应的`conn_t`
 
 #### `kprobe/tcp_validate_incoming`
 - linux协议栈使用此函数对tcp包进行校验
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 校验TCP包seq是否在接收窗口中
   - 如果TCP包seq错误，将此包相关信息存入`rb`以供user space消费
 
 #### `kretprobe/__skb_checksum_complete`
 - 此函数返回非0表明数据包校验和错误
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 对校验和错误的数据包相关信息存入`rb`以供user space消费
 
 #### `kprobe/tcp_sendmsg`
 - linux协议栈在TCP层调用此函数对tx包进行处理
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录tx包到达TCP层的时间戳
   - 根据`sock`得到`tcp_sock`，更新tcp连接的额外信息到相应的`conn_t`
   - 从`struct msghdr* msg`中提取用户层数据，从而供user space提取出HTTP1/1.1请求头
@@ -88,12 +96,12 @@
 
 #### `kprobe/ip/ip6_rcv_core`
 - 当rx数据包到达IP层时，会调用此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录rx数据包到达IP层的时间戳，存入`timestamps`
 
 #### `kprobe/ip_queue_xmit` / `kprobe/inet6_csk_xmit`
 - linux协议栈调用此函数来处理tx数据包的IP层
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录tx数据包到达IP层的时间戳，存入`timestamps`
 
 
@@ -101,23 +109,23 @@
 
 #### `kprobe/eth_type_trans`
 - 当rx数据包到达MAC层时，将调用此函数
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录rx数据包到达MAC层的时间戳，存入`timestamps`
 
 #### `kprobe/__dev_queue_xmit`
 - linux协议栈调用此函数处理tx数据包的MAC层
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录tx数据包到达MAC层的时间戳，存入`timestamps`
 
 #### `kprobe/dev_hard_start_xmit`
 - linux协议栈调用此函数将tx数据包发送给网卡驱动
-- netwatch在此探测点做出如下动作
+- netwatcher在此探测点做出如下动作
   - 记录tx数据包离开MAC层的时间戳，存入`timestamps`
   - 将数据包相关信息存入`rb`以供user space消费
 
 ## user space 输出
 ### 连接相关信息
-- netwatch通过`bpf_map_get_next_key`对`conns_info`进行遍历，将其中存储的所有TCP连接信息按如下格式输出到`data/connects.log`文件中
+- netwatcher通过`bpf_map_get_next_key`对`conns_info`进行遍历，将其中存储的所有TCP连接信息按如下格式输出到`data/connects.log`文件中
 ```
 fprintf(file, "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\",is_server=\"%d\"",
 d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.is_server);
