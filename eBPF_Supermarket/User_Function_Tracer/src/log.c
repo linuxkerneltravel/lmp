@@ -22,63 +22,187 @@
 #include <string.h>
 #include <unistd.h>
 
-int debug;
+#include "util.h"
 
-void log_color(const char* color) {
-  char* term = getenv("TERM");
-  if (isatty(fileno(stderr)) && !(term && !strcmp(term, "dumb"))) {
-    LOG("%s", color);
+void log_color(FILE *file, const char *color) {
+  char *term = getenv("TERM");
+  if (isatty(fileno(file)) && !(term && !strcmp(term, "dumb"))) {
+    LOG(file, "%s", color);
   }
 }
 
-void log_char(char c, int cnt) {
+void log_char(FILE *file, char c, int cnt) {
   while (cnt > 0) {
-    LOG("%c", c);
+    LOG(file, "%c", c);
     --cnt;
   }
 }
 
-void log_header(int cpu, int tid, int timestamp) {
-  if (cpu) {
-    LOG(" CPU");
-    log_split();
+void log_header(FILE *file, bool show_cpuid, bool show_tid, bool show_timestamp) {
+  if (show_cpuid) {
+    LOG(file, " CPU");
+    log_split(file);
   }
-  if (tid) {
-    LOG("  TID ");
-    log_split();
+  if (show_tid) {
+    LOG(file, "  TID ");
+    log_split(file);
   }
-  if (timestamp) {
-    LOG("   TIMESTAMP  ");
-    log_split();
+  if (show_timestamp) {
+    LOG(file, "   TIMESTAMP  ");
+    log_split(file);
   }
-  LOG("  DURATION ");
-  log_split();
-  LOG("  FUNCTION CALLS\n");
+  LOG(file, "  DURATION ");
+  log_split(file);
+  LOG(file, "  FUNCTION CALLS\n");
 }
-void log_split() { LOG(" | "); }
 
-void log_cpuid(int cpuid) { LOG("%4d", cpuid); }
+void log_footer(FILE *file, bool show_cpuid, bool show_tid, bool show_timestamp) {
+  int width = 30;
+  if (show_cpuid) width += 6;
+  if (show_tid) width += 8;
+  if (show_timestamp) width += 16;
+  log_char(file, '=', width);
+  log_char(file, '\n', 1);
+}
 
-void log_tid(int tid) { LOG("%6d", tid); }
+void log_split(FILE *file) { LOG(file, " | "); }
 
-void log_timestamp(unsigned long long timestamp) { LOG("%llu", timestamp); }
+void log_cpuid(FILE *file, int cpuid) { LOG(file, "%4d", cpuid); }
 
-void log_duration(unsigned long long ns) {
-  static char* units[] = {
+void log_tid(FILE *file, int tid) { LOG(file, "%6d", tid); }
+
+void log_timestamp(FILE *file, unsigned long long timestamp) { LOG(file, "%llu", timestamp); }
+
+void log_trace_data(FILE *file, unsigned int *cpuid, unsigned int *tid,
+                    unsigned long long *timestamp, unsigned long long duration,
+                    unsigned int stack_sz, const char *function_name, const char *libname, bool ret,
+                    enum FUNC_STATE state, bool flat, bool lib) {
+  const int INDENT = 2;
+
+  if (flat) {
+    if (ret) {
+      if (state == STATE_EXIT) {
+        LOG(file, "← [%u] ", stack_sz);
+      } else if (state == STATE_EXEC) {
+        LOG(file, "↔ [%u] ", stack_sz);
+      }
+      if (cpuid && tid) {
+        LOG(file, "%u/%u: ", *tid, *cpuid);
+      } else if (cpuid) {
+        LOG(file, "%u: ", *cpuid);
+      } else if (tid) {
+        LOG(file, "%u: ", *tid);
+      }
+      if (timestamp) {
+        LOG(file, "(%llu) ", *timestamp);
+      }
+      LOG(file, "%s", function_name);
+      if (lib && libname) {
+        log_char(file, '@', 1);
+        for (int i = 0, len = strlen(libname); i < len; i++) {
+          if (i + 2 < len && !strncmp(libname + i, ".so", 3)) break;
+          log_char(file, libname[i], 1);
+        }
+      }
+      LOG(file, " [");
+      log_duration(file, duration, false, false, true);
+      LOG(file, "]\n");
+    } else {
+      LOG(file, "→ [%u] ", stack_sz);
+      if (cpuid && tid) {
+        LOG(file, "%u/%u: ", *tid, *cpuid);
+      } else if (cpuid) {
+        LOG(file, "%u: ", *cpuid);
+      } else if (tid) {
+        LOG(file, "%u: ", *tid);
+      }
+      if (timestamp) {
+        LOG(file, "(%llu) ", *timestamp);
+      }
+      LOG(file, "%s", function_name);
+      if (lib && libname) {
+        LOG(file, "@%s", libname);
+      }
+      LOG(file, "\n");
+    }
+  } else {
+    if (cpuid) {
+      log_cpuid(file, *cpuid);
+      log_split(file);
+    }
+    if (tid) {
+      log_tid(file, *tid);
+      log_split(file);
+    }
+    if (timestamp) {
+      log_timestamp(file, *timestamp);
+      log_split(file);
+    }
+    if (ret) {
+      log_duration(file, duration, true, true, false);
+      log_split(file);
+      log_char(file, ' ', stack_sz * INDENT);
+      if (state == STATE_EXIT) {
+        LOG(file, "} ");
+        log_color(file, TERM_GRAY);
+        LOG(file, "/* ");
+        LOG(file, "%s", function_name);
+        if (lib && libname) {
+          LOG(file, "@%s", libname);
+        }
+        LOG(file, " */\n");
+        log_color(file, TERM_RESET);
+      } else if (state == STATE_EXEC) {
+        LOG(file, "%s", function_name);
+        if (lib && libname) {
+          LOG(file, "@%s", libname);
+        }
+        LOG(file, "();\n");
+      }
+    } else {
+      log_char(file, ' ', 11);
+      log_split(file);
+      log_char(file, ' ', stack_sz * INDENT);
+      LOG(file, "%s", function_name);
+      if (lib && libname) {
+        LOG(file, "@%s", libname);
+      }
+      LOG(file, "() {\n");
+    }
+  }
+}
+
+void log_duration(FILE *file, unsigned long long ns, bool need_blank, bool need_color,
+                  bool need_sign) {
+  static char *units[] = {
       "ns", "us", "ms", " s", " m", " h",
   };
-  static unsigned long long limit[] = {
+  static char *colors[] = {
+      "", "", TERM_GREEN, TERM_YELLOW, TERM_MAGENTA, TERM_RED,
+  };
+  static char signs[] = {
+      ' ', ' ', '+', '#', '!', '*',
+  };
+  static unsigned long long limits[] = {
       1000, 1000, 1000, 1000, 60, 24, 0,
   };
 
-  unsigned long long t = ns, t_mod = 0;
-  int i = 0;
-  while (i < sizeof(units) / sizeof(units[0]) - 1) {
-    if (t < limit[i]) break;
-    t_mod = t % limit[i];
-    t = t / limit[i];
+  unsigned long long t = ns, t_mod = ns;
+  unsigned long i = 0;
+  while (i < ARRAY_SIZE(units) - 1) {
+    if (t < limits[i]) break;
+    t_mod = t % limits[i];
+    t = t / limits[i];
     ++i;
   }
 
-  LOG("%4llu.%03llu %s", t, t_mod, units[i]);
+  if (need_sign && signs[i] != ' ') log_char(file, signs[i], 1);
+  if (need_blank) {
+    LOG(file, "%4llu.%03llu ", t, t_mod);
+  } else {
+    LOG(file, "%llu.%03llu ", t, t_mod);
+  }
+  if (need_color) log_color(file, colors[i]);
+  LOG(file, "%s", units[i]);
+  if (need_color) log_color(file, TERM_RESET);
 }

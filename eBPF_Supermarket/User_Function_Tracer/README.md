@@ -15,19 +15,45 @@ $ mkdir -p vmlinux
 $ bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
 $ cmake -B build -S . -G Ninja
 $ cmake --build build
-$ build/utrace -h
-Usage: build/utrace [$OPTIONS...]
+$ build/utrace --help
+Usage: utrace [OPTION...]
 
-Options:
-  -c --command: the command to run the program to be traced.
-  -p --pid: the PID of the program to be traced.
-  -d --debug: enable debug mode.
-     --no-ASLR: disable Address Space Layout Randomization (ASLR).
-  -h --help: disaply this usage information.
+eBPF-utrace: eBPF-based user function tracer for C/C++.
 
 Examples:
-  sudo build/utrace -c "$PROGRAM $ARGS"
-  sudo build/utrace -p $PID
+  # trace the program specified by COMMAND
+  $ sudo build/utrace -c "$COMMAND"
+  # trace the program specified by PID
+  $ sudo build/utrace -p $PID
+
+  -c, --command=COMMAND      Specify the COMMAND to run the traced program
+                             (format: "program arguments")
+      --cpuid                Display CPU ID
+  -d, --debug                Show debug information
+      --flat                 Display in a flat output format
+  -f, --function=FUNC_PATTERN   Only trace functions matching FUNC_PATTERN (in
+                             glob format, default "*")
+  -l, --lib=LIB_PATTERN      Only trace libcalls to libraries matching
+                             LIB_PATTERN (in glob format, default "*")
+      --libname              Append libname to symbol name
+      --max-depth=DEPTH      Hide functions with stack depths greater than
+                             DEPTH
+      --nest-lib=NEST_LIB_PATTERN
+                             Also trace functions in libraries matching
+                             LIB_PATTERN (default "")
+      --no-function=FUNC_PATTERN   Don't trace functions matching FUNC_PATTERN
+                             (in glob format, default "")
+      --no-randomize-addr    Disable address space layout randomization (ASLR)
+  -o, --output=OUTPUT_FILE   Send trace output to OUTPUT_FILE instead of
+                             stderr
+  -p, --pid=PID              PID of the traced program
+      --tid                  Display thread ID
+      --time-filter=TIME     Hide functions when they run less than TIME
+      --timestamp            Display timestamp
+  -u, --user=USERNAME        Run the specified command as USERNAME
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
 ```
 
 ### 特点
@@ -39,7 +65,5 @@ Examples:
 + 不同于`perf`, `gprof`等性能分析工具，`eBPF-utrace`输出准确的函数调用时延，而不是基于perf_event的采样方式。
 
 ### TODO
-- IFUNC符号的观测
 - 嵌套的共享库观测
-- 简化C++符号的展示
 - 更多的测试

@@ -14,29 +14,13 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Utility functions
+// extended glob pattern match
 
-#ifndef UTRACE_UTIL_H
-#define UTRACE_UTIL_H
+#ifndef UTRACE_GLOB_H
+#define UTRACE_GLOB_H
 
 #include <stdbool.h>
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+bool glob_match_ext(const char *text, const char *pattern);
 
-#define die(msg)        \
-  do {                  \
-    perror(msg);        \
-    exit(EXIT_FAILURE); \
-  } while (0)
-
-char *restrcat(char *str1, const char *str2);
-
-char *resolve_full_path(const char *file);
-
-const char *base_name(const char *file);
-
-bool is_library(const char *file);
-
-unsigned long long duration_str2ns(const char *duration);
-
-#endif  // UTRACE_UTIL_H
+#endif  // UTRACE_GLOB_H

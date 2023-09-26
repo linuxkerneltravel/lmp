@@ -14,29 +14,26 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Utility functions
+// Module
 
-#ifndef UTRACE_UTIL_H
-#define UTRACE_UTIL_H
+#ifndef UTRACE_MODULE_H
+#define UTRACE_MODULE_H
 
-#include <stdbool.h>
+#include "symbol.h"
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+struct module {
+  char *name;
+  struct symbol_table *symbol_table;
+};
 
-#define die(msg)        \
-  do {                  \
-    perror(msg);        \
-    exit(EXIT_FAILURE); \
-  } while (0)
+struct module *module_init(char *name);
 
-char *restrcat(char *str1, const char *str2);
+void module_free(struct module *module);
 
-char *resolve_full_path(const char *file);
+bool module_init_symbol_table(struct module *module);
 
-const char *base_name(const char *file);
+const char *module_get_name(const struct module *module);
 
-bool is_library(const char *file);
+struct symbol_table *module_get_symbol_table(const struct module *module);
 
-unsigned long long duration_str2ns(const char *duration);
-
-#endif  // UTRACE_UTIL_H
+#endif  // UTRACE_MODULE_H
