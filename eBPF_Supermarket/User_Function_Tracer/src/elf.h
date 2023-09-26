@@ -139,12 +139,12 @@ bool elf_rela_entry_next(struct elf_rela_entry *elf_e, struct elf_section *elf_s
  * @brief 保存ELF重定位条目
  */
 struct elf_rel_entry {
-  size_t i;            /**< 当前条目序号 */
-  size_t nentries;     /**< 条目总数 */
-  Elf_Data *sym_data;  /**< 符号数据 */
+  size_t i;           /**< 当前条目序号 */
+  size_t nentries;    /**< 条目总数 */
+  Elf_Data *sym_data; /**< 符号数据 */
   Elf_Data *rel_data; /**< 重定位数据 */
-  GElf_Rel rel;      /**< 重定位表项 */
-  GElf_Sym sym;        /**< 符号表项 */
+  GElf_Rel rel;       /**< 重定位表项 */
+  GElf_Sym sym;       /**< 符号表项 */
 };
 
 /**
@@ -154,7 +154,7 @@ struct elf_rel_entry {
  * @param[in] dyn_sym_data 动态符号数据
  */
 void elf_rel_entry_begin(struct elf_rel_entry *elf_e, struct elf_section *elf_s,
-                          Elf_Data *dyn_sym_data);
+                         Elf_Data *dyn_sym_data);
 
 /**
  * @brief 移动到下一个ELF条目

@@ -42,7 +42,6 @@ void elf_head_free(struct elf_head *elf) {
     elf_end(elf->e);
     close(elf->fd);
   }
-  elf = NULL;
 }
 
 size_t get_entry_address(const char *filename) {
@@ -96,7 +95,7 @@ bool elf_rela_entry_next(struct elf_rela_entry *elf_e, struct elf_section *elf_s
 }
 
 void elf_rel_entry_begin(struct elf_rel_entry *elf_e, struct elf_section *elf_s,
-                          Elf_Data *dyn_sym_data) {
+                         Elf_Data *dyn_sym_data) {
   elf_e->i = 0;
   elf_e->nentries = elf_s->shdr.sh_size / elf_s->shdr.sh_entsize;
   elf_e->rel_data = elf_getdata(elf_s->scn, NULL);

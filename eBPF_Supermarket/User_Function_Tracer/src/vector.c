@@ -21,24 +21,25 @@
 #include <memory.h>
 #include <stdlib.h>
 
-#include "log.h"
-
-struct vector *vector_init(size_t element_size) {
+struct vector *vector_init(size_t element_size, vector_element_free_t free) {
   struct vector *vec = malloc(sizeof(struct vector));
   vec->size = 0;
   vec->capacity = 0;
   vec->element_size = element_size;
   vec->data = NULL;
+  vec->free = free;
   return vec;
 }
 
 void vector_free(struct vector *vec) {
   if (vec) {
-    if (vec->data) {
-      free(vec->data);
+    if (vec->free) {
+      for (size_t i = 0; i < vector_size(vec); i++) {
+        vec->free(vector_get(vec, i));
+      }
     }
+    free(vec->data);
     free(vec);
-    vec = NULL;
   }
 }
 
@@ -112,13 +113,17 @@ void vector_sort(struct vector *vec, int (*comparator)(const void *, const void 
 
 // assert vec != NULL && comparator != NULL && vec is sorted by comparator
 void vector_unique(struct vector *vec, int (*comparator)(const void *, const void *)) {
-  for (size_t i = 1, j = 1; i < vector_size(vec); i++) {
+  size_t j = 1;
+  for (size_t i = 1; i < vector_size(vec); i++) {
     void *element = vector_get(vec, i);
-    if (comparator(element, vector_const_get(vec, i - 1))) {
+    if (comparator(element, vector_const_get(vec, i - 1)) != 0) {
       if (i != j) vector_set(vec, j, element);
       ++j;
+    } else if (vec->free) {
+      vec->free(element);
     }
   }
+  vec->size = j;
 }
 
 // assert vec != NULL && comparator != NULL

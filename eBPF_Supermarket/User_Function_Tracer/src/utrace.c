@@ -248,13 +248,18 @@ static struct bpf_link *uretprobe_attach(struct utrace_bpf *skel, pid_t pid, con
 }
 
 static const char *default_skipped_func[] = {
-    "c_start", "_start", "__libc_csu_init", "__libc_csu_fini", "__libc_start_main", "_dl_relocate_static_pie", "__x86.get_pc_thunk.bx",
+    "c_start",
+    "_start",
+    "__libc_csu_init",
+    "__libc_csu_fini",
+    "__libc_start_main",
+    "_dl_relocate_static_pie",
+    "__x86.get_pc_thunk.bx",
 };
 
 static bool skip_symbol(const struct symbol *symbol) {
   // skip libcalls don't match lib_pattern
-  if (symbol->libname && !glob_match_ext(symbol->libname, env.lib_pattern))
-    return true;
+  if (symbol->libname && !glob_match_ext(symbol->libname, env.lib_pattern)) return true;
   // skip functions don't match func_pattern
   if (!glob_match_ext(symbol->name, env.func_pattern)) return true;
   // skip functions match no_func_pattern
@@ -274,24 +279,26 @@ static int bpf_probe_attach(struct utrace_bpf *skel, struct vector *bpf_links, p
   vmem_table = vmem_table_init(pid);
   for (size_t i = 0; i < vmem_table_size(vmem_table); i++) {
     const struct vmem *vmem = vmem_table_get(vmem_table, i);
-    if (i > 0 && vmem_table_get(vmem_table, i - 1)->module == vmem->module) continue;  // duplicate
+    if (i > 0 && strcmp(module_get_name(vmem_table_get(vmem_table, i - 1)->module),
+                        module_get_name(vmem->module)) == 0)
+      continue;  // duplicate
     const char *module_name = module_get_name(vmem->module);
     const char *base_module_name = base_name(module_name);
     // only trace libraries matching env.nest_lib_pattern
-    if (is_library(base_module_name) &&
-        !glob_match_ext(base_module_name, env.nest_lib_pattern))
+    if (is_library(base_module_name) && !glob_match_ext(base_module_name, env.nest_lib_pattern))
       continue;
     if (!module_init_symbol_table(vmem->module)) continue;
-    for (size_t j = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
+    for (size_t j = 0, addr = 0; j < symbol_table_size(vmem->module->symbol_table); j++) {
       const struct symbol *sym = symbol_table_get(vmem->module->symbol_table, j);
-      if (!skip_symbol(sym)) {
+      if (sym->addr != addr && !skip_symbol(sym)) {
         link = uprobe_attach(skel, pid, module_name, sym->addr);
         ++probe_cnt;
         vector_push_back(bpf_links, &link);
         link = uretprobe_attach(skel, pid, module_name, sym->addr);
-        vector_push_back(bpf_links, &link);
         ++probe_cnt;
+        vector_push_back(bpf_links, &link);
       }
+      addr = sym->addr;
     }
   }
   return probe_cnt;
@@ -403,7 +410,7 @@ int main(int argc, char **argv) {
   if (!env.func_pattern) env.func_pattern = strdup("*");         // Trace all functions by default
   if (!env.lib_pattern) env.lib_pattern = strdup("*");           // Trace all libcalls by default
   if (!env.nest_lib_pattern) env.nest_lib_pattern = strdup("");  // Don't trace libraries by default
-  if (!env.no_func_pattern) env.no_func_pattern = strdup(""); 
+  if (!env.no_func_pattern) env.no_func_pattern = strdup("");
 
   // Ensure root permission
   if (geteuid() != 0) fail("Failed to run %s: permission denied", argv[0]);
@@ -440,15 +447,14 @@ int main(int argc, char **argv) {
   // Maximize the number of file descriptors
   if (setrlimit(RLIMIT_NOFILE, &rlim) == -1) die("setrlimit");
 
-  bpf_links = vector_init(sizeof(struct bpf_link *));
+  bpf_links = vector_init(sizeof(struct bpf_link *), NULL);
   // Store local states for each thread
   thread_local = thread_local_init();
 
   // Set pid and/or program
   if (env.pid) {
     pid = env.pid;
-    vmem_table = vmem_table_init(pid);
-    program = strdup(vmem_table_get_prog_name(vmem_table));
+    program = vmem_table_get_prog_name(pid);
   } else {
     program = resolve_full_path(env.argv[0]);
   }
@@ -480,9 +486,8 @@ int main(int argc, char **argv) {
       struct gdb *gdb = gdb_init(pid);
       if (gdb_wait_for_signal(gdb) == -1) die("perror");
 
-      vmem_table = vmem_table_init(pid);
       break_addr = resolve_addr(break_addr);
-      break_addr += vmem_table_get_prog_st_addr(vmem_table);
+      break_addr += vmem_table_get_prog_load_addr(pid);
       DEBUG("Break address: %zx", break_addr);
 
       if (gdb_enable_breakpoint(gdb, break_addr) == -1) die("perror");

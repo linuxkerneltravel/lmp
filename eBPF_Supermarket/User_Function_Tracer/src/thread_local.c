@@ -36,7 +36,7 @@ unsigned int thread_local_get_index(struct thread_local *thread_local, unsigned 
   for (unsigned int i = 0; i < MAX_THREAD_NUM; i++) {
     if (!thread_local->tids[i]) {
       thread_local->tids[i] = tid;
-      thread_local->records[i] = vector_init(sizeof(struct profile_record));
+      thread_local->records[i] = vector_init(sizeof(struct profile_record), NULL);
       return i;
     } else if (thread_local->tids[i] == tid) {
       return i;
@@ -85,6 +85,5 @@ void thread_local_free(struct thread_local *thread_local) {
       vector_free(thread_local->records[i]);
     }
     free(thread_local);
-    thread_local = NULL;
   }
 }

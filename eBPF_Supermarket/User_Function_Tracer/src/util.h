@@ -20,7 +20,7 @@
 #define UTRACE_UTIL_H
 
 #include <stdbool.h>
-#include <stddef.h> // for size_t
+#include <stddef.h>  // for size_t
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 

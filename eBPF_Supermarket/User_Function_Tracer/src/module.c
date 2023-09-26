@@ -21,7 +21,7 @@
 #include <stdlib.h>
 
 struct module *module_init(char *name) {
-  struct module *module = malloc(sizeof(module));
+  struct module *module = malloc(sizeof(struct module));
   module->name = name;
   module->symbol_table = NULL;
   return module;
@@ -30,8 +30,8 @@ struct module *module_init(char *name) {
 void module_free(struct module *module) {
   if (module) {
     free(module->name);
+    symbol_table_free(module->symbol_table);
     free(module);
-    module = NULL;
   }
 }
 
