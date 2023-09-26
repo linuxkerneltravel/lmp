@@ -186,6 +186,7 @@ int main(int argc, char **argv)
         skel->rodata->forks_addr = (u64)strtoull(addr, NULL, 16);
     } else {
         printf("Symbol not found\n");
+	return 0;
     }
 
 	/* 加载并验证BPF程序 */
