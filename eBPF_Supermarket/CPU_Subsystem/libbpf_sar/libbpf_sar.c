@@ -119,31 +119,26 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 	return vfprintf(stderr, format, args);
 }
 
-// 函数用于从/proc/kallsyms文件中搜索内核符号
-const char* find_ksym(const char* symbol_name) {
-    // 打开/proc/kallsyms文件
-    FILE* file = fopen("/proc/kallsyms", "r");
-    if (!file) {
-        perror("Error opening /proc/kallsyms");
-        return NULL;
+// 根据符号名称从/proc/kallsyms文件中搜索对应符号地址
+u64 find_ksym(const char* target_symbol) {
+    FILE *file = fopen("/proc/kallsyms", "r");
+    if (file == NULL) {
+        perror("Failed to open /proc/kallsyms");
+        return 1;
     }
 
-    char line[256];
-    const char* addr = NULL;
+    char symbol_name[99];
+    u64 symbol_address = 0;
 
-    // 逐行读取文件内容
-    while (fgets(line, sizeof(line), file)) {
-        // 检查是否包含符号名称
-        if (strstr(line, symbol_name)) {
-            // 分割行，获取地址部分
-            char* token = strtok(line, " ");
-            addr = token;
+    while (fscanf(file, "%llx %*c %s\n", &symbol_address, symbol_name) != EOF) {
+        if (strcmp(symbol_name, target_symbol) == 0) {
             break;
         }
     }
 
     fclose(file);
-    return addr;
+
+    return symbol_address;
 }
 
 int main(int argc, char **argv)
@@ -151,7 +146,6 @@ int main(int argc, char **argv)
 	struct libbpf_sar_bpf *skel;
 	int err;
 	const char* symbol_name = "total_forks";
-	const char* addr;
 	static const struct argp argp = {
 		.options = opts,
 		.parser = parse_arg,
@@ -181,14 +175,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	addr = find_ksym(symbol_name);
-	if (addr) {
-		// 将地址转换为长整数，并存储在BPF程序的symAddr数组中
-		skel->rodata->forks_addr = (u64)strtoull(addr, NULL, 16);
-	} else {
-		printf("Symbol not found\n");
-		return 0;
-	}
+	skel->rodata->forks_addr = (u64)find_ksym(symbol_name);
 
 	/* 加载并验证BPF程序 */
 	err = libbpf_sar_bpf__load(skel);
