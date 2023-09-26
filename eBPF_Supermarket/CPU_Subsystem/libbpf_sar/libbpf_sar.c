@@ -44,36 +44,36 @@ static int line = 0;
 
 // sar 工具的参数设置
 static struct env {
-    int time;
+	int time;
 	bool enable_proc;
 } env = {
-    .time = 0,
+	.time = 0,
 	.enable_proc = false,
 };
 
 const char argp_program_doc[] ="libbpf_sar is a program that simulates sar constructed by libbpf for dynamic CPU indicator monitoring.\n";
 
 static const struct argp_option opts[] = {
-    { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
+	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
-    {},
+	{},
 };
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
-    switch (key) {
+	switch (key) {
 		case 't':
-                env.time = strtol(arg, NULL, 10);
-                if(env.time) alarm(env.time);
-                break;
+			env.time = strtol(arg, NULL, 10);
+			if(env.time) alarm(env.time);
+                	break;
 		case 'h':
-				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-				break;
-        default:
-				return ARGP_ERR_UNKNOWN;
-    }
+			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+			break;
+		default:
+			return ARGP_ERR_UNKNOWN;
+	}
 
-    return 0;
+	return 0;
 }
 
 static void sig_handler(int sig)
