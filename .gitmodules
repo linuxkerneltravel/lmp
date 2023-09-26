@@ -16,3 +16,6 @@
 [submodule "eBPF_Hub/libbpf-bootstrap-android"]
 	path = eBPF_Hub/libbpf-bootstrap-android
 	url = https://github.com/JiaHuann/libbpf-bootstrap-android
+[submodule "eBPF_Supermarket/CPU_Subsystem/libbpf_sar/libbpf-bootstrap"]
+	path = eBPF_Supermarket/CPU_Subsystem/libbpf_sar/libbpf-bootstrap
+	url = https://github.com/libbpf/libbpf-bootstrap.git

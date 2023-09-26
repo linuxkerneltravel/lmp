@@ -104,3 +104,19 @@ jobs:
           uname -r
           ./run.sh
 
+  libbpf_sar-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies and Init Env
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          git submodule update --init --recursive
+
+      - name: Run libbpf_sar
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/libbpf_sar
+          make libbpf_sar
+          sudo ./libbpf_sar -t 1
