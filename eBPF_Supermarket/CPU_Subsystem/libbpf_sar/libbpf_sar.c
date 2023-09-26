@@ -182,13 +182,13 @@ int main(int argc, char **argv)
 	}
 
 	addr = find_ksym(symbol_name);
-    if (addr) {
-        // 将地址转换为长整数，并存储在BPF程序的symAddr数组中
-        skel->rodata->forks_addr = (u64)strtoull(addr, NULL, 16);
-    } else {
-        printf("Symbol not found\n");
-	return 0;
-    }
+	if (addr) {
+		// 将地址转换为长整数，并存储在BPF程序的symAddr数组中
+		skel->rodata->forks_addr = (u64)strtoull(addr, NULL, 16);
+	} else {
+		printf("Symbol not found\n");
+		return 0;
+	}
 
 	/* 加载并验证BPF程序 */
 	err = libbpf_sar_bpf__load(skel);
