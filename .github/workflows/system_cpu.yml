@@ -119,4 +119,4 @@ jobs:
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/libbpf_sar
           make libbpf_sar
-          sudo ./libbpf_sar -t 1
+          sudo ./libbpf_sar -t 3
