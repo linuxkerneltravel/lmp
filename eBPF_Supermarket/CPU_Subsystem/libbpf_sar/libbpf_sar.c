@@ -172,6 +172,7 @@ int main(int argc, char **argv)
 	*/
 	signal(SIGINT, sig_handler);		//signal设置某一信号的对应动作
 	signal(SIGTERM, sig_handler);
+	signal(SIGALRM, sig_handler);
 
 	/* 打开BPF应用程序 */
 	skel = libbpf_sar_bpf__open();
