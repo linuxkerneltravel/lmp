@@ -25,7 +25,6 @@ struct bind_pid{
 };
 
 struct newlife_start{
-    int pad;
     int flag;       // 1代表fork，2代表vfork，3代表pthread_create
     long long unsigned int start;
 };

@@ -22,7 +22,6 @@
 #define TASK_COMM_LEN 16
 
 struct proc_offcpu{
-    int pad;
     int offcpu_id;
     long long unsigned int offcpu_time;
 };
