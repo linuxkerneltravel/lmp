@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 还原C++重整后的符号
+// demangle mangled C++ symbols
 
 #ifndef UTRACE_DEMANGLE_H
 #define UTRACE_DEMANGLE_H
