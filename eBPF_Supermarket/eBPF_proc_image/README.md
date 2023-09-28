@@ -123,22 +123,6 @@ keytime_image 工具的参数信息：
 | -q, --quote         | 在参数周围添加引号(")                             |
 | -h, --help          | 显示帮助信息                                      |
 
-
-
-keytime_image子工具可以对指定进程执行exec和exit时进行画像。该子工具可以采集到的性能指标如下：
-
-| 性能指标 | 含义                            |
-| -------- | ------------------------------- |
-| TIME     | exec或exit的开始或结束时间      |
-| SYSCALL  | execve_enter、execve_exit、exit |
-| COMM     | 被监控进程的名称                |
-| PID      | 被监控进程的pid                 |
-| PPID     | 被监控进程的父进程pid           |
-| time(us) | 从开始到结束的执行时间          |
-| RET      | 函数返回值                      |
-| ARGS     | 函数参数信息                    |
-
-
 ## 六、proc_offcpu_time工具
 
 该工具可通过-p参数指定进程的pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_sleep.c）进行了时间上的比对，准确性满足要求。示例如下：
