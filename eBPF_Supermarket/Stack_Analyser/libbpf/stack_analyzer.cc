@@ -153,6 +153,7 @@ namespace env
 	int max = __INT_MAX__;
 	int min = 0;
 	unsigned delay = 5;
+	bool rt_draw = false; /* 实时绘制火焰图选项，默认关闭*/
 }
 
 void __handler(int signo)
@@ -182,6 +183,7 @@ protected:
 	bool kstack;  // 是否跟踪内核栈
 	uint64_t min, max;
 	unsigned delay;
+	bool rt_draw;
 	void *data_buf;
 
 /// @brief 获取epbf程序中指定表的文件描述符
@@ -306,13 +308,19 @@ protected:
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		/*for traverse map*/
 		time_t timep;
-		for (; !env::exiting && time > 0 && (env::pid < 0 || !kill(env::pid, 0)); time -= delay)
+		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= delay)
 		{
 			sleep(delay);
 			::time(&timep);
-			// printf("%s", ctime(&timep));
-			print_counts();
-			flame_save();
+			printf("%s", ctime(&timep));
+			if (rt_draw)
+			{
+				flame_save();
+			}
+			else
+			{
+				print_counts();
+			}
 		};
 		return time;
 	};
@@ -354,8 +362,9 @@ public:
 		bool u = env::u,
 		bool k = env::k,
 		unsigned d = env::delay,
+		bool rd = env::rt_draw,
 		uint64_t n = env::min,
-		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d)
+		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), rt_draw(rd)
 	{
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
@@ -984,6 +993,7 @@ int main(int argc, char *argv[])
 				 clipp::option("-m", "--max-value") & clipp::value("set the max value of sampled process", env::max),
 				 clipp::option("-n", "--min-value") & clipp::value("set the min value of sampled process", env::min),
 				 clipp::option("-d", "--delay") & clipp::value("set the delay time to output", env::delay),
+				 clipp::option("-r", "--realtime-draw").set(env::rt_draw, true) % "draw flame graph realtimely instead of output in console",
 				 clipp::opt_value("simpling time", env::run_time));
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,
