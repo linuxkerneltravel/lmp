@@ -152,6 +152,7 @@ namespace env
 	bool count = true; /*for io counts*/
 	int max = __INT_MAX__;
 	int min = 0;
+	unsigned delay = 5;
 }
 
 void __handler(int signo)
@@ -180,6 +181,7 @@ protected:
 	bool ustack;  // 是否跟踪用户栈
 	bool kstack;  // 是否跟踪内核栈
 	uint64_t min, max;
+	unsigned delay;
 	void *data_buf;
 
 /// @brief 获取epbf程序中指定表的文件描述符
@@ -304,9 +306,9 @@ protected:
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		/*for traverse map*/
 		time_t timep;
-		for (; !env::exiting && time > 0 && (env::pid < 0 || !kill(env::pid, 0)); time -= 5)
+		for (; !env::exiting && time > 0 && (env::pid < 0 || !kill(env::pid, 0)); time -= delay)
 		{
-			sleep(5);
+			sleep(delay);
 			::time(&timep);
 			// printf("%s", ctime(&timep));
 			print_counts();
@@ -351,8 +353,9 @@ public:
 		int c = env::cpu,
 		bool u = env::u,
 		bool k = env::k,
+		unsigned d = env::delay,
 		uint64_t n = env::min,
-		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m)
+		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d)
 	{
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
@@ -980,6 +983,7 @@ int main(int argc, char *argv[])
 				 clipp::option("-K", "--kernel-stack-only").set(env::u, false),
 				 clipp::option("-m", "--max-value") & clipp::value("set the max value of sampled process", env::max),
 				 clipp::option("-n", "--min-value") & clipp::value("set the min value of sampled process", env::min),
+				 clipp::option("-d", "--delay") & clipp::value("set the delay time to output", env::delay),
 				 clipp::opt_value("simpling time", env::run_time));
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,
