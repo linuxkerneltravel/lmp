@@ -983,16 +983,16 @@ int main(int argc, char *argv[])
 	auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
 	auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
 	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
-				   clipp::option("-C", "--in-count").set(env::count, true));
+				   clipp::option("-C", "--in-count").set(env::count, true) % "sample the IO data in count instead of in size");
 	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
-	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla),
-				 (clipp::option("-p", "--pid") & clipp::value("set the pid of sampled process", env::pid)) |
-					 (clipp::option("-c", "--command") & clipp::value("set the sampled command to run", env::command)),
+	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
+				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid)) |
+					 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command)),
 				 clipp::option("-U", "--user-stack-only").set(env::k, false),
 				 clipp::option("-K", "--kernel-stack-only").set(env::u, false),
-				 clipp::option("-m", "--max-value") & clipp::value("set the max value of sampled process", env::max),
-				 clipp::option("-n", "--min-value") & clipp::value("set the min value of sampled process", env::min),
-				 clipp::option("-d", "--delay") & clipp::value("set the delay time to output", env::delay),
+				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled process", env::max),
+				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled process", env::min),
+				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay),
 				 clipp::option("-r", "--realtime-draw").set(env::rt_draw, true) % "draw flame graph realtimely instead of output in console",
 				 clipp::opt_value("simpling time", env::run_time));
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
