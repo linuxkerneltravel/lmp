@@ -161,7 +161,10 @@ void __handler(int signo)
 	{
 		env::child_exited = 1;
 	}
-	env::exiting = 1;
+	if (signo == SIGINT || (env::pid >= 0 && kill(env::pid, 0)))
+	{
+		env::exiting = 1;
+	}
 }
 
 class bpf_loader
@@ -262,6 +265,37 @@ protected:
 		return D;
 	};
 
+	void print_counts()
+	{
+		auto D = sortD();
+
+		for (auto id : *D)
+		{
+			__u64 ip[MAX_STACKS];
+			if (id.usid >= 0)
+			{
+				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
+				std::string symbol;
+				struct symbol sym;
+				elf_file file;
+				for (auto p : ip)
+				{
+					if (!p)
+						break;
+					sym.reset(p);
+
+					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
+						continue;
+					if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+						g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+				}
+			}
+			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
+		}
+		delete D;
+	}
+
 	/// @brief 每隔5s输出计数表中的栈及数量
 	/// @param time 输出的持续时间
 	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
@@ -269,37 +303,14 @@ protected:
 	{
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		/*for traverse map*/
+		time_t timep;
 		for (; !env::exiting && time > 0 && (env::pid < 0 || !kill(env::pid, 0)); time -= 5)
 		{
-			printf("---------fd:%d---------\n", value_fd);
 			sleep(5);
-			auto D = sortD();
-
-			for (auto id : *D)
-			{
-				__u64 ip[MAX_STACKS];
-				if (id.usid >= 0)
-				{
-					bpf_map_lookup_elem(trace_fd, &id.usid, ip);
-					std::string symbol;
-					struct symbol sym;
-					elf_file file;
-					for (auto p : ip)
-					{
-						if (!p)
-							break;
-						sym.reset(p);
-
-						if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
-							continue;
-						if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-							g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
-							g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
-					}
-				}
-				printf("pid:%-6d\tusid:%-6d\tksid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
-			}
-			delete D;
+			::time(&timep);
+			// printf("%s", ctime(&timep));
+			print_counts();
+			flame_save();
 		};
 		return time;
 	};
@@ -440,6 +451,12 @@ public:
 								s = &symbol;
 								usr_strace = *s + ';' + usr_strace;
 							}
+							else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+									 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+							{
+								usr_strace = sym.name + ';' + usr_strace;
+								g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+							}
 							else
 							{
 								char a[19];
@@ -481,10 +498,8 @@ public:
 		CHECK_ERR(!fp, "Failed to save flame text");
 		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		fclose(fp);
-
-		fp = popen("flamegraph.pl > flame.svg", "w");
+		fp = popen("flamegraph.pl --cp > flame.svg", "w");
 		CHECK_ERR(!fp, "Failed to draw flame graph");
-		// fwrite("", 1, 0, fp);
 		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		pclose(fp);
 		printf("complete\n");
@@ -646,8 +661,9 @@ public:
 			if (env::command.length())
 				if (activate_child())
 					break;
-			if (signal(SIGCHLD, __handler) == SIG_ERR)
-				break;
+			if (env::command.length())
+				if (signal(SIGCHLD, __handler) == SIG_ERR)
+					break;
 			log(time);
 		} while (false);
 		detach();
