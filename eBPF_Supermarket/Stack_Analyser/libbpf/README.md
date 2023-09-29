@@ -23,51 +23,55 @@ sudo make
 
 ```shell
 SYNOPSIS
-        ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] ([-p <pid of sampled process>] | [-c
-                         <to be sampled command to run>]) [-U] [-K] [-m <max threshold of sampled
-                         process>] [-n <min threshold of sampled process>] [-d <delay time to
-                         output>] [-r] [<simpling time>] [-v]
+    ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] ([-p <pid of sampled process>] | [-c
+        <to be sampled command to run>]) [-U] [-K] [-m <max threshold of sampled
+        process>] [-n <min threshold of sampled process>] [-d <delay time to
+        output>] [-r|-l] [<simpling time>] [-v]
 
-        ./stack_analyzer off-cpu [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-                         run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-                         of sampled process>] [-d <delay time to output>] [-r] [<simpling time>]
-                         [-v]
+    ./stack_analyzer off-cpu [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
-        ./stack_analyzer mem [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-                         run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-                         of sampled process>] [-d <delay time to output>] [-r] [<simpling time>]
-                         [-v]
+    ./stack_analyzer mem [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
-        ./stack_analyzer io [-C] [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-                         run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-                         of sampled process>] [-d <delay time to output>] [-r] [<simpling time>]
-                         [-v]
+    ./stack_analyzer io [-C] [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
-        ./stack_analyzer ra [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-                         run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-                         of sampled process>] [-d <delay time to output>] [-r] [<simpling time>]
-                         [-v]
+    ./stack_analyzer ra [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
 OPTIONS
-        on-cpu      sample the call stacks of on-cpu processes
-        <sampling frequency>
-                    sampling at a set frequency
+    on-cpu      sample the call stacks of on-cpu processes
+    <sampling frequency>
+    	sampling at a set frequency
 
-        off-cpu     sample the call stacks of off-cpu processes
-        mem         sample the memory usage of call stacks
-        io          sample the IO data volume of call stacks
-        -C, --in-count
-                    sample the IO data in count instead of in size
+    off-cpu     sample the call stacks of off-cpu processes
+    mem         sample the memory usage of call stacks
+    io          sample the IO data volume of call stacks
+    -C, --in-count
+    	sample the IO data in count instead of in size
 
-        ra          sample the readahead hit rate of call stacks
-        -f, --flame-graph
-                    save in flame.svg instead of stack_count.json
+    ra          sample the readahead hit rate of call stacks
+    -f, --flame-graph
+    	save in flame.svg instead of stack_count.json
 
+    display mode (default none)
         -r, --realtime-draw
-                    draw flame graph realtimely instead of output in console
+            draw flame graph realtimely
 
-        -v, --version
-                    show version
+        -l, --realtime-list
+        	output in console
+
+    -v, --version
+    	show version
 ```
 
 # 运行效果
@@ -78,6 +82,7 @@ OPTIONS
 
 #### 升序列表形式
 
+使用 `-l` 选项开启。
 ```shell
 $ sudo ./stack_analyzer on-cpu
 Thu Sep 28 16:57:47 2023

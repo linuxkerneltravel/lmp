@@ -153,19 +153,25 @@ namespace env
 	int max = __INT_MAX__;
 	int min = 0;
 	unsigned delay = 5;
-	bool rt_draw = false; /* 实时绘制火焰图选项，默认关闭*/
+	display_t d_mode = NO_OUTPUT;
 }
 
 void __handler(int signo)
 {
 	// printf("sig %d %d\n", signo, kill(env::pid, 0));
-	if (signo == SIGCHLD && kill(env::pid, 0))
+	switch (signo)
 	{
-		env::child_exited = 1;
-	}
-	if (signo == SIGINT || (env::pid >= 0 && kill(env::pid, 0)))
-	{
+	case SIGCHLD:
+		if (waitpid(env::pid, NULL, WNOHANG)) // 子进程主动退出的情况
+		{
+			env::exiting = env::child_exited = 1;
+		}
+		break;
+	case SIGINT:
 		env::exiting = 1;
+		break;
+	default:
+		break;
 	}
 }
 
@@ -183,7 +189,7 @@ protected:
 	bool kstack;  // 是否跟踪内核栈
 	uint64_t min, max;
 	unsigned delay;
-	bool rt_draw;
+	display_t d_mode;
 	void *data_buf;
 
 /// @brief 获取epbf程序中指定表的文件描述符
@@ -242,7 +248,8 @@ protected:
 	class pksid_val
 	{
 	public:
-		int32_t pid, ksid, usid;
+		uint32_t pid;
+		int32_t ksid, usid;
 		double val;
 		pksid_val(int32_t p, int32_t k, int32_t u, double v)
 		{
@@ -269,35 +276,47 @@ protected:
 		return D;
 	};
 
-	void print_counts()
+	void cache_user_syms(unsigned pid, int usid)
 	{
-		auto D = sortD();
-
-		for (auto id : *D)
+		if (usid >= 0)
 		{
 			__u64 ip[MAX_STACKS];
-			if (id.usid >= 0)
+			bpf_map_lookup_elem(trace_fd, &usid, ip);
+			std::string symbol;
+			struct symbol sym;
+			elf_file file;
+			for (auto p : ip)
 			{
-				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
-				std::string symbol;
-				struct symbol sym;
-				elf_file file;
-				for (auto p : ip)
-				{
-					if (!p)
-						break;
-					sym.reset(p);
+				if (!p)
+					break;
+				sym.reset(p);
 
-					if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
-						continue;
-					if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-						g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
-						g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
-				}
+				if (g_symbol_parser.find_symbol_in_cache(pid, p, symbol))
+					continue;
+				if (g_symbol_parser.get_symbol_info(pid, sym, file) &&
+					g_symbol_parser.find_elf_symbol(sym, file, pid, pid))
+					g_symbol_parser.putin_symbol_cache(pid, p, sym.name);
 			}
+		}
+	}
+
+	void print_list(void)
+	{
+		auto D = sortD();
+		for (auto id : *D)
+		{
+			cache_user_syms(id.pid, id.usid);
 			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
 		}
 		delete D;
+	}
+
+	void traverse_cache(void)
+	{
+		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
+		{
+			cache_user_syms(id.pid, id.usid);
+		}
 	}
 
 	/// @brief 每隔5s输出计数表中的栈及数量
@@ -310,16 +329,21 @@ protected:
 		time_t timep;
 		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= delay)
 		{
+			// printf("exiting:%d, time:%d, pid:%d, existing:%d\n", env::exiting, time, pid, kill(pid, 0));
 			sleep(delay);
 			::time(&timep);
 			printf("%s", ctime(&timep));
-			if (rt_draw)
+			switch (d_mode)
 			{
+			case FLAME_OUTPUT:
 				flame_save();
-			}
-			else
-			{
-				print_counts();
+				break;
+			case LIST_OUTPUT:
+				print_list();
+				break;
+			default:
+				traverse_cache();
+				break;
 			}
 		};
 		return time;
@@ -345,13 +369,13 @@ protected:
 
 	int clear_child()
 	{
-		if (!env::child_exited)
+		if (!env::child_exited) // 子进程未主动退出的情况
 		{
 			CHECK_ERR(kill(env::pid, SIGTERM), "failed to signal child process");
 			printf("signaled child process\n");
+			CHECK_ERR(waitpid(env::pid, NULL, 0) < 0, "failed to reap child process");
+			printf("reaped child process\n");
 		}
-		CHECK_ERR(waitpid(env::pid, NULL, 0) < 0, "failed to reap child process");
-		printf("reaped child process\n");
 		return 0;
 	};
 
@@ -362,9 +386,9 @@ public:
 		bool u = env::u,
 		bool k = env::k,
 		unsigned d = env::delay,
-		bool rd = env::rt_draw,
+		display_t disp = env::d_mode,
 		uint64_t n = env::min,
-		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), rt_draw(rd)
+		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), d_mode(disp)
 	{
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
@@ -403,17 +427,17 @@ public:
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
-		int max_deep = 0;
-		for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
-		{
-			__u64 ip[MAX_STACKS];
-			bpf_map_lookup_elem(trace_fd, &key.usid, ip);
-			int deep = 0;
-			for (int i = 0; i < MAX_STACKS && ip[i]; i++)
-				deep++;
-			if (max_deep < deep)
-				max_deep = deep;
-		}
+		// int max_deep = 0;
+		// for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
+		// {
+		// 	__u64 ip[MAX_STACKS];
+		// 	bpf_map_lookup_elem(trace_fd, &key.usid, ip);
+		// 	int deep = 0;
+		// 	for (int i = 0; i < MAX_STACKS && ip[i]; i++)
+		// 		deep++;
+		// 	if (max_deep < deep)
+		// 		max_deep = deep;
+		// }
 		std::ostringstream tex("");
 		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
 		{
@@ -446,7 +470,7 @@ public:
 			{
 				std::string usr_strace("");
 				{
-					unsigned deep = 0;
+					// unsigned deep = 0;
 					if (id.usid >= 0)
 					{
 						bpf_map_lookup_elem(trace_fd, &id.usid, ip);
@@ -478,19 +502,19 @@ public:
 								g_symbol_parser.putin_symbol_cache(id.pid, p, s);
 							}
 
-							deep++;
+							// deep++;
 						}
 					}
 					else
 					{
 						usr_strace = std::string("[MISSING USER STACK];");
-						deep = 1;
+						// deep = 1;
 					}
-					deep = max_deep - deep;
-					for (int i = 0; i < deep; i++)
-					{
-						line = ".;" + line;
-					}
+					// deep = max_deep - deep;
+					// for (int i = 0; i < deep; i++)
+					// {
+					// 	line = ".;" + line;
+					// }
 				}
 				line = usr_strace + line;
 			}
@@ -679,7 +703,7 @@ public:
 			log(time);
 		} while (false);
 		detach();
-		if (env::fla)
+		if (env::fla || env::d_mode == FLAME_OUTPUT)
 			err = flame_save();
 		else
 			err = data_save();
@@ -993,7 +1017,9 @@ int main(int argc, char *argv[])
 				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled process", env::max),
 				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled process", env::min),
 				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay),
-				 clipp::option("-r", "--realtime-draw").set(env::rt_draw, true) % "draw flame graph realtimely instead of output in console",
+				 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
+				  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
+					 "display mode (default none)",
 				 clipp::opt_value("simpling time", env::run_time));
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,

@@ -25,12 +25,12 @@
 
 const char LICENSE[] SEC("license") = "GPL";
 
-BPF_HASH(pid_tgid, u32, u32);
 BPF_STACK_TRACE(stack_trace);
+BPF_HASH(pid_tgid, u32, u32);
 BPF_HASH(psid_count, psid, u32);
 BPF_HASH(pid_comm, u32, comm);
 
-char u /*user stack flag*/, k /*kernel stack flag*/;
+bool u, k;
 __u64 min, max;
 unsigned long *load_a;
 
@@ -41,12 +41,14 @@ int do_stack(void *ctx)
     bpf_core_read(&load, sizeof(unsigned long), load_a);
     load >>= 11;
     bpf_printk("%lu %lu", load, min);
-    if(load < min || load > max)
-        return 0;  
+    if (load < min || load > max)
+        return 0;
+
     // record data
     struct task_struct *curr = (void *)bpf_get_current_task();
     u32 pid = BPF_CORE_READ(curr, pid);
-    if(!pid) return 0;
+    if (!pid)
+        return 0;
     u32 tgid = BPF_CORE_READ(curr, tgid);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
@@ -58,8 +60,8 @@ int do_stack(void *ctx)
     }
     psid apsid = {
         .pid = pid,
-        .usid = u?USER_STACK:-1,
-        .ksid = k?KERNEL_STACK:-1,
+        .usid = u ? USER_STACK : -1,
+        .ksid = k ? KERNEL_STACK : -1,
     };
 
     // add cosunt
