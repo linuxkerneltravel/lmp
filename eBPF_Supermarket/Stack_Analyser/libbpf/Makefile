@@ -27,9 +27,17 @@ ARCH ?= $(shell echo $(ORIG_ARCH) | sed 's/x86_64/x86/' \
 APP = stack_analyzer
 bpf = on_cpu_count off_cpu_count mem_count io_count pre_count
 
+CFLAGS += -O2 -Wall
+#
+# Pedantic flags
+#
+ifeq ($(PEDANTIC),1)
+CFLAGS += -g -fno-omit-frame-pointer
+endif
+
 all: vmlinux.h $(bpf) symbol
-	clang -g -O2 -Wall -I. -I./include -c $(APP).cc -o $(APP).o
-	clang -Wall -O2 -g $(APP).o symbol.o elf.o -static -lbpf -lelf -lz -lstdc++ -o $(APP)
+	clang $(CFLAGS) -I. -I./include -c $(APP).cc -o $(APP).o
+	clang $(CFLAGS) $(APP).o symbol.o elf.o -static -lbpf -lelf -lz -lstdc++ -o $(APP)
 
 vmlinux.h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
@@ -39,8 +47,8 @@ $(bpf): %: bpf/%.bpf.c
 	bpftool gen skeleton bpf/$@.bpf.o > bpf/$@.skel.h
 
 symbol: %: include/%.cc
-	clang -g -O2 -Wall -c include/symbol.cc -o symbol.o
-	clang -g -O2 -Wall -c include/elf.cc -o elf.o
+	clang $(CFLAGS) -c include/symbol.cc -o symbol.o
+	clang $(CFLAGS) -c include/elf.cc -o elf.o
 
 clean:
 	rm bpf/*.o bpf/*.skel.h *.o $(APP) vmlinux.h

@@ -44,6 +44,12 @@ jobs:
           make newlife_image
           sudo ./newlife_image -t 1
 
+      - name: Run keytime_image
+        run: |
+          cd eBPF_Supermarket/eBPF_proc_image
+          make keytime_image
+          sudo ./keytime_image -t 1
+
       - name: Run proc_offcpu_time
         run: |
           cd eBPF_Supermarket/eBPF_proc_image/proc_offcpu_time

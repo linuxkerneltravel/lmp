@@ -22,7 +22,7 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = netwatch
+APPS = netwatcher
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -115,15 +115,15 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 SHELL := /bin/bash
 test:
 	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
-	sudo timeout -s SIGINT 3 ./netwatch -a || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	sudo timeout -s SIGINT 3 ./netwatcher -a || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
 	cat $(shell pwd)/data/connects.log
 	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
-	sudo timeout -s SIGINT 3 ./netwatch -ax || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	sudo timeout -s SIGINT 3 ./netwatcher -ax || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
 	cat $(shell pwd)/data/connects.log
 	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
-	sudo timeout -s SIGINT 3 ./netwatch -axr || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	sudo timeout -s SIGINT 3 ./netwatcher -axr || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
 	cat $(shell pwd)/data/connects.log
 	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
-	sudo timeout -s SIGINT 3 ./netwatch -t || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	sudo timeout -s SIGINT 3 ./netwatcher -t || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
 	sleep 1.5s && curl -s www.baidu.com -o /dev/null &
-	sudo timeout -s SIGINT 3 ./netwatch -ti || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi
+	sudo timeout -s SIGINT 3 ./netwatcher -ti || if [[ $$? != 124 && $$? != 0 ]];then exit $$?;fi

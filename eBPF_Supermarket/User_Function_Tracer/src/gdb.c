@@ -22,35 +22,42 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 
-struct gdb* init_gdb(pid_t pid) {
-  struct gdb* gdb = malloc(sizeof(struct gdb));
+struct gdb *gdb_init(pid_t pid) {
+  struct gdb *gdb = malloc(sizeof(struct gdb));
   gdb->pid = pid;
-  gdb->inst = 0;
+  gdb->saved_inst = 0u;
   return gdb;
 }
 
-void enable_breakpoint(struct gdb* gdb, size_t addr) {
+// assert gdb != NULL
+long gdb_enable_breakpoint(struct gdb *gdb, size_t addr) {
   long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
-  gdb->inst = (uint8_t)data & 0xFF;
+  gdb->saved_inst = (uint8_t)data & 0xFF;
 
   uint8_t int3 = 0xCC;
-  ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | int3);
+  return ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | int3);
 }
 
-void disable_breakpoint(struct gdb* gdb, size_t addr) {
+// assert gdb != NULL
+long gdb_disable_breakpoint(const struct gdb *gdb, size_t addr) {
   long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
-  ptrace(PTRACE_POKEDATA, gdb->pid, (data & ~0xFF) | gdb->inst);
+  return ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | gdb->saved_inst);
 }
 
-long continue_execution(struct gdb* gdb) { return ptrace(PTRACE_CONT, gdb->pid, NULL, NULL); }
+// assert gdb != NULL
+long gdb_continue_execution(const struct gdb *gdb) {
+  return ptrace(PTRACE_CONT, gdb->pid, NULL, NULL);
+}
 
-long wait_for_signal(struct gdb* gdb) {
+// assert gdb != NULL
+long gdb_wait_for_signal(const struct gdb *gdb) {
   int wstatus;
   int options = 0;
   return waitpid(gdb->pid, &wstatus, options);
 }
 
-void free_gdb(struct gdb* gdb) {
-  ptrace(PTRACE_DETACH, gdb->pid, NULL, NULL);
-  free(gdb);
-}
+// assert gdb != NULL
+long gdb_detach(const struct gdb *gdb) { return ptrace(PTRACE_DETACH, gdb->pid, NULL, NULL); }
+
+// assert gdb != NULL
+void gdb_free(struct gdb *gdb) { free(gdb); }

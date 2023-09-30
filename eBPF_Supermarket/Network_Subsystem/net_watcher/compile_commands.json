@@ -1,0 +1,47 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-g",
+      "-O2",
+      "-target",
+      "bpf",
+      "-D__TARGET_ARCH_x86",
+      "-I.output",
+      "-I../../libbpf/include/uapi",
+      "-I../libbpf-bootstrap/vmlinux/x86/",
+      "-idirafter",
+      "/usr/lib/llvm-14/lib/clang/14.0.0/include",
+      "-idirafter",
+      "/usr/local/include",
+      "-idirafter",
+      "/usr/include/x86_64-linux-gnu",
+      "-idirafter",
+      "/usr/include",
+      "-c",
+      "-o",
+      ".output/netwatcher.tmp.bpf.o",
+      "netwatcher.bpf.c"
+    ],
+    "directory": "/home/chui/lmp/eBPF_Supermarket/Network_Subsystem/net_watcher",
+    "file": "/home/chui/lmp/eBPF_Supermarket/Network_Subsystem/net_watcher/netwatcher.bpf.c",
+    "output": "/home/chui/lmp/eBPF_Supermarket/Network_Subsystem/net_watcher/.output/netwatcher.tmp.bpf.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-g",
+      "-Wall",
+      "-I.output",
+      "-I../../libbpf/include/uapi",
+      "-I../libbpf-bootstrap/vmlinux/x86/",
+      "-c",
+      "-o",
+      ".output/netwatcher.o",
+      "netwatcher.c"
+    ],
+    "directory": "/home/chui/lmp/eBPF_Supermarket/Network_Subsystem/net_watcher",
+    "file": "/home/chui/lmp/eBPF_Supermarket/Network_Subsystem/net_watcher/netwatcher.c",
+    "output": "/home/chui/lmp/eBPF_Supermarket/Network_Subsystem/net_watcher/.output/netwatcher.o"
+  }
+]

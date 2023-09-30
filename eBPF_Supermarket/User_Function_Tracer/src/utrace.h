@@ -14,38 +14,36 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 记录从内核态传给用户态的数据
+// Data recorded in kernel-side and passed to user-side
 
 #ifndef UTRACE_UTRACE_H
 #define UTRACE_UTRACE_H
 
-#define MAX_THREAD_NUM 32
-#define MAX_STACK_DEPTH 128
-#define MAX_SYMBOL_LEN 1024
-#define MAX_PATH_LEN 256
+#include <stdbool.h>
 
-typedef unsigned long long stack_trace_t;
+#define MAX_STACK_SIZE 32
+#define MAX_THREAD_NUM 64
+#define MAGIC_COMB 10
 
 /**
- * @brief 内核态传给用户态的数据
+ * @brief Represent the data recorded in kernel-side and passed to user-side
  */
 struct profile_record {
-  unsigned int tid;      /**< 线程编号 */
-  unsigned int next_tid; /**< 切换后的线程编号 */
-  unsigned int cpu_id;   /**< CPU编号 */
+  unsigned int tid;      /**< thread ID */
+  unsigned int next_tid; /**< switched thread ID */
+  unsigned int cpu_id;   /**< CPU ID */
 
-  unsigned long long timestamp;   /**< 时间戳 */
-  unsigned long long duration_ns; /**< 函数时延 */
+  unsigned long long duration_ns; /**< duration (ns) */
 
-  unsigned int kstack_sz; /**< 内核栈大小 */
-  stack_trace_t kstack;   /**< 内核栈 */
+  unsigned int ustack_sz;                    /**< user stack size */
+  unsigned long long ustack[MAX_STACK_SIZE]; /**< user stack */
 
-  unsigned int ustack_sz; /**< 用户栈大小 */
-  stack_trace_t ustack;   /**< 用户栈 */
+  unsigned long long timestamp; /**< timestamp */
 
-  unsigned int global_sz; /**< 当前函数深度（考虑了多线程） */
+  bool ret; /**< is function ret */
 
-  int exit; /**< 是否为函数退出时 */
+  const char *name; /**< function name, resolve in user-side */
+  const char *libname;
 };
 
 #endif  // UTRACE_UTRACE_H
