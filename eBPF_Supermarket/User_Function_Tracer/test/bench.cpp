@@ -14,30 +14,25 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Test library calls
+// Test performance
 
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <unistd.h>
+#include <cstdio>
+#include <chrono>
 
-int foo(long sz) {
-  int fd;
-  void *ptr;
+int g;
 
-  fd = open("/dev/zero", O_RDONLY);
-  ptr = mmap(NULL, sz, PROT_READ, MAP_ANON | MAP_PRIVATE, fd, 0);
-  mprotect(ptr, sz, PROT_NONE);
-  munmap(ptr, sz);
-  close(fd);
-
-  printf("Finish mmap.\n");
-
-  return 0;
+void f(int i) {
+  if (i & 1) g += 1;
+  else g += 2;
 }
 
-int main() {
-  foo(4096);
-  return 0;
+int main()
+{
+  const int CNT = 10000;
+  auto start_time = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < CNT; i++) f(i);
+  auto end_time = std::chrono::high_resolution_clock::now();
+  printf("%d\n", g);
+  std::chrono::nanoseconds elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
+  printf("total %f ms\naverage %f ns\n", elapsed_time.count() * 1.0 / 1000000, elapsed_time.count() * 1.0 / 10000);
 }
