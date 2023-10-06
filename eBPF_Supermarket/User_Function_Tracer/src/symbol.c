@@ -140,34 +140,30 @@ struct symbol_table *symbol_table_init(const char *module_name) {
       if (strcmp(shstr, ".rela.plt")) continue;
       struct elf_rela_entry elf_e;
 
-      int valid = 1;  // TODO
+      size_t rela_st_addr = 0;
       for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
            elf_rela_entry_next(&elf_e, &elf_s);) {
-        if (!strlen(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name))) {
-          valid = 0;
-          break;
+        if (!rela_st_addr || elf_e.rela.r_offset < rela_st_addr) {
+          rela_st_addr = elf_e.rela.r_offset;
         }
       }
-      if (valid) {
-        size_t plt_entry_cnt = 0;
-        for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
-             elf_rela_entry_next(&elf_e, &elf_s);) {
-          sym.addr = plt_section_st_addr + plt_entry_cnt * 0x10;
-          sym.addr = resolve_addr(sym.addr);
-          ++plt_entry_cnt;
-          sym.size = elf_e.sym.st_size;
-          if (sym.size > 0) {
-            continue;
-          }
-          sym.name = demangle(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
-          size_t pos = *((size_t *)vector_const_get(poss, elf_e.rela.r_info >> 32));
-          if (pos >= 2) {
-            sym.libname = strdup(*((const char **)(vector_const_get(libs, pos - 2))));
-          } else {
-            sym.libname = NULL;
-          }
-          vector_push_back(symbol_table->symbol_vec, &sym);
+      for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
+           elf_rela_entry_next(&elf_e, &elf_s);) {
+        if (!strlen(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name))) continue;
+        sym.addr = plt_section_st_addr + (elf_e.rela.r_offset - rela_st_addr) / 0x8 * 0x10;
+        sym.addr = resolve_addr(sym.addr);
+        sym.size = elf_e.sym.st_size;
+        if (sym.size > 0) {
+          continue;
         }
+        sym.name = demangle(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
+        size_t pos = *((size_t *)vector_const_get(poss, elf_e.rela.r_info >> 32));
+        if (pos >= 2) {
+          sym.libname = strdup(*((const char **)(vector_const_get(libs, pos - 2))));
+        } else {
+          sym.libname = NULL;
+        }
+        vector_push_back(symbol_table->symbol_vec, &sym);
       }
     }
 

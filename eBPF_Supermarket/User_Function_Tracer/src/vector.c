@@ -106,6 +106,8 @@ int vector_push_back(struct vector *vec, const void *element) {
 
 void vector_pop_back(struct vector *vec) { --vec->size; }
 
+void vector_clear(struct vector *vec) { vec->size = 0; }
+
 // assert vec != NULL && comparator != NULL
 void vector_sort(struct vector *vec, int (*comparator)(const void *, const void *)) {
   qsort(vec->data, vec->size, vec->element_size, comparator);
@@ -145,6 +147,16 @@ void *vector_binary_search(struct vector *vec, const void *key,
         break;
       }
     }
+  }
+  return NULL;
+}
+
+// assert vec != NULL && comparator != NULL
+void *vector_find(struct vector *vec, const void *key,
+                  int (*comparator)(const void *, const void *)) {
+  for (size_t i = 0; i < vector_size(vec); i++) {
+    void *element = vector_get(vec, i);
+    if (!comparator(element, key)) return element;
   }
   return NULL;
 }

@@ -38,6 +38,8 @@ const char *base_name(const char *file);
 
 bool is_library(const char *file);
 
+const char *system_exec(const char *cmd);
+
 unsigned long long duration_str2ns(const char *duration);
 
 size_t resolve_addr(size_t addr);

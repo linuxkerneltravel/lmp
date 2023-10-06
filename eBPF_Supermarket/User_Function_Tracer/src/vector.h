@@ -107,6 +107,12 @@ int vector_push_back(struct vector *vector, const void *element);
 void vector_pop_back(struct vector *vector);
 
 /**
+ * @brief clear the vector
+ * @param[in] vec
+ */
+void vector_clear(struct vector *vector);
+
+/**
  * @brief sort the vector
  * @param[in] vec
  * @param[in] comparator
@@ -121,12 +127,21 @@ void vector_sort(struct vector *vec, int (*comparator)(const void *, const void 
 void vector_unique(struct vector *vec, int (*comparator)(const void *, const void *));
 
 /**
- * @brief search key in the vector
- * @param[in] vec
+ * @brief search key in the vector using binary search
+ * @param[in] vec sorted
  * @param[in] key
  * @param[in] comparator
  */
 void *vector_binary_search(struct vector *vec, const void *key,
                            int (*comparator)(const void *, const void *));
+
+/**
+ * @brief search key in the vector
+ * @param[in] vec
+ * @param[in] key
+ * @param[in] comparator
+ */
+void *vector_find(struct vector *vec, const void *key,
+                  int (*comparator)(const void *, const void *));
 
 #endif  // UTRACE_VECTOR_H

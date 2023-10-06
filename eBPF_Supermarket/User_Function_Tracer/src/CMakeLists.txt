@@ -8,7 +8,7 @@ file(GLOB_RECURSE srcs CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.c)
 list(REMOVE_ITEM srcs ${CMAKE_CURRENT_SOURCE_DIR}/${app_stem}.bpf.c ${CMAKE_CURRENT_SOURCE_DIR}/${app_stem}.c)
 add_executable(${app_stem} ${app_stem}.c ${srcs})
 
-target_compile_options(${app_stem} PUBLIC -Wall -Wextra -fsanitize=address -g)
+target_compile_options(${app_stem} PUBLIC -Wall -Wextra)
 
-target_link_options(${app_stem} PUBLIC -lstdc++ -lelf -fsanitize=address)
+target_link_options(${app_stem} PUBLIC -lstdc++ -lelf)
 target_link_libraries(${app_stem} PUBLIC ${app_stem}_skel)
