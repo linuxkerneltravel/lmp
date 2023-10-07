@@ -23,10 +23,9 @@
 
 #define MAX_STACK_SIZE 32
 #define MAX_THREAD_NUM 32
-#define TID_SHIFT 10
 
 /**
- * @brief Represent the traced data recorded in kernel-side and passed to user-side
+ * @brief represent the traced data recorded in kernel-side and passed to user-side
  */
 struct kernel_record {
   int tid;                      /**< thread ID */
@@ -37,17 +36,17 @@ struct kernel_record {
 };
 
 /**
- * @brief Represent the traced data supplemented and used on the user side
+ * @brief represent the traced data supplemented and used on the user side
  */
 struct user_record {
   struct kernel_record krecord;   /**< kernel-side data */
   unsigned long long duration_ns; /**< function duration */
-  char *name;                     /**< function name */
-  char *libname;                  /**< library name */
+  char *name;                     /**< function name; malloced from heap when reporting */
+  char *libname;                  /**< library name; malloced from heap when reporting */
 };
 
 /**
- * @brief Represent the current state
+ * @brief represent the current function state
  *        STATE_UNINIT: not started yet
  *        STATE_EXEC:   just executed a function
  *        STATE_EXIT:   just exited a function

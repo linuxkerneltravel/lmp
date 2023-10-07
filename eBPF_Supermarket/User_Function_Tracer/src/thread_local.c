@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Thread local storage
+// Thread local storage, used to maintain the function stack per thread
 
 #include "thread_local.h"
 
@@ -24,7 +24,7 @@
 
 struct thread_local *thread_local_init() {
   struct thread_local *thread_local = malloc(sizeof(struct thread_local));
-  for (unsigned int i = 0; i < MAX_THREAD_NUM; i++) {
+  for (size_t i = 0; i < MAX_THREAD_NUM; i++) {
     thread_local->tids[i] = 0;
     thread_local->states[i] = STATE_UNINIT;
     thread_local->records[i] = NULL;
@@ -32,13 +32,13 @@ struct thread_local *thread_local_init() {
   return thread_local;
 }
 
-unsigned int thread_local_get_index(struct thread_local *thread_local, int tid) {
-  for (unsigned int i = 0; i < MAX_THREAD_NUM; i++) {
-    if (!thread_local->tids[i]) {
+size_t thread_local_get_index(struct thread_local *thread_local, int tid) {
+  for (size_t i = 0; i < MAX_THREAD_NUM; i++) {
+    if (!thread_local->tids[i]) {  // not occupied by any thread yet, then just let `tid` occupy it
       thread_local->tids[i] = tid;
       thread_local->records[i] = vector_init(sizeof(struct user_record), NULL);
       return i;
-    } else if (thread_local->tids[i] == tid) {
+    } else if (thread_local->tids[i] == tid) {  // already be occupied before
       return i;
     }
   }
@@ -46,42 +46,40 @@ unsigned int thread_local_get_index(struct thread_local *thread_local, int tid) 
   FATAL("Too many threads (>%d)", MAX_THREAD_NUM);
 }
 
-enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local,
-                                       unsigned int index) {
+enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local, size_t index) {
   return thread_local->states[index];
 }
 
-void thread_local_set_state(struct thread_local *thread_local, unsigned int index,
+void thread_local_set_state(struct thread_local *thread_local, size_t index,
                             enum FUNC_STATE state) {
   thread_local->states[index] = state;
 }
 
-struct user_record *thread_local_get_record(struct thread_local *thread_local, unsigned int index,
-                                            unsigned int i) {
+struct user_record *thread_local_get_record(struct thread_local *thread_local, size_t index,
+                                            size_t i) {
   return vector_get(thread_local->records[index], i);
 }
 
-struct user_record *thread_local_get_record_back(struct thread_local *thread_local,
-                                                 unsigned int index) {
+struct user_record *thread_local_get_record_back(struct thread_local *thread_local, size_t index) {
   return vector_back(thread_local->records[index]);
 }
 
-void thread_local_push_record(struct thread_local *thread_local, unsigned int index,
+void thread_local_push_record(struct thread_local *thread_local, size_t index,
                               struct user_record *record) {
   vector_push_back(thread_local->records[index], record);
 }
 
-void thread_local_pop_record(struct thread_local *thread_local, unsigned int index) {
+void thread_local_pop_record(struct thread_local *thread_local, size_t index) {
   vector_pop_back(thread_local->records[index]);
 }
 
-size_t thread_local_record_size(const struct thread_local *thread_local, unsigned int index) {
+size_t thread_local_record_size(const struct thread_local *thread_local, size_t index) {
   return vector_size(thread_local->records[index]);
 }
 
 void thread_local_free(struct thread_local *thread_local) {
   if (thread_local) {
-    for (unsigned int i = 0; i < MAX_THREAD_NUM; i++) {
+    for (size_t i = 0; i < MAX_THREAD_NUM; i++) {
       vector_free(thread_local->records[i]);
     }
     free(thread_local);

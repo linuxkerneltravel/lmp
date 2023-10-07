@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 设置断点，为探针提供时间
+// Set breakpoints in the traced program, to record its memory regions and attach uprobes
 
 #include "gdb.h"
 
@@ -33,7 +33,7 @@ struct gdb *gdb_init(pid_t pid) {
 long gdb_enable_breakpoint(struct gdb *gdb, size_t addr) {
   long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
   gdb->saved_inst = (uint8_t)data & 0xFF;
-
+  // replace the inst at `addr` with int3
   uint8_t int3 = 0xCC;
   return ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | int3);
 }
@@ -41,6 +41,7 @@ long gdb_enable_breakpoint(struct gdb *gdb, size_t addr) {
 // assert gdb != NULL
 long gdb_disable_breakpoint(const struct gdb *gdb, size_t addr) {
   long data = ptrace(PTRACE_PEEKDATA, gdb->pid, addr, NULL);
+  // restore the inst at `addr`
   return ptrace(PTRACE_POKEDATA, gdb->pid, addr, (data & ~0xFF) | gdb->saved_inst);
 }
 
@@ -59,5 +60,4 @@ long gdb_wait_for_signal(const struct gdb *gdb) {
 // assert gdb != NULL
 long gdb_detach(const struct gdb *gdb) { return ptrace(PTRACE_DETACH, gdb->pid, NULL, NULL); }
 
-// assert gdb != NULL
 void gdb_free(struct gdb *gdb) { free(gdb); }

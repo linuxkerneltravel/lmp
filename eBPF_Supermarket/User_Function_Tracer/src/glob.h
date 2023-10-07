@@ -14,13 +14,18 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// extended glob pattern match
+// Extended glob pattern match
 
 #ifndef UTRACE_GLOB_H
 #define UTRACE_GLOB_H
 
 #include <stdbool.h>
 
+/**
+ * @brief extended glob match, where the `pattern` can be multiple regular glob patterns joined
+ *        by ','
+ * @example text = "std::forward", pattern = "main,std::*"
+ */
 bool glob_match_ext(const char *text, const char *pattern);
 
 #endif  // UTRACE_GLOB_H

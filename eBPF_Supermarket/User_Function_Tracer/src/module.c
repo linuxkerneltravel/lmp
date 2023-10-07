@@ -14,15 +14,16 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Module
+// A module represents a program or a library that contains a symbol table
 
 #include "module.h"
 
 #include <stdlib.h>
+#include <string.h>
 
-struct module *module_init(char *name) {
+struct module *module_init(const char *name) {
   struct module *module = malloc(sizeof(struct module));
-  module->name = name;
+  module->name = strdup(name);
   module->symbol_table = NULL;
   return module;
 }
@@ -35,7 +36,7 @@ void module_free(struct module *module) {
   }
 }
 
-bool module_init_symbol_table(struct module *module) {
+bool module_symbol_table_init(struct module *module) {
   module->symbol_table = symbol_table_init(module->name);
   return module->symbol_table != NULL;
 }
