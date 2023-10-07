@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y clang cmake ninja-build libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$(uname -r) linux-cloud-tools-$(uname -r)
+          sudo apt install -y clang cmake ninja-build libelf-dev libbpf-dev linux-tools-$(uname -r)
 
       - name: Build and run
         run: |
@@ -33,13 +33,4 @@ jobs:
           bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
           cmake -B build -S . -G Ninja
           cmake --build build
-          gcc test/sleep.c -o test/sleep
-          gcc test/mmap.c -o test/mmap
-          gcc test/strcpy.c -o test/strcpy
-          gcc test/fib.c -o test/fib
-          gcc test/thread.c -o test/thread
-          sudo build/utrace -c test/sleep
-          sudo build/utrace -c test/mmap
-          sudo build/utrace -c test/strcpy
-          sudo build/utrace -c test/fib
-          sudo build/utrace -c test/thread
+          bash test/run_test.sh

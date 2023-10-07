@@ -14,20 +14,20 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试多线程程序
+// Test multi-threaded program
 
 #include <assert.h>
 #include <pthread.h>
 
-static void* c(void* n) { return n; }
+static void *c(void *n) { return n; }
 
-static void* b(void* n) { return c(n); }
+static void *b(void *n) { return c(n); }
 
-static void* a(void* n) { return b(n); }
+static void *a(void *n) { return b(n); }
 
 int main() {
   int i;
-  void* v;
+  void *v;
   int n = 10;
   pthread_t t[4];
 
@@ -36,6 +36,6 @@ int main() {
     pthread_join(t[i], &v);
   }
 
-  assert(*(int*)v == n);
+  assert(*(int *)v == n);
   return 0;
 }
