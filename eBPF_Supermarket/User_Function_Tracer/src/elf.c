@@ -42,7 +42,6 @@ void elf_head_free(struct elf_head *elf) {
     elf_end(elf->e);
     close(elf->fd);
   }
-  elf = NULL;
 }
 
 size_t get_entry_address(const char *filename) {
@@ -91,6 +90,23 @@ bool elf_rela_entry_next(struct elf_rela_entry *elf_e, struct elf_section *elf_s
   if (elf_e->i >= elf_e->nentries) return false;
   gelf_getrela(elf_e->rela_data, elf_e->i, &elf_e->rela);
   gelf_getsym(elf_e->sym_data, GELF_R_SYM(elf_e->rela.r_info), &elf_e->sym);
+  elf_e->i++;
+  return true;
+}
+
+void elf_rel_entry_begin(struct elf_rel_entry *elf_e, struct elf_section *elf_s,
+                         Elf_Data *dyn_sym_data) {
+  elf_e->i = 0;
+  elf_e->nentries = elf_s->shdr.sh_size / elf_s->shdr.sh_entsize;
+  elf_e->rel_data = elf_getdata(elf_s->scn, NULL);
+  elf_e->sym_data = dyn_sym_data;
+}
+
+bool elf_rel_entry_next(struct elf_rel_entry *elf_e, struct elf_section *elf_s) {
+  (void)elf_s;
+  if (elf_e->i >= elf_e->nentries) return false;
+  gelf_getrel(elf_e->rel_data, elf_e->i, &elf_e->rel);
+  gelf_getsym(elf_e->sym_data, GELF_R_SYM(elf_e->rel.r_info), &elf_e->sym);
   elf_e->i++;
   return true;
 }

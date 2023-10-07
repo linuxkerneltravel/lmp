@@ -80,13 +80,13 @@ const struct symbol *vmem_table_symbolize(const struct vmem_table *vmem_table, s
  * @return start address
  * @details the program is at the lowest address, i.e., its vmem is at the begin of vmem_table
  */
-size_t vmem_table_get_prog_st_addr(const struct vmem_table *vmem_table);
+size_t vmem_table_get_prog_load_addr(pid_t pid);
 
 /**
  * @brief get the program name to be observed
  * @param[in] vmem_table
  * @return name
  */
-const char *vmem_table_get_prog_name(const struct vmem_table *vmem_table);
+char *vmem_table_get_prog_name(pid_t pid);
 
 #endif  // UTRACE_VMEM_H

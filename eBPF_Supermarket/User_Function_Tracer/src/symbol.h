@@ -21,8 +21,6 @@
 
 #include "vector.h"
 
-#define BASE_ADDR 0x400000  // for no-pie option
-
 /**
  * @brief represent a symbol
  */
@@ -30,8 +28,7 @@ struct symbol {
   size_t addr; /**< relative virtual address */
   size_t size; /**< symbol size */
   char *name;  /**< symbol name */
-  bool has_demangled;
-  const char *libname;
+  char *libname;
 };
 
 /**

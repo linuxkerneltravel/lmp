@@ -14,82 +14,18 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 提供日志打印
+// Tiny global logger
 
 #ifndef UTRACE_LOG_H
 #define UTRACE_LOG_H
 
-#include <stddef.h>
+#include <stdbool.h>
 #include <stdio.h>
 
-#include "thread_local.h"
+extern bool debug; /**< specify whether to output debug-level msg, controlled by "-d/--debug" */
 
 /**
- * @brief 设置输出的颜色
- * @param[in] color 颜色控制符
- */
-void log_color(FILE *file, const char *color);
-
-/**
- * @brief 输出连续cnt个字符c
- * @param[in] c 字符
- * @param[in] cnt 个数
- */
-void log_char(FILE *file, char c, int cnt);
-
-/**
- * @brief 输出头部
- * @param[in] cpuid 是否输出cpu编号
- * @param[in] tid 是否输出线程编号
- * @param[in] timestamp 是否输出时间戳
- */
-void log_header(FILE *file, bool show_cpuid, bool show_tid, bool show_timestamp);
-
-void log_footer(FILE *file, bool show_cpuid, bool show_tid, bool show_timestamp);
-
-/**
- * @brief 输出分隔符
- * @details 分隔符为" | "
- */
-void log_split(FILE *file);
-
-/**
- * @brief 输出CPU编号
- * @param[in] cpuid CPU编号
- */
-void log_cpuid(FILE *file, int cpuid);
-
-/**
- * @brief 输出线程号
- * @param[in] tid 线程号
- */
-void log_tid(FILE *file, int tid);
-
-/**
- * @brief 输出线程号
- * @param[in] tid 线程号
- */
-void log_timestamp(FILE *file, unsigned long long timestamp);
-
-/**
- * @brief 输出时间及其单位
- * @param[in] ns 时间（单位纳秒）
- * @details 从[ns,us,ms,s,m,h]中选择合适的单位输出时间信息
- */
-void log_duration(FILE *file, unsigned long long ns, bool need_blank, bool need_color,
-                  bool need_sign);
-
-void log_trace_data(FILE *file, unsigned int *cpuid, unsigned int *tid,
-                    unsigned long long *timestamp, unsigned long long duration,
-                    unsigned int stack_sz, const char *function_name, const char *libname, bool ret,
-                    enum FUNC_STATE state, bool flat, bool lib);
-
-/** 控制是否显示调试信息，在utrace.c中定义 */
-extern bool debug;
-
-/**
- * @brief 输出调试信息
- * @details 包装了fprintf(stderr)函数的宏
+ * @brief output to stderr at debug level
  */
 #define DEBUG(fmt, ...)                    \
   do {                                     \
@@ -101,8 +37,17 @@ extern bool debug;
   } while (0)
 
 /**
- * @brief 输出错误信息
- * @details 包装了fprintf(stderr)函数的宏
+ * @brief output to stderr at warn level
+ */
+#define WARN(fmt, ...)                   \
+  do {                                   \
+    fprintf(stderr, "[WARN] ");          \
+    fprintf(stderr, fmt, ##__VA_ARGS__); \
+    fprintf(stderr, "\n");               \
+  } while (0)
+
+/**
+ * @brief output to stderr at error level
  */
 #define ERROR(fmt, ...)                  \
   do {                                   \
@@ -112,20 +57,19 @@ extern bool debug;
   } while (0)
 
 /**
- * @brief 输出错误信息
- * @details 包装了fprintf(stderr)函数的宏
+ * @brief output to stderr at fatal level,
+ *        and exit the program with a failed status
  */
 #define FATAL(fmt, ...)                  \
   do {                                   \
     fprintf(stderr, "[FATAL] ");         \
     fprintf(stderr, fmt, ##__VA_ARGS__); \
     fprintf(stderr, "\n");               \
-    fflush(stderr);                      \
     exit(EXIT_FAILURE);                  \
   } while (0)
 
 /**
- * @brief 输出到stderr
+ * @brief output to the given `file` without appending a '\n'
  */
 #define LOG(file, fmt, ...)            \
   do {                                 \

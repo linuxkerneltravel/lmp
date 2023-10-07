@@ -22,21 +22,24 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+typedef void (*vector_element_free_t)(void *element);
+
 /**
  * @brief a dynamic array
  */
 struct vector {
-  size_t size;         /**< stored number of element */
-  size_t capacity;     /**< allocated number of element */
-  size_t element_size; /**< size of one element */
-  void *data;          /**< element array */
+  size_t size;                /**< stored number of element */
+  size_t capacity;            /**< allocated number of element */
+  size_t element_size;        /**< size of one element */
+  void *data;                 /**< element array */
+  vector_element_free_t free; /**< element destructor */
 };
 
 /**
  * @brief creates a empty vector that stores element with size element_size
  * @param[in] element_size size of one element to be stored
  */
-struct vector *vector_init(size_t element_size);
+struct vector *vector_init(size_t element_size, vector_element_free_t free);
 
 /**
  * @brief free the vector
@@ -104,6 +107,12 @@ int vector_push_back(struct vector *vector, const void *element);
 void vector_pop_back(struct vector *vector);
 
 /**
+ * @brief clear the vector
+ * @param[in] vec
+ */
+void vector_clear(struct vector *vector);
+
+/**
  * @brief sort the vector
  * @param[in] vec
  * @param[in] comparator
@@ -118,12 +127,21 @@ void vector_sort(struct vector *vec, int (*comparator)(const void *, const void 
 void vector_unique(struct vector *vec, int (*comparator)(const void *, const void *));
 
 /**
- * @brief search key in the vector
- * @param[in] vec
+ * @brief search key in the vector using binary search
+ * @param[in] vec sorted
  * @param[in] key
  * @param[in] comparator
  */
 void *vector_binary_search(struct vector *vec, const void *key,
                            int (*comparator)(const void *, const void *));
+
+/**
+ * @brief search key in the vector
+ * @param[in] vec
+ * @param[in] key
+ * @param[in] comparator
+ */
+void *vector_find(struct vector *vec, const void *key,
+                  int (*comparator)(const void *, const void *));
 
 #endif  // UTRACE_VECTOR_H

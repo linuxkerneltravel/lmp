@@ -43,15 +43,13 @@ char *resolve_full_path(const char *file) {
   if (access(file, F_OK) != 0) {
     for (unsigned long i = 0; i < ARRAY_SIZE(search_paths); i++) {
       if (!search_paths[i]) continue;
-      const char *path_token = NULL;
-      for (path_token = search_paths[i]; path_token; path_token = strchr(path_token, ':')) {
+      for (const char *path_token = search_paths[i]; path_token;
+           path_token = strchr(path_token, ':')) {
         if (path_token[0] == ':') ++path_token;
-        char *next_token = strchr(path_token, ':');
+        const char *next_token = strchr(path_token, ':');
         size_t path_len =
             (next_token ? next_token - path_token : strlen(path_token)) + 1 + file_len + 1;
-        if (next_token) *next_token = '\0';
         snprintf(full_path, path_len, "%s/%s", path_token, file);
-        if (next_token) *next_token = ':';
         full_path[path_len] = '\0';
         if (!access(full_path, F_OK)) return strdup(full_path);
       }
@@ -74,6 +72,21 @@ bool is_library(const char *file) {
   size_t len = strlen(file);
   if (len < 3) return false;
   return !strcmp(file + len - 3, ".so");
+}
+
+const char *system_exec(const char *cmd) {
+  static char buf[64];
+  FILE *fp = popen(cmd, "r");
+  int offset = 0;
+  if (fp) {
+    while (fgets(buf + offset, sizeof(buf), fp) != NULL) {
+      int len = strlen(buf + offset);
+      offset += len;
+    }
+    pclose(fp);
+  }
+  buf[offset] = '\0';
+  return buf;
 }
 
 unsigned long long duration_str2ns(const char *duration) {
@@ -101,4 +114,10 @@ unsigned long long duration_str2ns(const char *duration) {
     t *= limits[i];
   }
   return 0;
+}
+
+size_t resolve_addr(size_t addr) {
+  if (addr > 0x8048000) return addr - 0x8048000;  // 32-bit load addr
+  if (addr > 0x400000) return addr - 0x400000;    // 64-bit load addr
+  return addr;
 }

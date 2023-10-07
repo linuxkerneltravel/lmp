@@ -32,6 +32,15 @@ static char *simplify(char *name) {
   // remove function template "<...>"
   for (size_t i = 0; i < len; i++) {
     if (name[i] == '<') {
+      if (name[i + 1] == '<' && i >= 8 &&
+          strncmp(name + i - 8, "operator", 8) == 0) {  // skip operator<<
+        i++;
+        size_t j = i + 1;
+        while (name[j] == ' ') ++j;
+        memmove(name + i + 1, name + j, len - j + 1);
+        len -= j - i - 1;
+        continue;
+      }
       size_t j = i;
       int nested = 1;
       while (j + 1 < len) {
@@ -45,7 +54,6 @@ static char *simplify(char *name) {
       }
       memmove(name + i, name + j + 1, len - j);
       len -= j - i + 1;
-      break;
     }
   }
 
@@ -96,7 +104,7 @@ static char *simplify(char *name) {
       memmove(name + i, name + j + 1, len - j);
       len -= j - i + 1;
       // remove function return type
-      for (j = 0; j < i; j++) {
+      for (j = i; j > 0; j--) {
         if (name[j] == ' ') {
           if (j != 8 || strncmp(name, "operator", 8)) {
             memmove(name, name + j + 1, len - j);

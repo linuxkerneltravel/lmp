@@ -24,6 +24,7 @@
 #include "demangle.h"
 #include "elf.h"
 #include "log.h"
+#include "util.h"
 #include "vector.h"
 
 static int symbol_addr_less(const void *lhs, const void *rhs) {
@@ -33,12 +34,20 @@ static int symbol_addr_less(const void *lhs, const void *rhs) {
   return addr1 < addr2 ? -1 : (addr1 > addr2 ? 1 : 0);
 }
 
+static void symbol_free(void *symbol) {
+  struct symbol *sym = symbol;
+  free(sym->name);
+  sym->name = NULL;
+  free(sym->libname);
+  sym->libname = NULL;
+}
+
 struct symbol_table *symbol_table_init(const char *module_name) {
   struct elf_head elf;
   if (!elf_head_init(&elf, module_name)) return NULL;
 
   struct symbol_table *symbol_table = malloc(sizeof(struct symbol_table));
-  symbol_table->symbol_vec = vector_init(sizeof(struct symbol));
+  symbol_table->symbol_vec = vector_init(sizeof(struct symbol), symbol_free);
   vector_reserve(symbol_table->symbol_vec, 16);  // initial capability
 
   struct elf_section elf_s;
@@ -62,7 +71,7 @@ struct symbol_table *symbol_table_init(const char *module_name) {
     }
   }
 
-  struct vector *libs = vector_init(sizeof(char *));
+  struct vector *libs = vector_init(sizeof(char *), NULL);
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (elf_s.shdr.sh_type == SHT_GNU_verdef) {
       struct elf_verdef_entry elf_e;
@@ -93,7 +102,7 @@ struct symbol_table *symbol_table_init(const char *module_name) {
     }
   }
 
-  struct vector *poss = vector_init(sizeof(size_t));
+  struct vector *poss = vector_init(sizeof(size_t), NULL);
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (elf_s.shdr.sh_type == SHT_GNU_versym) {
       struct elf_versym_entry elf_e;
@@ -109,8 +118,6 @@ struct symbol_table *symbol_table_init(const char *module_name) {
   size_t dyn_str_idx = 0;
   Elf_Data *dyn_sym_data = NULL;
   struct symbol sym;
-  sym.has_demangled = 0;
-  int cnt = -1;
   for (elf_section_begin(&elf_s, &elf); elf_section_next(&elf_s, &elf);) {
     if (elf_s.shdr.sh_type == SHT_DYNSYM) {
       char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
@@ -118,28 +125,11 @@ struct symbol_table *symbol_table_init(const char *module_name) {
 
       struct elf_sym_entry elf_e;
       for (elf_sym_entry_begin(&elf_e, &elf_s); elf_sym_entry_next(&elf_e, &elf_s);) {
-        ++cnt;
         if (!dyn_sym_data) {
           dyn_str_idx = elf_e.str_idx;
           dyn_sym_data = elf_e.sym_data;
+          break;
         }
-        if (GELF_ST_TYPE(elf_e.sym.st_info) != STT_FUNC &&
-            GELF_ST_TYPE(elf_e.sym.st_info) != STT_GNU_IFUNC)
-          continue;
-
-        sym.addr = elf_e.sym.st_value;
-        if (sym.addr >= BASE_ADDR) {
-          sym.addr -= BASE_ADDR;
-        }
-        sym.size = elf_e.sym.st_size;
-        sym.name = strdup(elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name));
-        size_t pos = *((size_t *)vector_const_get(poss, cnt));
-        if (pos >= 2) {
-          sym.libname = *((const char **)(vector_const_get(libs, pos - 2)));
-        } else {
-          sym.libname = NULL;
-        }
-        // vector_push_back(symbol_table->symbol_vec, &sym);
       }
     }
   }
@@ -148,33 +138,60 @@ struct symbol_table *symbol_table_init(const char *module_name) {
     if (elf_s.shdr.sh_type == SHT_RELA && plt_section_st_addr && dyn_sym_data) {
       char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
       if (strcmp(shstr, ".rela.plt")) continue;
-
       struct elf_rela_entry elf_e;
 
-      int valid = 1;  // TODO
+      size_t rela_st_addr = 0;
       for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
            elf_rela_entry_next(&elf_e, &elf_s);) {
+        if (!rela_st_addr || elf_e.rela.r_offset < rela_st_addr) {
+          rela_st_addr = elf_e.rela.r_offset;
+        }
+      }
+      for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
+           elf_rela_entry_next(&elf_e, &elf_s);) {
+        if (!strlen(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name))) continue;
+        sym.addr = plt_section_st_addr + (elf_e.rela.r_offset - rela_st_addr) / 0x8 * 0x10;
+        sym.addr = resolve_addr(sym.addr);
+        sym.size = elf_e.sym.st_size;
+        if (sym.size > 0) {
+          continue;
+        }
+        sym.name = demangle(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
+        size_t pos = *((size_t *)vector_const_get(poss, elf_e.rela.r_info >> 32));
+        if (pos >= 2) {
+          sym.libname = strdup(*((const char **)(vector_const_get(libs, pos - 2))));
+        } else {
+          sym.libname = NULL;
+        }
+        vector_push_back(symbol_table->symbol_vec, &sym);
+      }
+    }
+
+    if (elf_s.shdr.sh_type == SHT_REL && plt_section_st_addr && dyn_sym_data) {
+      char *shstr = elf_strptr(elf.e, elf_s.str_idx, elf_s.shdr.sh_name);
+      if (strcmp(shstr, ".rel.plt")) continue;
+      struct elf_rel_entry elf_e;
+
+      int valid = 1;  // TODO
+      for (elf_rel_entry_begin(&elf_e, &elf_s, dyn_sym_data); elf_rel_entry_next(&elf_e, &elf_s);) {
         if (!strlen(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name))) {
           valid = 0;
           break;
         }
       }
-
       if (valid) {
         size_t plt_entry_cnt = 0;
-        for (elf_rela_entry_begin(&elf_e, &elf_s, dyn_sym_data);
-             elf_rela_entry_next(&elf_e, &elf_s);) {
+        for (elf_rel_entry_begin(&elf_e, &elf_s, dyn_sym_data);
+             elf_rel_entry_next(&elf_e, &elf_s);) {
           sym.addr = plt_section_st_addr + plt_entry_cnt * 0x10;
-          if (sym.addr >= BASE_ADDR) {
-            sym.addr -= BASE_ADDR;
-          }
+          sym.addr = resolve_addr(sym.addr);
           ++plt_entry_cnt;
           sym.size = elf_e.sym.st_size;
           if (sym.size > 0) {
             continue;
           }
-          sym.name = strdup(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
-          size_t pos = *((size_t *)vector_const_get(poss, elf_e.rela.r_info >> 32));
+          sym.name = demangle(elf_strptr(elf.e, dyn_str_idx, elf_e.sym.st_name));
+          size_t pos = *((size_t *)vector_const_get(poss, elf_e.rel.r_info >> 32));
           if (pos >= 2) {
             sym.libname = strdup(*((const char **)(vector_const_get(libs, pos - 2))));
           } else {
@@ -198,11 +215,9 @@ struct symbol_table *symbol_table_init(const char *module_name) {
         if (!elf_e.sym.st_size) continue;
 
         sym.addr = elf_e.sym.st_value;
-        if (sym.addr >= BASE_ADDR) {
-          sym.addr -= BASE_ADDR;
-        }
+        sym.addr = resolve_addr(sym.addr);
         sym.size = elf_e.sym.st_size;
-        sym.name = strdup(elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name));
+        sym.name = demangle(elf_strptr(elf.e, elf_e.str_idx, elf_e.sym.st_name));
         sym.libname = NULL;
         vector_push_back(symbol_table->symbol_vec, &sym);
       }
@@ -210,6 +225,8 @@ struct symbol_table *symbol_table_init(const char *module_name) {
   }
 
   elf_head_free(&elf);
+  vector_free(libs);
+  vector_free(poss);
 
   vector_sort(symbol_table->symbol_vec, symbol_addr_less);
   vector_unique(symbol_table->symbol_vec, symbol_addr_less);
@@ -233,7 +250,6 @@ void symbol_table_free(struct symbol_table *symbol_table) {
   if (symbol_table) {
     vector_free(symbol_table->symbol_vec);
     free(symbol_table);
-    symbol_table = NULL;
   }
 }
 
@@ -260,12 +276,5 @@ static int symbol_addr_compare(const void *lhs, const void *rhs) {
 
 // assert symbol_table != NULL
 const struct symbol *symbol_table_find(const struct symbol_table *symbol_table, size_t addr) {
-  struct symbol *sym = vector_binary_search(symbol_table->symbol_vec, &addr, symbol_addr_compare);
-  if (!sym->has_demangled) {  // lazy demangle
-    char *mangled_name = sym->name;
-    sym->name = demangle(sym->name);
-    free(mangled_name);
-    sym->has_demangled = true;
-  }
-  return sym;
+  return vector_binary_search(symbol_table->symbol_vec, &addr, symbol_addr_compare);
 }
