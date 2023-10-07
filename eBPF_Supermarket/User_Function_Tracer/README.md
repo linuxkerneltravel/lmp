@@ -13,7 +13,9 @@ recompilation, and can be used for debugging or performance analysis.
 
 ### Screenshot
 
-[![eBPF-utrace-screen.md.png](https://z1.ax1x.com/2023/10/07/pPj165q.md.png)](https://imgse.com/i/pPj165q)
+[![eBPF-utrace-screen.md.png](https://z1.ax1x.com/2023/10/11/pPzXQW6.md.png)](https://imgse.com/i/pPzXQW6)
+
+[![flame-graph.jpg](https://z1.ax1x.com/2023/10/11/pPzXMJx.md.jpg)](https://imgse.com/i/pPzXMJx)
 
 ## Getting Started
 

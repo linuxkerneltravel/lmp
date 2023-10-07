@@ -3,3 +3,4 @@ doc/
 vmlinux/vmlinux.h
 *.out
 *.data/
+utrace.data
