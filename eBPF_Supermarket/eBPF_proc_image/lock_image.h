@@ -22,7 +22,6 @@
 #define TASK_COMM_LEN 16
 
 struct proc_lockptr{
-    int pad;
     int pid;
     long long unsigned int lock_ptr;
 };

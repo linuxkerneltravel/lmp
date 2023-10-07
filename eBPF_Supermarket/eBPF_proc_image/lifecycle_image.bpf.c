@@ -95,7 +95,7 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 		}
 
 		// 记录pro_oncpu
-		struct proc_oncpu proc_oncpu;
+		struct proc_oncpu proc_oncpu = {};
 
 		proc_oncpu.oncpu_id = cpu_id;
 		proc_oncpu.oncpu_time = oncpu_time;
@@ -146,7 +146,7 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 		}
 
 		// 记录pro_offcpu
-		struct proc_offcpu proc_offcpu;
+		struct proc_offcpu proc_offcpu = {};
 
 		proc_offcpu.offcpu_id = cpu_id;
 		proc_offcpu.offcpu_time = offcpu_time;

@@ -14,27 +14,4 @@
 //
 // author: zhangziheng0525@163.com
 //
-// eBPF map for the process offCPU time
-
-#ifndef __PROC_OFFCPU_H
-#define __PROC_OFFCPU_H
-
-#define TASK_COMM_LEN 16
-
-struct proc_offcpu{
-    int offcpu_id;
-    long long unsigned int offcpu_time;
-};
-
-struct offcpu_event{
-    int pid;
-    char comm[TASK_COMM_LEN];
-    int offcpu_id;
-    long long unsigned int offcpu_time;
-    int oncpu_id;
-    long long unsigned int oncpu_time;
-};
-
-
-
-#endif /* __PROC_OFFCPU_H */
+// eBPF map for libbpf sar

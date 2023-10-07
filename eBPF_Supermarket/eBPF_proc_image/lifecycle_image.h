@@ -31,13 +31,11 @@ struct proc_id{
 };
 
 struct proc_oncpu{
-    int pad;
     int oncpu_id;
     long long unsigned int oncpu_time;
 };
 
 struct proc_offcpu{
-    int pad;
     int offcpu_id;
     long long unsigned int offcpu_time;
 };
