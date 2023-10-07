@@ -7,6 +7,14 @@
 `eBPF-utrace` is an eBPF-based user function tracer targeted for C/C++ programs. It offers function-level insights into program execution **without** requiring
 recompilation, and can be used for debugging or performance analysis.
 
+### Overview
+
+[![eBPF-utrace-over.md.png](https://z1.ax1x.com/2023/10/07/pPjEPPJ.md.png)](https://imgse.com/i/pPjEPPJ)
+
+### Screenshot
+
+[![eBPF-utrace-screen.md.png](https://z1.ax1x.com/2023/10/07/pPj165q.md.png)](https://imgse.com/i/pPj165q)
+
 ## Getting Started
 
 ### Install Dependencies
@@ -67,7 +75,7 @@ rather than using approximate sampling methods.
 
 ## Overhead
 
-It brings an overhead of around **10us** on a native Linux machine/WSL2 and 35us on a virtual machine for each traced function.
+It brings an overhead of around **10us** on a native Linux machine/WSL2 and 20us on a virtual machine for each traced function.
 
 You can verify this by running `test/bench.cpp` yourself.
 

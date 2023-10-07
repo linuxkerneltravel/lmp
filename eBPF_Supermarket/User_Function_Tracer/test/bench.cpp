@@ -28,11 +28,11 @@ void f(int i) {
 
 int main()
 {
-  const int CNT = 10000;
+  const int CNT = 1000000;
   auto start_time = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < CNT; i++) f(i);
   auto end_time = std::chrono::high_resolution_clock::now();
   printf("%d\n", g);
   std::chrono::nanoseconds elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
-  printf("total %f ms\naverage %f ns\n", elapsed_time.count() * 1.0 / 1000000, elapsed_time.count() * 1.0 / 10000);
+  printf("total %f ms\naverage %f ns\n", elapsed_time.count() * 1.0 / 1000000, elapsed_time.count() * 1.0 / CNT);
 }
