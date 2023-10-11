@@ -1,7 +1,3 @@
-# boke
-
-个人博客
-
 ## 项目1、eBPF_FUSE：使用eBPF优化FUSE read方法性能
 
 ### 项目描述：
