@@ -33,7 +33,3 @@
 (7)如果在(4’)中查询到了目标元数据，则直接通过BPF映射结构以及相应的BPF Handlers(对BPF Map操作的函数)将其给与FUSE Daemon，FUSE Daemon会将目标元数据返回给用户空间的应用程序。
 
 (0‘)这一步是由于原本在BPF Map中未查询到目标数据，前往磁盘中取得目标数据之后，通过BPF Handlers将目标数据存放至BPF Map结构之中。虽然这一步不属于ExtFUSE框架的工作流程，但这一步为下一次用户空间获取文件数据的优化做出了贡献。
-
-### 项目框架复现：
-
-请查看https://github.com/13186379707/boke/blob/main/eBPF_FUSE/eBPF_FUSE_read/docs/framework%20reproduction/extfuse%20framework.pdf文件。
