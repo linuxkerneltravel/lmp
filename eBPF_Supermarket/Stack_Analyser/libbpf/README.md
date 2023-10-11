@@ -22,35 +22,56 @@ sudo make
 ### 运行
 
 ```shell
-$ ./stack_analyzer -h
 SYNOPSIS
-        ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] ([-p <set the pid of sampled
-                         process>] | [-c <set the sampled command to run>]) [-U] [-K] [<simpling
-                         time>] [-v]
+    ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] ([-p <pid of sampled process>] | [-c
+        <to be sampled command to run>]) [-U] [-K] [-m <max threshold of sampled
+        process>] [-n <min threshold of sampled process>] [-d <delay time to
+        output>] [-r|-l] [<simpling time>] [-v]
 
-        ./stack_analyzer off-cpu [-f] ([-p <set the pid of sampled process>] | [-c <set the sampled
-                         command to run>]) [-U] [-K] [<simpling time>] [-v]
+    ./stack_analyzer off-cpu [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
-        ./stack_analyzer mem [-f] ([-p <set the pid of sampled process>] | [-c <set the sampled
-                         command to run>]) [-U] [-K] [<simpling time>] [-v]
+    ./stack_analyzer mem [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
-        ./stack_analyzer io [-f] ([-p <set the pid of sampled process>] | [-c <set the sampled
-                         command to run>]) [-U] [-K] [<simpling time>] [-v]
+    ./stack_analyzer io [-C] [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
-        ./stack_analyzer ra [-f] ([-p <set the pid of sampled process>] | [-c <set the sampled
-                         command to run>]) [-U] [-K] [<simpling time>] [-v]
+    ./stack_analyzer ra [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
+        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
+        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
+        [-v]
 
 OPTIONS
-        on-cpu      sample the call stacks of on-cpu processes
-        <sampling frequency>
-                    sampling at a set frequency
+    on-cpu      sample the call stacks of on-cpu processes
+    <sampling frequency>
+    	sampling at a set frequency
 
-        off-cpu     sample the call stacks of off-cpu processes
-        mem         sample the memory usage of call stacks
-        io          sample the IO data volume of call stacks
-        ra          sample the readahead hit rate of call stacks
-        -v, --version
-                    show version
+    off-cpu     sample the call stacks of off-cpu processes
+    mem         sample the memory usage of call stacks
+    io          sample the IO data volume of call stacks
+    -C, --in-count
+    	sample the IO data in count instead of in size
+
+    ra          sample the readahead hit rate of call stacks
+    -f, --flame-graph
+    	save in flame.svg instead of stack_count.json
+
+    display mode (default none)
+        -r, --realtime-draw
+            draw flame graph realtimely
+
+        -l, --realtime-list
+        	output in console
+
+    -v, --version
+    	show version
 ```
 
 # 运行效果
@@ -59,23 +80,50 @@ OPTIONS
 
 ### 实时输出测试结果
 
+#### 升序列表形式
+
+使用 `-l` 选项开启。
 ```shell
-Stack_Analyser/libbpf$ sudo ./stack_analyzer -p 12532
----------7---------
-12532  ( 38758,118464) 1     
-12532  ( 77616, 97063) 1     
-12532  (   -14,116464) 1     
-12532  (   -14, 18600) 1     
-12532  ( 31291, 87833) 1     
----------5---------
----------7---------
-12532  (    -1, 91718) 3482309
-12532  (    -1, 38038) 3533633
-12532  (    -1, 89746) 377229951
-12532  (    -1, 83783) 2977594
+$ sudo ./stack_analyzer on-cpu
+Thu Sep 28 16:57:47 2023
+pid:24647       usid:56144      ksid:65341      value:1.00
+pid:23844       usid:-14        ksid:127594     value:1.00
+pid:14297       usid:84638      ksid:47805      value:1.00
+pid:24658       usid:96121      ksid:-14        value:1.00
+pid:9577        usid:16299      ksid:-14        value:1.00
+pid:9577        usid:21537      ksid:-14        value:1.00
+pid:9581        usid:34778      ksid:-14        value:1.00
+pid:9582        usid:3180       ksid:-14        value:1.00
+pid:24650       usid:71768      ksid:-14        value:1.00
+Thu Sep 28 16:57:52 2023
+pid:24647       usid:56144      ksid:65341      value:1.00
+pid:23844       usid:-14        ksid:127594     value:1.00
+pid:24671       usid:22828      ksid:70105      value:1.00
+pid:14297       usid:84638      ksid:47805      value:1.00
+pid:24658       usid:96121      ksid:-14        value:1.00
+pid:9577        usid:16299      ksid:-14        value:1.00
+pid:24641       usid:8523       ksid:-14        value:1.00
+pid:14297       usid:24434      ksid:-14        value:1.00
+pid:24672       usid:-14        ksid:75569      value:1.00
+pid:9577        usid:21537      ksid:-14        value:1.00
+pid:9581        usid:34778      ksid:-14        value:1.00
+pid:24669       usid:23725      ksid:-14        value:1.00
+pid:9580        usid:60903      ksid:-14        value:1.00
+pid:9582        usid:3180       ksid:-14        value:1.00
+pid:24650       usid:71768      ksid:-14        value:1.00
+pid:24641       usid:8523       ksid:65355      value:3.00
 ```
 
-代码示为on-cpu、off-cpu和内存栈数据分别采集stress-ng-malloc 5s的输出，由分割线分开，分割线中间的数字为map fd，分割线间，第一列为pid，第二列括号中用户栈id和内核栈id，第三列为栈的数量，计数单位略有不同，on-cpu计数单位为次，off-cpu计数单位为0.1ms，内存计数单位为1kB
+代码示为采集on-cpu栈数据的实时输出，由时间戳分割，第一列为pid，第二三列为用户栈id和内核栈id，可以在程序结束后在json文件中找到其对应的栈；第四列为栈的数量，各子功能计数单位略有不同，on-cpu、io次数计数单位为次，off-cpu计数单位为0.1ms，数据量计数单位为字节，页面计数单位为页。
+
+#### 火焰图形式
+
+使用 `-r` 选项可使实时绘制火焰图替代列表形式，更容易直观地观察调用栈的变化情况。火焰图统一存储到 `flame.svg` 文件中，可以为此文件启用一个网络服务，便于实时地从浏览器中查看，例如：
+
+```shell
+python -m http.server 8000
+echo please open http://localhost:8000/flame.svg
+```
 
 ### json文件结果
 
@@ -103,3 +151,4 @@ Stack_Analyser/libbpf$ sudo ./stack_analyzer -p 12532
 ## 火焰图文件结果
 
 <center><img src="../assets/stack.svg" alt="stack.svg" style="zoom:90%;" /></center>
+

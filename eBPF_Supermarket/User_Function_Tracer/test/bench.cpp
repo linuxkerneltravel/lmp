@@ -12,29 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: zhangziheng0525@163.com
+// author: jinyufeng2000@gmail.com
 //
-// eBPF map for the process offCPU time
+// Test performance
 
-#ifndef __PROC_OFFCPU_H
-#define __PROC_OFFCPU_H
+#include <cstdio>
+#include <chrono>
 
-#define TASK_COMM_LEN 16
+int g;
 
-struct proc_offcpu{
-    int offcpu_id;
-    long long unsigned int offcpu_time;
-};
+void f(int i) {
+  if (i & 1) g += 1;
+  else g += 2;
+}
 
-struct offcpu_event{
-    int pid;
-    char comm[TASK_COMM_LEN];
-    int offcpu_id;
-    long long unsigned int offcpu_time;
-    int oncpu_id;
-    long long unsigned int oncpu_time;
-};
-
-
-
-#endif /* __PROC_OFFCPU_H */
+int main()
+{
+  const int CNT = 10000;
+  auto start_time = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < CNT; i++) f(i);
+  auto end_time = std::chrono::high_resolution_clock::now();
+  printf("%d\n", g);
+  std::chrono::nanoseconds elapsed_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
+  printf("total %f ms\naverage %f ns\n", elapsed_time.count() * 1.0 / 1000000, elapsed_time.count() * 1.0 / 10000);
+}

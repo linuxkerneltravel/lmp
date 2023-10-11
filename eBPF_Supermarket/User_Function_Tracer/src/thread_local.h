@@ -23,31 +23,29 @@
 
 #include "vector.h"
 
-enum FUNC_STATE { STATE_UNINIT, STATE_EXEC, STATE_EXIT };
-
 struct thread_local {
-  unsigned int tids[MAX_THREAD_NUM];
+  int tids[MAX_THREAD_NUM];
   enum FUNC_STATE states[MAX_THREAD_NUM];
   struct vector *records[MAX_THREAD_NUM];
 };
 
 struct thread_local *thread_local_init();
 
-unsigned int thread_local_get_index(struct thread_local *thread_local, unsigned int tid);
+unsigned int thread_local_get_index(struct thread_local *thread_local, int tid);
 
 enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local, unsigned int index);
 
 void thread_local_set_state(struct thread_local *thread_local, unsigned int index,
                             enum FUNC_STATE state);
 
-struct profile_record *thread_local_get_record(struct thread_local *thread_local,
-                                               unsigned int index, unsigned int i);
+struct user_record *thread_local_get_record(struct thread_local *thread_local, unsigned int index,
+                                            unsigned int i);
 
-struct profile_record *thread_local_get_record_back(struct thread_local *thread_local,
-                                                    unsigned int index);
+struct user_record *thread_local_get_record_back(struct thread_local *thread_local,
+                                                 unsigned int index);
 
 void thread_local_push_record(struct thread_local *thread_local, unsigned int index,
-                              struct profile_record *record);
+                              struct user_record *record);
 
 void thread_local_pop_record(struct thread_local *thread_local, unsigned int index);
 

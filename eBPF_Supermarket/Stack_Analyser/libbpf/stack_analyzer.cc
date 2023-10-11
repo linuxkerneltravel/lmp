@@ -149,16 +149,30 @@ namespace env
 	static volatile sig_atomic_t exiting, child_exited;			  /*exiting flag*/
 	static int child_exec_event_fd = -1;
 	std::string command = "";
+	bool count = true; /*for io counts*/
+	int max = __INT_MAX__;
+	int min = 0;
+	unsigned delay = 5;
+	display_t d_mode = NO_OUTPUT;
 }
 
 void __handler(int signo)
 {
 	// printf("sig %d %d\n", signo, kill(env::pid, 0));
-	if (signo == SIGCHLD && kill(env::pid, 0))
+	switch (signo)
 	{
-		env::child_exited = 1;
+	case SIGCHLD:
+		if (waitpid(env::pid, NULL, WNOHANG)) // 子进程主动退出的情况
+		{
+			env::exiting = env::child_exited = 1;
+		}
+		break;
+	case SIGINT:
+		env::exiting = 1;
+		break;
+	default:
+		break;
 	}
-	env::exiting = 1;
 }
 
 class bpf_loader
@@ -174,6 +188,8 @@ protected:
 	bool ustack;  // 是否跟踪用户栈
 	bool kstack;  // 是否跟踪内核栈
 	uint64_t min, max;
+	unsigned delay;
+	display_t d_mode;
 	void *data_buf;
 
 /// @brief 获取epbf程序中指定表的文件描述符
@@ -232,7 +248,8 @@ protected:
 	class pksid_val
 	{
 	public:
-		int32_t pid, ksid, usid;
+		uint32_t pid;
+		int32_t ksid, usid;
 		double val;
 		pksid_val(int32_t p, int32_t k, int32_t u, double v)
 		{
@@ -259,6 +276,49 @@ protected:
 		return D;
 	};
 
+	void cache_user_syms(unsigned pid, int usid)
+	{
+		if (usid >= 0)
+		{
+			__u64 ip[MAX_STACKS];
+			bpf_map_lookup_elem(trace_fd, &usid, ip);
+			std::string symbol;
+			struct symbol sym;
+			elf_file file;
+			for (auto p : ip)
+			{
+				if (!p)
+					break;
+				sym.reset(p);
+
+				if (g_symbol_parser.find_symbol_in_cache(pid, p, symbol))
+					continue;
+				if (g_symbol_parser.get_symbol_info(pid, sym, file) &&
+					g_symbol_parser.find_elf_symbol(sym, file, pid, pid))
+					g_symbol_parser.putin_symbol_cache(pid, p, sym.name);
+			}
+		}
+	}
+
+	void print_list(void)
+	{
+		auto D = sortD();
+		for (auto id : *D)
+		{
+			cache_user_syms(id.pid, id.usid);
+			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
+		}
+		delete D;
+	}
+
+	void traverse_cache(void)
+	{
+		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
+		{
+			cache_user_syms(id.pid, id.usid);
+		}
+	}
+
 	/// @brief 每隔5s输出计数表中的栈及数量
 	/// @param time 输出的持续时间
 	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
@@ -266,37 +326,25 @@ protected:
 	{
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		/*for traverse map*/
-		for (; !env::exiting && time > 0 && (env::pid < 0 || !kill(env::pid, 0)); time -= 5)
+		time_t timep;
+		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= delay)
 		{
-			printf("---------%d---------\n", value_fd);
-			sleep(5);
-			auto D = sortD();
-
-			for (auto id : *D)
+			// printf("exiting:%d, time:%d, pid:%d, existing:%d\n", env::exiting, time, pid, kill(pid, 0));
+			sleep(delay);
+			::time(&timep);
+			printf("%s", ctime(&timep));
+			switch (d_mode)
 			{
-				__u64 ip[MAX_STACKS];
-				if (id.usid >= 0)
-				{
-					bpf_map_lookup_elem(trace_fd, &id.usid, ip);
-					std::string symbol;
-					struct symbol sym;
-					elf_file file;
-					for (auto p : ip)
-					{
-						if (!p)
-							break;
-						sym.reset(p);
-
-						if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
-							continue;
-						if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-							g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
-							g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
-					}
-				}
-				printf("%6d\t(%6d,%6d)\t%.2lf\n", id.pid, id.ksid, id.usid, id.val);
+			case FLAME_OUTPUT:
+				flame_save();
+				break;
+			case LIST_OUTPUT:
+				print_list();
+				break;
+			default:
+				traverse_cache();
+				break;
 			}
-			delete D;
 		};
 		return time;
 	};
@@ -321,13 +369,13 @@ protected:
 
 	int clear_child()
 	{
-		if (!env::child_exited)
+		if (!env::child_exited) // 子进程未主动退出的情况
 		{
 			CHECK_ERR(kill(env::pid, SIGTERM), "failed to signal child process");
 			printf("signaled child process\n");
+			CHECK_ERR(waitpid(env::pid, NULL, 0) < 0, "failed to reap child process");
+			printf("reaped child process\n");
 		}
-		CHECK_ERR(waitpid(env::pid, NULL, 0) < 0, "failed to reap child process");
-		printf("reaped child process\n");
 		return 0;
 	};
 
@@ -337,8 +385,10 @@ public:
 		int c = env::cpu,
 		bool u = env::u,
 		bool k = env::k,
-		uint64_t n = 1ull,
-		uint64_t m = UINT64_MAX) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m)
+		unsigned d = env::delay,
+		display_t disp = env::d_mode,
+		uint64_t n = env::min,
+		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), d_mode(disp)
 	{
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
@@ -377,17 +427,17 @@ public:
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
-		int max_deep = 0;
-		for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
-		{
-			__u64 ip[MAX_STACKS];
-			bpf_map_lookup_elem(trace_fd, &key.usid, ip);
-			int deep = 0;
-			for (int i = 0; i < MAX_STACKS && ip[i]; i++)
-				deep++;
-			if (max_deep < deep)
-				max_deep = deep;
-		}
+		// int max_deep = 0;
+		// for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
+		// {
+		// 	__u64 ip[MAX_STACKS];
+		// 	bpf_map_lookup_elem(trace_fd, &key.usid, ip);
+		// 	int deep = 0;
+		// 	for (int i = 0; i < MAX_STACKS && ip[i]; i++)
+		// 		deep++;
+		// 	if (max_deep < deep)
+		// 		max_deep = deep;
+		// }
 		std::ostringstream tex("");
 		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
 		{
@@ -420,7 +470,7 @@ public:
 			{
 				std::string usr_strace("");
 				{
-					unsigned deep = 0;
+					// unsigned deep = 0;
 					if (id.usid >= 0)
 					{
 						bpf_map_lookup_elem(trace_fd, &id.usid, ip);
@@ -437,6 +487,12 @@ public:
 								s = &symbol;
 								usr_strace = *s + ';' + usr_strace;
 							}
+							else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+									 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+							{
+								usr_strace = sym.name + ';' + usr_strace;
+								g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
+							}
 							else
 							{
 								char a[19];
@@ -446,19 +502,19 @@ public:
 								g_symbol_parser.putin_symbol_cache(id.pid, p, s);
 							}
 
-							deep++;
+							// deep++;
 						}
 					}
 					else
 					{
 						usr_strace = std::string("[MISSING USER STACK];");
-						deep = 1;
+						// deep = 1;
 					}
-					deep = max_deep - deep;
-					for (int i = 0; i < deep; i++)
-					{
-						line = ".;" + line;
-					}
+					// deep = max_deep - deep;
+					// for (int i = 0; i < deep; i++)
+					// {
+					// 	line = ".;" + line;
+					// }
 				}
 				line = usr_strace + line;
 			}
@@ -478,10 +534,8 @@ public:
 		CHECK_ERR(!fp, "Failed to save flame text");
 		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		fclose(fp);
-
-		fp = popen("flamegraph.pl > flame.svg", "w");
+		fp = popen("flamegraph.pl --cp > flame.svg", "w");
 		CHECK_ERR(!fp, "Failed to draw flame graph");
-		// fwrite("", 1, 0, fp);
 		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
 		pclose(fp);
 		printf("complete\n");
@@ -643,12 +697,13 @@ public:
 			if (env::command.length())
 				if (activate_child())
 					break;
-			if (signal(SIGCHLD, __handler) == SIG_ERR)
-				break;
+			if (env::command.length())
+				if (signal(SIGCHLD, __handler) == SIG_ERR)
+					break;
 			log(time);
 		} while (false);
 		detach();
-		if (env::fla)
+		if (env::fla || env::d_mode == FLAME_OUTPUT)
 			err = flame_save();
 		else
 			err = data_save();
@@ -853,11 +908,13 @@ class io_loader : public bpf_loader
 {
 protected:
 	struct io_count_bpf *skel;
+	bool in_count;
 
 public:
-	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
+	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, bool cot = env::count) : bpf_loader(p, c, u, k)
 	{
 		skel = 0;
+		in_count = cot;
 	};
 	int load(void) override
 	{
@@ -865,6 +922,7 @@ public:
 			skel->bss->apid = pid;
 			skel->bss->u = ustack;
 			skel->bss->k = kstack;
+			skel->bss->cot = in_count;
 		});
 		return 0;
 	};
@@ -948,14 +1006,20 @@ int main(int argc, char *argv[])
 					  clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency");
 	auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
 	auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
-	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks");
+	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
+				   clipp::option("-C", "--in-count").set(env::count, true) % "sample the IO data in count instead of in size");
 	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
-	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla),
-				 (
-					 clipp::option("-p", "--pid") & clipp::value("set the pid of sampled process", env::pid)) |
-					 (clipp::option("-c", "--command") & clipp::value("set the sampled command to run", env::command)),
+	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
+				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid)) |
+					 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command)),
 				 clipp::option("-U", "--user-stack-only").set(env::k, false),
 				 clipp::option("-K", "--kernel-stack-only").set(env::u, false),
+				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled process", env::max),
+				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled process", env::min),
+				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay),
+				 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
+				  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
+					 "display mode (default none)",
 				 clipp::opt_value("simpling time", env::run_time));
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,

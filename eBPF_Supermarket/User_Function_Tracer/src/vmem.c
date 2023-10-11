@@ -25,6 +25,11 @@
 #include "log.h"
 #include "util.h"
 
+static void vmem_free(void *vmem) {
+  struct vmem *v = vmem;
+  module_free(v->module);
+}
+
 struct vmem_table *vmem_table_init(pid_t pid) {
   char buf[PATH_MAX];
   snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
@@ -33,7 +38,7 @@ struct vmem_table *vmem_table_init(pid_t pid) {
   if (!fp) die("fopen");
 
   struct vmem_table *vmem_table = malloc(sizeof(struct vmem_table));
-  vmem_table->vmem_vec = vector_init(sizeof(struct vmem));
+  vmem_table->vmem_vec = vector_init(sizeof(struct vmem), vmem_free);
 
   struct vmem vmem;
   char prot[5];
@@ -47,16 +52,13 @@ struct vmem_table *vmem_table_init(pid_t pid) {
     vmem.module = NULL;
     if (!vector_empty(vmem_table->vmem_vec)) {  // merge consecutive vmem
       struct vmem *prev_vmem = vector_back(vmem_table->vmem_vec);
-      if (strcmp(module_get_name(prev_vmem->module), buf) == 0) {
-        if (prev_vmem->ed_addr == vmem.st_addr) {
-          prev_vmem->ed_addr = vmem.ed_addr;
-          continue;
-        } else {
-          vmem.module = prev_vmem->module;
-        }
+      if (strcmp(module_get_name(prev_vmem->module), buf) == 0 &&
+          prev_vmem->ed_addr == vmem.st_addr) {
+        prev_vmem->ed_addr = vmem.ed_addr;
+        continue;
       }
     }
-    if (!vmem.module) vmem.module = module_init(strdup(buf));
+    vmem.module = module_init(strdup(buf));
     vector_push_back(vmem_table->vmem_vec, &vmem);
   }
 
@@ -79,7 +81,6 @@ void vmem_table_free(struct vmem_table *vmem_table) {
   if (vmem_table) {
     vector_free(vmem_table->vmem_vec);
     free(vmem_table);
-    vmem_table = NULL;
   }
 }
 
@@ -112,11 +113,33 @@ const struct symbol *vmem_table_symbolize(const struct vmem_table *vmem_table, s
 }
 
 // assert vmem_table != NULL && !vector_empty(vmem_table->vmem_vec)
-size_t vmem_table_get_prog_st_addr(const struct vmem_table *vmem_table) {
-  return ((struct vmem *)vector_front(vmem_table->vmem_vec))->st_addr;
+size_t vmem_table_get_prog_load_addr(pid_t pid) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
+
+  FILE *fp = fopen(buf, "r");
+  if (!fp) die("fopen");
+
+  fgets(buf, sizeof(buf), fp);
+  size_t load_addr = 0;
+  sscanf(buf, "%zx", &load_addr);
+  return load_addr;
 }
 
 // assert vmem_table != NULL && !vector_empty(vmem_table->vmem_vec)
-const char *vmem_table_get_prog_name(const struct vmem_table *vmem_table) {
-  return module_get_name(((struct vmem *)vector_front(vmem_table->vmem_vec))->module);
+char *vmem_table_get_prog_name(pid_t pid) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
+
+  FILE *fp = fopen(buf, "r");
+  if (!fp) die("fopen");
+
+  fgets(buf, sizeof(buf), fp);
+  int i = strlen(buf) - 1;
+  buf[i] = '\0';
+  while (i >= 0) {
+    if (buf[i] == ' ') break;
+    --i;
+  }
+  return strdup(buf + i + 1);
 }

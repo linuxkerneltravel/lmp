@@ -34,7 +34,7 @@ struct {
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, __u32);
+  __type(key, int);
   __type(value, __u32);
   __uint(max_entries, MAX_THREAD_NUM);
 } stack_size SEC(".maps");
@@ -49,14 +49,13 @@ const volatile unsigned long long min_duration = 0;
 
 SEC("uprobe/trace")
 int uprobe(struct pt_regs *ctx) {
-  struct profile_record *r;
-  pid_t tid, cpu_id;
+  struct kernel_record *r;
+  int tid;
   __u64 ts;
   __u32 *local_size_pt;
   __u32 local_size, global_id;
 
-  tid = (__u32)bpf_get_current_pid_tgid();
-  cpu_id = bpf_get_smp_processor_id();
+  tid = (int)bpf_get_current_pid_tgid();
 
   local_size_pt = bpf_map_lookup_elem(&stack_size, &tid);
   if (local_size_pt && *local_size_pt + 2 > max_depth) {  // depth filter
@@ -69,9 +68,6 @@ int uprobe(struct pt_regs *ctx) {
   if (!r) return 0;
 
   r->tid = tid;
-  r->cpu_id = cpu_id;
-
-  r->duration_ns = 0;
 
   bpf_get_stack(ctx, &r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
 
@@ -81,13 +77,13 @@ int uprobe(struct pt_regs *ctx) {
     r->ustack_sz = local_size = 0;
   }
 
+  bpf_map_update_elem(&stack_size, &tid, &local_size, BPF_ANY);
+  global_id = (tid << TID_SHIFT) | local_size;
+
   r->timestamp = ts = bpf_ktime_get_ns();
   r->ret = false;
   bpf_ringbuf_submit(r, 0);
 
-  bpf_map_update_elem(&stack_size, &tid, &local_size, BPF_ANY);
-
-  global_id = (tid << MAGIC_COMB) | local_size;
   bpf_map_update_elem(&function_start, &global_id, &ts, BPF_ANY);
 
   return 0;
@@ -95,15 +91,14 @@ int uprobe(struct pt_regs *ctx) {
 
 SEC("uretprobe/trace")
 int uretprobe(struct pt_regs *ctx) {
-  struct profile_record *r;
-  pid_t tid, cpu_id;
+  struct kernel_record *r;
+  int tid;
   __u64 *start_ts_pt;
   __u32 *local_size_pt;
   __u32 global_id;
   __u64 end_ts = bpf_ktime_get_ns(), duration_ns;
 
-  tid = (__u32)bpf_get_current_pid_tgid();
-  cpu_id = bpf_get_smp_processor_id();
+  tid = (int)bpf_get_current_pid_tgid();
 
   local_size_pt = bpf_map_lookup_elem(&stack_size, &tid);
   if (!local_size_pt) {
@@ -114,7 +109,7 @@ int uretprobe(struct pt_regs *ctx) {
     return 0;
   }
 
-  global_id = (tid << MAGIC_COMB) | *local_size_pt;
+  global_id = (tid << TID_SHIFT) | *local_size_pt;
   start_ts_pt = bpf_map_lookup_elem(&function_start, &global_id);
   if (start_ts_pt) {
     duration_ns = end_ts - *start_ts_pt;
@@ -132,9 +127,6 @@ int uretprobe(struct pt_regs *ctx) {
   if (!r) return 0;
 
   r->tid = tid;
-  r->cpu_id = cpu_id;
-
-  r->duration_ns = duration_ns;
 
   bpf_get_stack(ctx, r->ustack, sizeof(r->ustack), BPF_F_USER_STACK);
   r->ustack_sz = *local_size_pt;

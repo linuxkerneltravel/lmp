@@ -68,7 +68,7 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
-    switch (key) {
+	switch (key) {
 		case 'p':
 				errno = 0;
 				pid = strtol(arg, NULL, 10);
@@ -79,14 +79,14 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				}
 				env.pid = pid;
 				break;
-        case 't':
+		case 't':
 				env.time = strtol(arg, NULL, 10);
 				if(env.time) alarm(env.time);
 				break;
-        case 'e':
+ 		case 'e':
 				env.enable_execve = true;
 				break;
-        case 'E':
+		case 'E':
 				env.enable_exit = true;
 				break;
 		case 'q':

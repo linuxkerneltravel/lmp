@@ -33,8 +33,8 @@ struct event {
 	pid_t pid;
 	pid_t ppid;
 	char comm[TASK_COMM_LEN];
-    long long unsigned int start;
-    long long unsigned int exit;
+	long long unsigned int start;
+	long long unsigned int exit;
 	int retval;
 	bool enable_char_args;
 	int args_count;

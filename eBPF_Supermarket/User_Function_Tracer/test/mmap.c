@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试库函数调用
+// Test library calls
 
 #include <fcntl.h>
 #include <stdio.h>

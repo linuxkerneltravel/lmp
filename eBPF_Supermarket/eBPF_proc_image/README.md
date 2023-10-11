@@ -100,7 +100,30 @@ libbpf: elf: ambiguous match for 'pthread_create', 'pthread_create' in '/usr/lib
 
 在Ubuntu22.04.1中 fork 和 vfork 调用的都是clone系统调用，而 pthread_create 调用的是 clone3 系统调用，因此暂用 clone3 监控新线程。
 
-## 五、proc_offcpu_time工具
+## 五、keytime_image工具
+
+keytime_image工具可以对指定进程执行exec和exit时进行画像。
+
+keytime_image工具采集到的数据：
+
+1. exec或exit的开始或结束时间
+2. 被监控进程的父进程pid
+3. exec从开始到结束的执行时间
+4. 函数返回值
+5. 函数参数信息
+
+keytime_image 工具的参数信息：
+
+| 参数                | 描述                                              |
+| ------------------- | ------------------------------------------------- |
+| -p, --pid=PID       | 指定跟踪进程的pid，默认为0号进程                  |
+| -t, --time=TIME-SEC | 设置程序的最大运行时间（0表示无限），默认一直运行 |
+| -e, --execve        | 跟踪进程的execve系统调用                          |
+| -E, --exit          | 跟踪进程的exit系统调用                            |
+| -q, --quote         | 在参数周围添加引号(")                             |
+| -h, --help          | 显示帮助信息                                      |
+
+## 六、proc_offcpu_time工具
 
 该工具可通过-p参数指定进程的pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_sleep.c）进行了时间上的比对，准确性满足要求。示例如下：
 
@@ -132,7 +155,7 @@ pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  o
 
 目前该工具的功能已经合入proc_image。
 
-## 六、test_proc 测试程序 
+## 七、test_proc 测试程序 
 
 目前 [test_proc](./test/test_proc.c) 测试程序所具备逻辑：
 
@@ -141,3 +164,5 @@ pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  o
 - 逻辑3：加入fork和vfork逻辑，创建子进程让子进程睡眠3秒，以表示它存在的时间
 - 逻辑4：加入pthread_create逻辑，创建线程让线程睡眠3秒，以表示它存在的时间
 - 逻辑5：加入读写锁逻辑，在读模式或写模式下上锁后睡眠3s，以表示持有锁时间
+- 逻辑6：加入execve逻辑，用于测试采集到数据的准确性
+- 逻辑7：加入exit逻辑，可以手动输入程序退出的error_code值

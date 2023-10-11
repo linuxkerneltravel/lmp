@@ -32,18 +32,18 @@ struct thread_local *thread_local_init() {
   return thread_local;
 }
 
-unsigned int thread_local_get_index(struct thread_local *thread_local, unsigned int tid) {
+unsigned int thread_local_get_index(struct thread_local *thread_local, int tid) {
   for (unsigned int i = 0; i < MAX_THREAD_NUM; i++) {
     if (!thread_local->tids[i]) {
       thread_local->tids[i] = tid;
-      thread_local->records[i] = vector_init(sizeof(struct profile_record));
+      thread_local->records[i] = vector_init(sizeof(struct user_record), NULL);
       return i;
     } else if (thread_local->tids[i] == tid) {
       return i;
     }
   }
 
-  FATAL("Too many threads (>%d)\n", MAX_THREAD_NUM);
+  FATAL("Too many threads (>%d)", MAX_THREAD_NUM);
 }
 
 enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local,
@@ -56,18 +56,18 @@ void thread_local_set_state(struct thread_local *thread_local, unsigned int inde
   thread_local->states[index] = state;
 }
 
-struct profile_record *thread_local_get_record(struct thread_local *thread_local,
-                                               unsigned int index, unsigned int i) {
+struct user_record *thread_local_get_record(struct thread_local *thread_local, unsigned int index,
+                                            unsigned int i) {
   return vector_get(thread_local->records[index], i);
 }
 
-struct profile_record *thread_local_get_record_back(struct thread_local *thread_local,
-                                                    unsigned int index) {
+struct user_record *thread_local_get_record_back(struct thread_local *thread_local,
+                                                 unsigned int index) {
   return vector_back(thread_local->records[index]);
 }
 
 void thread_local_push_record(struct thread_local *thread_local, unsigned int index,
-                              struct profile_record *record) {
+                              struct user_record *record) {
   vector_push_back(thread_local->records[index], record);
 }
 
@@ -85,6 +85,5 @@ void thread_local_free(struct thread_local *thread_local) {
       vector_free(thread_local->records[i]);
     }
     free(thread_local);
-    thread_local = NULL;
   }
 }
