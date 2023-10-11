@@ -1,4 +1,5 @@
 ## ExtFUSE：利用eBPF优化FUSE的用户扩展框架
+ExtFUSE框架的详情见：https://github.com/13186379707/eunomia-bpf/tree/develop/eBPF_Supermarket/eBPF_FUSE/ExtFUSE_document
 
 ​		用户空间扩展文件系统(Extended Filesystem in Userspace，简称ExtFUSE)是一个开源的文件系统框架，允许开发者编写自定义的文件系统驱动程序。它基于FUSE（Filesystem in Userspace）技术，并且允许用户空间的程序创建和操作文件系统，而不需要特权访问。通过使用ExtFUSE，开发人员可以在用户空间实现自己的文件系统，而无需修改内核代码。这使得创建独特的文件系统变得更加灵活和简单，从而满足各种应用程序的需求。无论您是想创建一个虚拟文件系统、加密文件系统还是实现其他自定义文件系统功能，ExtFUSE都可以为您提供一个可靠的框架。
 
@@ -13,4 +14,4 @@
 
 ## 项目eBPF_FUSE_read：使用eBPF优化FUSE中的read方法性能
 
-详情见：https://github.com/13186379707/eunomia-bpf/tree/develop/eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read
+项目eBPF_FUSE_read的详情见：https://github.com/13186379707/eunomia-bpf/tree/develop/eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read
