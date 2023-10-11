@@ -1,6 +1,6 @@
 ## ExtFUSE：利用eBPF优化FUSE的用户扩展框架
 
-ExtFUSE框架的详情见：https://github.com/13186379707/eunomia-bpf/tree/develop/eBPF_Supermarket/eBPF_FUSE/ExtFUSE_document
+ExtFUSE框架的详情见：https://github.com/linuxkerneltravel/lmp/tree/develop/eBPF_Supermarket/eBPF_FUSE/ExtFUSE_document
 
 ​		用户空间扩展文件系统(Extended Filesystem in Userspace，简称ExtFUSE)是一个开源的文件系统框架，允许开发者编写自定义的文件系统驱动程序。它基于FUSE（Filesystem in Userspace）技术，并且允许用户空间的程序创建和操作文件系统，而不需要特权访问。通过使用ExtFUSE，开发人员可以在用户空间实现自己的文件系统，而无需修改内核代码。这使得创建独特的文件系统变得更加灵活和简单，从而满足各种应用程序的需求。无论您是想创建一个虚拟文件系统、加密文件系统还是实现其他自定义文件系统功能，ExtFUSE都可以为您提供一个可靠的框架。
 
@@ -13,8 +13,8 @@ ExtFUSE框架的详情见：https://github.com/13186379707/eunomia-bpf/tree/deve
 
 - **libExtFUSE的使用是可选的，独立于lifuse。**向libfuse注册的现有文件系统处理程序继续驻留在用户空间中。因此，它们的调用会引起上下文切换，因此，我们将它们的执行称为慢路径。使用ExtFUSE，用户空间还可以注册内核扩展，当从VFS接收到文件系统请求时立即调用这些扩展，以便允许在内核中提供这些扩展。我们将内核内执行称为快速路径。根据快速路径的返回值，可以将请求标记为已服务，或者通过慢路径将请求发送到用户空间守护进程，以便根据需要进行复杂的处理。快速路径还可以返回一个特殊值，指示ExtFUSE驱动程序插入并将请求转发到下层文件系统。但是，此特性仅适用于可堆叠的用户文件系统，并且在内核中加载扩展时进行验证。
 
-ExtFUSE框架的复现步骤详情见：https://github.com/13186379707/eunomia-bpf/blob/develop/eBPF_Supermarket/eBPF_FUSE/ExtFUSE_document/framework_reproduction/extfuse_framework.pdf
+ExtFUSE框架的复现步骤详情见：https://github.com/linuxkerneltravel/lmp/tree/develop/eBPF_Supermarket/eBPF_FUSE/ExtFUSE_document/framework_reproduction/extfuse_framework.pdf
 
 ## 项目eBPF_FUSE_read：使用eBPF优化FUSE中的read方法性能
 
-项目eBPF_FUSE_read的详情见：https://github.com/13186379707/eunomia-bpf/tree/develop/eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read
+项目eBPF_FUSE_read的详情见：https://github.com/linuxkerneltravel/lmp/tree/develop/eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read
