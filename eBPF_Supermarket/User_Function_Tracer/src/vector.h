@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// A dynamic array similar to std::vector, but has limit capabitily
+// A dynamic array similar to std::vector, but only has std::stack-like capabilities
 
 #ifndef UTRACE_VECTOR_H
 #define UTRACE_VECTOR_H
@@ -24,122 +24,112 @@
 
 typedef void (*vector_element_free_t)(void *element);
 
-/**
- * @brief a dynamic array
- */
 struct vector {
-  size_t size;                /**< stored number of element */
-  size_t capacity;            /**< allocated number of element */
+  size_t size;                /**< number of elements stored */
+  size_t capacity;            /**< number of elements allocated */
   size_t element_size;        /**< size of one element */
-  void *data;                 /**< element array */
+  void *data;                 /**< array of elements */
   vector_element_free_t free; /**< element destructor */
 };
 
 /**
- * @brief creates a empty vector that stores element with size element_size
- * @param[in] element_size size of one element to be stored
+ * @brief create and init an empty vector malloced from heap that stores elements with size
+ *        `element_size`
+ * @param[in] element_size size of each stored element
+ * @param[in] free destructor for each stored element
  */
 struct vector *vector_init(size_t element_size, vector_element_free_t free);
 
 /**
- * @brief free the vector
- * @param[in] vec
+ * @brief free the input vector
  */
 void vector_free(struct vector *vec);
 
 /**
  * @brief get the size of the input vector
- * @param[in] vec
  */
 size_t vector_size(const struct vector *vec);
 
 /**
  * @brief check if the input vector is empty, i.e., size is 0
- * @param[in] vec
  */
 bool vector_empty(const struct vector *vec);
 
 /**
- * @brief get the index th element of the input vecotr
- * @param[in] vec
- * @param[in] index array index
+ * @brief get the `index`-th element of the input vector
  */
 void *vector_get(struct vector *vec, size_t index);
 
 /**
- * @brief get the const version of the index th element of the input vecotr
- * @param[in] vec
- * @param[in] index array index
+ * @brief get the const version of the `index`-th element of the input vector
  */
 const void *vector_const_get(const struct vector *vec, size_t index);
 
 /**
- * @brief get the first element of the input vecotr
- * @param[in] vec
+ * @brief get the first element of the input vector
  */
 void *vector_front(struct vector *vec);
 
 /**
- * @brief get the last element of the input vecotr
- * @param[in] vec
+ * @brief get the last element of the input vector
  */
 void *vector_back(struct vector *vec);
 
 /**
- * @brief allocate at least size * element_size memory
- * @param[in] vec
- * @param[in] size
+ * @brief ensure the input vector has allocated at least (`size` * `vec->element_size`) memory
  */
 int vector_reserve(struct vector *vec, size_t size);
 
 /**
- * @brief insert one element to the vector at the end
- * @param[in] vec
- * @param[in] element
+ * @brief resize the input vector to contain `size` elements,
+ *        additional elements are **uninitialized**
+ */
+int vector_resize(struct vector *vec, size_t size);
+
+/**
+ * @brief set the `index`-th element of the input vector to `element`
+ */
+void vector_set(struct vector *vec, size_t index, const void *element);
+
+/**
+ * @brief insert one element to the input vector at the end
  */
 int vector_push_back(struct vector *vector, const void *element);
 
 /**
- * @brief pop the end element in the vector
- * @param[in] vec
- * @param[in] element
+ * @brief pop the last element in the input vector
  */
 void vector_pop_back(struct vector *vector);
 
 /**
- * @brief clear the vector
- * @param[in] vec
+ * @brief clear the input vector
  */
 void vector_clear(struct vector *vector);
 
 /**
- * @brief sort the vector
- * @param[in] vec
- * @param[in] comparator
+ * @brief sort the input vector
+ * @param[in] comparator a function used to compare two stored elements
  */
 void vector_sort(struct vector *vec, int (*comparator)(const void *, const void *));
 
 /**
- * @brief unique the vector
- * @param[in] vec
- * @param[in] comparator
+ * @brief unique the input vector
+ * @param[in] comparator a function used to compare two stored elements
  */
 void vector_unique(struct vector *vec, int (*comparator)(const void *, const void *));
 
 /**
- * @brief search key in the vector using binary search
- * @param[in] vec sorted
- * @param[in] key
- * @param[in] comparator
+ * @brief search the element `key` in the input vector via binary search
+ * @param[in] key the searched element
+ * @param[in] comparator a function used to compare the stored elements with the searched `key`
+ * @details the input vector should be sorted by `comparator` first; O(\log n)
  */
 void *vector_binary_search(struct vector *vec, const void *key,
                            int (*comparator)(const void *, const void *));
 
 /**
- * @brief search key in the vector
- * @param[in] vec
- * @param[in] key
- * @param[in] comparator
+ * @brief search the element `key` in the input vector sequentially
+ * @details O(n)
  */
 void *vector_find(struct vector *vec, const void *key,
                   int (*comparator)(const void *, const void *));
