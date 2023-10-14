@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Print kernel version
+        run: uname -r
+
       - name: Cache BCC build directory
         id: cache-bcc
         uses: actions/cache@v3
