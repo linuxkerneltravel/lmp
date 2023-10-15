@@ -6,15 +6,15 @@ lifecycle_image工具是Linux进程生命周期画像工具，该工具由多个
 
 通过 -p 参数指定要监控的进程，便可以采集到该进程在生命周期中上下CPU的时间信息。
 
-<div align='center'><img src="./docs/images/on_off_cpu.png"></div>
+<div align='center'><img src="../docs/images/on_off_cpu.png"></div>
 
 测试对象：top（默认为每3秒更新一次）
 
-<div align='center'><img src="./docs/images/top_delay.png"></div>
+<div align='center'><img src="../docs/images/top_delay.png"></div>
 
 运行eBPF程序跟踪top进程，执行指令 sudo ./proc_image -p 5523，运行结果：
 
-<div align='center'><img src="./docs/images/proc_cpu.png"></div>
+<div align='center'><img src="../docs/images/proc_cpu.png"></div>
 
 结合top进程每3秒更新一次，从运行结果中可以看出该eBPF程序已经成功捕获到top进程上下cpu的时间信息。
 
@@ -26,17 +26,17 @@ lifecycle_image工具是Linux进程生命周期画像工具，该工具由多个
 
 测试程序：test_proc（测试程序通过 sleep 函数实现下CPU）
 
-<div align='center'><img src="./docs/images/off_cpu_sleep.png"></div>
+<div align='center'><img src="../docs/images/off_cpu_sleep.png"></div>
 
 测试结果：
 
-<div align='center'><img src="./docs/images/off_cpu_sleep_result.png"></div>
+<div align='center'><img src="../docs/images/off_cpu_sleep_result.png"></div>
 
 ## 二、lock_image 工具
 
 lock_image工具可以对进程/线程持有锁的区间进行画像，该工具目前可以对进程的用户态互斥锁、内核态互斥锁和用户态读写锁进行画像。
 
-<div align='center'><img src="./docs/images/lock_image.png"></div>
+<div align='center'><img src="../docs/images/lock_image.png"></div>
 
 lock_image 工具采集到的数据：
 
