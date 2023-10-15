@@ -119,7 +119,7 @@ const char argp_program_doc[] ="Trace process to get process image.\n";
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
-	{ "cpuid", 'C', "CPUID", 0, "Set For Tracing Process 0(other processes don't need to set this parameter)" },
+	{ "cpuid", 'C', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
     { "cputime", 'c', NULL, 0, "Process on_off_CPU time information" },
     { "execve", 'e', NULL, 0, "Trace execve syscall of the process" },
 	{ "exit", 'E', NULL, 0, "Trace exit syscall of the process" },
