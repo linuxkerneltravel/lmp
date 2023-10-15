@@ -6,13 +6,6 @@
 const volatile int max_args = DEFAULT_MAXARGS;
 
 struct {
-	__uint(type, BPF_MAP_TYPE_CGROUP_ARRAY);
-	__type(key, u32);
-	__type(value, u32);
-	__uint(max_entries, 1);
-} cgroup_map SEC(".maps");
-
-struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 1);
 	__type(key, pid_t);

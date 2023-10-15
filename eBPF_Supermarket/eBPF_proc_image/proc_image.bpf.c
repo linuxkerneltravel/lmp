@@ -123,7 +123,7 @@ SEC("uprobe/pthread_mutex_lock")
 int BPF_KPROBE(pthread_mutex_lock_enter, void *__mutex)
 {
     if(enable_u_mutex){
-        record_lock_enter(ctx,6,__mutex,target_pid,&events);
+        record_lock_enter(ctx,6,1,__mutex,target_pid,&events);
     }
 
     return 0;
@@ -133,7 +133,7 @@ SEC("uretprobe/pthread_mutex_lock")
 int BPF_KRETPROBE(pthread_mutex_lock_exit,int ret)
 {
     if(enable_u_mutex){
-        record_lock_exit(ctx,ret,target_pid,&events);
+        record_lock_exit(ctx,1,ret,target_pid,&events);
     }
 
     return 0;
@@ -143,7 +143,7 @@ SEC("uprobe/__pthread_mutex_trylock")
 int BPF_KPROBE(__pthread_mutex_trylock_enter, void *__mutex)
 {
     if(enable_u_mutex){
-        record_lock_enter(ctx,6,__mutex,target_pid,&events);
+        record_lock_enter(ctx,6,1,__mutex,target_pid,&events);
     }
 
     return 0;
@@ -153,7 +153,7 @@ SEC("uretprobe/__pthread_mutex_trylock")
 int BPF_KRETPROBE(__pthread_mutex_trylock_exit,int ret)
 {
     if(enable_u_mutex){
-        record_lock_exit(ctx,ret,target_pid,&events);
+        record_lock_exit(ctx,1,ret,target_pid,&events);
     }
     
     return 0;
@@ -163,7 +163,7 @@ SEC("uprobe/pthread_mutex_unlock")
 int BPF_KPROBE(pthread_mutex_unlock_enter, void *__rwlock)
 {
     if(enable_u_mutex){
-        record_unlock_enter(__rwlock,target_pid);
+        record_unlock_enter(1,__rwlock,target_pid);
     }
     
     return 0;
@@ -173,7 +173,7 @@ SEC("uretprobe/pthread_mutex_unlock")
 int BPF_KRETPROBE(pthread_mutex_unlock_exit)
 {
     if(enable_u_mutex){
-        record_unlock_exit(ctx,target_pid,&events);
+        record_unlock_exit(ctx,1,target_pid,&events);
     }
     
     return 0;
@@ -185,7 +185,7 @@ int kprobe__mutex_lock(struct pt_regs *ctx)
 {
     if(enable_k_mutex){
         struct mutex *lock = (struct mutex *)PT_REGS_PARM1(ctx);
-        record_lock_enter(ctx,9,lock,target_pid,&events);
+        record_lock_enter(ctx,9,2,lock,target_pid,&events);
     }
 
     return 0;
@@ -195,7 +195,7 @@ SEC("kretprobe/mutex_lock")
 int kretprobe__mutex_lock(struct pt_regs *ctx)
 {
     if(enable_k_mutex){
-        record_lock_exit(ctx,0,target_pid,&events);
+        record_lock_exit(ctx,2,0,target_pid,&events);
     }
 
     return 0;
@@ -206,7 +206,7 @@ int kprobe__mutex_trylock(struct pt_regs *ctx)
 {
     if(enable_k_mutex){
         struct mutex *lock = (struct mutex *)PT_REGS_PARM1(ctx);
-        record_lock_enter(ctx,9,lock,target_pid,&events);
+        record_lock_enter(ctx,9,2,lock,target_pid,&events);
     }
 
     return 0;
@@ -216,7 +216,7 @@ SEC("kretprobe/mutex_trylock")
 int kretprobe__mutex_trylock(struct pt_regs *ctx)
 {
     if(enable_k_mutex){
-        record_lock_exit(ctx,0,target_pid,&events);
+        record_lock_exit(ctx,2,0,target_pid,&events);
     }
 
     return 0;
@@ -227,7 +227,7 @@ int kprobe__mutex_unlock(struct pt_regs *ctx)
 {
     if(enable_k_mutex){
         struct mutex *lock = (struct mutex *)PT_REGS_PARM1(ctx);
-        record_unlock_enter(lock,target_pid);
+        record_unlock_enter(2,lock,target_pid);
     }
 
     return 0;
@@ -237,7 +237,7 @@ SEC("kretprobe/mutex_unlock")
 int kretprobe__mutex_unlock(struct pt_regs *ctx)
 {
     if(enable_k_mutex){
-        record_unlock_exit(ctx,target_pid,&events);
+        record_unlock_exit(ctx,2,target_pid,&events);
     }
     
     return 0;
@@ -248,7 +248,7 @@ SEC("uprobe/__pthread_rwlock_rdlock")
 int BPF_KPROBE(__pthread_rwlock_rdlock_enter, void *__rwlock)
 {
     if(enable_u_rwlock_rd){
-        record_lock_enter(ctx,12,__rwlock,target_pid,&events);
+        record_lock_enter(ctx,12,3,__rwlock,target_pid,&events);
     }
 
     return 0;
@@ -258,7 +258,7 @@ SEC("uretprobe/__pthread_rwlock_rdlock")
 int BPF_KRETPROBE(__pthread_rwlock_rdlock_exit,int ret)
 {
     if(enable_u_rwlock_rd){
-        record_lock_exit(ctx,ret,target_pid,&events);
+        record_lock_exit(ctx,3,ret,target_pid,&events);
     }
 
     return 0;
@@ -268,7 +268,7 @@ SEC("uprobe/__pthread_rwlock_tryrdlock")
 int BPF_KPROBE(__pthread_rwlock_tryrdlock_enter, void *__rwlock)
 {
     if(enable_u_rwlock_rd){
-        record_lock_enter(ctx,12,__rwlock,target_pid,&events);
+        record_lock_enter(ctx,12,3,__rwlock,target_pid,&events);
     }
     
     return 0;
@@ -278,7 +278,7 @@ SEC("uretprobe/__pthread_rwlock_tryrdlock")
 int BPF_KRETPROBE(__pthread_rwlock_tryrdlock_exit,int ret)
 {
     if(enable_u_rwlock_rd){
-        record_lock_exit(ctx,ret,target_pid,&events);
+        record_lock_exit(ctx,3,ret,target_pid,&events);
     }
 
     return 0;
@@ -288,7 +288,7 @@ SEC("uprobe/__pthread_rwlock_wrlock")
 int BPF_KPROBE(__pthread_rwlock_wrlock_enter, void *__rwlock)
 {
     if(enable_u_rwlock_wr){
-        record_lock_enter(ctx,15,__rwlock,target_pid,&events);
+        record_lock_enter(ctx,15,3,__rwlock,target_pid,&events);
     }
     
     return 0;
@@ -298,7 +298,7 @@ SEC("uretprobe/__pthread_rwlock_wrlock")
 int BPF_KRETPROBE(__pthread_rwlock_wrlock_exit,int ret)
 {
     if(enable_u_rwlock_wr){
-        record_lock_exit(ctx,ret,target_pid,&events);
+        record_lock_exit(ctx,3,ret,target_pid,&events);
     }
 
     return 0;
@@ -308,7 +308,7 @@ SEC("uprobe/__pthread_rwlock_trywrlock")
 int BPF_KPROBE(__pthread_rwlock_trywrlock_enter, void *__rwlock)
 {
     if(enable_u_rwlock_wr){
-        record_lock_enter(ctx,15,__rwlock,target_pid,&events);
+        record_lock_enter(ctx,15,3,__rwlock,target_pid,&events);
     }
 
     return 0;
@@ -318,7 +318,7 @@ SEC("uretprobe/__pthread_rwlock_trywrlock")
 int BPF_KRETPROBE(__pthread_rwlock_trywrlock_exit,int ret)
 {
     if(enable_u_rwlock_wr){
-        record_lock_exit(ctx,ret,target_pid,&events);
+        record_lock_exit(ctx,3,ret,target_pid,&events);
     }
 
     return 0;
@@ -328,7 +328,7 @@ SEC("uprobe/__pthread_rwlock_unlock")
 int BPF_KPROBE(__pthread_rwlock_unlock_enter, void *__rwlock)
 {
     if(enable_u_rwlock_rd || enable_u_rwlock_wr){
-        record_unlock_enter(__rwlock,target_pid);
+        record_unlock_enter(3,__rwlock,target_pid);
     }
 
     return 0;
@@ -338,7 +338,7 @@ SEC("uretprobe/__pthread_rwlock_unlock")
 int BPF_KRETPROBE(__pthread_rwlock_unlock_exit)
 {
     if(enable_u_rwlock_rd || enable_u_rwlock_wr){
-        record_unlock_exit(ctx,target_pid,&events);
+        record_unlock_exit(ctx,3,target_pid,&events);
     }
     
     return 0;

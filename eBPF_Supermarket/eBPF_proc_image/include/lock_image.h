@@ -4,6 +4,14 @@
 #include <bpf/bpf_tracing.h>
 #include "proc_image.h"
 
+struct proc_flag{
+    int pid;
+    // 1代表用户态互斥锁
+    // 2代表内核态互斥锁
+    // 3代表用户态读写锁
+    int flag;
+};
+
 struct proc_lockptr{
     int pid;
     long long unsigned int lock_ptr;
@@ -12,14 +20,14 @@ struct proc_lockptr{
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 1024);
-	__type(key, pid_t);
+	__type(key, struct proc_flag);
 	__type(value, u64);
 } proc_lock SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 1024);
-	__type(key, pid_t);
+	__type(key, struct proc_flag);
 	__type(value, u64);
 } proc_unlock SEC(".maps");
 
@@ -30,7 +38,7 @@ struct {
 	__type(value, struct event);
 } lock SEC(".maps");
 
-static int record_lock_enter(void *ctx,int type,void *__lock,int target_pid,void *events)
+static int record_lock_enter(void *ctx,int type,int flag,void *__lock,int target_pid,void *events)
 {
     pid_t pid = target_pid;
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
@@ -39,9 +47,13 @@ static int record_lock_enter(void *ctx,int type,void *__lock,int target_pid,void
     {
         u64 lock_ptr = (u64)__lock;
         struct proc_lockptr proc_lockptr = {};
+        struct proc_flag proc_flag = {};
         struct event *event;
         
-	if(bpf_map_update_elem(&proc_lock, &pid, &lock_ptr, BPF_ANY))
+	    proc_flag.pid = pid;
+        proc_flag.flag = flag;
+        
+        if(bpf_map_update_elem(&proc_lock, &proc_flag, &lock_ptr, BPF_ANY))
             return 0;
 
         proc_lockptr.pid = pid;
@@ -71,7 +83,7 @@ static int record_lock_enter(void *ctx,int type,void *__lock,int target_pid,void
     return 0;
 }
 
-static int record_lock_exit(void *ctx,int ret,int target_pid,void *events)
+static int record_lock_exit(void *ctx,int flag,int ret,int target_pid,void *events)
 {
     pid_t pid = target_pid;
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
@@ -81,8 +93,12 @@ static int record_lock_exit(void *ctx,int ret,int target_pid,void *events)
         u64 *lock_ptr;
         struct proc_lockptr proc_lockptr = {};
         struct event *event;
+        struct proc_flag proc_flag = {};
 
-        lock_ptr = bpf_map_lookup_elem(&proc_lock, &pid);
+        proc_flag.pid = pid;
+        proc_flag.flag = flag;
+
+        lock_ptr = bpf_map_lookup_elem(&proc_lock, &proc_flag);
         if(!lock_ptr)
             return 0;
 
@@ -101,13 +117,13 @@ static int record_lock_exit(void *ctx,int ret,int target_pid,void *events)
 
         event->start = event->exit;
 
-        bpf_map_delete_elem(&proc_lock, &pid);
+        bpf_map_delete_elem(&proc_lock, &proc_flag);
     }
 
     return 0;
 }
 
-static int record_unlock_enter(void *__lock,int target_pid)
+static int record_unlock_enter(int flag,void *__lock,int target_pid)
 {
     pid_t pid = target_pid;
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
@@ -115,14 +131,19 @@ static int record_unlock_enter(void *__lock,int target_pid)
     if(BPF_CORE_READ(current,pid) == pid)
     {
         u64 lock_ptr = (u64)__lock;
-        if(bpf_map_update_elem(&proc_unlock, &pid, &lock_ptr, BPF_ANY))
+        struct proc_flag proc_flag = {};
+
+        proc_flag.pid = pid;
+        proc_flag.flag = flag;
+
+        if(bpf_map_update_elem(&proc_unlock, &proc_flag, &lock_ptr, BPF_ANY))
             return 0;
     }
 
     return 0;
 }
 
-static int record_unlock_exit(void *ctx,int target_pid,void *events)
+static int record_unlock_exit(void *ctx,int flag,int target_pid,void *events)
 {
     pid_t pid = target_pid;
     struct task_struct *current = (struct task_struct *)bpf_get_current_task();
@@ -132,8 +153,12 @@ static int record_unlock_exit(void *ctx,int target_pid,void *events)
         u64 *lock_ptr;
         struct proc_lockptr proc_lockptr = {};
         struct event *event;
+        struct proc_flag proc_flag = {};
+
+        proc_flag.pid = pid;
+        proc_flag.flag = flag;
         
-        lock_ptr = bpf_map_lookup_elem(&proc_unlock, &pid);
+        lock_ptr = bpf_map_lookup_elem(&proc_unlock, &proc_flag);
         if(!lock_ptr)
             return 0;
 
@@ -148,7 +173,7 @@ static int record_unlock_exit(void *ctx,int target_pid,void *events)
 
         output_event(ctx,event,events);
 
-        bpf_map_delete_elem(&proc_unlock, &pid);
+        bpf_map_delete_elem(&proc_unlock, &proc_flag);
 
         bpf_map_delete_elem(&lock, &proc_lockptr);
     }

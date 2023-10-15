@@ -319,10 +319,10 @@ static void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 
 	switch (e->type) {
         case 1:
-			c = "off_cpu";
+			c = "on_cpu";
             break;
 		case 2:
-			c = "on_cpu";
+			c = "off_cpu";
 			break;
 		case 3:
 			c = "exec_enter";

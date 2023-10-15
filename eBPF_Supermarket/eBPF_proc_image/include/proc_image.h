@@ -30,7 +30,7 @@
 
 struct event {
     /* type：
-        1代表off_cpu；2代表on_cpu；
+        1代表on_cpu；2代表off_cpu；
         3代表exec_enter；4代表exec_exit；5代表exit
         6代表umutex_req；7代表umutex_lock；8代表umutex_unlock
         9代表kmutex_req；10代表kmutex_lock；11代表kmutex_unlock
