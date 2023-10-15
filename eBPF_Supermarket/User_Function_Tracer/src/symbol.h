@@ -14,28 +14,25 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Related to symbols
+// Maintain symbol tables for the traced program and its libraries
 
 #ifndef UTRACE_SYMBOL_H
 #define UTRACE_SYMBOL_H
 
 #include "vector.h"
 
-#define BASE_ADDR 0x400000  // for no-pie option
-
 /**
  * @brief represent a symbol
  */
 struct symbol {
-  size_t addr; /**< relative virtual address */
-  size_t size; /**< symbol size */
-  char *name;  /**< symbol name */
-  bool has_demangled;
-  const char *libname;
+  size_t addr;   /**< offset */
+  size_t size;   /**< symbol size */
+  char *name;    /**< symbol name malloced from heap */
+  char *libname; /**< library name malloced from heap */
 };
 
 /**
- * @brief represent a symbol table consisting of all the symbols sorting by addr
+ * @brief represent a symbol table consisting of all the symbols sorting by `addr`
  * @details stored in a dynamic array
  */
 struct symbol_table {
@@ -43,27 +40,31 @@ struct symbol_table {
 };
 
 /**
- * @brief 新建并初始化一个库/进程对应的符号数组
- * @param[in] libname 库/进程名
- * @param[in] dyn_symset 观测进程的动态符号数组
- * @return 指向初始化后的符号数组
- * @details 解析libname对应的ELF格式中的.symtab节和.dynsym节
- *          如果是进程（lib = 0），将.dynsym节的符号加入到dyn_symset集合中
- *          是动态库（lib = 1），只解析在dyn_symset集合中的符号
+ * @brief create and init a symbol table for the module named `module_name`
+ * @return struct symbol_table malloced from heap
+ * @details parse its ELF file: get symbol info from sections .symtab, .dynsym, .rela and .rel; and
+ *          get corresponding library info from sections .versym, .verdef and .verneed
  */
 struct symbol_table *symbol_table_init(const char *module_name);
 
+/**
+ * @brief free the `symbol_table`
+ */
 void symbol_table_free(struct symbol_table *symbol_table);
 
+/**
+ * @brief get the number of symbols of the input `symbol_table`
+ */
 size_t symbol_table_size(const struct symbol_table *symbol_table);
 
+/**
+ * @brief get the `index`-th symbol of the input `symbol_table`
+ */
 const struct symbol *symbol_table_get(const struct symbol_table *symbol_table, size_t index);
 
 /**
- * @brief 从一个符号数组中查找一个虚拟地址对应的符号名称
- * @param[in] symbols 指向符号数组的指针
- * @param[in] addr 待查找的虚拟地址
- * @return addr对应的符号名称
+ * @brief find the symbol that corresponds to the input `addr`
+ * @details binary search the `symbol_table`, O(\log n)
  */
 const struct symbol *symbol_table_find(const struct symbol_table *symbol_table, size_t addr);
 

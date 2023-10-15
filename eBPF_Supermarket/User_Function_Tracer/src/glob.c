@@ -21,13 +21,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief regular glob match
+ */
 static bool glob_match(const char *text, const char *pattern) {
   bool matched;
   bool complemented;
 
   while (*text != '\0' && *pattern != '\0') {
     switch (*pattern) {
-      case '?':
+      case '?':  // match any single char
         ++pattern;
         ++text;
         break;
@@ -48,7 +51,7 @@ static bool glob_match(const char *text, const char *pattern) {
         }
         if (*pattern == '\0') return false;
 
-        char ch = *pattern;  // ch may be ']' or '-', just treat it normally
+        char ch = *pattern;  // `ch` may be ']' or '-', just treat it normally
         matched |= (ch == *text);
         ++pattern;
 
@@ -108,14 +111,18 @@ static bool glob_match(const char *text, const char *pattern) {
 bool glob_match_ext(const char *text, const char *pattern) {
   char *dup_pattern = strdup(pattern);
   char *glob_pattern = strtok(dup_pattern, ",");
-
   bool matched = false;
-  while (glob_pattern) {
-    if (glob_match(text, glob_pattern)) {
-      matched = true;
-      break;
+  if (!glob_pattern) {  // pattern is empty
+    matched = !strlen(text);
+  } else {
+    while (glob_pattern) {  // split `pattern` by ',', and try to match each regular glob_pattern
+                            // with `text`
+      if (glob_match(text, glob_pattern)) {
+        matched = true;
+        break;
+      }
+      glob_pattern = strtok(NULL, ",");
     }
-    glob_pattern = strtok(NULL, ",");
   }
   free(dup_pattern);
   return matched;

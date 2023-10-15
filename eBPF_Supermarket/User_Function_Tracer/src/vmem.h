@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Related to virtual memory region
+// Represent the virtual memory region of the traced program
 
 #ifndef UTRACE_VMEM_H
 #define UTRACE_VMEM_H
@@ -25,18 +25,18 @@
 #include "vector.h"
 
 /**
- * @brief represents a virtual memory region
+ * @brief represent one vmem entry
  */
 struct vmem {
   size_t st_addr; /**< start address */
   size_t ed_addr; /**< end address */
   size_t offset;  /**< offset */
 
-  struct module *module; /**< name of the program/shared lib corresponding to this vmem */
+  struct module *module; /**< the corresponding module, i.e., the traced program or some library */
 };
 
 /**
- * @brief represents a virtual memory table consisting of contiguous vmem sorted by st_addr
+ * @brief represent a virtual memory table consisting of contiguous vmem sorted by `vmem->st_addr`
  * @details stored in a dynamic array
  */
 struct vmem_table {
@@ -44,49 +44,52 @@ struct vmem_table {
 };
 
 /**
- * @brief create a vmem table for the process corresponding to the input pid
- * @param[in] pid process ID
- * @return a vmem table
+ * @brief create and init a vmem table for the process corresponding to the input `pid`
+ * @param[in] pid the process ID of the traced program
+ * @return struct vmem_table malloced from heap
  * @details parse the virtual file "/proc/{{pid}}/maps"
  */
 struct vmem_table *vmem_table_init(pid_t pid);
 
 /**
- * @brief free the vmem table
- * @param[in] vmem_table initialized by function vmem_table_init
+ * @brief free the `vmem_table`
  */
 void vmem_table_free(struct vmem_table *vmem_table);
 
+/**
+ * @brief get the number of vmem entries of the input `vmem_table`
+ */
 size_t vmem_table_size(const struct vmem_table *vmem_table);
 
+/**
+ * @brief get the `index`-th vmem entry of the input vmem table
+ */
 const struct vmem *vmem_table_get(const struct vmem_table *vmem_table, size_t index);
 
 /**
- * @brief find the vmem that contains the input address
- * @param[in] vmem_table
- * @param[in] addr the address to be searched
- * @return the vmem that contains address
- * @retval struct vmem* when successful
- *         NULL when failed
- * @details binary search the vmem_table (O(log))
+ * @brief find the vmem entry that contains the input `addr`
+ * @details binary search the vmem_table, O(\log n)
  */
 const struct vmem *vmem_table_find(const struct vmem_table *vmem_table, size_t addr);
 
+/**
+ * @brief resolve the symbol corresponding to the input `addr`
+ * @details first binary search in the vmem table to find the corresponding vmem entry,
+ *          then binary search in the symbol table of this entry's module; O(\log n)
+ */
 const struct symbol *vmem_table_symbolize(const struct vmem_table *vmem_table, size_t addr);
 
 /**
- * @brief get the start address of the program to be observed
- * @param[in] vmem_table
- * @return start address
- * @details the program is at the lowest address, i.e., its vmem is at the begin of vmem_table
+ * @brief get the load address of the traced program when running
+ * @param[in] pid process ID of the traced program
+ * @return load address
  */
-size_t vmem_table_get_prog_st_addr(const struct vmem_table *vmem_table);
+size_t vmem_table_get_prog_load_addr(pid_t pid);
 
 /**
- * @brief get the program name to be observed
- * @param[in] vmem_table
- * @return name
+ * @brief get the path of the traced program
+ * @param[in] pid process ID of the traced program
  */
-const char *vmem_table_get_prog_name(const struct vmem_table *vmem_table);
+char *vmem_table_get_prog_name(pid_t pid);
 
 #endif  // UTRACE_VMEM_H

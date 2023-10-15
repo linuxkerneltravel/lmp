@@ -14,18 +14,28 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Extended glob pattern match
+// Test performance
 
-#ifndef UTRACE_GLOB_H
-#define UTRACE_GLOB_H
+#include <chrono>
+#include <cstdio>
 
-#include <stdbool.h>
+int g;
 
-/**
- * @brief extended glob match, where the `pattern` can be multiple regular glob patterns joined
- *        by ','
- * @example text = "std::forward", pattern = "main,std::*"
- */
-bool glob_match_ext(const char *text, const char *pattern);
+void f(int i) {
+  if (i & 1)
+    g += 1;
+  else
+    g += 2;
+}
 
-#endif  // UTRACE_GLOB_H
+int main() {
+  const int CNT = 1000000;
+  auto start_time = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < CNT; i++) f(i);
+  auto end_time = std::chrono::high_resolution_clock::now();
+  printf("%d\n", g);
+  std::chrono::nanoseconds elapsed_time =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
+  printf("total %f ms\naverage %f ns\n", elapsed_time.count() * 1.0 / 1000000,
+         elapsed_time.count() * 1.0 / CNT);
+}

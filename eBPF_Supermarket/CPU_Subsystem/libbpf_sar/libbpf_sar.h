@@ -14,4 +14,31 @@
 //
 // author: zhangziheng0525@163.com
 //
+<<<<<<<< HEAD:eBPF_Supermarket/CPU_Subsystem/libbpf_sar/libbpf_sar.h
 // eBPF map for libbpf sar
+========
+// eBPF map for the process offCPU time
+
+#ifndef __PROC_OFFCPU_H
+#define __PROC_OFFCPU_H
+
+#define TASK_COMM_LEN 16
+
+struct proc_offcpu{
+    int offcpu_id;
+    long long unsigned int offcpu_time;
+};
+
+struct offcpu_event{
+    int pid;
+    char comm[TASK_COMM_LEN];
+    int offcpu_id;
+    long long unsigned int offcpu_time;
+    int oncpu_id;
+    long long unsigned int oncpu_time;
+};
+
+
+
+#endif /* __PROC_OFFCPU_H */
+>>>>>>>> b65280e131beb75df9d67e73a3e1ea2e3c471466:eBPF_Supermarket/eBPF_proc_image/proc_offcpu_time/proc_offcpu_time.h

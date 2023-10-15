@@ -14,10 +14,11 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试库函数调用，涉及IFUNC符号
+// Test library calls, involving GNU ifunc calls
 
 #include <stdlib.h>
 #include <string.h>
+
 int main() {
   char *s = "Hello!";
   char *t = malloc(15 * sizeof(char));

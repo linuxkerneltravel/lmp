@@ -47,18 +47,73 @@ proc_image 工具的参数信息：
 | -A, --all            | 开启所有的功能                                    |
 | -h, --help           | 显示帮助信息                                      |
 
-## 四、tools
+用户态的自旋锁和信号量，在libbpf程序的开发过程中遇到了 libbpf: elf: ambiguous match  问题，目前这个问题社区也在讨论中，详情见 [libbpf_ambiguous_match_question.md](./docs/libbpf_ambiguous_match_question.md)。
 
-tools文件夹中的eBPF程序是按照进程生命周期中数据的类型分别进行实现的：
+## 四、newlife_image 工具
 
-| 工具            | 描述                            |
-| --------------- | ------------------------------- |
-| lifecycle_image | 对进程上下CPU进行画像           |
-| lock_image      | 对进程/线程持有锁的区间进行画像 |
-| keytime_image   | 对进程的关键时间点进行画像      |
-| newlife_image   | 对新创建进程或线程进行画像      |
+newlife_image工具可以对指定进程fork或vfork出来的新进程以及pthread_create出来的新线程进行画像。
 
-## 五、test_proc 测试程序
+newlife_image 工具采集到的数据：
+
+1. newlife的产生方式以及newlife的pid
+2. newlife的开始时间
+3. newlife的退出时间
+4. newlife的存在时间
+
+newlife_image 工具的参数信息：
+
+| 参数                | 描述                                              |
+| ------------------- | ------------------------------------------------- |
+| -p, --pid=PID       | 指定跟踪进程的pid，默认为0号进程                  |
+| -t, --time=TIME-SEC | 设置程序的最大运行时间（0表示无限），默认一直运行 |
+| -f, --fork          | 对fork出来的子进程进行画像                        |
+| -F, --vfork         | 对vfork出来的子进程进行画像                       |
+| -T, --newthread     | 对pthread_create出来的新线程进行画像              |
+| -h, --help          | 显示帮助信息                                      |
+
+问题及解决：
+
+pthread_create函数也存在模糊匹配问题，如下：
+
+```
+libbpf: elf: ambiguous match for 'pthread_create', 'pthread_create' in '/usr/lib/x86_64-linux-gnu/libc.so.6'
+```
+
+在Ubuntu22.04.1中 fork 和 vfork 调用的都是clone系统调用，而 pthread_create 调用的是 clone3 系统调用，因此暂用 clone3 监控新线程。
+
+## 五、proc_offcpu_time工具
+
+该工具可通过-p参数指定进程的pid，便可以采集到该进程处于off_CPU的时间。该功能已经和加入sleep逻辑的用户态程序（./test/test_sleep.c）进行了时间上的比对，准确性满足要求。示例如下：
+
+终端1：./test_sleep
+
+```
+test_sleep进程的PID：9063
+输入任意数字继续程序的运行：
+```
+
+终端2：现在已知test_sleep进程的PID为9063，执行指令sudo ./proc_image -p 9063进行跟踪
+
+终端1：输入任意数字继续程序的运行
+
+最后终端1和终端2的运行结果如下：
+
+```
+// 终端1
+test_sleep进程的PID：9063
+输入任意数字继续程序的运行：1
+程序开始执行...
+sleep开始时间：2023-07-24 16:58:28
+sleep结束时间：2023-07-24 16:58:31
+程序睡眠3s，执行完毕！
+
+//终端2
+pid:9063  comm:test_sleep  offcpu_id:3  offcpu_time:5963882827916  oncpu_id:3  oncpu_time:5966883001411  sleeptime:3.000173
+```
+
+目前该工具的功能已经合入proc_image。
+
+## 六、test_proc 测试程序 
 
 目前 [test_proc](./test/test_proc.c) 测试程序所具备逻辑：
 

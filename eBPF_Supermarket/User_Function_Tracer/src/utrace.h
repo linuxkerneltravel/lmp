@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Data recorded in kernel-side and passed to user-side
+// The traced data to be maintained every time entering or exiting a function
 
 #ifndef UTRACE_UTRACE_H
 #define UTRACE_UTRACE_H
@@ -22,28 +22,35 @@
 #include <stdbool.h>
 
 #define MAX_STACK_SIZE 32
-#define MAX_THREAD_NUM 64
-#define MAGIC_COMB 10
+#define MAX_THREAD_NUM 32
 
 /**
- * @brief Represent the data recorded in kernel-side and passed to user-side
+ * @brief represent the traced data recorded in kernel-side and passed to user-side
  */
-struct profile_record {
-  unsigned int tid;      /**< thread ID */
-  unsigned int next_tid; /**< switched thread ID */
-  unsigned int cpu_id;   /**< CPU ID */
-
-  unsigned long long duration_ns; /**< duration (ns) */
-
-  unsigned int ustack_sz;                    /**< user stack size */
-  unsigned long long ustack[MAX_STACK_SIZE]; /**< user stack */
-
+struct kernel_record {
+  int tid;                      /**< thread ID */
+  unsigned int ustack_sz;       /**< user stack size */
+  unsigned long long ustack[1]; /**< user stack; we only need to record the current address */
   unsigned long long timestamp; /**< timestamp */
-
-  bool ret; /**< is function ret */
-
-  const char *name; /**< function name, resolve in user-side */
-  const char *libname;
+  bool ret;                     /**< is function ret */
 };
+
+/**
+ * @brief represent the traced data supplemented and used on the user side
+ */
+struct user_record {
+  struct kernel_record krecord;   /**< kernel-side data */
+  unsigned long long duration_ns; /**< function duration */
+  char *name;                     /**< function name; malloced from heap when reporting */
+  char *libname;                  /**< library name; malloced from heap when reporting */
+};
+
+/**
+ * @brief represent the current function state
+ *        STATE_UNINIT: not started yet
+ *        STATE_EXEC:   just executed a function
+ *        STATE_EXIT:   just exited a function
+ */
+enum FUNC_STATE { STATE_UNINIT, STATE_EXEC, STATE_EXIT };
 
 #endif  // UTRACE_UTRACE_H

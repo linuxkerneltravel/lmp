@@ -1,3 +1,23 @@
+'''
+Copyright 2023 The LMP Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+author: luiyanbing@foxmail.com
+
+异常检测相关函数
+'''
+
 from my_class import psid_t
 from pyod.models.base import BaseDetector
 from pyod.models.pca import PCA
@@ -47,21 +67,27 @@ class adc:
         for (psid, label), c in zip(res.items(), count):
             # if psid.ksid < 0 and psid.usid < 0:
             #     continue
-            f = False
-            n = mutant.setdefault(psid, 0)
-            if res_prev and psid in res_prev.keys():
-                if label > res_prev[psid]:
-                    f = True
-                    mutant[psid] = n+1
-                else:
-                    mutant[psid] = n-1
-            elif label:
-                f = True
-                n = mutant.setdefault(psid, 0)
-                mutant[psid] = n+1
-            if f:
+
+            # f = False
+            # n = mutant.setdefault(psid, 0)
+            # if res_prev and psid in res_prev.keys():
+            #     if label > res_prev[psid]:
+            #         f = True
+            #         mutant[psid] = n+1
+            #     else:
+            #         mutant[psid] = n-1
+            # elif label:
+            #     f = True
+            #     n = mutant.setdefault(psid, 0)
+            #     mutant[psid] = n+1
+            # if f:
+            #     print('pid:%6d\tsid:(%6d,%6d)\tcount:%-6d' %
+            #           (psid.pid, psid.ksid, psid.usid, c[0]))
+
+            if label:
                 print('pid:%6d\tsid:(%6d,%6d)\tcount:%-6d' %
                       (psid.pid, psid.ksid, psid.usid, c[0]))
+
         self.res_prev = res
         print('-'*32)
 
