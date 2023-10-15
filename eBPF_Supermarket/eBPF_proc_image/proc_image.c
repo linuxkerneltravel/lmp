@@ -331,7 +331,7 @@ static void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 			c = "exec_exit";
 			break;
 		case 5:
-			c = "exit";
+			c = "exit_enter";
 			break;
 		case 6:
 			c = "umutex_req";
