@@ -188,7 +188,8 @@ static void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 		time = (e->exit - e->start)*1.0/1000.0;
 		printf("%-15llu %-15s %-16s %-6d %-6d %-15.3lf %-3d ", e->exit, c, e->comm, e->pid, e->ppid, time, e->retval);
 	}else if(e->start==0 && e->exit!=0){
-		printf("%-15llu %-15s %-16s %-6d %-6d %-15s %-3d \\", e->exit, c, e->comm, e->pid, e->ppid, miss, e->retval);
+		printf("%-15llu %-15s %-16s %-6d %-6d %-15s %-3d \\\n", e->exit, c, e->comm, e->pid, e->ppid, miss, e->retval);
+		return 0;
 	}else{
 		printf("%-15llu %-15s %-16s %-6d %-6d %-15s %-3s ", e->start, c, e->comm, e->pid, e->ppid, pad, pad);
 	}
@@ -233,7 +234,6 @@ int main(int argc, char **argv)
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
 		return err;
-
 
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	/* 设置libbpf错误和调试信息回调 */
