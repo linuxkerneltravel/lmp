@@ -25,7 +25,7 @@
 #include "vector.h"
 
 struct env {
-  char *argv[12];                    /**< -c/-commond */
+  char *argv[32];                    /**< -c/-commond */
   bool avg_self;                     /**< --avg-self */
   bool avg_total;                    /**< --avg-total */
   bool flat;                         /**< --flat */

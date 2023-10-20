@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 解析ELF格式以遍历ELF中的各个节以及符号节中的各个条目
+// Use gelf library to parse each section in an ELF file
 
 #include "elf.h"
 
@@ -31,7 +31,6 @@ bool elf_head_init(struct elf_head *elf, const char *filename) {
   if (!elf->e) return false;
 
   if (elf_kind(elf->e) != ELF_K_ELF) return false;
-
   if (!gelf_getehdr(elf->e, &elf->ehdr)) return false;
 
   return true;
@@ -47,7 +46,7 @@ void elf_head_free(struct elf_head *elf) {
 size_t get_entry_address(const char *filename) {
   struct elf_head elf;
   if (!elf_head_init(&elf, filename)) return 0;
-  size_t entry = elf.ehdr.e_entry;
+  size_t entry = elf.ehdr.e_entry;  // the entry address is recorded in ELF header
   elf_head_free(&elf);
   return entry;
 }
@@ -64,13 +63,14 @@ bool elf_section_next(struct elf_section *elf_s, struct elf_head *elf) {
 
 void elf_sym_entry_begin(struct elf_sym_entry *elf_e, struct elf_section *elf_s) {
   elf_e->i = 0;
-  elf_e->nentries = elf_s->shdr.sh_size / elf_s->shdr.sh_entsize;
+  elf_e->nentries =
+      elf_s->shdr.sh_size / elf_s->shdr.sh_entsize;  // number of entries in this section
   elf_e->sym_data = elf_getdata(elf_s->scn, NULL);
   elf_e->str_idx = elf_s->shdr.sh_link;
 }
 
 bool elf_sym_entry_next(struct elf_sym_entry *elf_e, struct elf_section *elf_s) {
-  (void)elf_s;
+  (void)elf_s;  // keep all functions' prototypes consistent
   if (elf_e->i >= elf_e->nentries) return false;
   gelf_getsym(elf_e->sym_data, elf_e->i, &elf_e->sym);
   elf_e->i++;

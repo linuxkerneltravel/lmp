@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// Thread local storage
+// Thread local storage, used to maintain the function stack per thread
 
 #ifndef UTRACE_THREAD_LOCAL_H
 #define UTRACE_THREAD_LOCAL_H
@@ -23,34 +23,66 @@
 
 #include "vector.h"
 
+/**
+ * @brief The `index`-th entry maintains information of thread `tids[index]`
+ */
 struct thread_local {
-  int tids[MAX_THREAD_NUM];
-  enum FUNC_STATE states[MAX_THREAD_NUM];
-  struct vector *records[MAX_THREAD_NUM];
+  int tids[MAX_THREAD_NUM];               /**< thread ID */
+  enum FUNC_STATE states[MAX_THREAD_NUM]; /**< function state: enter/exit a function */
+  struct vector *records[MAX_THREAD_NUM]; /**< pending user records, entered but not exited */
 };
 
+/**
+ * @brief create and init a thread_local
+ * @return struct thread_local malloced from heap
+ */
 struct thread_local *thread_local_init();
 
-unsigned int thread_local_get_index(struct thread_local *thread_local, int tid);
+/**
+ * @brief find the index where the info of thread `tid` is stored
+ */
+size_t thread_local_get_index(struct thread_local *thread_local, int tid);
 
-enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local, unsigned int index);
+/**
+ * @brief get the function state for the thread located at `index`
+ */
+enum FUNC_STATE thread_local_get_state(const struct thread_local *thread_local, size_t index);
 
-void thread_local_set_state(struct thread_local *thread_local, unsigned int index,
-                            enum FUNC_STATE state);
+/**
+ * @brief set the function state to `state` for the thread located at `index`
+ */
+void thread_local_set_state(struct thread_local *thread_local, size_t index, enum FUNC_STATE state);
 
-struct user_record *thread_local_get_record(struct thread_local *thread_local, unsigned int index,
-                                            unsigned int i);
+/**
+ * @brief get the `i`-th pending user record for the thread located at `index`
+ */
+struct user_record *thread_local_get_record(struct thread_local *thread_local, size_t index,
+                                            size_t i);
 
-struct user_record *thread_local_get_record_back(struct thread_local *thread_local,
-                                                 unsigned int index);
+/**
+ * @brief get the last pending user record for the thread located at `index`
+ */
+struct user_record *thread_local_get_record_back(struct thread_local *thread_local, size_t index);
 
-void thread_local_push_record(struct thread_local *thread_local, unsigned int index,
+/**
+ * @brief add the `record` to the end of pending records for the thread located at `index`
+ */
+void thread_local_push_record(struct thread_local *thread_local, size_t index,
                               struct user_record *record);
 
-void thread_local_pop_record(struct thread_local *thread_local, unsigned int index);
+/**
+ * @brief pop the last pending record for the thread located at `index`
+ */
+void thread_local_pop_record(struct thread_local *thread_local, size_t index);
 
-size_t thread_local_record_size(const struct thread_local *thread_local, unsigned int index);
+/**
+ * @brief get the number of pending records for the thread located at `index`
+ */
+size_t thread_local_record_size(const struct thread_local *thread_local, size_t index);
 
+/**
+ * @brief free the `thread_local`
+ */
 void thread_local_free(struct thread_local *thread_local);
 
 #endif  // UTRACE_THREAD_LOCAL_H

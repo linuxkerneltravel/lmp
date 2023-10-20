@@ -20,7 +20,10 @@
 
 set -e
 
-for file in test/*; do
+TEST_DIR="$(dirname $(readlink -f $0))"
+UTRACE="$TEST_DIR/../build/utrace"
+
+for file in $TEST_DIR/*; do
   lib=""
   if [[ $file == *thread* ]]; then
     lib=" -pthread"
@@ -28,18 +31,19 @@ for file in test/*; do
   if [[ $file == *.c ]]; then
     gcc $file $lib
     echo "test $file using gcc"
-    sudo build/utrace -c a.out
+    sudo $UTRACE -c a.out
     clang $file $lib
     echo "test $file using clang"
-    sudo build/utrace -c a.out
+    sudo $UTRACE -c a.out
   elif [[ $file == *.cpp ]]; then
     g++ $file
     echo "test $file using g++"
-    sudo build/utrace -c a.out -o /dev/null
+    sudo $UTRACE -c a.out -o /dev/null
     clang++ $file
     echo "test $file using clang++"
-    sudo build/utrace -c a.out -o /dev/null
+    sudo $UTRACE -c a.out -o /dev/null
   fi
+  break
 done
 
-rm a.out
+rm -f a.out

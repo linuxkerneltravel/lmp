@@ -81,9 +81,9 @@ void print_duration(struct printer *printer, unsigned long long ns, bool need_bl
 }
 
 void print_header(struct printer *printer) {
-  if (env.show_tid) LOG(printer->out, "  TID | ");
-  if (env.show_timestamp) LOG(printer->out, "   TIMESTAMP   | ");
-  LOG(printer->out, "  DURATION |   FUNCTION CALLS\n");
+  if (env.show_tid) LOG(printer->out, "  TID  | ");
+  if (env.show_timestamp) LOG(printer->out, "   TIMESTAMP    | ");
+  LOG(printer->out, "  DURATION  |   FUNCTION CALLS\n");
 }
 
 void print_split_line(struct printer *printer) {

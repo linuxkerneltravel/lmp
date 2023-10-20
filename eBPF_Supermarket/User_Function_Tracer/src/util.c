@@ -19,27 +19,26 @@
 #include "util.h"
 
 #include <ctype.h>
-#include <linux/limits.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <linux/limits.h>  // for macro PATH_MAX
 #include <string.h>
 #include <unistd.h>
 
-char *restrcat(char *str1, const char *str2) {
-  str1 = realloc(str1, (strlen(str1) + strlen(str2) + 1) * sizeof(char));
-  if (!str1) die("realloc");
+char *restrcat(char *dest, const char *src) {
+  // ensure `dest` has enough space
+  dest = realloc(dest, (strlen(src) + strlen(dest) + 1) * sizeof(char));
+  if (!dest) die("realloc");
 
-  size_t i = strlen(str1);
-  while (*str2 != '\0') str1[i++] = *str2++;
-  str1[i] = '\0';
-  return str1;
+  size_t i = strlen(dest);
+  while (*src != '\0') dest[i++] = *src++;
+  dest[i] = '\0';
+  return dest;
 }
 
 char *resolve_full_path(const char *file) {
   static char full_path[PATH_MAX];
 
   const size_t file_len = strlen(file);
-  const char *search_paths[] = {getenv("PATH"), "/usr/bin:/usr/sbin"};
+  const char *search_paths[] = { getenv("PATH"), "/usr/bin:/usr/sbin" };
   if (access(file, F_OK) != 0) {
     for (unsigned long i = 0; i < ARRAY_SIZE(search_paths); i++) {
       if (!search_paths[i]) continue;
@@ -66,12 +65,8 @@ const char *base_name(const char *file) {
 }
 
 bool is_library(const char *file) {
-  if (strstr(file, ".so.")) return true;
-
-  // Check file is end with ".so"
-  size_t len = strlen(file);
-  if (len < 3) return false;
-  return !strcmp(file + len - 3, ".so");
+  // check `file` contains ".so." or is end with ".so"
+  return strstr(file, ".so.") || !strncmp(file + strlen(file) - 3, ".so", 3);
 }
 
 const char *system_exec(const char *cmd) {
@@ -91,10 +86,10 @@ const char *system_exec(const char *cmd) {
 
 unsigned long long duration_str2ns(const char *duration) {
   static char *units[] = {
-      "ns", "us", "ms", "s", "m", "h",
+    "ns", "us", "ms", "s", "m", "h",
   };
   static unsigned long long limits[] = {
-      1000, 1000, 1000, 1000, 60, 24, 0,
+    1000, 1000, 1000, 1000, 60, 24, 0,
   };
 
   unsigned long long d = 0, t = 1;
@@ -108,9 +103,7 @@ unsigned long long duration_str2ns(const char *duration) {
   if (*duration == '\0') return 0;
 
   for (unsigned long i = 0; i < ARRAY_SIZE(units); i++) {
-    if (!strcmp(duration, units[i])) {
-      return d * t;
-    }
+    if (!strcmp(duration, units[i])) return d * t;
     t *= limits[i];
   }
   return 0;

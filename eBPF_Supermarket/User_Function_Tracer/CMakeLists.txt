@@ -2,12 +2,13 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(utrace
-  DESCRIPTION "User Function Tracer"
+project(eBPF-utrace
+  DESCRIPTION "eBPF Based User Function Tracer"
   LANGUAGES C
 )
 
-SET(CMAKE_C_COMPILER /usr/bin/clang)
+# we use abi::__cxa_demangle(), which is only availabel on clang
+SET(CMAKE_C_COMPILER /usr/bin/clang CACHE STRING "C compiler" FORCE)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake)
 
@@ -27,6 +28,7 @@ file(GLOB
   "src/*.c"
   "src/*.h"
   "test/*.c"
+  "test/*.cpp"
 )
 
 add_custom_target(format
@@ -35,6 +37,7 @@ add_custom_target(format
   VERBATIM
 )
 
+# doc target
 add_custom_target(doc 
   COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile
   COMMENT "Generating docs."
