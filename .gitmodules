@@ -28,3 +28,6 @@
 [submodule "eBPF_Supermarket/eBPF_proc_image/libbpf"]
 	path = eBPF_Supermarket/eBPF_proc_image/libbpf
 	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap"]
+	path = eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap
+	url = https://github.com/libbpf/libbpf-bootstrap.git
