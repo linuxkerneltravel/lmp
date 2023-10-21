@@ -1,3 +1,0 @@
-linux内核代码：https://github.com/13186379707/linux.git
-ExtFUSE扩展代码：https://github.com/13186379707/extfuse.git
-ExtFUSE库代码：https://github.com/13186379707/libfuse.git
