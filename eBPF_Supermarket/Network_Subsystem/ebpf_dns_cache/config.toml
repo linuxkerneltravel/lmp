@@ -1,0 +1,24 @@
+[global]
+interface = "docker0"   #监听的接口
+log = "debug" # 输出日志级别,有 error,warn,info,debug,trace
+report_interval = "5s" # 输出 matching matched unmatched cache 四张表信息（日志级别设为 trace）
+                       # 还有总体的统计信息
+worker = 1 # 工作进程数量
+loss = 0.2 # 20% 的DNS query 失败时构造响应并注入
+api_listen_at = "127.0.0.1:4000" # api 端口监听地址
+
+[matching]
+capacity = 16384 # 最大容量
+timeout = "5s" # 超时时间，超过这个时间的话会认为该 DNS query 超时
+
+[matched]
+capacity = 16384
+ttl = "10m"
+
+[unmatched]
+capacity = 16384
+ttl = "10m"
+
+[cache]
+capacity = 16384
+ttl = "10m" # 解析记录的缓存时间
