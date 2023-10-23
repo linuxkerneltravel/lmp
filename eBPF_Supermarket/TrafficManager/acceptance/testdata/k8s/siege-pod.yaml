@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Pod
-metadata:
-  name: siege
-spec:
-  containers:
-    - name: siege
-      image: eswzy/siege
-      command: ['sh', '-c', 'echo "Hello, Siege!" && sleep 3600']
