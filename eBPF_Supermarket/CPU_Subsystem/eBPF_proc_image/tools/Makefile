@@ -19,12 +19,12 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 OUTPUT := .output
 CLANG ?= clang
-LIBBPF_SRC := $(abspath libbpf/src)
-BPFTOOL_SRC := $(abspath bpftool/src)
+LIBBPF_SRC := $(abspath ../../libbpf/src)
+BPFTOOL_SRC := $(abspath ../../bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
-LIBBLAZESYM_SRC := $(abspath blazesym/)
+LIBBLAZESYM_SRC := $(abspath ../../blazesym/)
 LIBBLAZESYM_INC := $(abspath $(LIBBLAZESYM_SRC)/include)
 LIBBLAZESYM_OBJ := $(abspath $(OUTPUT)/libblazesym.a)
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
@@ -34,7 +34,7 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-VMLINUX := vmlinux/$(ARCH)/vmlinux.h
+VMLINUX := ../../vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
@@ -42,7 +42,7 @@ INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(L
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = proc_image
+APPS = lifecycle_image lock_image newlife_image keytime_image
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
@@ -53,6 +53,10 @@ APPS += $(BZS_APPS)
 # Required by libblazesym
 ALL_LDFLAGS += -lrt -ldl -lpthread -lm
 endif
+
+COMMON_OBJ = \
+	$(OUTPUT)/trace_helpers.o \
+	$(OUTPUT)/uprobe_helpers.o \
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -144,7 +148,7 @@ $(patsubst %,$(OUTPUT)/%.o,$(BZS_APPS)): $(LIBBLAZESYM_OBJ)
 $(BZS_APPS): $(LIBBLAZESYM_OBJ)
 
 # Build application binary
-$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
+$(APPS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
 
