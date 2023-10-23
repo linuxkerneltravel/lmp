@@ -66,26 +66,26 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version-file: eBPF_Supermarket/TrafficManager/go.mod
-          cache-dependency-path: eBPF_Supermarket/TrafficManager/go.sum
+          go-version-file: eBPF_Supermarket/Network_Subsystem/TrafficManager/go.mod
+          cache-dependency-path: eBPF_Supermarket/Network_Subsystem/TrafficManager/go.sum
 
       - name: Load Dependency
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           sudo go mod tidy
 
       - name: Build
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           sudo make init
           sudo make build
 
       - name: Run
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           sudo -E timeout 10 ./main || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
 
       - name: Test
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           make test
