@@ -43,7 +43,7 @@ jobs:
 
       - name: Setup testing environments
         run: |
-          kubectl apply -f eBPF_Supermarket/TrafficManager/acceptance/testdata/k8s/
+          kubectl apply -f eBPF_Supermarket/Network_Subsystem/TrafficManager/acceptance/testdata/k8s/
 
       - name: Install eBPF development tools
         run: |
