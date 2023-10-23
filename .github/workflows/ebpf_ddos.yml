@@ -5,14 +5,14 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/eBPF_DDoS/**'
-      - '.github/workflows/ebpf_lsm.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/eBPF_DDoS/**'
+      - '.github/workflows/ebpf_ddos.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/eBPF_DDoS/**'
-      - '.github/workflows/ebpf_lsm.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/eBPF_DDoS/**'
+      - '.github/workflows/ebpf_ddos.yml'
 
 jobs:
   build-and-test:

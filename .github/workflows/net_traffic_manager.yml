@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/TrafficManager/**'
+      - 'eBPF_Supermarket/Network_Subsystem/TrafficManager/**'
       - '.github/workflows/net_traffic_manager.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/TrafficManager/**'
+      - 'eBPF_Supermarket/Network_Subsystem/TrafficManager/**'
       - '.github/workflows/net_traffic_manager.yml'
 
 jobs:
