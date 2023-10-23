@@ -16,5 +16,26 @@ on:
   
 jobs:
   FUSE_read-build-and-test:
-    runs-on: ubuntu-16.04.3
-      
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run fusedemo
+        run: |
+          cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/fusedemo/
+          sudo apt updata
+          sudo apt install fuse libfuse-dev meson ninja wget
+          wget https://github.com/libfuse/libfuse/releases/tag/fuse-3.16.2/fuse-3.16.2.tar.gz
+          tar -zxvf fuse-3.16.2.tar.gz
+          mv fuse-3.16.2.tar.gz libfuse
+          cd libfuse
+          mkdir build
+          cd build
+          meson ..
+          meson configure -D disable-mtab=true
+          ninja
+          sudo ninja install
+          cd ./example/
+          mkdir ./yourdir
+          ./fusedemo ./yourdir
+          df -T ./yourdir
