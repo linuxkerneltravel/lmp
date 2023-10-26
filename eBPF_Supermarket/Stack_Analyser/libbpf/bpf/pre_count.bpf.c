@@ -35,9 +35,9 @@ BPF_HASH(psid_util, psid, tuple);
 BPF_HASH(in_ra, u32, psid);
 BPF_HASH(page_psid, struct page *, psid);
 
-int apid;
-char u, k;
-__u64 min, max;
+int apid = 0;
+bool u = false, k = false;
+__u64 min = 0, max = 0;
 
 SEC("fentry/page_cache_ra_unbounded")
 int BPF_PROG(page_cache_ra_unbounded)

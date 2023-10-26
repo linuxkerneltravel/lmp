@@ -30,9 +30,9 @@ BPF_HASH(pid_tgid, u32, u32);
 BPF_HASH(psid_count, psid, u32);
 BPF_HASH(pid_comm, u32, comm);
 
-bool u, k;
-__u64 min, max;
-unsigned long *load_a;
+bool u = false, k = false;
+__u64 min = 0, max = 0;
+unsigned long *load_a = NULL;
 
 SEC("perf_event")
 int do_stack(void *ctx)
