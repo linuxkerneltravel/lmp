@@ -57,7 +57,7 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
             skel->progs.prog_name,                               \
             pid,                                                 \
             object,                                              \
-            1,                                                   \
+            0,                                                   \
             &uprobe_opts);                                       \
     } while (false)
 #endif
@@ -205,7 +205,7 @@ typedef struct
 /// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
 typedef struct
 {
-    void *addr;
+    __u64 addr;
     __u32 pid, o;
 } piddr;
 
