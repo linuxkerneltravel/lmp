@@ -40,7 +40,6 @@ __u64 min = 0, max = 0;
 
 int gen_alloc_enter(size_t size)
 {
-    bpf_printk("alloc trigger");
     // bpf_printk("malloc_enter");
     // record data
     if (size <= min || size > max)
