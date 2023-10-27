@@ -21,33 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install pre-build lib dependencies
-        run: |
-          sudo apt update
-          sudo apt install clang libelf1 libelf-dev zlib1g-dev
-          sudo apt install libbpf-dev
-          sudo apt install linux-tools-5.19.0-46-generic	
-          sudo apt install linux-cloud-tools-5.19.0-46-generic
-          sudo apt install libc6-dev-i386
-          sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
-
-      - name: Run app with pre-build lib
-        run: |
-          cd eBPF_Supermarket/Stack_Analyser/libbpf
-          make
-          sudo ./stack_analyzer on-cpu 10
-          sudo ./stack_analyzer mem 10 -l
-
       - name: Install native lib dependencies
         run: |
-          sudo apt install llvm libpcap-dev gcc-multilib build-essential
-          cd eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap
           git submodule update --init --recursive
+          sudo apt install clang libelf1 libelf-dev zlib1g-dev
+          sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
         
       - name: Run app with native lib
         run: |
           cd eBPF_Supermarket/Stack_Analyser/libbpf
-          make -f Makefile.new
+          make
           sudo ./stack_analyzer on-cpu 10
           sudo ./stack_analyzer mem 10 -l
 
