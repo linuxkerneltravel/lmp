@@ -1,0 +1,111 @@
+
+#include "vmlinux.h"
+#include "kvm_exits.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_core_read.h>
+#include <bpf/bpf_tracing.h>
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 8192);
+	__type(key, pid_t);
+	__type(value, struct reason_info);
+} times SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 8192);
+	__type(key, u32);
+	__type(value, u32);
+} counts SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 256 * 1024);
+} rb SEC(".maps");
+
+struct exit{
+	u64 pad;
+	unsigned int exit_reason;
+    unsigned long guest_rip;
+    u32 isa;
+    u64 info1;
+    u64 info2;
+    u32 intr_info;
+    u32 error_code;
+    unsigned int vcpu_id;
+};
+
+int total=0;
+
+SEC("tp/kvm/kvm_exit")
+int  handle_kvm_exit(struct exit *ctx)
+{   
+    pid_t tid;
+    u64 id,ts;
+    id = bpf_get_current_pid_tgid();
+	tid = (u32)id;
+	ts = bpf_ktime_get_ns();
+	u32 reason;
+	reason=(u32)ctx->exit_reason;
+	struct reason_info reas={};
+	reas.reason=reason;
+	reas.time=ts;
+	u32 *count;
+   	count=bpf_map_lookup_elem(&counts, &reason);
+    if(count){
+        (*count)++;
+		reas.count=*count;
+    }else{
+        u32 new_count = 1;
+		reas.count=new_count;
+        bpf_map_update_elem(&counts, &reason, &new_count, BPF_ANY);
+    }
+    bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
+	return 0;
+}
+
+SEC("tp/kvm/kvm_entry")
+int handle_kvm_entry()
+{ 
+	struct reason_info *reas;
+	pid_t pid, tid;
+	u64 id, ts, *start_ts, duration_ns=0;
+	id = bpf_get_current_pid_tgid();
+	pid = id >> 32;
+	tid = (u32)id;
+	reas = bpf_map_lookup_elem(&times, &tid);
+	if(reas){
+		u32 reason;
+    	struct event *e;
+		int count=0;
+		duration_ns=bpf_ktime_get_ns() - reas->time;
+		bpf_map_delete_elem(&times, &tid);
+		reason=reas->reason;
+		count=reas->count;
+		e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+		if (!e){
+			return 0;
+		}
+		e->reason_number=reason;
+		e->pid=pid;
+		e->duration_ns = duration_ns;
+		bpf_get_current_comm(&e->comm, sizeof(e->comm));
+		e->tid=tid;
+		e->total=++total;
+		if (count) {
+			e->count = count;
+		} else {
+			e->count = 1;
+		}
+		bpf_ringbuf_submit(e, 0);
+		return 0;
+	}
+	else{
+		return 0;
+	}	   	
+}
+
+
+
