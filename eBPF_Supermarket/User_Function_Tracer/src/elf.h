@@ -14,124 +14,217 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 解析ELF格式以遍历ELF中的各个节以及符号节中的各个条目
+// Use gelf library to parse each section in an ELF file
 
 #ifndef UTRACE_ELF_H
 #define UTRACE_ELF_H
 
 #include <gelf.h>
+#include <stdbool.h>
 
 /**
- * @brief 保存ELF头信息
+ * @brief represent an ELF header
  */
 struct elf_head {
-  int fd;         /**< 文件描述符 */
-  Elf* e;         /**< ELF指针 */
-  GElf_Ehdr ehdr; /**< ELF头 */
+  int fd;         /**< ELF file descriptor */
+  Elf *e;         /**< ELF pointer */
+  GElf_Ehdr ehdr; /**< ELF header info */
 };
 
 /**
- * @brief 根据文件名初始化ELF头信息
- * @param[out] elf 待初始化的ELF头
- * @param[in] filename 文件名
+ * @brief init the given elf_head according to the file `filename`
+ * @retval true on success
  */
-int elf_head_begin(struct elf_head* elf, const char* filename);
+bool elf_head_init(struct elf_head *elf, const char *filename);
 
 /**
- * @brief 在使用完ELF头信息后释放资源
- * @param[in] elf 经过elf_head_begin()初始化后的ELF头
+ * @brief free the elf_head
  */
-void elf_head_end(struct elf_head* elf);
+void elf_head_free(struct elf_head *elf);
 
 /**
- * @brief 得到程序的入口地址
- * @param[in] elf 初始化过的ELF头
+ * @brief get the entry address of the program `filename`
+ * @retval 0 on error
+ * @details the entry address is recorded in ELF header
  */
-size_t get_entry_address(struct elf_head* elf);
+size_t get_entry_address(const char *filename);
 
 /**
- * @brief 保存ELF节信息，包括节指针以及节头表
+ * @brief represent an ELF section
  */
 struct elf_section {
-  Elf_Scn* scn;   /**< ELF节 */
-  GElf_Shdr shdr; /**< ELF节头 */
-  size_t str_idx; /**< 字符串表序号 */
+  Elf_Scn *scn;   /**< ELF section info */
+  GElf_Shdr shdr; /**< ELF section header info */
+  size_t str_idx; /**< index in the string table */
 };
 
-/**
- * @brief 开始遍历ELF的各个节
- * @param[out] elf_s 指向一个节
- * @param[in] elf 被遍历的ELF头信息
- */
-void elf_section_begin(struct elf_section* elf_s, struct elf_head* elf);
+// use the following functions like `for (elf_xxx_begin(...); elf_xxx_next(...); )`
 
 /**
- * @brief 移动到下一个ELF节
- * @param[out] elf_s 指向一个节
- * @param[in] elf 被遍历的ELF头信息
- * @return 指示是否遍历结束
- * @retval 0 当前elf_s合法
- *            1 当前elf_s不合法，即遍历结束
+ * @brief begin to traverse each ELF section `elf_s`
+ * @param[in] elf_s the ELF section to be assigned
+ * @param[in] elf ELF header that contains `elf_s`
  */
-int elf_section_next(struct elf_section* elf_s, struct elf_head* elf);
+void elf_section_begin(struct elf_section *elf_s, struct elf_head *elf);
 
 /**
- * @brief 保存ELF符号条目
+ * @brief move to next ELF section
+ * @param[out] elf_s the next ELF section
+ * @retval true when the current traversal ends, and the `elf_s` becomes undefined at this time
+ */
+bool elf_section_next(struct elf_section *elf_s, struct elf_head *elf);
+
+/**
+ * @brief represent an ELF symbol entry in .symtab section or .dynsym section
  */
 struct elf_sym_entry {
-  size_t i;           /**< 当前条目序号 */
-  size_t num;         /**< 条目总数 */
-  Elf_Data* sym_data; /**< 符号数据 */
-  GElf_Sym sym;       /**< 符号表项 */
-  size_t str_idx;     /**< 字符串表序号 */
+  size_t i;
+  size_t nentries;
+  Elf_Data *sym_data;
+  GElf_Sym sym;
+  size_t str_idx;
 };
 
 /**
- * @brief 开始遍历ELF节（.symtab, .dynsym）中的各个条目
- * @param[out] elf_e 指向一个条目
- * @param[in] elf_s 被遍历的ELF节
+ * @brief begin to traverse each ELF symbol entry `elf_e`
+ * @param[in] elf_e the ELF symbol entry to be assigned
+ * @param[in] elf_s ELF section that contains `elf_e`
  */
-void elf_sym_entry_begin(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
+void elf_sym_entry_begin(struct elf_sym_entry *elf_e, struct elf_section *elf_s);
 
 /**
- * @brief 移动到下一个ELF条目
- * @param[out] elf_e 指向一个条目
- * @param[in] elf_s 被遍历的ELF节信息
- * @return 指示是否遍历结束
- * @retval 0 当前elf_e合法
- *         1 当前elf_e不合法，即遍历结束
+ * @brief move to next ELF symbol entry
+ * @param[out] elf_e the next ELF symbol entry
+ * @retval true when the current traversal ends, and the `elf_e` becomes undefined at this time
  */
-int elf_sym_entry_next(struct elf_sym_entry* elf_e, struct elf_section* elf_s);
+bool elf_sym_entry_next(struct elf_sym_entry *elf_e, struct elf_section *elf_s);
 
 /**
- * @brief 保存ELF重定位条目
+ * @brief represent an ELF relocation added entry in .rela section
  */
 struct elf_rela_entry {
-  size_t i;            /**< 当前条目序号 */
-  size_t num;          /**< 条目总数 */
-  Elf_Data* sym_data;  /**< 符号数据 */
-  Elf_Data* rela_data; /**< 重定位数据 */
-  GElf_Rela rela;      /**< 重定位表项 */
-  GElf_Sym sym;        /**< 符号表项 */
+  size_t i;
+  size_t nentries;
+  Elf_Data *sym_data;
+  Elf_Data *rela_data;
+  GElf_Rela rela;
+  GElf_Sym sym;
 };
 
 /**
- * @brief 开始遍历ELF节（.rela）中的各个条目
- * @param[out] elf_e 指向一个条目
- * @param[in] elf_s 被遍历的ELF节
- * @param[in] dyn_sym_data 动态符号数据
+ * @brief begin to traverse each ELF relocation added entry `elf_e`
+ * @param[in] elf_e the ELF relocation added entry to be assigned
+ * @param[in] elf_s ELF section that contains `elf_e`
  */
-void elf_rela_entry_begin(struct elf_rela_entry* elf_e, struct elf_section* elf_s,
-                          Elf_Data* dyn_sym_data);
+void elf_rela_entry_begin(struct elf_rela_entry *elf_e, struct elf_section *elf_s,
+                          Elf_Data *dyn_sym_data);
 
 /**
- * @brief 移动到下一个ELF条目
- * @param[out] elf_e 指向一个条目
- * @param[in] elf_s 被遍历的ELF节信息
- * @return 指示是否遍历结束
- * @retval 0 当前elf_e合法
- *         1 当前elf_e不合法，即遍历结束
+ * @brief move to next ELF relocation added entry
+ * @param[out] elf_e the next ELF relocation added entry
+ * @retval true when the current traversal ends, and the `elf_e` becomes undefined at this time
  */
-int elf_rela_entry_next(struct elf_rela_entry* elf_e, struct elf_section* elf_s);
+bool elf_rela_entry_next(struct elf_rela_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief represent an ELF relocation entry in .rel section
+ */
+struct elf_rel_entry {
+  size_t i;
+  size_t nentries;
+  Elf_Data *sym_data;
+  Elf_Data *rel_data;
+  GElf_Rel rel;
+  GElf_Sym sym;
+};
+
+/**
+ * @brief begin to traverse each ELF relocation entry `elf_e`
+ * @param[in] elf_e the ELF relocation entry to be assigned
+ * @param[in] elf_s ELF section that contains `elf_e`
+ */
+void elf_rel_entry_begin(struct elf_rel_entry *elf_e, struct elf_section *elf_s,
+                         Elf_Data *dyn_sym_data);
+
+/**
+ * @brief move to next ELF relocation entry
+ * @param[out] elf_e the next ELF relocation entry
+ * @retval true when the current traversal ends, and the `elf_e` becomes undefined at this time
+ */
+bool elf_rel_entry_next(struct elf_rel_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief represent an ELF version symbol entry in .versym section
+ */
+struct elf_versym_entry {
+  size_t i;
+  size_t nentries;
+  Elf_Data *versym_data;
+  GElf_Versym versym;
+};
+
+/**
+ * @brief begin to traverse each ELF version symbol entry `elf_e`
+ * @param[in] elf_e the ELF version symbol entry to be assgined
+ * @param[in] elf_s ELF section that contains `elf_e`
+ */
+void elf_versym_entry_begin(struct elf_versym_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief move to next ELF version symbol entry
+ * @param[out] elf_e the next ELF version symbol entry
+ * @retval true when the current traversal ends, and the `elf_e` becomes undefined at this time
+ */
+bool elf_versym_entry_next(struct elf_versym_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief represent an ELF version definition entry in .verdef section
+ */
+struct elf_verdef_entry {
+  size_t i;
+  size_t offset;
+  Elf_Data *verdef_data;
+  GElf_Verdef verdef;
+  size_t str_idx;
+};
+
+/**
+ * @brief begin to traverse each ELF version definition entry `elf_e`
+ * @param[in] elf_e the ELF version definition entry to be assigned
+ * @param[in] elf_s ELF section that contains `elf_e`
+ */
+void elf_verdef_entry_begin(struct elf_verdef_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief move to next ELF version definition entry
+ * @param[out] elf_e the next ELF version definition entry
+ * @retval true when the current traversal ends, and the `elf_e` becomes undefined at this time
+ */
+bool elf_verdef_entry_next(struct elf_verdef_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief represent an ELF version needs entry in .verneed section
+ */
+struct elf_verneed_entry {
+  size_t i;
+  size_t offset;
+  Elf_Data *verneed_data;
+  GElf_Verneed verneed;
+  size_t str_idx;
+};
+
+/**
+ * @brief begin to traverse each ELF version needs entry `elf_e`
+ * @param[in] elf_e the ELF version needs entry to be assigned
+ * @param[in] elf_s ELF section that contains `elf_e`
+ */
+void elf_verneed_entry_begin(struct elf_verneed_entry *elf_e, struct elf_section *elf_s);
+
+/**
+ * @brief move to next ELF version needs entry
+ * @param[out] elf_e the next ELF version needs entry
+ * @retval true when the current traversal ends, and the `elf_e` becomes undefined at this time
+ */
+bool elf_verneed_entry_next(struct elf_verneed_entry *elf_e, struct elf_section *elf_s);
 
 #endif  // UTRACE_ELF_H

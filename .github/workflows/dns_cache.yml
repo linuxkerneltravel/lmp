@@ -5,12 +5,14 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/ebpf_dns_cache/**'
+      - 'eBPF_Supermarket/Network_Subsystem/ebpf_dns_cache/**'
+      - '.github/workflows/dns_cache.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/ebpf_dns_cache/**'
+      - 'eBPF_Supermarket/Network_Subsystem/ebpf_dns_cache/**'
+      - '.github/workflows/dns_cache.yml'
 
 jobs:
   build-and-test:
@@ -31,10 +33,10 @@ jobs:
 
       - name: Build
         run: |
-          cd eBPF_Supermarket/ebpf_dns_cache
+          cd eBPF_Supermarket/Network_Subsystem/ebpf_dns_cache
           cargo build
 
       - name: Clippy
         run: |
-          cd eBPF_Supermarket/ebpf_dns_cache
+          cd eBPF_Supermarket/Network_Subsystem/ebpf_dns_cache
           cargo clippy

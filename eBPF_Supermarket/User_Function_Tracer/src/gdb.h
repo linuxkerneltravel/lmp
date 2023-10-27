@@ -14,61 +14,54 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 设置断点，为探针提供时间
+// Set breakpoints in the traced program, to record its memory regions and attach uprobes
 
 #ifndef UTRACE_GDB_H
 #define UTRACE_GDB_H
 
-#include <stdint.h>
-#include <unistd.h>
+#include <stdint.h>     // for uint8_t
+#include <sys/types.h>  // for pid_t
 
-/*
- * @brief 记录跨函数传递的信息
- */
 struct gdb {
-  pid_t pid;    /**< gdb附加到的进程的编号 */
-  uint8_t inst; /**< 被int3覆盖的单字节指令 */
+  pid_t pid;          /**< process ID of the traced program */
+  uint8_t saved_inst; /**< store the inst overwritten by int3 when setting breakpoints */
 };
 
-/*
- * @brief 创建一个gdb结构体
- * @param[in] pid 进程号
- * @return 指向gdb结构体的指针
- * @note 从堆中申请空间
+/**
+ * @brief create and init a gdb
+ * @param[in] pid process ID of the traced program
+ * @return struct gdb malloced from heap
  */
-struct gdb* init_gdb(pid_t pid);
+struct gdb *gdb_init(pid_t pid);
 
-/*
- * @brief 设置一个断点
- * @param[in] gdb 指向一个gdb结构体
- * @param[in] addr 物理地址
+/**
+ * @brief enable a breakpoint at `addr`
  */
-void enable_breakpoint(struct gdb* gdb, size_t addr);
+long gdb_enable_breakpoint(struct gdb *gdb, size_t addr);
 
-/*
- * @brief 取消一个断点
- * @param[in] gdb 指向一个gdb结构体
- * @param[in] addr 物理地址
- * @note 需要保证之前调用过enable_breakpoint(gdb, pid, addr)
+/**
+ * @brief disable a previously set breakpoint at `addr`
  */
-void disable_breakpoint(struct gdb* gdb, size_t addr);
+long gdb_disable_breakpoint(const struct gdb *gdb, size_t addr);
 
-/*
- * @brief 继续执行
- * @param[in] gdb 指向一个gdb结构体
+/**
+ * @brief let the traced program continue to exec
  */
-long continue_execution(struct gdb* gdb);
+long gdb_continue_execution(const struct gdb *gdb);
 
-/*
- * @brief 等待进程收到信号
- * @param[in] gdb 指向一个gdb结构体
+/**
+ * @brief blocked wait until the traced program is stopped by a signal
  */
-long wait_for_signal(struct gdb* gdb);
+long gdb_wait_for_signal(const struct gdb *gdb);
 
-/*
- * @brief 取消ptrace并释放gdb结构体的空间
- * @param[in] gdb 指向要释放的gdb结构体
+/**
+ * @brief detach from the traced program
  */
-void free_gdb(struct gdb* gdb);
+long gdb_detach(const struct gdb *gdb);
+
+/**
+ * @brief free the `gdb`
+ */
+void gdb_free(struct gdb *gdb);
 
 #endif  // UTRACE_GDB_H

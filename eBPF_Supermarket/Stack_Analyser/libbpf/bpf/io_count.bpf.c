@@ -31,10 +31,10 @@ BPF_HASH(pid_comm, u32, comm);
 const char LICENSE[] SEC("license") = "GPL";
 
 int apid;
-char u, k;
+bool u, k, cot;
 __u64 min, max;
 
-int do_stack(struct pt_regs *ctx)
+static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
     u64 td = bpf_get_current_pid_tgid();
     u32 pid = td >> 32;
@@ -42,8 +42,8 @@ int do_stack(struct pt_regs *ctx)
     if ((apid >= 0 && pid != apid) || !pid)
         return 0;
 
-    u64 len = PT_REGS_PARM3(ctx);
-    if(len < min || len > max)
+    u64 len = (u64)BPF_CORE_READ(ctx, args[3]);
+    if (len < min || len > max)
         return 0;
 
     u32 tgid = td;
@@ -63,16 +63,35 @@ int do_stack(struct pt_regs *ctx)
 
     // record time delta
     u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);
-    if (count)
-        (*count) += len;
+    if (cot)
+    {
+        if (count)
+            (*count)++;
+        else
+        {
+            u64 one = 1;
+            bpf_map_update_elem(&psid_count, &apsid, &one, BPF_NOEXIST);
+        }
+    }
     else
-        bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);
-
+    {
+        if (count)
+            (*count) += len;
+        else
+            bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);
+    }
     return 0;
 }
 
-SEC("kprobe/vfs_write")
-int BPF_KPROBE(write_enter) { return do_stack(ctx); }
+#define io_sec_tp(name)                         \
+    SEC("tracepoint/syscalls/sys_enter_" #name) \
+    int prog_t_##name(struct trace_event_raw_sys_enter *ctx) { return do_stack(ctx); }
 
-SEC("kprobe/vfs_read")
-int BPF_KPROBE(read_enter) { return do_stack(ctx); }
+// tracepoint:syscalls:sys_exit_select
+// tracepoint:syscalls:sys_enter_poll
+// tracepoint:syscalls:sys_enter_epoll_wait
+
+io_sec_tp(write);
+io_sec_tp(read);
+io_sec_tp(recvfrom);
+io_sec_tp(sendto);

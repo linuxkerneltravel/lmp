@@ -1,5 +1,24 @@
-from my_class import *
+'''
+Copyright 2023 The LMP Authors.
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+author: luiyanbing@foxmail.com
+
+数据格式化相关的函数
+'''
+
+from my_class import *
 
 def map2dict(b, get_mutant: callable, need_delimiter=True, show_offset=False) -> dict:
     psid_count = {psid_t(psid): count.value for psid,
@@ -19,10 +38,10 @@ def map2dict(b, get_mutant: callable, need_delimiter=True, show_offset=False) ->
                        ][psid.pid].setdefault('stacks', dict())
         stks_d[str(psid.ksid)+','+str(psid.usid)] = {
             'trace': (
-                (["%#08x:%s" % (j, b.ksym(j).decode())
+                (["%#016x:%s" % (j, b.ksym(j).decode())
                   for j in stack_trace.walk(psid.ksid)] if psid.ksid >= 0 else ['[Missed Kernel Stack]']) +
                 (['-'*50] if need_delimiter else []) +
-                (["%#08x:%s" % (j, b.sym(j, psid.pid, show_offset=show_offset).decode())
+                (["%#016x:" % (j)
                  for j in stack_trace.walk(psid.usid)] if psid.usid >= 0 else ['[Missed User Stack]'])
             ), 'count': n, 'label': get_mutant(psid)
         }

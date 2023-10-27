@@ -16,3 +16,33 @@
 [submodule "eBPF_Hub/libbpf-bootstrap-android"]
 	path = eBPF_Hub/libbpf-bootstrap-android
 	url = https://github.com/JiaHuann/libbpf-bootstrap-android
+[submodule "eBPF_Supermarket/CPU_Subsystem/libbpf_sar/libbpf-bootstrap"]
+	path = eBPF_Supermarket/CPU_Subsystem/libbpf_sar/libbpf-bootstrap
+	url = https://github.com/libbpf/libbpf-bootstrap.git
+[submodule "eBPF_Supermarket/eBPF_proc_image/blazesym"]
+	path = eBPF_Supermarket/eBPF_proc_image/blazesym
+	url = https://github.com/libbpf/blazesym.git
+[submodule "eBPF_Supermarket/eBPF_proc_image/bpftool"]
+	path = eBPF_Supermarket/eBPF_proc_image/bpftool
+	url = https://github.com/libbpf/bpftool.git
+[submodule "eBPF_Supermarket/eBPF_proc_image/libbpf"]
+	path = eBPF_Supermarket/eBPF_proc_image/libbpf
+	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/CPU_Subsystem/proc_image/blazesym"]
+	path = eBPF_Supermarket/CPU_Subsystem/proc_image/blazesym
+	url = https://github.com/libbpf/blazesym.git
+[submodule "eBPF_Supermarket/CPU_Subsystem/proc_image/bpftool"]
+	path = eBPF_Supermarket/CPU_Subsystem/proc_image/bpftool
+	url = https://github.com/libbpf/bpftool.git
+[submodule "eBPF_Supermarket/CPU_Subsystem/proc_image/libbpf"]
+	path = eBPF_Supermarket/CPU_Subsystem/proc_image/libbpf
+	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/CPU_Subsystem/blazesym"]
+	path = eBPF_Supermarket/CPU_Subsystem/blazesym
+	url = https://github.com/libbpf/blazesym.git
+[submodule "eBPF_Supermarket/CPU_Subsystem/bpftool"]
+	path = eBPF_Supermarket/CPU_Subsystem/bpftool
+	url = https://github.com/libbpf/bpftool.git
+[submodule "eBPF_Supermarket/CPU_Subsystem/libbpf"]
+	path = eBPF_Supermarket/CPU_Subsystem/libbpf
+	url = https://github.com/libbpf/libbpf.git

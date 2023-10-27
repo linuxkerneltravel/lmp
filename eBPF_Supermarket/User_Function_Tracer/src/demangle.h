@@ -14,23 +14,20 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 还原C++重整后的符号
+// demangle and simplify mangled C++ symbols
 
 #ifndef UTRACE_DEMANGLE_H
 #define UTRACE_DEMANGLE_H
 
-#include <stddef.h>
+#include <stddef.h>  // for size_t
 
+// defined in libstdc++
 extern char *__cxa_demangle(const char *mangled_name, char *output_buffer, size_t *length,
                             int *status);
 
 /**
- * @brief 还原重整符号
- * @param[in] mangled_name 符号
- * @return 还原后的符号
- * @details 对于未重整的符号，调用strdup()
- *          对于重整过的符号（以"_Z"起始），调用abi::__cxa_demangle()
- * @retval 指向堆内存
+ * @brief demangle and simplify the `mangled_name`
+ * @return demangled name malloced from heap
  */
 char *demangle(const char *mangled_name);
 

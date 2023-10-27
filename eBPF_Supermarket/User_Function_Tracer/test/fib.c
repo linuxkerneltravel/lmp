@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试递归函数调用
+// Test recursive function calls
 
 int fib(int n) {
   if (n <= 2) return 1;

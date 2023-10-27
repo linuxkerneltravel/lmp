@@ -14,7 +14,7 @@
 //
 // author: jinyufeng2000@gmail.com
 //
-// 测试函数时延统计
+// Test function duration measurement
 
 #include <unistd.h>
 
@@ -28,7 +28,6 @@ void f() {
 void h() { sleep(3); }
 
 int main() {
-  sleep(5);
   f();
   h();
   return 0;

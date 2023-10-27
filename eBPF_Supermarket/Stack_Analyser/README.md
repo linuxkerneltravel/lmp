@@ -1,302 +1,63 @@
-# 功能描述
+# 1. 功能描述
 
 对操作系统各方面的调用栈进行计数，从中分析程序性能瓶颈。
 
-# 运行方法
+## 2.1 应用场景及意义
 
-## libbpf版
+Stack_Analyzer是一个基于eBPF的按照指定时间间隔（默认为5s）来统计涉及特定子系统的进程函数调用栈的性能指标的工具。使用它可以帮助您便捷地查看相关子系统性能损耗最高或者对系统吞吐量影响较大的瓶颈调用栈，直接而具体地设计并进行程序或系统性能上的优化，进而降低对cpu性能的损耗，提高系统吞吐量，以增强车机系统的实时性。
 
-轻量，功能较少
+与传统工具相比，Stack_Analyzer可提供指标相关的更细粒度的信息，从以进程为单位监测性能指标深入到了以调用栈为单位，可直接找出性能问题的根源。目前支持的指标如下：
 
-### 安装依赖
+- cpu占用量
+- 阻塞时间
+- 内存占用大小
+- 磁盘/网络IO请求数据量
+- 预读取页剩余量
 
-```shell
-sudo apt update
-sudo apt install clang libelf1 libelf-dev zlib1g-dev
-sudo apt install libbpf-dev
-sudo apt install linux-tools-5.19.0-46-generic	
-sudo apt install linux-cloud-tools-5.19.0-46-generic
-sudo apt install libc6-dev-i386
-sudo cp FlameGraph/* /usr/bin/
-```
+除此之外，本项目设计了一个便于复用的调用栈采集框架，方便监测指标的添加。之后可根据需求添加更多的监测指标。
 
-### 工具编译
+## 2.2 性能参数及观测意义
 
-```shell
-cd libbpf
-sudo make
-```
+采集的指标对主要子系统进行了覆盖，分为以下五个部分：
 
-### 运行
+- on-cpu：进程/线程使用cpu的计数，从而分析出进程的用时最长的调用栈即性能瓶颈
+- off-cpu：进程/线程阻塞的时长、阻塞原因（内存分配、主动睡眠、锁竞争等）及调用路径，从而解决出进程执行慢、甚至卡死的问题，提高系统吞吐量
+- mem：进程/线程内存占用的大小及分配路径、更进一步可以检测出释放无效指针的问题，从而优化进程的内存分配方式
+- io：进程/线程输入/输出的数据量，及相应路径，从而优化进程输入/输出方式
+- readahead：进程/线程预读取页面使用量及对应调用栈，从而了解进程读数据的行为特征，进而使用madvise进行优化
 
-```shell
-SYNOPSIS
-        ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] [-p <set the pid of sampled process>]
-                         [-U] [-K] [<simpling time>] [-v]
+为了易于分析调用栈数据，项目加入更多的可视化元素和交互方式，使得画像更加直观、易于理解，对优化程序或系统性能有重要意义。
 
-        ./stack_analyzer off-cpu [-f] [-p <set the pid of sampled process>] [-U] [-K] [<simpling
-                         time>] [-v]
+# 2. 要求
 
-        ./stack_analyzer mem [-f] [-p <set the pid of sampled process>] [-U] [-K] [<simpling time>]
-                         [-v]
+## 2.1 内核要求
 
-        ./stack_analyzer io [-f] [-p <set the pid of sampled process>] [-U] [-K] [<simpling time>]
-                         [-v]
+- 版本：>= Linux 5.10
+- 开启内核选项：
+    - kprobes相关选项
+        - CONFIG_KPROBES=y
+        - CONFIG_KPROBE_EVENT=y
+    - uprobe相关选项
+        - CONFIG_TRACING_SUPPORT=y
+        - CONFIG_FTRACE=y
+        - CONFIG_HAVE_REGS_AND_STACK_ACCESS_API=y
+        - CONFIG_HAVE_KPROBES_ON_FTRACE=y
+        - CONFIG_DYNAMIC_FTRACE_WITH_REGS=y
+        - CONFIG_KPROBES_ON_FTRACE=y
+    - eBPF相关选项
+        - CONFIG_BPF=y
+        - CONFIG_BPF_SYSCALL=y
+        - CONFIG_BPF_JIT=y
+        - CONFIG_HAVE_EBPF_JIT=y
+        - CONFIG_BPF_EVENTS=y
+        - CONFIG_DEBUG_INFO_BTF=y
+        - CONFIG_FTRACE_SYSCALLS=y
 
-OPTIONS
-        on-cpu      sample the call stacks of on-cpu processes
-        <sampling frequency>
-                    sampling at a set frequency
+## 2.2 数据准确性要求
 
-        off-cpu     sample the call stacks of off-cpu processes
-        mem         sample the memory usage of call stacks
-        io          sample the IO data volume of call stacks
-        -v, --version
-                    show version
-```
+添加 `-fno-omit-frame-pointer` 选项编译被测程序以保留程序的fp信息，以便监测程序可以通过fp信息回溯被测程序的调用栈。
 
-## bcc版
-
-消耗较大，但功能较强，结合机器学习pca算法进行栈分析
-
-### 安装依赖
-
-```shell
-python -m pip install --upgrade pip
-sudo python -m pip install pyod
-sudo python -m pip install psutil
-sudo apt-get install -y linux-headers-$(uname -r)
-sudo apt-get install -y python-is-python3
-sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
-sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
-```
-
-### 编译依赖
-
-```shell
-cd bcc
-wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
-tar xf bcc-src-with-submodule.tar.gz
-cd bcc/
-mkdir build
-cd build/
-cmake -DCMAKE_INSTALL_PREFIX=/usr -DPYTHON_CMD=python3 ..
-make
-sudo make install
-cd ../../
-```
-
-### 运行
-
-stack_analyzer
-
-```shell
-usage: stack_count.py [-h] [-p PID | -t TID | -c Command | -u | -k] [-U | -K] [-a] [-d] [-f] [-s] [-m MODE] [--stack-storage-size STACK_STORAGE_SIZE]
-                      [--state STATE]
-                      [duration]
-
-Summarize on-CPU time by stack trace
-
-positional arguments:
-  duration              duration of trace, in seconds
-
-options:
-  -h, --help            show this help message and exit
-  -p PID, --pid PID     trace this PID only
-  -t TID, --tid TID     trace this TID only
-  -c Command, --cmd Command
-                        trace this command only
-  -u, --user-threads-only
-                        user threads only (no kernel threads)
-  -k, --kernel-threads-only
-                        kernel threads only (no user threads)
-  -U, --user-stacks-only
-                        show stacks from user space only (no kernel space stacks)
-  -K, --kernel-stacks-only
-                        show stacks from kernel space only (no user space stacks)
-  -a, --auto            analyzing stacks automatically
-  -d, --delimited       insert delimiter between kernel/user stacks
-  -f, --folded          output folded format
-  -s, --offset          show address offsets
-  -m MODE, --mode MODE  mode of stack counting, 'on_cpu'/'off_cpu'/'mem'
-  --stack-storage-size STACK_STORAGE_SIZE
-                        the number of unique stack traces that can be stored and displayed (default 16384)
-  --state STATE         filter on this thread state bitmask (eg, 2 == TASK_UNINTERRUPTIBLE) see include/linux/sched.h
-
-examples:
-    sudo -E ./stack_count.py             # trace on-CPU stack time until Ctrl-C
-    sudo -E ./stack_count.py -m off_cpu  # trace off-CPU stack time until Ctrl-C
-    sudo -E ./stack_count.py 5           # trace for 5 seconds only
-    sudo -E ./stack_count.py -f 5        # 5 seconds, and output as stack_count.svg in flame graph format
-    sudo -E ./stack_count.py -s 5        # 5 seconds, and show symbol offsets
-    sudo -E ./stack_count.py -p 185      # only trace threads for PID 185
-    sudo -E ./stack_count.py -t 188      # only trace thread 188
-    sudo -E ./stack_count.py -c cmdline  # only trace threads of cmdline
-    sudo -E ./stack_count.py -u          # only trace user threads (no kernel)
-    sudo -E ./stack_count.py -k          # only trace kernel threads (no user)
-    sudo -E ./stack_count.py -U          # only show user space stacks (no kernel)
-    sudo -E ./stack_count.py -K          # only show kernel space stacks (no user)
-    sudo -E ./stack_count.py -a          # anomaly detection for stack
-```
-
-load_monitor，计划将该工具以阈值控制选项的形式与stack_analyzer合并
-
-```shell
-usage: load_monitor.py [-h] [-t TIME] [-F FREQ] [-d DELAY] [-l THRESHOLD] [-r]
-
-Summarize on-CPU time by stack trace
-
-options:
-  -h, --help            show this help message and exit
-  -t TIME, --time TIME  running time
-  -F FREQ, --frequency FREQ
-                        monitor frequency
-  -d DELAY, --delay DELAY
-                        output delay(interval)
-  -l THRESHOLD, --threshold THRESHOLD
-                        load limit threshold
-  -r, --report
-
-examples:
-        ./load_monitor.py             # monitor system load until Ctrl-C
-        ./load_monitor.py -t 5           # monitor for 5 seconds only
-```
-
-# 运行效果
-
-展示工具的输出格式及说明
-
-## stack_analyzer
-
-采集在线的、离线的、内存申请释放、读写等调用栈。
-
-### 实时输出测试结果
-
-```shell
-Stack_Analyser/libbpf$ sudo ./stack_analyzer -p 12532
----------7---------
-12532  ( 38758,118464) 1     
-12532  ( 77616, 97063) 1     
-12532  (   -14,116464) 1     
-12532  (   -14, 18600) 1     
-12532  ( 31291, 87833) 1     
----------5---------
----------7---------
-12532  (    -1, 91718) 3482309
-12532  (    -1, 38038) 3533633
-12532  (    -1, 89746) 377229951
-12532  (    -1, 83783) 2977594
-```
-
-代码示为on-cpu、off-cpu和内存栈数据分别采集stress-ng-malloc 5s的输出，由分割线分开，分割线中间的数字为map fd，分割线间，第一列为pid，第二列括号中用户栈id和内核栈id，第三列为栈的数量，计数单位略有不同，on-cpu计数单位为次，off-cpu计数单位为0.1ms，内存计数单位为1kB
-
-### json文件结果
-
-```json
-{
-    "12532": {
-        "12532": {
-            "stacks": {
-                "91718,-1": {
-                    "count": 3482309,
-                    "trace": [
-                        "MISSING KERNEL STACK",
-                        "stress_malloc_loop"
-                    ]
-                }
-            },
-            "name": "stress-ng-mallo"
-        }
-    }
-}
-```
-
-以上代码为保存的json文件片段展开后的内容，是一个跟踪stress-ng-malloc采集到的内存栈信息，其内核栈标注为"MISSING KERNEL STACK"，表示内核栈没有被采集。
-
-## bcc/load_monitor.py
-
-用于在计算机负载超过阈值时记录内核栈数量信息，每5s输出一次总记录。
-
-终止时将记录以 栈-数量 的格式保存在 `./stack.bpf` 中，并输出火焰图文件 `./stack.svg`
-
-## 输出片段
-
-屏幕输出：
-```log
-____________________________________________________________
-0xffffffff928fced1 update_rq_clock
-0xffffffff92904c34 do_task_dead
-0xffffffff928c40a1 do_exit
-0xffffffff928c421b do_group_exit
-0xffffffff928d5280 get_signal
-0xffffffff9283d6ce arch_do_signal_or_restart
-0xffffffff9296bcc4 exit_to_user_mode_loop
-0xffffffff9296be00 exit_to_user_mode_prepare
-0xffffffff9359db97 syscall_exit_to_user_mode
-0xffffffff93599809 do_syscall_64
-0xffffffff93600099 entry_SYSCALL_64_after_hwframe
-stackid    count  pid    comm            
-5          37    
-                  82731  5               
-                  82783  IPC I/O Parent  
-                  82794  TaskCon~ller #1 
-                  82804  pool-spawner    
-                  82830  Breakpad Server 
-                  82858  Socket Thread   
-                  82859  JS Watchdog     
-                  82860  Backgro~Pool #1 
-                  82861  Timer           
-                  82862  RemVidChild     
-                  82863  ImageIO         
-                  82864  Worker Launcher 
-                  82865  TaskCon~ller #0 
-                  82867  ImageBridgeChld 
-                  82869  ProfilerChild   
-                  82870  AudioIP~ack RPC 
-                  82871  AudioIP~ver RPC 
-                  82877  dconf worker    
-                  82885  snap            
-                  83010  StreamTrans #1  
-                  83011  StreamTrans #2  
-                  83018  StreamTrans #3  
-                  83020  StreamTrans #5  
-                  83029  JS Watchdog     
-                  83030  Backgro~Pool #1 
-                  83031  Timer           
-                  83033  ImageIO         
-                  83034  Worker Launcher 
-                  83036  TaskCon~ller #1 
-                  83037  ImageBridgeChld 
-                  83048  IPC I/O Child   
-                  83049  Socket Thread   
-                  83051  Backgro~Pool #1 
-                  83052  Timer           
-                  83053  RemVidChild     
-                  83055  TaskCon~ller #0 
-                  83059  ProfilerChild   
-____________________________________________________________
-```
-
-文件输出：
-```log
-@[
-update_rq_clock
-sched_autogroup_exit_task
-do_exit
-do_group_exit
-get_signal
-arch_do_signal_or_restart
-exit_to_user_mode_loop
-exit_to_user_mode_prepare
-syscall_exit_to_user_mode
-do_syscall_64
-entry_SYSCALL_64_after_hwframe
-]: 37
-```
-<center><img src="assets/stack.svg" alt="stack.svg" style="zoom:90%;" /></center>
-
-
-# 计划安排
+# 3. 计划安排
 
 - [x] 实时输出功能
 - [x] on-cpu 栈采集功能
@@ -306,7 +67,5 @@ entry_SYSCALL_64_after_hwframe
 - [x] 火焰图绘制功能
 - [x] io-write栈采集功能
 - [x] 加入排序功能
-- [ ] 收发包栈采集功能
-- [ ] 兼容perf数据
+- [x] 收发包栈采集功能
 - [ ] 栈数据智能分析功能
-- [ ] 解决保存数据时卡顿的问题
