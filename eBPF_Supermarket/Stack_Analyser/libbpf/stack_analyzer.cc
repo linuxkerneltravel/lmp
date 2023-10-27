@@ -35,6 +35,7 @@ extern "C"
 #endif
 
 #include <sys/syscall.h>
+#include <unistd.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <bpf/bpf.h>
