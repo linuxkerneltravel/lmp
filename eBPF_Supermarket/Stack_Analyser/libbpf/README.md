@@ -1,7 +1,5 @@
 # 运行方法
 
-## 使用Ubuntu官方链接库编译
-
 ### 安装依赖
 
 ```shell
@@ -9,6 +7,12 @@ $ git submodule update --init --recursive
 $ apt install clang libelf1 libelf-dev zlib1g-dev
 $ sudo cp ../FlameGraph/* /usr/bin/
 ```
+
+### 版本要求
+
+Linux 5.15以上
+g++-10以上
+clang-12以上
 
 ### 工具编译
 
