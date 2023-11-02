@@ -27,7 +27,7 @@ jobs:
           sudo apt install linux-tools-$(uname -r)
           sudo apt install linux-cloud-tools-$(uname -r)
           sudo modprobe kvm
-          sudo modprobe kvm_intel
+          //sudo modprobe kvm_intel
       - name: Run kvm_exits
         run: |
           cd eBPF_Supermarket/kvm_watcher/kvm_exits
