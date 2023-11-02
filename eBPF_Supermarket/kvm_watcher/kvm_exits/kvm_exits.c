@@ -111,7 +111,7 @@ int main(int argc, char **argv)
 	struct kvm_exits_bpf *skel;
 	int err;
 
-    //alarm(1);
+    alarm(3);
 
 	/* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
@@ -119,7 +119,7 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-   // signal(SIGALRM, sig_handler);
+    signal(SIGALRM, sig_handler);
 	/* Open BPF application */
 	skel = kvm_exits_bpf__open();
 	if (!skel) {
