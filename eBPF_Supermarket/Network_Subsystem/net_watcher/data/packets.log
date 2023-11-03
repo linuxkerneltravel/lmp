@@ -1,0 +1,14 @@
+packet{sock="0xffff8b9aca033f00",seq="603608283",ack="1920274776",info="-",rx="0"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274776",ack="603609153",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274776",ack="603609153",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274776",ack="603609153",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274776",ack="603609153",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274776",ack="603609153",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274776",ack="603609153",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="603609153",ack="1920274932",info="-",rx="0"} 
+packet{sock="0xffff8b9aca033f00",seq="603609204",ack="1920274932",info="-",rx="0"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274932",ack="603610471",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920274932",ack="603610471",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920275310",ack="603610471",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="1920275310",ack="603610471",info="-",rx="1"} 
+packet{sock="0xffff8b9aca033f00",seq="603610471",ack="1920275342",info="-",rx="0"} 
