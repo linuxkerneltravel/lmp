@@ -79,7 +79,7 @@ __type(value, int);
 
 
 // 统计fork数
-SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
