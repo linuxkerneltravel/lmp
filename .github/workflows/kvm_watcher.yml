@@ -1,0 +1,34 @@
+name: kvm_watcher
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/kvm_watcher/**'
+      - '.github/workflows/kvm_watcher.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/kvm_watcher/**'
+      - '.github/workflows/kvm_watcher.yml'
+
+jobs:
+  kvm_watcher-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt install clang libelf1 libelf-dev zlib1g-dev
+          sudo apt install libbpf-dev
+          sudo apt install linux-tools-$(uname -r)
+          sudo apt install linux-cloud-tools-$(uname -r)
+          sudo modprobe kvm
+      - name: Run kvm_exits
+        run: |
+          cd eBPF_Supermarket/kvm_watcher/kvm_exits
+          make
+          sudo ./kvm_exits
