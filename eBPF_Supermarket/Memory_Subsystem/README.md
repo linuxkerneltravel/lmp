@@ -192,6 +192,263 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 原因:
 
 经过对内核源码的分析，页面申请失败分析工具的理想挂载点应该是慢速路径的入口函数（__alloc_pages_slowpath）。但是这个函数不允许ebpf程序挂载，而且这个函数内部也不存在合理的挂载点，所有将函数挂载点选在快速路径的入口函数get_page_from_freelist上。因为页面申请的控制结构体ac在这两个函数之间不存在信息更改，所以可以确保这两个函数传递的ac结构体是相同的，不会对提取出来的数据产生影响。为了确保数据确实是在页面申请失败的情况下才会打印数据，需要对alloc_pages_nodemask函数的返回值进行挂载，当alloc_pages_nodemask函数没有返回页面结构体page时，也就是页面申请失败的情况下单元提取的数据。
+4.对代码进行注释分析
+
+- paf.bpf.c
+```c
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* Copyright (c) 2020 Facebook */
+
+// 包含必要的头文件
+#include "vmlinux.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
+#include "paf.h"
+
+// 定义一个BPF映射，类型为BPF_MAP_TYPE_RINGBUF，最大条目数为1
+#define SEC(NAME) __attribute__((section(NAME), used))
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 1);
+} rgb SEC(".maps");
+
+// 定义一个kprobe钩子函数，钩住了内核函数get_page_from_freelist
+SEC("kprobe/get_page_from_freelist")
+int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int alloc_flags, const struct alloc_context *ac)
+{
+    struct event *e;
+    unsigned long *t, y;
+    int a;
+
+    // 在ring buffer中预留一块空间以存储事件数据
+    e = bpf_ringbuf_reserve(&rgb, sizeof(*e), 0);
+    if (!e)
+        return 0;
+
+    // 从alloc_context结构中读取数据
+    y = BPF_CORE_READ(ac, preferred_zoneref, zone, watermark_boost);
+    t = BPF_CORE_READ(ac, preferred_zoneref, zone, _watermark);
+
+    // 填充事件结构体
+    e->present = BPF_CORE_READ(ac, preferred_zoneref, zone, present_pages);
+    e->min = t[0] + y;
+    e->low = t[1] + y;
+    e->high = t[2] + y;
+    e->flag = (int)gfp_mask;
+
+    // 提交事件到ring buffer中
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+```
+```c
+// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+/* Copyright (c) 2020 Facebook */
+
+#include <argp.h>
+#include <signal.h>
+#include <stdio.h>
+#include <time.h>
+#include <sys/resource.h>
+#include <bpf/libbpf.h>
+#include "paf.h"
+#include "paf.skel.h"
+#include <sys/select.h>
+
+// 存储命令行参数的结构体
+static struct env {
+    long choose_pid; // 选择的进程ID
+    long time_s;     // 延时时间（单位：毫秒）
+    long rss;        // 是否显示进程页面信息
+} env;
+
+// 命令行选项定义
+static const struct argp_option opts[] = {
+    { "choose_pid", 'p', "PID", 0, "选择特定进程显示信息。" },
+    { "time_s", 't', "MS", 0, "延时打印时间，单位：毫秒" },
+    { "Rss", 'r', NULL, 0, "显示进程页面信息。"},
+};
+
+// 命令行参数解析函数
+static error_t parse_arg(int key, char *arg, struct argp_state *state) {
+    switch (key) {
+        case 'p':
+            env.choose_pid = strtol(arg, NULL, 10);
+            break;
+        case 't':
+            env.time_s = strtol(arg, NULL, 10);
+            break;
+        case 'r':
+            env.rss = true;
+            break;
+        case ARGP_KEY_ARG:
+            argp_usage(state);
+            break;
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
+}
+
+// 命令行解析器
+static const struct argp argp = {
+    .options = opts,
+    .parser = parse_arg,
+};
+
+// libbpf输出回调函数
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
+}
+
+// 信号处理函数，处理Ctrl-C
+static volatile bool exiting;
+static void sig_handler(int sig) {
+    exiting = true;
+}
+
+// 毫秒级别的睡眠函数
+static void msleep(long ms) {
+    struct timeval tval;
+    tval.tv_sec = ms / 1000;
+    tval.tv_usec = (ms * 1000) % 1000000;
+    select(0, NULL, NULL, NULL, &tval);
+}
+
+// 处理BPF事件的回调函数
+static int handle_event(void *ctx, void *data, size_t data_sz) {
+    const struct event *e = data;
+    struct tm *tm;
+    char ts[32];
+    time_t t;
+
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+
+    // 根据命令行参数选择要显示的信息
+    if (env.choose_pid) {
+        if (e->pid == env.choose_pid) {
+            // 根据是否显示进程页面信息选择输出格式
+            if (env.rss) {
+                // 显示进程页面信息
+                printf("%-8s %-8lu %-8lu %-8lu %-8lu %-8x\n",
+                       ts, e->min, e->low, e->high, e->present, e->flag);
+            } else {
+                // 显示进程内存信息
+                printf("%-8s %-8lu %-8lu %-8lu %-8lu\n",
+                       ts, e->min, e->low, e->high, e->present);
+            }
+        }
+    } else {
+        // 根据是否显示进程页面信息选择输出格式
+        if (env.rss) {
+            // 显示进程页面信息
+            printf("%-8s %-8lu %-8lu %-8lu %-8lu %-8x\n",
+                   ts, e->min, e->low, e->high, e->present, e->flag);
+        } else {
+            // 显示进程内存信息
+            printf("%-8s %-8lu %-8lu %-8lu %-8lu\n",
+                   ts, e->min, e->low, e->high, e->present);
+        }
+    }
+
+    // 根据延时时间休眠
+    if (env.time_s) {
+        msleep(env.time_s);
+    } else {
+        msleep(1000);
+    }
+    return 0;
+}
+
+// 主函数
+int main(int argc, char **argv) {
+    struct ring_buffer *rb = NULL;
+    struct paf_bpf *skel;
+    int err;
+
+    // 解析命令行参数
+    err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
+    if (err) {
+        return err;
+    }
+
+    // 设置libbpf严格模式
+    libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+    // 设置libbpf错误输出回调函数
+    libbpf_set_print(libbpf_print_fn);
+
+    // 设置Ctrl-C的处理函数
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
+
+    // 打开BPF程序
+    skel = paf_bpf__open();
+    if (!skel) {
+        fprintf(stderr, "Failed to open and load BPF skeleton\n");
+        return 1;
+    }
+
+    // 加载BPF程序
+    err = paf_bpf__load(skel);
+    if (err) {
+        fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+        goto cleanup;
+    }
+
+    // 关联BPF程序和事件
+    err = paf_bpf__attach(skel);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto cleanup;
+    }
+
+    // 创建ring buffer
+    rb = ring_buffer__new(bpf_map__fd(skel->maps.rgb), handle_event, NULL, NULL);
+    if (!rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+
+    // 打印表头
+    if (env.rss) {
+        printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "MIN", "LOW", "HIGH", "PRESENT", "FLAG");
+    } else {
+        printf("%-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "MIN", "LOW", "HIGH", "PRESENT");
+    }
+
+    // 处理事件
+    while (!exiting) {
+        err = ring_buffer__poll(rb, 100 /* 超时时间，单位：毫秒 */);
+        // Ctrl-C会产生-EINTR错误
+        if (err == -EINTR) {
+            err = 0;
+            break;
+        }
+        if (err < 0) {
+            printf("Error polling perf buffer: %d\n", err);
+            break;
+        }
+    }
+
+cleanup:
+    // 释放资源
+    ring_buffer__free(rb);
+    paf_bpf__destroy(skel);
+
+    return err < 0 ? -err : 0;
+}
+
+```
+5.主要功能
+监控系统内存，特别是内存分配方面，输出的信息包括时间戳、进程ID、虚拟内存大小、物理内存等。输出的内容根据用户的选择（特定PID、是否显示RSS等）而变化。除了常规的事件信息外，程序还输出了与内存管理相关的详细信息，主要是present(当前内存中可用的页面数量)，min(在这个阈值下，系统可能会触发内存压缩)，low(在这个阈值下，系统进行内存回收)，high(在这个阈值上，认为内存资源充足)，flag(用于内存分配的状态)。
+6.结果展示
+![image](https://github.com/linuxkerneltravel/lmp/assets/145275401/68962b13-828d-4c55-88ec-834504ce2d6b)
 
 ### pr
 
@@ -216,6 +473,264 @@ shrink_page_list
 shrink_page_list函数是页面回收后期指向函数，主要操作是遍历链表中每一个页面，根据页面的属性确定将页面添加到回收队列、活跃链表还是不活跃链表.这块遍历的链表是在上一级函数 shrink_inactive_list中定义的临时链表，因为一次最多扫描32个页面，所有链表最多含有32个页面。在shrink_page_list这个函数中还有一个重要操作是统计不同状态的页面数量并保存在scan_control结构体中。而工具数据提取的位置就是找到这个结构体并获取有关性能指标。因为这个提取的数据都是内核函数实时更改的，所有具有较高准确性。
 
 scan_control结构体是每次进行内存回收时都会被回收进程重新定义，所有会看到数据是一个增长状态，之后有回归0，这和挂载点也有一定关系。
+
+3.对代码进行注释分析
+pr.pbf.c
+```c
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/* Copyright (c) 2020 Facebook */
+
+// 包含必要的头文件
+#include "vmlinux.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
+#include "pr.h"
+
+// 定义一个BPF映射，类型为BPF_MAP_TYPE_RINGBUF，最大条目数为1
+#define SEC(NAME) __attribute__((section(NAME), used))
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 1);
+} rgb SEC(".maps");
+
+// 定义一个kprobe钩子函数，钩住了内核函数shrink_page_list
+SEC("kprobe/shrink_page_list")
+int BPF_KPROBE(shrink_page_list, struct list_head *page_list, struct pglist_data *pgdat, struct scan_control *sc)
+{
+    struct event *e;
+    unsigned long y;
+    unsigned int *a;
+
+    // 在ring buffer中预留一块空间以存储事件数据
+    e = bpf_ringbuf_reserve(&rgb, sizeof(*e), 0);
+    if (!e)
+        return 0;
+
+    // 从scan_control结构中读取数据
+    e->reclaim = BPF_CORE_READ(sc, nr_to_reclaim); // 需要回收的页面数
+    y = BPF_CORE_READ(sc, nr_reclaimed); // 已经回收的页面数
+    e->reclaimed = y;
+
+    // 访问未回写的脏页、块设备上回写的页面和正在回写的页面的数量
+    a = (unsigned int *)(&y + 1);
+    e->unqueued_dirty = *(a + 1);
+    e->congested = *(a + 2);
+    e->writeback = *(a + 3);
+
+    // 提交事件到ring buffer中
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+```
+pr.c
+```c
+// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+/* Copyright (c) 2020 Facebook */
+
+#include <argp.h>
+#include <signal.h>
+#include <stdio.h>
+#include <time.h>
+#include <sys/resource.h>
+#include <bpf/libbpf.h>
+#include "pr.h"
+#include "pr.skel.h"
+#include <sys/select.h>
+
+// 存储命令行参数的结构体
+static struct env {
+    long choose_pid; // 要选择的进程ID
+    long time_s;     // 延时时间（单位：毫秒）
+    long rss;        // 是否显示进程页面信息
+} env; 
+
+// 命令行选项定义
+static const struct argp_option opts[] = {
+    { "choose_pid", 'p', "PID", 0, "选择特定进程显示信息。" },
+    { "time_s", 't', "MS", 0, "延时打印时间，单位：毫秒" },
+    { "Rss", 'r', NULL, 0, "显示进程页面信息。"},
+};
+
+// 命令行参数解析函数
+static error_t parse_arg(int key, char *arg, struct argp_state *state) {
+    switch (key) {
+        case 'p':
+            env.choose_pid = strtol(arg, NULL, 10);
+            break;
+        case 't':
+            env.time_s = strtol(arg, NULL, 10);
+            break;
+        case 'r':
+            env.rss = true;
+            break;
+        case ARGP_KEY_ARG:
+            argp_usage(state);
+            break;
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
+}
+
+// 命令行解析器
+static const struct argp argp = {
+    .options = opts,
+    .parser = parse_arg,
+};
+
+// libbpf输出回调函数
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
+    return vfprintf(stderr, format, args);
+}
+
+// 信号处理函数，处理Ctrl-C
+static volatile bool exiting;
+static void sig_handler(int sig) {
+    exiting = true;
+}
+
+// 毫秒级别的睡眠函数
+static void msleep(long ms) {
+    struct timeval tval;
+    tval.tv_sec = ms / 1000;
+    tval.tv_usec = (ms * 1000) % 1000000;
+    select(0, NULL, NULL, NULL, &tval);
+}
+
+// 处理BPF事件的回调函数
+static int handle_event(void *ctx, void *data, size_t data_sz) {
+    const struct event *e = data;
+    struct tm *tm;
+    char ts[32];
+    time_t t;
+
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+
+    // 根据命令行参数选择要显示的信息
+    if (env.choose_pid) {
+        if (e->pid == env.choose_pid) {
+            if (env.rss) {
+                // 显示进程页面信息
+                printf("%-8s %-8lu %-8lu %-8u %-8u %-8u\n",
+                       ts, e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested, e->writeback);
+            } else {
+                // 显示进程内存信息
+                printf("%-8s %-8lu %-8lu %-8lu %-8lu\n",
+                       ts, e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested);
+            }
+        }
+    } else {
+        if (env.rss) {
+            // 显示进程页面信息
+            printf("%-8s %-8lu %-8lu %-8u %-8u %-8u\n",
+                   ts, e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested, e->writeback);
+        } else {
+            // 显示进程内存信息
+            printf("%-8s %-8lu %-8lu %-8lu %-8lu\n",
+                   ts, e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested);
+        }
+    }
+
+    // 根据延时时间休眠
+    if (env.time_s) {
+        msleep(env.time_s);
+    } else {
+        msleep(1000);
+    }
+    return 0;
+}
+
+// 主函数
+int main(int argc, char **argv) {
+    struct ring_buffer *rb = NULL;
+    struct pr_bpf *skel;
+    int err;
+
+    // 解析命令行参数
+    err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
+    if (err) {
+        return err;
+    }
+
+    // 设置libbpf严格模式
+    libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+    // 设置libbpf错误输出回调函数
+    libbpf_set_print(libbpf_print_fn);
+
+    // 设置Ctrl-C的处理函数
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
+
+    // 打开BPF程序
+    skel = pr_bpf__open();
+    if (!skel) {
+        fprintf(stderr, "Failed to open and load BPF skeleton\n");
+        return 1;
+    }
+
+    // 加载BPF程序
+    err = pr_bpf__load(skel);
+    if (err) {
+        fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+        goto cleanup;
+    }
+
+    // 关联BPF程序和事件
+    err = pr_bpf__attach(skel);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto cleanup;
+    }
+
+    // 创建ring buffer
+    rb = ring_buffer__new(bpf_map__fd(skel->maps.rgb), handle_event, NULL, NULL);
+    if (!rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+
+    // 打印表头
+    if (env.rss) {
+        printf("%-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "RECLAIM", "RECLAIMED", "UNQUEUE", "CONGESTED", "WRITEBACK");
+    } else {
+        printf("%-8s %-8s %-8s %-8s %-8s\n", "TIME", "RECLAIM", "RECLAIMED", "UNQUEUE", "CONGESTED");
+    }
+
+    // 处理事件
+    while (!exiting) {
+        err = ring_buffer__poll(rb, 100 /* 超时时间，单位：毫秒 */);
+        // Ctrl-C会产生-EINTR错误
+        if (err == -EINTR) {
+            err = 0;
+            break;
+        }
+        if (err < 0) {
+            printf("Error polling perf buffer: %d\n", err);
+            break;
+        }
+    }
+
+cleanup:
+    // 释放资源
+    ring_buffer__free(rb);
+    pr_bpf__destroy(skel);
+
+    return err < 0 ? -err : 0;
+}
+
+
+```
+4.主要功能
+跟踪内核中页面的回收行为，记录回收的各个阶段，例如要回收的页面，以回收的页面，等待回收的脏页数，要写回的页数(包括交换空间中的页数)以及当前正在写回的页数。
+5.结果展示
+![image](https://github.com/linuxkerneltravel/lmp/assets/145275401/c33c6c9b-5f9e-4135-81bc-badee66a6d91)
 
 ------
 
