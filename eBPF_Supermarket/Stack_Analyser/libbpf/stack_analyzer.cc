@@ -35,6 +35,7 @@ extern "C"
 #endif
 
 #include <sys/syscall.h>
+#include <unistd.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <bpf/bpf.h>
@@ -240,18 +241,20 @@ protected:
 /// @param v 要添加的字符串变量
 #define PV(v) PushBack(rapidjson::Value(v, alc), alc)
 
-	virtual double data_value()
+	virtual uint64_t data_value(void)
 	{
-		return *(uint64_t *)data_buf * 1.;
+		return *(uint64_t *)data_buf;
 	};
+
+	virtual std::string data_str(uint64_t f) { return "value:" + std::to_string(f); };
 
 	class pksid_val
 	{
 	public:
 		uint32_t pid;
 		int32_t ksid, usid;
-		double val;
-		pksid_val(int32_t p, int32_t k, int32_t u, double v)
+		uint64_t val;
+		pksid_val(int32_t p, int32_t k, int32_t u, uint64_t v)
 		{
 			pid = p;
 			ksid = k;
@@ -306,7 +309,7 @@ protected:
 		for (auto id : *D)
 		{
 			cache_user_syms(id.pid, id.usid);
-			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\tvalue:%-.2lf\n", id.pid, id.usid, id.ksid, id.val);
+			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\t%s\n", id.pid, id.usid, id.ksid, data_str(id.val).c_str());
 		}
 		delete D;
 	}
@@ -725,6 +728,8 @@ protected:
 	bool *online_mask;
 	const char *online_cpus_file;
 
+	std::string data_str(uint64_t f) override { return "counts:" + std::to_string(f); };
+
 public:
 	on_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, unsigned long long f = env::freq) : bpf_loader(p, c, u, k), freq(f)
 	{
@@ -816,6 +821,8 @@ class off_cpu_loader : public bpf_loader
 protected:
 	struct off_cpu_count_bpf *skel;
 
+	std::string data_str(uint64_t f) override { return "time(ms):" + std::to_string(f); };
+
 public:
 	off_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
 	{
@@ -854,6 +861,8 @@ class mem_loader : public bpf_loader
 protected:
 	struct mem_count_bpf *skel;
 	char *object;
+
+	std::string data_str(uint64_t f) override { return "size(Byte):" + std::to_string(f); };
 
 public:
 	mem_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, char *e = env::object) : bpf_loader(p, c, u, k), object(e)
@@ -910,6 +919,14 @@ protected:
 	struct io_count_bpf *skel;
 	bool in_count;
 
+	std::string data_str(uint64_t f) override
+	{
+		std::string p = "size(B):";
+		if (in_count)
+			p = "counts:";
+		return p + std::to_string(f);
+	};
+
 public:
 	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, bool cot = env::count) : bpf_loader(p, c, u, k)
 	{
@@ -950,6 +967,8 @@ class pre_loader : public bpf_loader
 protected:
 	struct pre_count_bpf *skel;
 
+	std::string data_str(uint64_t f) override { return "rest_pages:" + std::to_string(f); };
+
 public:
 	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
 	{
@@ -986,10 +1005,10 @@ public:
 		skel = 0;
 	};
 
-	double data_value() override
+	uint64_t data_value() override
 	{
 		tuple *p = (tuple *)data_buf;
-		return (p->expect - p->truth) * 1.;
+		return p->expect - p->truth;
 	};
 
 	~pre_loader() override
@@ -1007,7 +1026,7 @@ int main(int argc, char *argv[])
 	auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
 	auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
 	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
-				   clipp::option("-C", "--in-count").set(env::count, true) % "sample the IO data in count instead of in size");
+				   clipp::option("-s", "--in-size").set(env::count, false) % "sample the IO data in count instead of in size");
 	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
 	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
 				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid)) |

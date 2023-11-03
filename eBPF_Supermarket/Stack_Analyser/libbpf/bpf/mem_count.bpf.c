@@ -22,6 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "stack_analyzer.h"
+#include "task.h"
 
 BPF_HASH(psid_count, psid, u64);
 BPF_STACK_TRACE(stack_trace);
@@ -33,19 +34,22 @@ BPF_HASH(piddr_meminfo, piddr, mem_info);
 
 const char LICENSE[] SEC("license") = "GPL";
 
-char u /*user stack flag*/, k /*kernel stack flag*/;
-int apid;
-__u64 min, max;
+bool u = false, k = false;
+int apid = 0;
+__u64 min = 0, max = 0;
 
 int gen_alloc_enter(size_t size)
 {
     // bpf_printk("malloc_enter");
     // record data
-    if (size < min || size > max)
+    if (size <= min || size > max)
         return 0;
-    u64 pt = bpf_get_current_pid_tgid();
-    u32 pid = pt >> 32;
-    u32 tgid = pt;
+    // u64 pt = bpf_get_current_pid_tgid();
+    // u32 pid = pt >> 32;
+    // u32 tgid = pt;
+    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
+    u32 pid = get_task_ns_pid(curr); // also kernel pid, but attached ns pid on kernel pid, invaild!
+    u32 tgid = get_task_ns_tgid(curr);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
     if (!p)
@@ -85,7 +89,9 @@ int gen_alloc_exit(struct pt_regs *ctx)
         return 0;
     // bpf_printk("malloc_exit");
     // get size
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    // u32 pid = bpf_get_current_pid_tgid() >> 32;
+    // struct task_struct* curr = ;
+    u32 pid = get_task_ns_pid((struct task_struct*)bpf_get_current_task());
     u64 *size = bpf_map_lookup_elem(&pid_size, &pid);
     if (!size)
         return -1;
@@ -104,7 +110,7 @@ int gen_alloc_exit(struct pt_regs *ctx)
 
     // record pid_addr-info
     piddr a = {
-        .addr = addr,
+        .addr = (u64)addr,
         .pid = pid,
         .o = 0,
     };
@@ -140,11 +146,11 @@ int BPF_KRETPROBE(mmap_exit)
     return gen_alloc_exit(ctx);
 }
 
-int gen_free_enter(void *addr, size_t unsize)
+int gen_free_enter(u64 addr, size_t unsize)
 {
-    // bpf_printk("free_enter");
-    // get freeing size
     u32 pid = bpf_get_current_pid_tgid() >> 32;
+    // struct task_struct* curr = (struct task_struct*)bpf_get_current_task();
+    // u32 pid = get_task_ns_pid(curr);
     piddr a = {.addr = addr, .pid = pid, .o = 0};
     mem_info *info = bpf_map_lookup_elem(&piddr_meminfo, &a);
     if (!info)
@@ -169,6 +175,8 @@ int gen_free_enter(void *addr, size_t unsize)
     }
     else
         (*size) -= info->size;
+    
+    if(!*size) bpf_map_delete_elem(&psid_count, &apsid);
 
     // del freeing addr info
     return bpf_map_delete_elem(&piddr_meminfo, &a);
@@ -176,17 +184,17 @@ int gen_free_enter(void *addr, size_t unsize)
 
 SEC("uprobe/free")
 int BPF_KPROBE(free_enter, void *addr) {
-    return gen_free_enter(addr, 0);
+    return gen_free_enter((u64)addr, 0);
 }
 
 SEC("uprobe/realloc")
 int BPF_KPROBE(realloc_enter, void *ptr, size_t size)
 {
-	gen_free_enter(ptr, 0);
+	gen_free_enter((u64)ptr, 0);
 	return gen_alloc_enter(size);
 }
 
 SEC("uprobe/munmap")
 int BPF_KPROBE(munmap_enter, void *addr, size_t unsize) {
-    return gen_free_enter(addr, unsize);
+    return gen_free_enter((u64)addr, unsize);
 }

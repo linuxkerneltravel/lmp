@@ -22,6 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "stack_analyzer.h"
+#include "task.h"
 
 BPF_HASH(psid_count, psid, u32);
 BPF_HASH(start, u32, u64);
@@ -31,14 +32,15 @@ BPF_HASH(pid_comm, u32, comm);
 
 const char LICENSE[] SEC("license") = "GPL";
 
-int apid;
-char u, k;
-__u64 min, max;
+int apid = 0;
+bool u = false, k = false;
+__u64 min = 0, max = 0;
 
 SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
-    u32 pid = BPF_CORE_READ(curr, pid);
+    // u32 pid = BPF_CORE_READ(curr, pid);
+    u32 pid = get_task_ns_pid(curr);
 
     if ((apid >= 0 && pid == apid) || (apid < 0 && pid))
     {
@@ -49,18 +51,20 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
     
     // calculate time delta
     struct task_struct *next = (struct task_struct *)bpf_get_current_task();
-    pid = BPF_CORE_READ(next, pid);
+    // pid = BPF_CORE_READ(next, pid);
+    pid = get_task_ns_pid(next);
     u64 *tsp = bpf_map_lookup_elem(&start, &pid);
     if (!tsp)
         return 0;
     bpf_map_delete_elem(&start, &pid);
     u32 delta = (bpf_ktime_get_ns() - *tsp) >> 20;
 
-    if ((delta < min) || (delta > max))
+    if ((delta <= min) || (delta > max))
         return 0;
 
     // record data
-    u32 tgid = BPF_CORE_READ(next, tgid);
+    // u32 tgid = BPF_CORE_READ(next, tgid);
+    u32 tgid = get_task_ns_tgid(curr);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
     if (!p)
