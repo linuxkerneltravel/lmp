@@ -3,20 +3,21 @@
 ### 安装依赖
 
 ```shell
-sudo apt update
-sudo apt install clang libelf1 libelf-dev zlib1g-dev
-sudo apt install libbpf-dev
-sudo apt install linux-tools-5.19.0-46-generic	
-sudo apt install linux-cloud-tools-5.19.0-46-generic
-sudo apt install libc6-dev-i386
-sudo cp FlameGraph/* /usr/bin/
+$ git submodule update --init --recursive
+$ apt install clang libelf1 libelf-dev zlib1g-dev
+$ sudo cp ../FlameGraph/* /usr/bin/
 ```
+
+### 版本要求
+
+Linux 5.15以上
+g++-10以上
+clang-12以上
 
 ### 工具编译
 
 ```shell
-cd libbpf
-sudo make
+$ sudo make
 ```
 
 ### 运行

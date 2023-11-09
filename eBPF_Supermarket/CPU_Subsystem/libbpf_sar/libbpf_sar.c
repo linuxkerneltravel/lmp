@@ -33,12 +33,14 @@
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 typedef long long unsigned int u64;
 
-static volatile bool exiting = false;
+static volatile bool exiting = false;//全局变量，表示程序是否正在退出
 
 // 长期保存的数值
 static u64 proc = 0;
+static u64 sched =0;
+static u64 sched2 =0;
 
-static u64 sum[10] = {};
+static u64 sum[10] = {};//用于存储要输出的各个数据结果；
 
 static int line = 0;
 
@@ -46,9 +48,11 @@ static int line = 0;
 static struct env {
 	int time;
 	bool enable_proc;
+	//bool enable_sched_prwitch;
 } env = {
 	.time = 0,
 	.enable_proc = false,
+	//.enable_sched_prwitch = false,
 };
 
 const char argp_program_doc[] ="libbpf_sar is a program that simulates sar constructed by libbpf for dynamic CPU indicator monitoring.\n";
@@ -79,24 +83,91 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 static void sig_handler(int sig)
 {
 	exiting = true;
-}
+}//正在退出程序；
 
 static int print_countMap(struct bpf_map *map)
 {
-	int key = 1;
-	int err, fd = bpf_map__fd(map);
-	unsigned long total_forks;
-
-	err = bpf_map_lookup_elem(fd, &key, &total_forks);
-	if (err < 0) {
-		fprintf(stderr, "failed to lookup infos: %d\n", err);
+	
+	
+	int key = 0;// 设置要查找的键值为1
+	int err, fd = bpf_map__fd(map);// 获取映射文件描述符
+	u64 total_forks;// 用于存储从映射中查找到的值
+	err = bpf_map_lookup_elem(fd, &key, &total_forks); // 从映射中查找键为1的值
+	if (err < 0) {//没找到
+		fprintf(stderr, "failed to lookup infos of total_forks: %d\n", err);
 		return -1;
 	}
 	
+	
+	key = 1;// 设置要查找的键值为1
+	u64 sched_total;// 用于存储从映射中查找到的值
+	//int err, fd = bpf_map__fd(map);// 获取映射文件描述符
+	err = bpf_map_lookup_elem(fd, &key, &sched_total); // 从映射中查找键为1的值
+	if (err < 0) {//没找到
+		fprintf(stderr, "failed to lookup infos of sched_total: %d\n", err);
+		return -1;
+	}
+
+	
+	key=2;
+	int runqlen;// 用于存储从映射中查找到的值
+	err = bpf_map_lookup_elem(fd, &key, &runqlen); // 从映射中查找键为1的值
+	if (err < 0) {//没找到
+		fprintf(stderr, "failed to lookup infos of runqlen: %d\n", err);
+		return -1;
+	}
+	
+
+	//proc:
+	u64 proc_s;
+	proc_s = total_forks-proc;
+	proc = total_forks;//统计差值；
+	
+	
+	//cswch:
+	u64 sched_pr;
+	sched_pr= sched_total - sched;//计算差值;
+	sched = sched_total;
+
+	//runqlen:
+	/*nothing*/
+
+	//判断打印：
+	if(env.enable_proc){
+		time_t now = time(NULL);// 获取当前时间
+		struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+		printf("%02d:%02d:%02d  %6lld  %6lld  %6d\n",
+				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,proc_s,sched_pr,runqlen);
+	}else{				// 第一次的数据无法做差，所以不予输出
+		env.enable_proc = true;
+	}
+	
+
+	/*
+	//只打印cswch/s 
+	if(env.enable_sched_prwitch){
+		u64 sched_pr;//要输出的进程切换次数
+		time_t now = time(NULL);// 获取当前时间
+		struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+		
+		sched_pr= sched_total - sched;//计算差值;
+		sched = sched_total;
+
+
+		printf("%02d:%02d:%02d  %6lld\n",
+				localTime->tm_hour, localTime->tm_min, localTime->tm_sec, sched_pr);
+	}else{				// 第一次的数据无法做差，所以不予输出
+		sched = sched_total;//全局变量proc
+		env.enable_sched_prwitch = true;
+	}
+	*/
+	
+	//只打印proc
+	/*
 	if(env.enable_proc){
 		u64 proc_s;
-		time_t now = time(NULL);
-		struct tm *localTime = localtime(&now);
+		time_t now = time(NULL);// 获取当前时间
+		struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
 		
 		line++;
 		proc_s = total_forks-proc;
@@ -107,10 +178,38 @@ static int print_countMap(struct bpf_map *map)
 		printf("%02d:%02d:%02d  %6lld\n",
 				localTime->tm_hour, localTime->tm_min, localTime->tm_sec, proc_s);
 	}else{				// 第一次的数据无法做差，所以不予输出
-		proc = total_forks;
+		proc = total_forks;//全局变量proc
 		env.enable_proc = true;
 	}
+	*/
 
+	//同时打印proc、cswch/s 失败
+	/*if(env.enable_sched_prwitch||env.enable_proc){
+		u64 proc_pr;//要输出的新创建的进程数
+		u64 sched_pr;//要输出的进程切换次数
+		time_t now = time(NULL);// 获取当前时间
+		struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+		
+
+		line++;
+		proc_pr = proc_total-proc;
+		sum[0] += proc_pr;
+		proc_pr = sum[0]/line;
+		proc = proc_total;
+
+		sched_pr= sched_total - sched;//计算差值;
+		sched = sched_total;
+
+		printf("%02d:%02d:%02d  %6lld  %6lld\n",
+				localTime->tm_hour, localTime->tm_min, localTime->tm_sec, proc_pr,sched_pr);
+	}else{				// 第一次的数据无法做差，所以不予输出
+		proc = proc_total;//全局变量proc
+		env.enable_proc = true;
+
+		sched = sched_total;//全局变量proc
+		env.enable_sched_prwitch = true;
+	}
+	*/
 	return 0;
 }
 
@@ -192,8 +291,9 @@ int main(int argc, char **argv)
 	}
 	
 	printf("Tracing for Data's... Ctrl-C to end\n");
-	printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
 
+	//printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
+	printf("  time   proc/s  cswch/s  runqlen\n");
 	/* 处理事件 */
 	while (!exiting) {
 		sleep(1);
