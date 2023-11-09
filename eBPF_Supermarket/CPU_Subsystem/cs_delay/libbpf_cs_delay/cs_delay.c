@@ -156,7 +156,7 @@ int main(int argc, char **argv)
 		
 	}
 	/*睡眠*/
-	sleep(99999999);
+	//sleep(99999999);
 	/*打印直方图*/
 	histogram();
 /* 卸载BPF程序 */
