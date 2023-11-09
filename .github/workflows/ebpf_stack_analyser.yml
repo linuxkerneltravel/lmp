@@ -1,0 +1,89 @@
+name: Stack_Analyser
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Stack_Analyser/**'
+      - '.github/workflows/ebpf_stack_analyser.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Stack_Analyser/**'
+      - '.github/workflows/ebpf_stack_analyser.yml'
+      
+
+jobs:
+  libbpf-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install native lib dependencies
+        run: |
+          git submodule update --init --recursive
+          sudo apt install clang libelf1 libelf-dev zlib1g-dev
+          sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
+        
+      - name: Run app with native lib
+        run: |
+          cd eBPF_Supermarket/Stack_Analyser/libbpf
+          make
+          sudo ./stack_analyzer on-cpu 10
+          sudo ./stack_analyzer mem 10 -l
+
+
+  bcc-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache BCC build directory
+        id: cache-bcc
+        uses: actions/cache@v3
+        with:
+          path: bcc
+          key: ${{ runner.os }}-bcc
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          sudo python -m pip install pyod
+          sudo python -m pip install psutil
+          sudo apt-get install -y linux-headers-$(uname -r)
+          sudo apt-get install -y python-is-python3
+          sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils
+          sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
+
+      - name: Build BCC
+        if: steps.cache-bcc.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/iovisor/bcc/releases/download/v0.25.0/bcc-src-with-submodule.tar.gz
+          tar xf bcc-src-with-submodule.tar.gz
+          cd bcc/
+          mkdir build
+          cd build/
+          cmake -DCMAKE_INSTALL_PREFIX=/usr -DPYTHON_CMD=python3 ..
+          make
+
+      - name: Install BCC
+        run: |
+          cd bcc/build/
+          sudo make install
+
+      - name: Run stack_count
+        run: |
+          cd eBPF_Supermarket/Stack_Analyser/
+          sudo bcc/stack_count.py -d -f 5
+
+      - name: Run load_monitor
+        run: |
+          cd eBPF_Supermarket/Stack_Analyser/
+          sudo bcc/load_monitor.py -t 5

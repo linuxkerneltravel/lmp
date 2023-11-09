@@ -1,34 +1,66 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: Gui-Yue
+//
+// 主函数
+
 package main
 
 import (
+	"ebpf_prometheus/checker"
+	"ebpf_prometheus/collector"
 	"fmt"
+	"github.com/urfave/cli/v2"
 	"log"
-	"net/http"
 	"os"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"ebpf-prom/register"
+	"sort"
 )
 
 func main() {
-	reg := register.Register()
-	gatherers := prometheus.Gatherers{
-		prometheus.DefaultGatherer,
-		reg,
-	}
-
-	h := promhttp.HandlerFor(gatherers,
-		promhttp.HandlerOpts{
-			ErrorHandling: promhttp.ContinueOnError,
-		})
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r)
+	app := cli.NewApp()
+	app.Name = "data-visual"
+	app.Usage = `
+	use this cli-tool to collect output data and Convert output data to standard prometheus data.
+	here are two different sub-command : collect & ecli
+	example:
+		sudo data-visual collect ./vfsstat.py
+		sudo data-visual proc_image
+`
+	err := collector.RunServices(func(nm string, svc *collector.Aservice) error {
+		ins, err := svc.NewInst(nil)
+		if err != nil {
+			return err
+		}
+		cmd, ok := ins.(cli.Command)
+		if !ok {
+			fmt.Printf("service %s doesn't implement cli.Command\n", nm)
+			return fmt.Errorf("service %s doesn't implement cli.Command\n", nm)
+		}
+		app.Commands = append(app.Commands, &cmd)
+		return nil
 	})
-	log.Println("Start server at :8574")
-	if err := http.ListenAndServe(":8574", nil); err != nil {
-		fmt.Printf("Error occur when start server %v", err)
-		os.Exit(1)
+	sort.Sort(cli.CommandsByName(app.Commands))
+
+	app.Before = doBeforeJob
+	err = app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
 	}
+}
+
+func doBeforeJob(ctx *cli.Context) (err error) {
+	checker.CheckNormalError(err)
+	return nil
 }

@@ -1,0 +1,34 @@
+name: LMP visualization by prometheus
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Visualization/eBPF_prometheus/**'
+      - '.github/workflows/ebpf_prometheus.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Visualization/eBPF_prometheus/**'
+      - '.github/workflows/ebpf_prometheus.yml'
+
+jobs:
+  web-backend-build-and-run:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Build Prometheus Metrics Server
+        run: |
+          cd eBPF_Visualization/eBPF_prometheus
+          make
+          make start_service
+          sudo -E timeout 120 ./data-visual c example/vfsstat.py || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+        timeout-minutes: 5
