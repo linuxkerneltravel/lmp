@@ -39,7 +39,7 @@ require (
 	github.com/unrolled/secure v1.0.7
 	github.com/urfave/cli v1.20.0
 	go.uber.org/zap v1.16.0
-	golang.org/x/image v0.5.0 // indirect
+	golang.org/x/image v0.10.0 // indirect
 	golang.org/x/sync v0.1.0
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
