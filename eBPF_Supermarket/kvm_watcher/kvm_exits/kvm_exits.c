@@ -107,16 +107,16 @@ const char* getExitReasonName(int number) {
 }
 
 typedef struct {
-    int exit_reason;
-    char info[256]; // 替换成适当的大小
+    	int exit_reason;
+    	char info[256]; // 替换成适当的大小
 	unsigned long long total_dur;
 	unsigned long long avg_dur;
 } ExitInfo;
 
 // 链表节点
 typedef struct Node {
-    ExitInfo data;
-    struct Node* next;
+    	ExitInfo data;
+    	struct Node* next;
 } Node;
 
 Node* exitInfoBuffer = NULL;
@@ -126,8 +126,8 @@ void addExitInfo(Node** head, int exit_reason, const char* info,unsigned long lo
     newNode->data.exit_reason = exit_reason;
     strncpy(newNode->data.info, info, sizeof(newNode->data.info));
     newNode->next = NULL;
-	newNode->data.total_dur = dur;
-	newNode->data.avg_dur = dur / count;
+    newNode->data.total_dur = dur;
+    newNode->data.avg_dur = dur / count;
 
     // 检查是否已经存在相同 exit reason 的信息
     Node* current = *head;
@@ -136,8 +136,8 @@ void addExitInfo(Node** head, int exit_reason, const char* info,unsigned long lo
         if (current->data.exit_reason == exit_reason) {
             // 更新已存在的信息
             strncpy(current->data.info, info, sizeof(current->data.info));
-			current->data.total_dur=dur+current->data.total_dur;
-			current->data.avg_dur=current->data.total_dur/count;
+	    current->data.total_dur=dur+current->data.total_dur;
+	    current->data.avg_dur=current->data.total_dur/count;
             free(newNode); // 释放新节点，因为信息已经更新
             return;
         }
@@ -175,10 +175,10 @@ void freeExitInfoList(Node* head) {
 
 void printExitInfo(Node* head) {
     Node* current = head;
-	printf("%-23s %-10s %-14s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","AVG_DURATION(ns)"/*,"PCT"*/);
+    printf("%-23s %-10s %-14s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","AVG_DURATION(ns)"/*,"PCT"*/);
     while (current != NULL) {
 		printf("%-2d/%-20s %-32s %-13llu \n", current->data.exit_reason,getExitReasonName(current->data.exit_reason), current->data.info,current->data.avg_dur);
-        current = current->next;
+       	 	current = current->next;
     }
 }
 
@@ -291,7 +291,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 int main(int argc, char **argv)
 {
-    struct ring_buffer *rb = NULL;
+    	struct ring_buffer *rb = NULL;
 	struct kvm_exits_bpf *skel;
 	int err;
 
