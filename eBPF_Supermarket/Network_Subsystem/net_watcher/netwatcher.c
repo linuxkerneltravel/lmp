@@ -38,7 +38,7 @@ static char packets_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0; // flag
+           http_info = 0, retrans_info = 0,dporttest=0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
@@ -78,6 +78,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         sport = strtoul(arg, &end, 10);
         break;
     case 'd':
+        dporttest=1;
         dport = strtoul(arg, &end, 10);
         break;
     default:
@@ -134,10 +135,6 @@ static int print_conns(struct netwatcher_bpf *skel) {
 
         char s_ip_port_str[INET6_ADDRSTRLEN + 6];
         char d_ip_port_str[INET6_ADDRSTRLEN + 6];
-        
-        if(http_info){
-                printf("%u,%u,%llu\n",d.rcv_wnd, d.snd_cwnd,d.duration);
-        }
 
         if (d.family == AF_INET) {
             sprintf(s_ip_port_str, "%s:%d",
@@ -159,10 +156,34 @@ static int print_conns(struct netwatcher_bpf *skel) {
         char received_bytes[11], acked_bytes[11];
         bytes_to_str(received_bytes, d.bytes_received);
         bytes_to_str(acked_bytes, d.bytes_acked);
+     /**  fprintf(file,
+                "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
+                "is_server=\"%d\"",
+                d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.is_server);
+                */
         fprintf(file,
                 "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
                 "is_server=\"%d\"",
                 d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.is_server);
+     /*  if(dporttest)
+        { 
+            fprintf(file,",sport=\"%u\""
+            ",dport=\"%u\""
+            ",cwnd=\"%u\""
+            ",ssthresh=\"%u\""
+            ",sk_buff=\"%u\""
+            "wmem_queued=\"%u",
+            d.sport,d.dport,d.snd_cwnd,d.snd_ssthresh,d.sndbuf,d.sk_wmem_queued);
+        }else{
+            fprintf(file,
+            ",sport=\"-\""
+            ",dport=\"-\""
+            ",cwnd=\"-\""
+            ",ssthresh=\"-\""
+            ",sk_buff=\"-\""
+            ",wmem_queued=\"-\"");
+
+        }*/
         if (extra_conn_info) {
             fprintf(file,
                     ",backlog=\"%u\""
@@ -234,32 +255,36 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         } else {
             sprintf(http_data, "-");
         }
-        if(http_info == 0){
-            if (layer_time) {
-                 printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
+        if (layer_time) {
+            printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
                    pack_info->sock, pack_info->seq, pack_info->ack,
                    pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
                    pack_info->rx, http_data);
-                 fprintf(file,
+            fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
                     "mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",http_"
-                    "info=\"%s\",rx=\"%d\"} \n",
+                    "info=\"%s\",rx=\"%d\"} 0\n",
                     pack_info->sock, pack_info->seq, pack_info->ack,
                     pack_info->mac_time, pack_info->ip_time,
                     pack_info->tcp_time, http_data, pack_info->rx);
-            } 
-            if(http_info|| retrans_info||extra_conn_info){
-                  printf("%-22p %-10u %-10u %-5d %s\n",
-                   pack_info->sock, pack_info->seq, pack_info->ack,
+        } else {
+            printf("%-22p %-10u %-10u %-5d %s\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack, 
                    pack_info->rx, http_data);
-                  fprintf(file,
+           /* fprintf(file,
+                    "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
+                    "mac_time=\"-\",ip_time=\"-\",tcp_time=\"-\",http_"
+                    "info=\"%s\",rx=\"%d\"} 0\n",
+                    pack_info->sock, pack_info->seq, pack_info->ack, http_data,
+                    pack_info->rx);
+                    */
+                    fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
                     "info=\"%s\",rx=\"%d\"} \n",
                     pack_info->sock, pack_info->seq, pack_info->ack, http_data,
                     pack_info->rx);
-            }
-
         }
+
         fclose(file);
     }
     return 0;
@@ -320,26 +345,25 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    if(layer_time) {
-        printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-           "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
-
-    }
-    
-    if(http_info|| retrans_info||extra_conn_info) {
-
-        printf("%-22s %-10s %-10s %-5s \n", "SOCK", "SEQ",
-           "ACK", "RX");
-    }
-    
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
-        }
-    
+    }
+    //if(dporttest)
+    //{
+  //      printf("%-22s %-22s %-11s %-11s %-11s %-11s \n" ,
+//		"SADDR:SPORT", "DADDR:DPORT", "CWND", "SSTHRESH", "SK_BUFF", "WMEM_QUEUED");
+  //  }
+    if(layer_time)
+    {
+        printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
+         "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
+    }else{
+        printf("%-22s %-10s %-10s %-5s %s\n", "SOCK", "SEQ", "ACK","RX", "HTTP");
+    }
 
     FILE *err_file = fopen(err_file_path, "w+");
     if (err_file == NULL) {
@@ -353,18 +377,16 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(packet_file);
-    
+
     /* Process events */
     while (!exiting) {
-      
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 
-        if(http_info) {
+         if(http_info) {
             printf("==============================\n");
             print_conns(skel);
             sleep(1);
         }
-
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;

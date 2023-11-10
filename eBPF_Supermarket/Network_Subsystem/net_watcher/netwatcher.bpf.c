@@ -1160,4 +1160,41 @@ int BPF_KPROBE(tcp_enter_loss, struct sock *sk) {
     return 0;
 }
 
+//监控tcp窗口信息
+/*
+SEC("kprobe/tcp_rcv_established")
+int BPF_KPROBE(tcp_rcv_established,struct sock *sk)
+{
+    struct tcp_sock *tp =(struct tcp_sock *)sk;
+    u32 snd_cwnd = BPF_CORE_READ(tp,snd_cwnd);  //tp->snd_cwnd
+    u32 snd_ssthresh = BPF_CORE_READ(tp,snd_ssthresh);//tp->snd_ssthresh
+    u32 sndbuf = BPF_CORE_READ(sk,sk_sndbuf);//sk->sk_sndbuf
+    u32 sk_wmem_queued = BPF_CORE_READ(sk,sk_wmem_queued);//sk->sk_wmem_queued
+
+
+    u16 lport = BPF_CORE_READ(sk,__sk_common.skc_num); //sk->__sk_common.skc_num
+    u16 dport = BPF_CORE_READ(sk,__sk_common.skc_dport); //sk->__sk_common.skc_dport
+    //u32 state = BPF_CORE_READ(sk,sk_state); //sk->sk_state
+    u32 saddr = BPF_CORE_READ(sk,__sk_common.skc_rcv_saddr); //sk->__sk_common.skc_rcv_saddr
+    u32 daddr = BPF_CORE_READ(sk,__sk_common.skc_daddr); //sk->__sk_common.skc_daddr
+    FILTER_DPORT
+    FILTER_SPORT
+
+    struct cwnd_data *data;
+    data = bpf_ringbuf_reserve(&rb, sizeof(*data), 0);
+        if (!data)
+            return 0;
+    data->saddr = saddr;
+    data->daddr = daddr;
+    data->lport = lport;
+    data->dport = __bpf_ntohs(dport);
+    //data->state = state;
+    data->snd_cwnd=snd_cwnd;
+    data->snd_ssthresh=snd_ssthresh;
+    data->sndbuf=sndbuf;
+    data->sk_wmem_queued=sk_wmem_queued;
+
+    bpf_ringbuf_submit(data, 0);
+    return 0;
+}*/
 /**** retrans end ****/
