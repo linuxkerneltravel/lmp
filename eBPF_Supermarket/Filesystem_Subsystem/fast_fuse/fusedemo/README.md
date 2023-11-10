@@ -12,6 +12,8 @@ cd libfuse
 
 ## 编译libfuse库并设置相应配置：
 
+（该阶段的步骤都存放在了Makefile文件中，也可以直接使用"make"命令代替下列命令）
+
 ```
 mkdir build
 cd build
