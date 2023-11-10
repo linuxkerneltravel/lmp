@@ -4,7 +4,7 @@
 */ 
 
 #include <stdio.h>
-#include <math.h>//用于对数运算
+//#include <math.h>//用于对数运算
 #include <unistd.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
@@ -50,6 +50,15 @@ static int print_hstgram(int i,int max,int per_len)
 	}
 	printf("\n");
 	return per_len;
+}
+double pow(int n,int k)//实现pow函数
+{
+	if (k > 0)
+		return n * pow(n, k - 1);
+	else if (k == 0)
+		return 1;
+	else
+		return 1.0 / pow(n, -k);
 }
 static void histogram()
 {
@@ -156,7 +165,7 @@ int main(int argc, char **argv)
 		
 	}
 	/*睡眠*/
-	sleep(99999999);
+	//sleep(99999999);
 	/*打印直方图*/
 	histogram();
 /* 卸载BPF程序 */
