@@ -24,8 +24,8 @@ jobs:
         run: |
           sudo apt install clang libelf1 libelf-dev zlib1g-dev
           sudo apt install libbpf-dev
-          sudo apt install linux-tools-5.15.0-53-generic	
-          sudo apt install linux-cloud-tools-5.15.0-53-generic
+          sudo apt install -y linux-tools-5.15.0-53-generic	
+          sudo apt install -y linux-cloud-tools-5.15.0-53-generic
 
       - name: Run cs_delay
         run: |
