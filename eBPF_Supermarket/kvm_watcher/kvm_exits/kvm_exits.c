@@ -306,7 +306,7 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-    signal(SIGALRM, sig_handler);
+    	signal(SIGALRM, sig_handler);
 	/* Open BPF application */
 	skel = kvm_exits_bpf__open();
 	if (!skel) {
