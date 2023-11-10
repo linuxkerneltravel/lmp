@@ -566,23 +566,19 @@ public:
 
 			std::string tgid_s = std::to_string(tgid);
 			const char *tgid_c = tgid_s.c_str();
-			ajson.KV(tgid_c, rapidjson::kObjectType);
+			if(!ajson.HasMember(tgid_c))
+				ajson.KV(tgid_c, rapidjson::kObjectType);
 
 			std::string pid_s = std::to_string(pid);
 			const char *pid_c = pid_s.c_str();
 			ajson[tgid_c].KV(pid_c, rapidjson::kObjectType);
 
 			ajson[tgid_c][pid_c].CKV("stacks", rapidjson::kObjectType);
-			pidtgid_map[pid] = tgid;
-		}
 
-		comm cmd;
-		for (int prev = 0, pid; !bpf_map_get_next_key(comm_fd, &prev, &pid); prev = pid)
-		{
+			comm cmd;
 			bpf_map_lookup_elem(comm_fd, &pid, &cmd);
-			std::string tgid_s = std::to_string(pidtgid_map[pid]);
-			std::string pid_s = std::to_string(pid);
-			ajson[tgid_s.c_str()][pid_s.c_str()].CKV("name", cmd.str, alc);
+			ajson[tgid_c][pid_c].CKV("name", cmd.str, alc);
+			pidtgid_map[pid] = tgid;
 		}
 
 		auto D = sortD();

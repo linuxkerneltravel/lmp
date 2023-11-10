@@ -93,7 +93,7 @@ int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
     a->expect += lim;
     u64 addr;
     bpf_core_read(&addr, sizeof(u64), &ret);
-    for (int i = 0; i < lim && i < 1024; i++, addr++)
+    for (int i = 0; i < lim && i < 1024; i++, addr += 0x1000)
         bpf_map_update_elem(&page_psid, &addr, apsid, BPF_ANY);
 
     return 0;
