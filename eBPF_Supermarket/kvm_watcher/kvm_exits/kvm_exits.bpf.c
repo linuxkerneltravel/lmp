@@ -99,7 +99,7 @@ int handle_kvm_entry()
 	tid = (u32)id;
 	reas = bpf_map_lookup_elem(&times, &tid);
 	if(reas){
-		u32 reason;
+	u32 reason;
     	struct event *e;
 		int count=0;
 		duration_ns=bpf_ktime_get_ns() - reas->time;
