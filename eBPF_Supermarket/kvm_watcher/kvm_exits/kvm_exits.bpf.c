@@ -43,8 +43,8 @@ struct {
 } rb SEC(".maps");
 
 struct exit{
-	u64 pad;
-	unsigned int exit_reason;
+    u64 pad;
+    unsigned int exit_reason;
     unsigned long guest_rip;
     u32 isa;
     u64 info1;
@@ -55,31 +55,36 @@ struct exit{
 };
 
 int total=0;
+const volatile pid_t vm_pid = 0;
+
 
 SEC("tp/kvm/kvm_exit")
 int  handle_kvm_exit(struct exit *ctx)
 {   
-    pid_t tid;
-    u64 id,ts;
-    id = bpf_get_current_pid_tgid();
+        pid_t tid,pid;
+        u64 id,ts;
+        id = bpf_get_current_pid_tgid();
 	tid = (u32)id;
-	ts = bpf_ktime_get_ns();
-	u32 reason;
-	reason=(u32)ctx->exit_reason;
-	struct reason_info reas={};
-	reas.reason=reason;
-	reas.time=ts;
-	u32 *count;
-   	count=bpf_map_lookup_elem(&counts, &reason);
-    if(count){
-        (*count)++;
-		reas.count=*count;
-    }else{
-        u32 new_count = 1;
-		reas.count=new_count;
-        bpf_map_update_elem(&counts, &reason, &new_count, BPF_ANY);
-    }
-    bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
+	pid = id >> 32;
+	if (vm_pid == 0 || pid == vm_pid){
+		ts = bpf_ktime_get_ns();
+		u32 reason;
+		reason=(u32)ctx->exit_reason;
+		struct reason_info reas={};
+		reas.reason=reason;
+		reas.time=ts;
+		u32 *count;
+		count=bpf_map_lookup_elem(&counts, &reason);
+		if(count){
+			(*count)++;
+			reas.count=*count;
+		}else{
+			u32 new_count = 1;
+			reas.count=new_count;
+			bpf_map_update_elem(&counts, &reason, &new_count, BPF_ANY);
+		}
+		bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
+	}
 	return 0;
 }
 
@@ -94,7 +99,7 @@ int handle_kvm_entry()
 	tid = (u32)id;
 	reas = bpf_map_lookup_elem(&times, &tid);
 	if(reas){
-		u32 reason;
+	u32 reason;
     	struct event *e;
 		int count=0;
 		duration_ns=bpf_ktime_get_ns() - reas->time;
