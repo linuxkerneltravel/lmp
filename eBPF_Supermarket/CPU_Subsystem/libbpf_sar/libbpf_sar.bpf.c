@@ -76,7 +76,24 @@ __type(key, u32);
 __type(value, int);
 } runqlen SEC(".maps");//多CPU数组
 
+struct __softirq_info {
+	u64 pad;
+	u32 vec;
+};
 
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+    __uint(max_entries, 4096);
+    __type(key, u32);
+    __type(value, u64);
+} softirqCpuEnterTime SEC(".maps");//记录软中断开始时间
+
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, u64);
+} softirqLastTime SEC(".maps");//软中断结束时间
 
 // 统计fork数
 SEC("kprobe/finish_task_switch.isra.0")
@@ -199,3 +216,34 @@ int kprobe_update_rq_clock(struct pt_regs *ctx){
     return 0;
 }
 
+//软中断
+SEC("tracepoint/irq/softirq_entry")
+int trace_softirq_entry(struct __softirq_info *info) {
+
+	u32 key = info->vec;//获取软中断向量号，作为 BPF Map 的键
+	u64 val = bpf_ktime_get_ns();//获取当前时间
+	bpf_map_update_elem(&softirqCpuEnterTime, &key, &val, BPF_ANY);
+	return 0;
+}
+
+SEC("tracepoint/irq/softirq_exit")
+int trace_softirq_exit(struct __softirq_info *info) {
+
+	u32 key = info->vec;
+	u64 now = bpf_ktime_get_ns(), *valp = 0;
+
+	valp =bpf_map_lookup_elem(&softirqCpuEnterTime, &key);
+	if (valp) {
+		// 找到表项
+		u64 last_time = now - *valp;
+		u32 key0 = 0;
+
+		valp = bpf_map_lookup_elem(&softirqLastTime, &key0);//在lasttime数组中找，因为大小是1
+		if (!valp) bpf_map_update_elem(&softirqLastTime, &key0, &last_time, BPF_ANY);
+		else *valp += last_time;
+	/*当处理软中断退出事件时，代码使用了bpf_map_lookup_elem函数查询softirqLastTime BPF Map中与键key0对应的条目，
+	其中key0为常量0，因为softirqLastTime是一个大小为1的数组。如果该条目不存在，则说明这是第一次处理软中断退出事件，
+	需要将last_time的值插入到softirqLastTime表中；否则，说明已经统计过该软中断的运行时间，需要将本次运行时间累加到原有的运行时间上。*/
+	}	
+	return 0;
+}
