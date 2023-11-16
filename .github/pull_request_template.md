@@ -21,7 +21,7 @@ Please delete options that are not relevant.
 Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce. Please also list any relevant details for your test configuration
 
 
-## Checklist/检查猎豹
+## Checklist/检查列表
 
 - [ ] My code follows the style guidelines of this project /代码规范检查
 - [ ] I have performed a self-review of my own code / 自己已经检查代码
