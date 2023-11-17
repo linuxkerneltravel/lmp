@@ -94,6 +94,7 @@ struct {
     __type(key, u32);
     __type(value, u64);
 } softirqLastTime SEC(".maps");//软中断结束时间
+<<<<<<< HEAD
 
 // 记录开始的时间
 struct {
@@ -115,6 +116,8 @@ struct __irq_info {
 	u64 pad;
 	u32 irq;
 };
+=======
+>>>>>>> 09740de3b43ab22e4a94c9aa357d4303670b3efb
 
 // 统计fork数
 SEC("kprobe/finish_task_switch.isra.0")
@@ -267,6 +270,7 @@ int trace_softirq_exit(struct __softirq_info *info) {
 	需要将last_time的值插入到softirqLastTime表中；否则，说明已经统计过该软中断的运行时间，需要将本次运行时间累加到原有的运行时间上。*/
 	}	
 	return 0;
+<<<<<<< HEAD
 }
 
 /*irqtime：CPU响应irq中断所占用的时间。
@@ -310,3 +314,6 @@ int trace_irq_handler_exit(struct __irq_info *info) {
     // bpf_ringbuf_submit(e, 0);//将填充的event提交到BPF缓冲区,以供用户空间进行后续处理
 	return 0;
 }
+=======
+}
+>>>>>>> 09740de3b43ab22e4a94c9aa357d4303670b3efb
