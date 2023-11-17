@@ -11,29 +11,21 @@
 #include <sys/select.h>
 
 #define GFP_ATOMIC 0x
- static struct env {
-        long choose_pid;
-        long time_s;
-    	long rss;
+// 存储命令行参数的结构体
+static struct env {
+        long choose_pid;   // 要选择的进程ID
+        long time_s;       // 延时时间（单位：毫秒）
+    	long rss;          // 是否显示进程页面信息
  } env; 
-/*
-const char *argp_program_version = "bootstrap 0.0";
-const char *argp_program_bug_address = "<bpf@vger.kernel.org>";
 
-const char argp_program_doc[] =
-"BPF bootstrap demo application.\n"
-"\n"
-"It traces process start and exits and shows associated \n"
-"information (filename, process duration, PID and PPID, etc).\n"
-"\n"
-"USAGE: ./bootstrap [-d <min-duration-ms>] [-v]\n";
-*/
+// 命令行选项定义
 static const struct argp_option opts[] = {
-        { "choose_pid", 'p', "PID", 0, "选择进程号打印。" },
-        { "time_s", 't', "MS", 0, "延时打印。单位：毫秒" },
+    { "choose_pid", 'p', "PID", 0, "选择进程号打印。" },
+    { "time_s", 't', "MS", 0, "延时打印。单位：毫秒" },
 	{ "Rss", 'r', NULL, 0, "进程页面。"},
 };
 
+// 命令行参数解析函数
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
         switch (key) {
@@ -55,17 +47,19 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         return 0;
 }
 
+// 命令行解析器
  static const struct argp argp = {
         .options = opts,
         .parser = parse_arg,
-//        .doc = argp_program_doc,
  };
 
+// libbpf输出回调函数
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
 }
 
+// 信号处理函数，处理Ctrl-C
 static volatile bool exiting;
 
 static void sig_handler(int sig)
@@ -73,6 +67,7 @@ static void sig_handler(int sig)
 	exiting = true;
 }
  
+// 毫秒级别的睡眠函数
 static void msleep(long secs)
 {
 	struct timeval tval;
@@ -82,6 +77,7 @@ static void msleep(long secs)
 	select(0,NULL,NULL,NULL,&tval);
 }
 
+// 处理BPF事件的回调函数
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	const struct event *e = data;
@@ -93,9 +89,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
+    // 显示进程页面信息
 	printf("%-8lu %-8lu  %-8u %-8u %-8u\n",
 			e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested, e->writeback);	
 
+    // 根据延时时间休眠
 	if(env.time_s != NULL) {
 		msleep(env.time_s);
 	}
@@ -111,6 +109,7 @@ int main(int argc, char **argv)
 	struct pr_bpf *skel;
 	int err;
 
+        // 解析命令行参数
         err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
         if (err)
                 return err;
@@ -155,6 +154,7 @@ int main(int argc, char **argv)
 	/* Process events */
 	printf("%-8s %-8s %-8s %-8s %-8s\n", "RECLAIM", "RECLAIMED", "UNQUEUE", "CONGESTED", "WRITEBACK");
 
+    // 处理事件
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
