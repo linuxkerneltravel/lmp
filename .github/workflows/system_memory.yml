@@ -16,36 +16,36 @@ on:
 
 jobs:
   Memory_Subsystem-project-build-and-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
 
       - name: build libbpf
         run: |
-          sudo apt update
-          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
           git submodule update --init --recursive
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential zlib1g-dev
 
       - name: run procstat
         run:  |
           cd eBPF_Supermarket/Memory_Subsystem/memstat/procstat
-          make
+          make procstat
           sudo ./procstat
             
       - name: run sysstat
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/memstat/sysstat
-          make
+          make sysstat
           sudo ./sysstat  
           
       - name: run paf
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/paf
-          make
+          make paf
           sudo ./paf 
           
       - name: run pr
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/pr
-          make
+          make pr
           sudo ./pr
