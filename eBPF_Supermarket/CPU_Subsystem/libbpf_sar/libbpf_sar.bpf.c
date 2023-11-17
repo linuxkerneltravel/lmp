@@ -270,7 +270,6 @@ int trace_softirq_exit(struct __softirq_info *info) {
 	需要将last_time的值插入到softirqLastTime表中；否则，说明已经统计过该软中断的运行时间，需要将本次运行时间累加到原有的运行时间上。*/
 	}	
 	return 0;
-<<<<<<< HEAD
 }
 
 /*irqtime：CPU响应irq中断所占用的时间。
@@ -314,6 +313,5 @@ int trace_irq_handler_exit(struct __irq_info *info) {
     // bpf_ringbuf_submit(e, 0);//将填充的event提交到BPF缓冲区,以供用户空间进行后续处理
 	return 0;
 }
-=======
-}
->>>>>>> 09740de3b43ab22e4a94c9aa357d4303670b3efb
+
+
