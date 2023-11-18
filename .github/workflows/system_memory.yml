@@ -16,15 +16,15 @@ on:
 
 jobs:
   Memory_Subsystem-project-build-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
 
       - name: build libbpf
         run: |
-          git submodule update --init --recursive
           sudo apt update
           sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential zlib1g-dev
+          git submodule update --init --recursive
 
       - name: run procstat
         run:  |
