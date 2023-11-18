@@ -118,15 +118,12 @@ int main(int argc, char **argv) {
 
     // 设置libbpf的严格模式和调试信息回调
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-    /* Set up libbpf errors and debug info callback */ 
     libbpf_set_print(libbpf_print_fn);
 
-    /* Cleaner handling of Ctrl-C */
     // 注册信号处理函数
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    /* Load and verify BPF application */
     // 打开BPF程序并加载验证BPF程序
     skel = procstat_bpf__open();
     if (!skel) {
@@ -134,7 +131,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* Load & verify BPF programs */
     // 加载并验证BPF程序
     err = procstat_bpf__load(skel);
     if (err) {
@@ -142,7 +138,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    /* Attach tracepoints */
     // 注册BPF程序的tracepoints
     err = procstat_bpf__attach(skel);
     if (err) {
@@ -150,7 +145,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    /* Set up ring buffer polling */
     // 创建用于处理事件的环形缓冲区
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
     if (!rb) {
@@ -159,7 +153,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    /* Process events */
     // 打印表头
     if(env.rss) {
         printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "VMSIZE", "VMDATA", "VMSTK", "VMPTE", "VMSWAP");
@@ -169,8 +162,7 @@ int main(int argc, char **argv) {
 
     // 处理事件，根据命令行参数选择要显示的信息
     while (!exiting) {
-        err = ring_buffer__poll(rb, 100 /* timeout, ms */);
-        /* Ctrl-C will cause -EINTR */
+        err = ring_buffer__poll(rb, 100 /* 超时时间，毫秒 */);
         // Ctrl-C会导致返回-EINTR
         if (err == -EINTR) {
             err = 0;
@@ -183,7 +175,6 @@ int main(int argc, char **argv) {
     }
 
 cleanup:
-    /* Clean up */
     // 清理并释放资源
     ring_buffer__free(rb);
     procstat_bpf__destroy(skel);
