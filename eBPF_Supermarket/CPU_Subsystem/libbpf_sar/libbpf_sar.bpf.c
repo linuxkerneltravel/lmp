@@ -95,6 +95,28 @@ struct {
     __type(value, u64);
 } softirqLastTime SEC(".maps");//软中断结束时间
 
+// 记录开始的时间
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+	__uint(max_entries, 8192);//该哈希表可容纳8192个条目
+	__type(key, u32);
+	__type(value, u64);
+} irq_cpu_enter_start SEC(".maps");//irq_start是一个哈希类型的 eBPF map，用于存储开始执行时的时间戳。
+
+//记录上次中断时间
+struct {
+__uint(type, BPF_MAP_TYPE_ARRAY);
+__uint(max_entries, 1);
+__type(key, u32);
+__type(value, u64);
+} irq_Last_time SEC(".maps");
+
+struct __irq_info {
+	u64 pad;
+	u32 irq;
+};
+
+
 // 统计fork数
 SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
@@ -247,3 +269,47 @@ int trace_softirq_exit(struct __softirq_info *info) {
 	}	
 	return 0;
 }
+
+/*irqtime：CPU响应irq中断所占用的时间。
+注意这是所有CPU时间的叠加，平均到每个CPU应该除以CPU个数。*/
+SEC("tracepoint/irq/irq_handler_entry")
+int trace_irq_handler_entry(struct __irq_info *info) {
+	
+	u32 key = info->irq;//获取irq硬中断的信息
+	u64 ts = bpf_ktime_get_ns();//获取当前时间
+
+    bpf_map_update_elem(&irq_cpu_enter_start, &key, &ts, BPF_ANY);//将时间戳上传;
+	return 0;
+}
+
+SEC("tracepoint/irq/irq_handler_exit")
+int trace_irq_handler_exit(struct __irq_info *info) {
+
+	u32 key = info->irq;
+	u64 now = bpf_ktime_get_ns(), *ts = 0;
+    // struct event *e;
+    // e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+	// if (!e)
+	// 	return 0;
+
+    ts = bpf_map_lookup_elem(&irq_cpu_enter_start, &key);//ts中断开始的时间;
+    // if(ts==NULL){
+    //     return 0;
+    // }
+	if (ts) {
+		// 找到表项
+        u64 last_time = now - *ts;//记录持续时间
+	    u32 key0 = 0;
+		ts = bpf_map_lookup_elem(&irq_Last_time, &key0);//在irq_Last_time数组中找是否有该中断对应的中断持续时间;
+
+		if (!ts)    bpf_map_update_elem(&irq_Last_time, &key0, &last_time, BPF_ANY);//在irq_Last_time数组中记录该中断对应的中断持续时间;
+		else        *ts += last_time;//该中断已记录持续时间，将ts所指向的持续时间+这次的持续时间；
+		
+	}
+
+    // e->irqtime = bpf_map_lookup_elem(&irq_Last_time, &key0);
+    // bpf_ringbuf_submit(e, 0);//将填充的event提交到BPF缓冲区,以供用户空间进行后续处理
+	return 0;
+}
+
+
