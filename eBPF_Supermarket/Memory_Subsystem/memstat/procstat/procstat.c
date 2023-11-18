@@ -105,7 +105,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 		msleep(env.time_s);
 	}
 	else {
-		msleep(0);
+		msleep(1000);
 	}
 	return 0;
 }
