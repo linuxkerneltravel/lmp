@@ -126,6 +126,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	printf("%-8lu %-8lu  %-8lu %-8lu %-8x\n",
 			e->min, e->low, e->high, e->present, e->flag);	
 
+	/*
 	if(env.time_s != NULL) {
 		msleep(env.time_s);
 	}
@@ -133,6 +134,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		msleep(1000);
 	}
 	return 0;
+	*/
 }
 
 int main(int argc, char **argv)
@@ -152,6 +154,7 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+	signal(SIGALRM, sig_handler);
 
 	/* Load and verify BPF application */
 	skel = paf_bpf__open();

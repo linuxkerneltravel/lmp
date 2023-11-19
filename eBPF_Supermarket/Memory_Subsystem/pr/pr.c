@@ -21,7 +21,7 @@ static struct env {
 // 命令行选项定义
 static const struct argp_option opts[] = {
     { "choose_pid", 'p', "PID", 0, "选择进程号打印。" },
-    { "time_s", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
+    { "time_s", 't', "MS", 0, "延时打印。单位：毫秒" },
 	{ "Rss", 'r', NULL, 0, "进程页面。"},
 };
 

@@ -96,6 +96,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	printf("%-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu----- %-8lu %-8lu %-8lu %-8lu %-8lu----- %-8lu %-8lu %-8lu %-8lu--- %-8lu %-8lu %-8lu %-8lu %-8lu\n",
 			e->anon_active+e->file_active, e->file_inactive+e->anon_inactive, e->anon_active, e->anon_inactive, e->file_active, e->file_inactive, e->unevictable, e->file_dirty, e->writeback, e->anon_mapped, e->file_mapped, e->shmem, e->slab_reclaimable+e->kernel_misc_reclaimable, e->slab_reclaimable+e->slab_unreclaimable, e->slab_reclaimable, e->slab_unreclaimable, e->unstable_nfs, e->writeback_temp, e->anon_thps, e->shmem_thps, e->pmdmapped);	
 
+	/*
 	if(env.time_s != NULL) {
 		msleep(env.time_s);
 	}
@@ -103,6 +104,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 		msleep(1000);
 	}
 	return 0;
+	*/
 }
 
 int main(int argc, char **argv)
@@ -122,6 +124,7 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+	signal(SIGALRM, sig_handler);
 
 	/* Load and verify BPF application */
 	skel = sysstat_bpf__open();
