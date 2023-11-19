@@ -33,10 +33,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
                 env.choose_pid = strtol(arg, NULL, 10);
                 break;
         case 't':
-		env.time_s = strtol(arg, NULL, 10);
-                break;
-	case 'r':
-		env.rss = true;
+		    	env.time_s = strtol(arg, NULL, 10);
+				if(env.time_s) alarm(env.time_s);
+                	break;
+		case 'r':
+				env.rss = true;
                 break;
         case ARGP_KEY_ARG:
                 argp_usage(state);

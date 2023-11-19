@@ -30,20 +30,22 @@ jobs:
         run: |
             cd eBPF_Supermarket/Memory_Subsystem/pr
             make pr
+            sudo ./pr -t 1
 
       - name: run procstat
         run:  |
           cd eBPF_Supermarket/Memory_Subsystem/memstat/procstat
           make procstat
+          sudo ./procstat -t 1
             
       - name: run sysstat
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/memstat/sysstat
           make sysstat
-          sudo ./sysstat  
+          sudo ./sysstat -t 1   
           
       - name: run paf
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/paf
           make paf
-          sudo ./paf 
+          sudo ./paf -t 1 
