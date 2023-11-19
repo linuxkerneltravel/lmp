@@ -30,13 +30,11 @@ jobs:
         run: |
             cd eBPF_Supermarket/Memory_Subsystem/pr
             make pr
-            sudo ./pr
 
       - name: run procstat
         run:  |
           cd eBPF_Supermarket/Memory_Subsystem/memstat/procstat
           make procstat
-          sudo ./procstat
             
       - name: run sysstat
         run: |
