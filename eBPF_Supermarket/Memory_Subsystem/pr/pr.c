@@ -21,7 +21,7 @@ static struct env {
 // 命令行选项定义
 static const struct argp_option opts[] = {
     { "choose_pid", 'p', "PID", 0, "选择进程号打印。" },
-    { "time_s", 't', "MS", 0, "延时打印。单位：毫秒" },
+    { "time_s", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ "Rss", 'r', NULL, 0, "进程页面。"},
 };
 
@@ -30,20 +30,20 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
         switch (key) {
         case 'p':
-                env.choose_pid = strtol(arg, NULL, 10);
-                break;
+            env.choose_pid = strtol(arg, NULL, 10);
+            break;
         case 't':
-		    	env.time_s = strtol(arg, NULL, 10);
-				if(env.time_s) alarm(env.time_s);
-                	break;
+			env.time_s = strtol(arg, NULL, 10);
+			if(env.time_s) alarm(env.time_s);
+                break;
 		case 'r':
-				env.rss = true;
-                break;
+			env.rss = true;
+            break;
         case ARGP_KEY_ARG:
-                argp_usage(state);
-                break;
+            argp_usage(state);
+            break;
         default:
-                return ARGP_ERR_UNKNOWN;
+            return ARGP_ERR_UNKNOWN;
         }
         return 0;
 }
@@ -122,6 +122,7 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+	signal(SIGALRM, sig_handler);
 
 	/* Load and verify BPF application */
 	skel = pr_bpf__open();

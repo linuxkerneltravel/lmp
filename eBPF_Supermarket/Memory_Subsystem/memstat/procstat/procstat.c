@@ -20,7 +20,7 @@ static struct env {
 // 命令行选项
 static const struct argp_option opts[] = {
     { "choose_pid", 'p', "PID", 0, "选择特定进程显示信息。" },
-    { "time_s", 't', "MS", 0, "设置延时时间，单位：毫秒" },
+    { "time_s", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
     { "Rss", 'r', NULL, 0, "显示进程页面信息。"},
 };
 
@@ -102,13 +102,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     }
 
     // 根据延时时间休眠
-	if(env.time_s != NULL) {
+    /*
+    if(env.time_s != NULL) {
 		msleep(env.time_s);
 	}
 	else {
 		msleep(1000);
 	}
 	return 0;
+    */	
 }
 
 int main(int argc, char **argv) {
@@ -130,6 +132,7 @@ int main(int argc, char **argv) {
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+    signal(SIGALRM, sig_handler);
 
     // 打开BPF程序并加载验证BPF程序
     /* Load and verify BPF application */
