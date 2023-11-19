@@ -11,29 +11,22 @@
 #include <sys/select.h>
 
 #define GFP_ATOMIC 0x
- static struct env {
-        long choose_pid;
-        long time_s;
-    	long rss;
- } env; 
-/*
-const char *argp_program_version = "bootstrap 0.0";
-const char *argp_program_bug_address = "<bpf@vger.kernel.org>";
 
-const char argp_program_doc[] =
-"BPF bootstrap demo application.\n"
-"\n"
-"It traces process start and exits and shows associated \n"
-"information (filename, process duration, PID and PPID, etc).\n"
-"\n"
-"USAGE: ./bootstrap [-d <min-duration-ms>] [-v]\n";
-*/
+// 存储命令行参数的结构体
+static struct env {
+    long choose_pid; // 选择的进程ID
+    long time_s;     // 延时时间（单位：毫秒）
+    long rss;        // 是否显示进程页面信息
+} env;
+
+// 命令行选项定义
 static const struct argp_option opts[] = {
-        { "choose_pid", 'p', "PID", 0, "选择进程号打印。" },
-        { "time_s", 't', "MS", 0, "延时打印。单位：毫秒" },
+    { "choose_pid", 'p', "PID", 0, "选择进程号打印。" },
+    { "time_s", 't', "MS", 0, "延时打印。单位：毫秒" },
 	{ "Rss", 'r', NULL, 0, "进程页面。"},
 };
 
+// 命令行参数解析函数
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
         switch (key) {
@@ -56,24 +49,27 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         return 0;
 }
 
- static const struct argp argp = {
+// 命令行解析器
+static const struct argp argp = {
         .options = opts,
         .parser = parse_arg,
-//        .doc = argp_program_doc,
- };
+};
 
+// libbpf输出回调函数
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
 }
 
+// 信号处理函数，处理Ctrl-C
 static volatile bool exiting;
 
 static void sig_handler(int sig)
 {
 	exiting = true;
 }
- 
+
+// 毫秒级别的睡眠函数
 static void msleep(long secs)
 {
 	struct timeval tval;
@@ -112,6 +108,8 @@ static char* flags(int flag)
 	return;
 }
 */
+
+// 处理BPF事件的回调函数
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	const struct event *e = data;
@@ -137,25 +135,31 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 	*/
 }
 
+// 主函数
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
 	struct paf_bpf *skel;
 	int err;
+	
+	// 解析命令行参数
+    err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
+    if (err)
+        return err;
 
-        err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
-        if (err)
-                return err;
-
+	// 设置libbpf严格模式
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+	// 设置libbpf错误输出回调函数
 	/* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
 
+	// 设置Ctrl-C的处理函数
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
 	signal(SIGALRM, sig_handler);
 
+	// 打开BPF程序
 	/* Load and verify BPF application */
 	skel = paf_bpf__open();
 	if (!skel) {
@@ -163,6 +167,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	// 加载BPF程序
 	/* Load & verify BPF programs */
 	err = paf_bpf__load(skel);
 	if (err) {
@@ -170,6 +175,7 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
+	// 关联BPF程序和事件
 	/* Attach tracepoints */
 	err = paf_bpf__attach(skel);
 	if (err) {
@@ -177,6 +183,7 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
+	// 创建ring buffer
 	/* Set up ring buffer polling */
 	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
 	if (!rb) {
@@ -185,6 +192,7 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
+	// 打印表头
 	/* Process events */
 	if(env.rss == true) {
 		printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "VMSIZE", "VMDATA", "VMSTK", "VMPTE", "VMSWAP");
@@ -193,6 +201,7 @@ int main(int argc, char **argv)
 		printf("%-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "SIZE", "RSSANON", "RSSFILE", "RSSSHMEM");
 	}
 
+	// 处理事件
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
@@ -207,6 +216,7 @@ int main(int argc, char **argv)
 	}
 
 cleanup:
+	// 释放资源
 	/* Clean up */
 	ring_buffer__free(rb);
 	paf_bpf__destroy(skel);
