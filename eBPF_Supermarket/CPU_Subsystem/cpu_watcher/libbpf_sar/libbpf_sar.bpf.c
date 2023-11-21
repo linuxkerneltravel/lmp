@@ -118,7 +118,7 @@ struct __irq_info {
 
 
 // 统计fork数
-SEC("kprobe/finish_task_switch.isra.0")
+SEC("kprobe/finish_task_switch")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
