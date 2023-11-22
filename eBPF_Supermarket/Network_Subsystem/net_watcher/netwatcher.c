@@ -134,6 +134,10 @@ static int print_conns(struct netwatcher_bpf *skel) {
 
         char s_ip_port_str[INET6_ADDRSTRLEN + 6];
         char d_ip_port_str[INET6_ADDRSTRLEN + 6];
+        
+        if(http_info){
+                printf("%u,%u,%llu\n",d.rcv_wnd, d.snd_cwnd,d.duration);
+        }
 
         if (d.family == AF_INET) {
             sprintf(s_ip_port_str, "%s:%d",
@@ -230,32 +234,32 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         } else {
             sprintf(http_data, "-");
         }
-        if (layer_time) {
-            printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
+        if(http_info == 0){
+            if (layer_time) {
+                 printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
                    pack_info->sock, pack_info->seq, pack_info->ack,
                    pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
                    pack_info->rx, http_data);
-            fprintf(file,
+                 fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
                     "mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",http_"
-                    "info=\"%s\",rx=\"%"
-                    "d\"} 0\n",
+                    "info=\"%s\",rx=\"%d\"} \n",
                     pack_info->sock, pack_info->seq, pack_info->ack,
                     pack_info->mac_time, pack_info->ip_time,
                     pack_info->tcp_time, http_data, pack_info->rx);
-        } else {
-            printf("%-22p %-10u %-10u %-10s %-10s %-10s %-5d %s\n",
-                   pack_info->sock, pack_info->seq, pack_info->ack, "-", "-",
-                   "-", pack_info->rx, http_data);
-            fprintf(file,
+            } 
+            if(http_info|| retrans_info||extra_conn_info){
+                  printf("%-22p %-10u %-10u %-5d %s\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack,
+                   pack_info->rx, http_data);
+                  fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                    "mac_time=\"-\",ip_time=\"-\",tcp_time=\"-\",http_"
-                    "info=\"%s\",rx=\"%"
-                    "d\"} 0\n",
+                    "info=\"%s\",rx=\"%d\"} \n",
                     pack_info->sock, pack_info->seq, pack_info->ack, http_data,
                     pack_info->rx);
-        }
+            }
 
+        }
         fclose(file);
     }
     return 0;
@@ -316,16 +320,27 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
+    if(layer_time) {
+        printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
+           "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
+
+    }
+    
+    if(http_info|| retrans_info||extra_conn_info) {
+
+        printf("%-22s %-10s %-10s %-5s \n", "SOCK", "SEQ",
+           "ACK", "RX");
+    }
+    
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
-    }
+        }
+    
 
-    printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-           "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
     FILE *err_file = fopen(err_file_path, "w+");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
@@ -338,13 +353,18 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(packet_file);
-
+    
     /* Process events */
     while (!exiting) {
+      
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 
-        print_conns(skel);
-        sleep(1);
+        if(http_info) {
+            printf("==============================\n");
+            print_conns(skel);
+            sleep(1);
+        }
+
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;

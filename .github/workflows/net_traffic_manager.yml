@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/TrafficManager/**'
+      - 'eBPF_Supermarket/Network_Subsystem/TrafficManager/**'
       - '.github/workflows/net_traffic_manager.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/TrafficManager/**'
+      - 'eBPF_Supermarket/Network_Subsystem/TrafficManager/**'
       - '.github/workflows/net_traffic_manager.yml'
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Setup testing environments
         run: |
-          kubectl apply -f eBPF_Supermarket/TrafficManager/acceptance/testdata/k8s/
+          kubectl apply -f eBPF_Supermarket/Network_Subsystem/TrafficManager/acceptance/testdata/k8s/
 
       - name: Install eBPF development tools
         run: |
@@ -66,26 +66,26 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version-file: eBPF_Supermarket/TrafficManager/go.mod
-          cache-dependency-path: eBPF_Supermarket/TrafficManager/go.sum
+          go-version-file: eBPF_Supermarket/Network_Subsystem/TrafficManager/go.mod
+          cache-dependency-path: eBPF_Supermarket/Network_Subsystem/TrafficManager/go.sum
 
       - name: Load Dependency
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           sudo go mod tidy
 
       - name: Build
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           sudo make init
           sudo make build
 
       - name: Run
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           sudo -E timeout 10 ./main || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
 
       - name: Test
         run: |
-          cd eBPF_Supermarket/TrafficManager/
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
           make test
