@@ -5,7 +5,7 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-APP = kvm_exits
+APP = kvm_vcpu
 
 all: $(APP)
 
