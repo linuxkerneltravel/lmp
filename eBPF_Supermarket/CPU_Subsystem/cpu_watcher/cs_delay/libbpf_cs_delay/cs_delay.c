@@ -4,6 +4,7 @@
 */ 
 
 #include <stdio.h>
+//#include <math.h>//用于对数运算
 #include <unistd.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
@@ -13,19 +14,88 @@
 
 static volatile bool exiting = false;
 
+int count[25]={0};//定义一个count数组，用于汇总schedul()调度时间，以log2(时间间隔)为统计依据；
+
 static void sig_handler(int sig)
 {
 	exiting = true;
 }
 
+
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct event *e = data;
 	printf("t1:%lu  t2:%lu  delay:%lu\n",e->t1,e->t2,e->delay);
-	
+
+	int dly=(int)(e->delay),i=0;
+	while (dly > 1){
+		dly /= 2;
+		i ++;
+	}
+	count[i]++;//记录时间间隔次数;
 	return 0;
 }
+static int print_hstgram(int i,int max,int per_len)
+{
+	int cnt=count[i];
+	if(per_len==1){
+		while(cnt>0){//打印
+			printf("*");
+			cnt--;
+		}
+	}
+	while(cnt-per_len>=0){//打印
+		printf("*");
+		cnt-=per_len;
+	}
+	printf("\n");
+	return per_len;
+}
+double pow(int n,int k)//实现pow函数
+{
+	if (k > 0)
+		return n * pow(n, k - 1);
+	else if (k == 0)
+		return 1;
+	else
+		return 1.0 / pow(n, -k);
+}
+static void histogram()
+{
+	int log10[15]={0},max=0,per_len=1;
+	for(int i=0;i<10;i++){//log10(count[i]);
+		int tmp=count[i],cnt=0;
+		while (tmp >= 10){
+			tmp /= 10;
+			cnt ++;//幂次
+		}
+		log10[cnt]++;
+	}
+
+	for(int i=0;i<10;i++){//找log10里的最大值；
+		if(max<log10[i])
+			max=i;
+	}
+
+	while(max>0){//pow(10,max);
+		per_len *=10 ;
+		max--;
+	}
+
+	printf("\n%-24s \t%-12s \t%-12s \n","cs_delay","Count","Distribution");
+	printf("%d\t=>\t%-8d \t%-12d \t|",0,1,count[0]);
+	print_hstgram(0,max,per_len);
+	printf("%d\t=>\t%-8d \t%-12d \t|",2,3,count[1]);
+	print_hstgram(1,max,per_len);
+	for(int i=2;i<20;i++){
+		printf("%d\t=>\t%-8d \t%-12d \t|",(int)pow(2,i),(int)pow(2,(i+1))-1,count[i]);
+		print_hstgram(i,max,per_len);
+	}
+	printf("per_len = %d\n",per_len);
+}
 	
+
+
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -94,7 +164,10 @@ int main(int argc, char **argv)
 		exiting = true;			//使用该程序时,将该行代码注释掉 
 		
 	}
-	
+	/*睡眠*/
+	//sleep(99999999);
+	/*打印直方图*/
+	histogram();
 /* 卸载BPF程序 */
 cleanup:
 	ring_buffer__free(rb);

@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay/**'
       - '.github/workflows/libbpf.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay/**'
       - '.github/workflows/libbpf.yml'
 
 jobs:
@@ -22,17 +22,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt install clang libelf1 libelf-dev zlib1g-dev
-          sudo apt install libbpf-dev
-          sudo apt install linux-tools-5.15.0-53-generic	
-          sudo apt install linux-cloud-tools-5.15.0-53-generic
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          git submodule update --init --recursive
 
       - name: Run cs_delay
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay
-          # sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
-          clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I/usr/include/x86_64-linux-gnu -I. -c cs_delay.bpf.c -o cs_delay.bpf.o
-          sudo bpftool gen skeleton cs_delay.bpf.o > cs_delay.skel.h
-          clang -g -O2 -Wall -I . -c cs_delay.c -o cs_delay.o
-          clang -Wall -O2 -g cs_delay.o -static -lbpf -lelf -lz -o cs_delay
+          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay
+          make cs_delay
           sudo ./cs_delay
