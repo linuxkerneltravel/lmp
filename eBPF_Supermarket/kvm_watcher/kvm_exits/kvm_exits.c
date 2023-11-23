@@ -273,10 +273,6 @@ static volatile bool exiting = false;
 static void sig_handler(int sig)
 {
 	exiting = true;
-	printf("\n");
-	printf("---------------------------------------------------------------------------\n");
-	printExitInfo(exitInfoBuffer);
-	freeExitInfoList(exitInfoBuffer);
 }
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
@@ -349,6 +345,9 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
+    printf("\n---------------------------------------------------------------------------\n");
+	printExitInfo(exitInfoBuffer);
+	freeExitInfoList(exitInfoBuffer);
 cleanup:
     /* Clean up */
 	ring_buffer__free(rb);
