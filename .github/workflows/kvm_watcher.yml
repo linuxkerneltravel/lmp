@@ -31,4 +31,4 @@ jobs:
         run: |
           cd eBPF_Supermarket/kvm_watcher/kvm_exits
           make
-          sudo ./kvm_exits
+          sudo ./kvm_exits -t 5

@@ -1,29 +1,29 @@
 #include "vmlinux.h"
-#include <bpf/bpf_helpers.h>		//°üº¬ÁËBPF ¸¨Öúº¯Êı
+#include <bpf/bpf_helpers.h>		//åŒ…å«äº†BPF è¾…åŠ©å‡½æ•°
 #include <bpf/bpf_tracing.h>
 #include "cs_delay.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-// ¶¨ÒåÊı×éÓ³Éä
+// å®šä¹‰æ•°ç»„æ˜ å°„
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
 	__uint(max_entries, 1);
 	__type(key, int);
 	__type(value, u64);
-} start SEC(".maps");
+} start SEC(".maps");//è®°å½•æ—¶é—´æˆ³ï¼›
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
-} rb SEC(".maps");
+} rb SEC(".maps");//ç¯å½¢ç¼“å†²åŒºï¼›
 
 SEC("kprobe/schedule")
 int BPF_KPROBE(schedule)
 {
 	u64 t1;
-	t1 = bpf_ktime_get_ns()/1000;	//bpf_ktime_get_ns·µ»Ø×ÔÏµÍ³Æô¶¯ÒÔÀ´Ëù¾­¹ıµÄÊ±¼ä(ÒÔÄÉÃëÎªµ¥Î»)¡£²»°üÀ¨ÏµÍ³¹ÒÆğµÄÊ±¼ä¡£
-	int key=0;
+	t1 = bpf_ktime_get_ns()/1000;	//bpf_ktime_get_nsè¿”å›è‡ªç³»ç»Ÿå¯åŠ¨ä»¥æ¥æ‰€ç»è¿‡çš„æ—¶é—´(ä»¥çº³ç§’ä¸ºå•ä½)ã€‚ä¸åŒ…æ‹¬ç³»ç»ŸæŒ‚èµ·çš„æ—¶é—´ã€‚
+	int key =0;
 	bpf_map_update_elem(&start,&key,&t1,BPF_ANY);
 
 	return 0;
@@ -40,20 +40,21 @@ int BPF_KRETPROBE(schedule_exit)
 	{
         	t1 = *val;
         	delay = t2 - t1;
+			bpf_map_delete_elem(&start, &key);
 	}else{
 		return 0;
 	}
-	bpf_map_delete_elem(&start, &key);
+	
 	
 	struct event *e;
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)	return 0;	
 	
-	e->t1=t1;
-	e->t2=t2;
-	e->delay=delay;
+	e->t1=t1;//å¼€å§‹æ—¶é—´
+	e->t2=t2;//ç»“æŸæ—¶é—´
+	e->delay=delay;//æ—¶é—´é—´éš”
 	
-	/* ³É¹¦µØ½«ÆäÌá½»µ½ÓÃ»§¿Õ¼ä½øĞĞºóÆÚ´¦Àí */
+	/* æˆåŠŸåœ°å°†å…¶æäº¤åˆ°ç”¨æˆ·ç©ºé—´è¿›è¡ŒåæœŸå¤„ç† */
 	bpf_ringbuf_submit(e, 0);
 	
 	return 0;

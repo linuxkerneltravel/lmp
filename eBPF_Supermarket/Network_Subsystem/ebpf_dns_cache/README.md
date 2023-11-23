@@ -1,18 +1,13 @@
 # 基于eBPF的DNS Cache实现
 
-# 背景
-
-本项目是课题 [基于eBPF的DNS Cache实现](https://www.gitlink.org.cn/glcc/subjects/detail/257) 的具体实现
-
-![Untitled](images/Untitled.png)
-
-![截图 2022-10-13 23-05-48.png](images/2022-10-13_23-05-48.png)
-
 # 功能
 
 1. 缓存 DNS 解析记录及统计解析失败率
 2. 在达到失败阈值时，例如有 20% 的 DNS Query 请求都失败了，可以尝试通过已缓存的解析记录，构造 DNS Reply 来解决解析失败的场景
 3. 适合容器场景及 IPv4 网络
+![Untitled](images/Untitled.png)
+
+![截图 2022-10-13 23-05-48.png](images/2022-10-13_23-05-48.png)
 
 # **与传统工具的不同之处**
 
