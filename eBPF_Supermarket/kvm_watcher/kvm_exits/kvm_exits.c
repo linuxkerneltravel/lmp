@@ -211,11 +211,11 @@ int doesVmProcessExist(pid_t pid) {
 static struct env {
 	int monitoring_time;
 	pid_t vm_pid;
-    int stat;
+    bool ShowStats;
 } env={
 	.monitoring_time=0,
 	.vm_pid=0,
-    .stat=0,
+    .ShowStats=false,
 };
 
 const char *argp_program_version = "kvm_exits 1.0";
@@ -225,7 +225,7 @@ const char argp_program_doc[] = "BPF program used for outputting VM exit reason\
 static const struct argp_option opts[] = {
 	{ "monitoring_time", 't', "TIME-SEC", 0, "Set the time for profiling VM exit event reasons" },
 	{ "vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor." },
-    { "stat",'s',"STAT",0,"After monitoring is completed, display statistical data." },
+    { "stat",'s',NULL,0,"After monitoring is completed, display statistical data." },
 	{},
 };
 
@@ -251,7 +251,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		}
 		break;
     case 's':
-        env.stat = strtol(arg, NULL, 10);
+        env.ShowStats=true;
         break;
 	case ARGP_KEY_ARG:
 		argp_usage(state);
@@ -351,7 +351,7 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
-    if(env.stat){
+    if(env.ShowStats){
         printf("\n---------------------------------------------------------------------------\n");
         printExitInfo(exitInfoBuffer);
         freeExitInfoList(exitInfoBuffer);
