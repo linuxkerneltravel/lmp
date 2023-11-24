@@ -36,4 +36,4 @@ jobs:
         run: |
           cd eBPF_Supermarket/kvm_watcher/vcpu
           make
-          sudo ./kvm_vcpu
+          sudo ./kvm_vcpu -w -t 5
