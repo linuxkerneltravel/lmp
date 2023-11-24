@@ -75,7 +75,8 @@ struct pack_t {
     int err;                     // no err(0) invalid seq(1) invalid checksum(2)
     unsigned long long mac_time; // mac layer 处理时间(us)
     unsigned long long ip_time;  // ip layer 处理时间(us)
-    unsigned long long tcp_time; // tcp layer 处理时间(us)
+    //unsigned long long tcp_time; // tcp layer 处理时间(us)
+    unsigned long long tran_time; // tcp layer 处理时间(us)
     unsigned int seq;            // the seq num of packet
     unsigned int ack;            // the ack num of packet
     unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
