@@ -29,7 +29,6 @@
 
 static struct env {
 	bool execute_vcpu_wakeup;
-
 	int monitoring_time;
 } env={
 	.execute_vcpu_wakeup=false,
