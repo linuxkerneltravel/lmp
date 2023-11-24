@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay/**'
       - '.github/workflows/libbpf.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay/**'
       - '.github/workflows/libbpf.yml'
 
 jobs:
@@ -28,6 +28,6 @@ jobs:
 
       - name: Run cs_delay
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cs_delay/libbpf_cs_delay
+          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay
           make cs_delay
           sudo ./cs_delay
