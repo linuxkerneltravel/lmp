@@ -28,7 +28,7 @@ struct {
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
-const volatile bool execute_vcpu_wake=false;
+const volatile bool execute_vcpu_wakeup=false;
 
 struct vcpu_wakeup{
 	u64 pad;
@@ -37,7 +37,7 @@ struct vcpu_wakeup{
 	bool vaild;
 };
 
-int trace_kvm_vcpu_wake(struct vcpu_wakeup *ctx){
+int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx){
 	unsigned pid = bpf_get_current_pid_tgid() >> 32;
 	u32 tid = bpf_get_current_pid_tgid();
 	struct event *e;
@@ -48,7 +48,7 @@ int trace_kvm_vcpu_wake(struct vcpu_wakeup *ctx){
 	e->waited = ctx->waited;
 	e->pid = pid;
 	e->tid = tid;
-	e->block_ns = ctx->ns;
+	e->dur_hlt_ns = ctx->ns;
 	e->hlt_time = hlt_time;
 	bpf_get_current_comm(&e->comm, sizeof(e->comm));
 	bpf_ringbuf_submit(e, 0);
@@ -58,8 +58,8 @@ int trace_kvm_vcpu_wake(struct vcpu_wakeup *ctx){
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx)
 {   
-	if(execute_vcpu_wake){
-		trace_kvm_vcpu_wake(ctx);
+	if(execute_vcpu_wakeup){
+		trace_kvm_vcpu_wakeup(ctx);
 	}
 	return 0;
 }

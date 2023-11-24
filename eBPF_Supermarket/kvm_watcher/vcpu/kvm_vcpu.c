@@ -28,9 +28,13 @@
 #include "kvm_vcpu.h"
 
 static struct env {
-	bool vcpu_wakeup;
+	bool execute_vcpu_wakeup;
+
+	int monitoring_time;
 } env={
-	.vcpu_wakeup=false,
+	.execute_vcpu_wakeup=false,
+
+	.monitoring_time=0,
 };
 
 const char *argp_program_version = "kvm_vcpu 1.0";
@@ -38,7 +42,8 @@ const char *argp_program_bug_address = "<nanshuaibo811@163.com>";
 const char argp_program_doc[] = "BPF program used for monitoring data for vCPU\n";
 
 static const struct argp_option opts[] = {
-	{ "vcpu_wakeup", 'w', NULL, 0, "Set the time for profiling VM exit event reasons" },
+	{ "monitoring_time", 't', "SEC", 0, "Time for monitoring wakeup of vcpu" },
+	{ "vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu" },
 	{},
 };
 
@@ -46,8 +51,20 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	switch (key) {
     case 'w':
-        env.vcpu_wakeup=true;
+        env.execute_vcpu_wakeup=true;
         break;
+	case 't':
+		env.monitoring_time = strtol(arg, NULL, 10);
+		if (env.monitoring_time <= 0) {
+			fprintf(stderr, "Invalid duration: %s\n", arg);
+			argp_usage(state);
+		} else if (!env.execute_vcpu_wakeup) {
+            fprintf(stderr, "No monitoring options activated!\n");
+            argp_usage(state);
+		}else{
+			alarm(env.monitoring_time);
+		}
+		break;	
 	case ARGP_KEY_ARG:
 		argp_usage(state);
 		break;
@@ -79,7 +96,7 @@ static void sig_handler(int sig)
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	const struct event *e = data;
-	printf("%-18llu %-20llu %-15s %-6d/%-8d %-10s\n", e->hlt_time,e->block_ns, e->comm, e->pid,e->tid,e->waited ? "wait" : "poll");
+	printf("%-18llu %-20llu %-15s %-6d/%-8d %-10s\n", e->hlt_time,e->dur_hlt_ns, e->comm, e->pid,e->tid,e->waited ? "wait" : "poll");
 
 	return 0;
 }
@@ -101,7 +118,7 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-
+	signal(SIGALRM, sig_handler);
 	/* Open BPF application */
 	skel = kvm_vcpu_bpf__open();
 	if (!skel) {
@@ -109,7 +126,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	/* Parameterize BPF code with parameter */
-	skel->rodata->execute_vcpu_wake = env.vcpu_wakeup;
+	skel->rodata->execute_vcpu_wakeup = env.execute_vcpu_wakeup;
 
 	/* Load & verify BPF programs */
 	err = kvm_vcpu_bpf__load(skel);
@@ -133,8 +150,8 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 		/* Process events */
-	if(env.vcpu_wakeup){
-		printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(us)", "DURATIONS_TIME(ns)","VCPUID/COMM","PID/TID","WAIT/POLL");
+	if(env.execute_vcpu_wakeup){
+		printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(ns)", "DURATIONS_TIME(ns)","VCPUID/COMM","PID/TID","WAIT/POLL");
 	}
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 10 /* timeout, ms */);
