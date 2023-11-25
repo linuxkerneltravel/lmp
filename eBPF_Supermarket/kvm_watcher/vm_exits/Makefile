@@ -20,4 +20,4 @@ endif
 	clang -Wall -O2 -g $@.o -static -lbpf -lelf -lz -o $@
 
 clean:
-	rm -f *.o *.skel.h $(APP)
+	rm -f *.o *.skel.h $(APP) vmlinux.h
