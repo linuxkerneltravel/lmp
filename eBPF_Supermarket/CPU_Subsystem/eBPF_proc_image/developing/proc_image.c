@@ -198,11 +198,6 @@ static int print_resource(struct bpf_map *map)
 	return 0;
 }
 
-static void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
-{
-	fprintf(stderr, "Lost %llu events on CPU #%d!\n", lost_cnt, cpu);
-}
-
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
@@ -250,7 +245,7 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 
-		err = resource_bpf__attach(resource_skel);
+		err = resource_image_bpf__attach(resource_skel);
 		if (err) {
 			fprintf(stderr, "Failed to attach BPF resource skeleton\n");
 			goto cleanup;

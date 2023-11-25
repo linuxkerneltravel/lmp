@@ -21,8 +21,8 @@
 
 // resource_image
 struct proc_id{
-	long unsigned int pid;
-	long unsigned int cpu_id;
+	int pid;
+	int cpu_id;
 }; 
 
 struct start_rsc{
@@ -32,7 +32,7 @@ struct start_rsc{
 };
 
 struct total_rsc{
-    long unsigned int pid;
+    int pid;
 	long long unsigned int time;
 	long unsigned int memused;
 	long long unsigned int readchar;

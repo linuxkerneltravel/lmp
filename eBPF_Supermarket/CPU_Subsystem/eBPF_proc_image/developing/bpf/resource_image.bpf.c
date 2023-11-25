@@ -20,7 +20,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-#include "include/proc_image.h"
+#include "../include/proc_image.h"
 
 const volatile pid_t target_pid = -1;
 const volatile int target_cpu_id = -1;
