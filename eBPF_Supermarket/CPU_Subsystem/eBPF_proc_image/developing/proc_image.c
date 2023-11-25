@@ -27,7 +27,7 @@
 #include <fcntl.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
-#include "include/proc_image.h"
+#include "proc_image.h"
 #include "resource_image.skel.h"
 
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
@@ -160,8 +160,8 @@ static int print_resource(struct bpf_map *map)
     int sec = localTime->tm_sec;
 
 	if(prev_image != RESOURCE_IMAGE){
-        printf("RESOURCE----------------------------------------------------\n");
-        printf("%-8s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU(%)","MEM(%)","read(kb/s)","write(kb/s)");
+        printf("RESOURCE------------------------------------------------------------\n");
+        printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","read(kb/s)","write(kb/s)");
     }
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
@@ -176,8 +176,8 @@ static int print_resource(struct bpf_map *map)
 		read_rate = (1.0*event.readchar)/1024/((1.0*event.time)/1000000000);            // kb/s
 		write_rate = (1.0*event.writechar)/1024/((1.0*event.time)/1000000000);          // kb/s
 		
-		printf("%02d:%02d:%02d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
-                hour,min,sec,event.pid,pcpu,pmem,read_rate,write_rate);
+		printf("%02d:%02d:%02d  %-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
+                hour,min,sec,event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
 		
 		lookup_key = next_key;
 	}

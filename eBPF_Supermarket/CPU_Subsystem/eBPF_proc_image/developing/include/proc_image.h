@@ -33,6 +33,7 @@ struct start_rsc{
 
 struct total_rsc{
     int pid;
+	int cpu_id;
 	long long unsigned int time;
 	long unsigned int memused;
 	long long unsigned int readchar;
