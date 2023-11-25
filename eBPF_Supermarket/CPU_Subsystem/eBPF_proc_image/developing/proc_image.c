@@ -161,7 +161,7 @@ static int print_resource(struct bpf_map *map)
 
 	if(prev_image != RESOURCE_IMAGE){
         printf("RESOURCE----------------------------------------------------\n");
-        printf("%-8s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU(%)","MEM(%)","read(kb/s)","write(kb/s)\n");
+        printf("%-8s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU(%)","MEM(%)","read(kb/s)","write(kb/s)");
     }
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
@@ -171,12 +171,12 @@ static int print_resource(struct bpf_map *map)
 			return -1;
 		}
 		
-		pcpu = (1.0*event.time)/1000000000;
-		pmem = (1.0*event.memused)/memtotal;
+		pcpu = (100.0*event.time)/1000000000;
+		pmem = (100.0*event.memused)/memtotal;
 		read_rate = (1.0*event.readchar)/1024/((1.0*event.time)/1000000000);            // kb/s
 		write_rate = (1.0*event.writechar)/1024/((1.0*event.time)/1000000000);          // kb/s
 		
-		printf("%02d:%02d:%02d  %-6d  %-6.4f  %-6.4f  %-12.2lf  %-12.2lf\n",
+		printf("%02d:%02d:%02d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
                 hour,min,sec,event.pid,pcpu,pmem,read_rate,write_rate);
 		
 		lookup_key = next_key;

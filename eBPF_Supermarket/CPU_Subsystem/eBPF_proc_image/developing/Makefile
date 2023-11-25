@@ -114,17 +114,17 @@ $(OUTPUT)/%.bpf.o: bpf/%.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTP
 .PHONY: $(APPS)
 $(APPS): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
 	$(call msg,GEN-SKEL,$@)
-	$(Q)$(BPFTOOL) gen skeleton $< > .output/$@.skel.h
+	$(Q)$(BPFTOOL) gen skeleton $< > $(OUTPUT)/$@.skel.h
 
 # Build user-space code
 $(OUTPUT)/$(TARGETS).o: $(TARGETS).c $(APPS) | $(OUTPUT)
-	$(call msg,CXX,$@)
-	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
 # Build application binary
 $(TARGETS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CXX) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 
 # delete failed targets
 .DELETE_ON_ERROR:
