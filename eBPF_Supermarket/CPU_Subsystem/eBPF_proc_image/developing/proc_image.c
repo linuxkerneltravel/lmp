@@ -86,12 +86,24 @@ static struct env {
     int cpu_id;
     int time;
     bool enable_resource;
+	bool enable_rsc_output;
+	bool first_rsc;
 } env = {
     .pid = -1,
     .cpu_id = -1,
     .time = 0,
     .enable_resource = false,
+	.enable_rsc_output = false,
+	.first_rsc = true,
 };
+
+// 定义定时器结构体和定时器ID
+static struct sigevent sev;
+static struct itimerspec its;
+static timer_t timerid;
+
+static struct timespec prevtime;
+static struct timespec currentime;
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
@@ -140,6 +152,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
+// 定时器处理函数
+void timer_handler(int signo) {
+	env.enable_rsc_output = true;
+}
+
 static void sig_handler(int signo)
 {
 	exiting = 1;
@@ -149,6 +166,12 @@ static int print_resource(struct bpf_map *map)
 {
 	struct proc_id lookup_key = {-1}, next_key;
 	int err, fd = bpf_map__fd(map);
+
+	if(env.first_rsc){
+		env.first_rsc = false;
+		goto delete_elem;
+	}
+
 	struct total_rsc event;
 	float pcpu,pmem;
 	double read_rate,write_rate;
@@ -158,6 +181,7 @@ static int print_resource(struct bpf_map *map)
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
+	long long unsigned int interval;
 
 	if(prev_image != RESOURCE_IMAGE){
         printf("RESOURCE------------------------------------------------------------\n");
@@ -171,19 +195,25 @@ static int print_resource(struct bpf_map *map)
 			return -1;
 		}
 		
-		pcpu = (100.0*event.time)/1000000000;
+		clock_gettime(CLOCK_REALTIME, &currentime);
+		interval = currentime.tv_nsec-prevtime.tv_nsec+(currentime.tv_sec-prevtime.tv_sec)*1000000000;
+
+		pcpu = (100.0*event.time)/interval;
 		pmem = (100.0*event.memused)/memtotal;
 		read_rate = (1.0*event.readchar)/1024/((1.0*event.time)/1000000000);            // kb/s
 		write_rate = (1.0*event.writechar)/1024/((1.0*event.time)/1000000000);          // kb/s
 		
-		printf("%02d:%02d:%02d  %-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
-                hour,min,sec,event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
+		if(pcpu<=100 && pmem<=100){
+			printf("%02d:%02d:%02d  %-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
+					hour,min,sec,event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
+		}
 		
 		lookup_key = next_key;
 	}
 
     prev_image = RESOURCE_IMAGE;
 
+delete_elem:
     lookup_key.pid = -1;	
 	lookup_key.cpu_id = -1;
 	while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
@@ -194,6 +224,12 @@ static int print_resource(struct bpf_map *map)
 		}
 		lookup_key = next_key;
 	}
+
+	// 获取当前高精度时间
+    clock_gettime(CLOCK_REALTIME, &prevtime);
+	env.enable_rsc_output = false;
+	// 重新启动定时器
+    timer_settime(timerid, 0, &its, NULL);
 
 	return 0;
 }
@@ -227,7 +263,6 @@ int main(int argc, char **argv)
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-	signal(SIGALRM,sig_handler);
 
 	if(env.enable_resource){
 		resource_skel = resource_image_bpf__open();
@@ -250,6 +285,23 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF resource skeleton\n");
 			goto cleanup;
 		}
+
+		// 设置定时器处理函数
+		sev.sigev_notify = SIGEV_SIGNAL;
+		sev.sigev_signo = SIGALRM;
+		sev.sigev_value.sival_ptr = &timerid;
+		// 注册SIGALRM信号的处理函数为timer_handler
+		signal(SIGALRM, timer_handler);
+
+		// 创建定时器
+		timer_create(CLOCK_REALTIME, &sev, &timerid);
+
+		// 设置初次定时器到期时间为1秒
+		its.it_value.tv_sec = 1;
+		its.it_value.tv_nsec = 0;
+
+		// 启动定时器
+		timer_settime(timerid, 0, &its, NULL);
 	}
 
 	/* 处理事件 */
@@ -257,9 +309,7 @@ int main(int argc, char **argv)
 	   后期修改方案一：每秒输出的事件改用定时器实现，先将数据写到用户空间缓冲区（字符串数组）中，
 	   然后循环访问缓冲区中是否有数据，避免事件的数据交叉输出；*/
 	while (!exiting) {
-		sleep(1);
-
-		if(env.enable_resource){
+		if(env.enable_resource && env.enable_rsc_output){
 			err = print_resource(resource_skel->maps.total);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
