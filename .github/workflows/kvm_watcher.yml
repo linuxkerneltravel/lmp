@@ -29,6 +29,11 @@ jobs:
           sudo modprobe kvm
       - name: Run kvm_exits
         run: |
-          cd eBPF_Supermarket/kvm_watcher/kvm_exits
+          cd eBPF_Supermarket/kvm_watcher/vm_exits
           make
           sudo ./kvm_exits -t 5
+      - name: Run kvm_vcpu
+        run: |
+          cd eBPF_Supermarket/kvm_watcher/vcpu
+          make
+          sudo ./kvm_vcpu -w -t 5
