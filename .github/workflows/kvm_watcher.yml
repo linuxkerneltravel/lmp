@@ -16,7 +16,7 @@ on:
 
 jobs:
   kvm_watcher-project-build-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-23.04
     steps:
       - uses: actions/checkout@v3
 
@@ -27,13 +27,11 @@ jobs:
           sudo apt install linux-tools-$(uname -r)
           sudo apt install linux-cloud-tools-$(uname -r)
           sudo modprobe kvm
-      - name: Run kvm_exits
+      - name: Run kvm_watcher
         run: |
-          cd eBPF_Supermarket/kvm_watcher/vm_exits
+          cd eBPF_Supermarket/kvm_watcher/
           make
-          sudo ./kvm_exits -t 5
-      - name: Run kvm_vcpu
-        run: |
-          cd eBPF_Supermarket/kvm_watcher/vcpu
-          make
-          sudo ./kvm_vcpu -w -t 5
+          sudo ./kvm_watcher -w -t 5
+          sudo ./kvm_watcher -e -t 5 -s
+          make clean
+
