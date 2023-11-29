@@ -31,190 +31,190 @@
 
 
 struct ExitReason exitReasons[] = {
-    {0, "EXCEPTION_NMI"},
-    {1, "EXTERNAL_INTERRUPT"},
-    {2, "TRIPLE_FAULT"},
-    {3, "INIT_SIGNAL"},
-    {4, "SIPI_SIGNAL"},
-    {7, "INTERRUPT_WINDOW"},
-    {8, "NMI_WINDOW"},
-    {9, "TASK_SWITCH"},
-    {10, "CPUID"},
-    {12, "HLT"},
-    {13, "INVD"},
-    {14, "INVLPG"},
-    {15, "RDPMC"},
-    {16, "RDTSC"},
-    {18, "VMCALL"},
-    {19, "VMCLEAR"},
-    {20, "VMLAUNCH"},
-    {21, "VMPTRLD"},
-    {22, "VMPTRST"},
-    {23, "VMREAD"},
-    {24, "VMRESUME"},
-    {25, "VMWRITE"},
-    {26, "VMOFF"},
-    {27, "VMON"},
-    {28, "CR_ACCESS"},
-    {29, "DR_ACCESS"},
-    {30, "IO_INSTRUCTION"},
-    {31, "MSR_READ"},
-    {32, "MSR_WRITE"},
-    {33, "INVALID_STATE"},
-    {34, "MSR_LOAD_FAIL"},
-    {36, "MWAIT_INSTRUCTION"},
-    {37, "MONITOR_TRAP_FLAG"},
-    {39, "MONITOR_INSTRUCTION"},
-    {40, "PAUSE_INSTRUCTION"},
-    {41, "MCE_DURING_VMENTRY"},
-    {43, "TPR_BELOW_THRESHOLD"},
-    {44, "APIC_ACCESS"},
-    {45, "EOI_INDUCED"},
-    {46, "GDTR_IDTR"},
-    {47, "LDTR_TR"},
-    {48, "EPT_VIOLATION"},
-    {49, "EPT_MISCONFIG"},
-    {50, "INVEPT"},
-    {51, "RDTSCP"},
-    {52, "PREEMPTION_TIMER"},
-    {53, "INVVPID"},
-    {54, "WBINVD"},
-    {55, "XSETBV"},
-    {56, "APIC_WRITE"},
-    {57, "RDRAND"},
-    {58, "INVPCID"},
-    {59, "VMFUNC"},
-    {60, "ENCLS"},
-    {61, "RDSEED"},
-    {62, "PML_FULL"},
-    {63, "XSAVES"},
-    {64, "XRSTORS"},
-    {67, "UMWAIT"},
-    {68, "TPAUSE"},
-    {74, "BUS_LOCK"},
-    {75, "NOTIFY"}
+	{0, "EXCEPTION_NMI"},
+	{1, "EXTERNAL_INTERRUPT"},
+	{2, "TRIPLE_FAULT"},
+	{3, "INIT_SIGNAL"},
+	{4, "SIPI_SIGNAL"},
+	{7, "INTERRUPT_WINDOW"},
+	{8, "NMI_WINDOW"},
+	{9, "TASK_SWITCH"},
+	{10, "CPUID"},
+	{12, "HLT"},
+	{13, "INVD"},
+	{14, "INVLPG"},
+	{15, "RDPMC"},
+	{16, "RDTSC"},
+	{18, "VMCALL"},
+	{19, "VMCLEAR"},
+	{20, "VMLAUNCH"},
+	{21, "VMPTRLD"},
+	{22, "VMPTRST"},
+	{23, "VMREAD"},
+	{24, "VMRESUME"},
+	{25, "VMWRITE"},
+	{26, "VMOFF"},
+	{27, "VMON"},
+	{28, "CR_ACCESS"},
+	{29, "DR_ACCESS"},
+	{30, "IO_INSTRUCTION"},
+	{31, "MSR_READ"},
+	{32, "MSR_WRITE"},
+	{33, "INVALID_STATE"},
+	{34, "MSR_LOAD_FAIL"},
+	{36, "MWAIT_INSTRUCTION"},
+	{37, "MONITOR_TRAP_FLAG"},
+	{39, "MONITOR_INSTRUCTION"},
+	{40, "PAUSE_INSTRUCTION"},
+	{41, "MCE_DURING_VMENTRY"},
+	{43, "TPR_BELOW_THRESHOLD"},
+	{44, "APIC_ACCESS"},
+	{45, "EOI_INDUCED"},
+	{46, "GDTR_IDTR"},
+	{47, "LDTR_TR"},
+	{48, "EPT_VIOLATION"},
+	{49, "EPT_MISCONFIG"},
+	{50, "INVEPT"},
+	{51, "RDTSCP"},
+	{52, "PREEMPTION_TIMER"},
+	{53, "INVVPID"},
+	{54, "WBINVD"},
+	{55, "XSETBV"},
+	{56, "APIC_WRITE"},
+	{57, "RDRAND"},
+	{58, "INVPCID"},
+	{59, "VMFUNC"},
+	{60, "ENCLS"},
+	{61, "RDSEED"},
+	{62, "PML_FULL"},
+	{63, "XSAVES"},
+	{64, "XRSTORS"},
+	{67, "UMWAIT"},
+	{68, "TPAUSE"},
+	{74, "BUS_LOCK"},
+	{75, "NOTIFY"}
 };
 
 const char* getExitReasonName(int number) {
-    for (int i = 0; i < sizeof(exitReasons) / sizeof(exitReasons[0]); i++) {
-        if (exitReasons[i].number == number) {
-            return exitReasons[i].name;
-        }
-    }
-    return "Unknown"; // 如果找不到对应的退出原因，返回一个默认值
+	for (int i = 0; i < sizeof(exitReasons) / sizeof(exitReasons[0]); i++) {
+		if (exitReasons[i].number == number) {
+			return exitReasons[i].name;
+		}
+	}
+	return "Unknown"; // 如果找不到对应的退出原因，返回一个默认值
 }
 
 typedef struct {
-    int exit_reason;
-    char info[256]; // 替换成适当的大小
+	int exit_reason;
+	char info[256]; // 替换成适当的大小
 	unsigned long long total_dur;
 	unsigned long long avg_dur;
 } ExitInfo;
 
 // 链表节点
 typedef struct Node {
-    ExitInfo data;
-    struct Node* next;
+	ExitInfo data;
+	struct Node* next;
 } Node;
 
 Node* exitInfoBuffer = NULL;
 
 void addExitInfo(Node** head, int exit_reason, const char* info,unsigned long long dur,int count) {
-    Node* newNode = (Node*)malloc(sizeof(Node));
-    newNode->data.exit_reason = exit_reason;
-    strncpy(newNode->data.info, info, sizeof(newNode->data.info));
-    newNode->next = NULL;
-    newNode->data.total_dur = dur;
-    newNode->data.avg_dur = dur / count;
+	Node* newNode = (Node*)malloc(sizeof(Node));
+	newNode->data.exit_reason = exit_reason;
+	strncpy(newNode->data.info, info, sizeof(newNode->data.info));
+	newNode->next = NULL;
+	newNode->data.total_dur = dur;
+	newNode->data.avg_dur = dur / count;
 
-    // 检查是否已经存在相同 exit reason 的信息
-    Node* current = *head;
-    Node* previous = NULL;
-    while (current != NULL) {
-        if (current->data.exit_reason == exit_reason) {
-            // 更新已存在的信息
-            strncpy(current->data.info, info, sizeof(current->data.info));
-	    current->data.total_dur=dur+current->data.total_dur;
-	    current->data.avg_dur=current->data.total_dur/count;
-            free(newNode); // 释放新节点，因为信息已经更新
-            return;
-        }
-        previous = current;
-        current = current->next;
-    }
-    // 没有找到相同的 exit reason，将新节点添加到链表
-    if (previous != NULL) {
-        previous->next = newNode;
-    } else {
-        *head = newNode;
-    }
+	// 检查是否已经存在相同 exit reason 的信息
+	Node* current = *head;
+	Node* previous = NULL;
+	while (current != NULL) {
+		if (current->data.exit_reason == exit_reason) {
+			// 更新已存在的信息
+			strncpy(current->data.info, info, sizeof(current->data.info));
+		current->data.total_dur=dur+current->data.total_dur;
+		current->data.avg_dur=current->data.total_dur/count;
+			free(newNode); // 释放新节点，因为信息已经更新
+			return;
+		}
+		previous = current;
+		current = current->next;
+	}
+	// 没有找到相同的 exit reason，将新节点添加到链表
+	if (previous != NULL) {
+		previous->next = newNode;
+	} else {
+		*head = newNode;
+	}
 }
 
 // 查找指定退出原因的信息
 const char* findExitInfo(Node* head, int exit_reason) {
-    Node* current = head;
-    while (current != NULL) {
-        if (current->data.exit_reason == exit_reason) {
-            return current->data.info;
-        }
-        current = current->next;
-    }
-    return NULL;
+	Node* current = head;
+	while (current != NULL) {
+		if (current->data.exit_reason == exit_reason) {
+			return current->data.info;
+		}
+		current = current->next;
+	}
+	return NULL;
 }
 
 // 释放链表
 void freeExitInfoList(Node* head) {
-    while (head != NULL) {
-        Node* temp = head;
-        head = head->next;
-        free(temp);
-    }
+	while (head != NULL) {
+		Node* temp = head;
+		head = head->next;
+		free(temp);
+	}
 }
 
 void printExitInfo(Node* head) {
-    Node* current = head;
-    printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","AVG_DURATION(ns)");
-    while (current != NULL) {
+	Node* current = head;
+	printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","AVG_DURATION(ns)");
+	while (current != NULL) {
 		printf("%-2d/%-20s %-33s %-13llu \n", current->data.exit_reason,getExitReasonName(current->data.exit_reason), current->data.info,current->data.avg_dur);
-       	 	current = current->next;
-    }
+	   	 	current = current->next;
+	}
 }
 
 int doesVmProcessExist(pid_t pid) {
-    char proc_name[256];
-    snprintf(proc_name, sizeof(proc_name), "/proc/%d/cmdline", pid);
-    FILE *file = fopen(proc_name, "r");
-    if (file) {
-        size_t size;
-        size = fread(proc_name, 1, sizeof(proc_name), file);
-        if (size > 0) {
-            if (proc_name[size - 1] == '\n') {
-                proc_name[size - 1] = '\0';  // Remove newline character
-            }
-            if (strstr(proc_name, "qemu-system-x86_64") != NULL) {
-                fclose(file);
-                return 1;  // VmProcess name contains the target string
-            } else {
-                fclose(file);
+	char proc_name[256];
+	snprintf(proc_name, sizeof(proc_name), "/proc/%d/cmdline", pid);
+	FILE *file = fopen(proc_name, "r");
+	if (file) {
+		size_t size;
+		size = fread(proc_name, 1, sizeof(proc_name), file);
+		if (size > 0) {
+			if (proc_name[size - 1] == '\n') {
+				proc_name[size - 1] = '\0';  // Remove newline character
+			}
+			if (strstr(proc_name, "qemu-system-x86_64") != NULL) {
+				fclose(file);
+				return 1;  // VmProcess name contains the target string
+			} else {
+				fclose(file);
 				fprintf(stderr, "Process exist!but is not vmprocess: %d\n", pid);
-                return 0;  // VmProcess name does not contain the target string
-            }
-        }
-        fclose(file);
-    }
-    fprintf(stderr, "Process name does not find: %d\n", pid);
-    return 0;  // VmProcess with the given PID not found
+				return 0;  // VmProcess name does not contain the target string
+			}
+		}
+		fclose(file);
+	}
+	fprintf(stderr, "Process name does not find: %d\n", pid);
+	return 0;  // VmProcess with the given PID not found
 }
 
 static struct env {
 	bool execute_vcpu_wakeup;
-    bool execute_exit;
+	bool execute_exit;
 	bool ShowStats;
 	int monitoring_time;
 	pid_t vm_pid;
 } env={
 	.execute_vcpu_wakeup=false,
-    .execute_exit=false,
+	.execute_exit=false,
 	.monitoring_time=0,
 	.vm_pid=0,
 };
@@ -236,40 +236,40 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	switch (key) {
-    case 'w':
-        if (option_selected == 0) {
-            env.execute_vcpu_wakeup = true;
-            option_selected = 1;
-        } else {
-            fprintf(stderr, "Use either the -w or -e option.\n");
+	case 'w':
+		if (option_selected == 0) {
+			env.execute_vcpu_wakeup = true;
+			option_selected = 1;
+		} else {
+			fprintf(stderr, "Use either the -w or -e option.\n");
 			argp_usage(state);
-        }
-        break;
+		}
+		break;
 	case 'e':
-        if (option_selected == 0) {
-            env.execute_exit = true;
-            option_selected = 1;
-        } else {
-            fprintf(stderr, "Use either the -w or -e option.\n");
+		if (option_selected == 0) {
+			env.execute_exit = true;
+			option_selected = 1;
+		} else {
+			fprintf(stderr, "Use either the -w or -e option.\n");
 			argp_usage(state);
-        }
-        break;
+		}
+		break;
 	case 's':
 		if(env.execute_exit){
-        	env.ShowStats=true;
+			env.ShowStats=true;
 		}else{
 			fprintf(stderr, "The -e option must be specified.\n");
 			argp_usage(state);
 		}
-        break;
+		break;
 	case 't':
 		env.monitoring_time = strtol(arg, NULL, 10);
 		if (env.monitoring_time <= 0) {
 			fprintf(stderr, "Invalid duration: %s\n", arg);
 			argp_usage(state);
 		} else if (!env.execute_vcpu_wakeup && !env.execute_exit) {
-            fprintf(stderr, "No monitoring options activated!\n");
-            argp_usage(state);
+			fprintf(stderr, "No monitoring options activated!\n");
+			argp_usage(state);
 		}else{
 			alarm(env.monitoring_time);
 		}
@@ -329,11 +329,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 int main(int argc, char **argv)
 {
-    struct ring_buffer *rb = NULL;
+	struct ring_buffer *rb = NULL;
 	struct kvm_watcher_bpf *skel;
 	int err;
 
-    /* Parse command line arguments */
+	/* Parse command line arguments */
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
 		return err;
