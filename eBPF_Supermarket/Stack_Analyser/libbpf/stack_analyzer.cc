@@ -566,7 +566,7 @@ public:
 
 			std::string tgid_s = std::to_string(tgid);
 			const char *tgid_c = tgid_s.c_str();
-			if(!ajson.HasMember(tgid_c))
+			if (!ajson.HasMember(tgid_c))
 				ajson.KV(tgid_c, rapidjson::kObjectType);
 
 			std::string pid_s = std::to_string(pid);

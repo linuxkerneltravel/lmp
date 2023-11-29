@@ -49,3 +49,6 @@
 [submodule "eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap"]
 	path = eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap
 	url = https://github.com/libbpf/libbpf-bootstrap.git
+[submodule "eBPF_Supermarket/Stack_Analyser/speedscope"]
+	path = eBPF_Supermarket/Stack_Analyser/speedscope
+	url = https://github.com/jlfwong/speedscope
