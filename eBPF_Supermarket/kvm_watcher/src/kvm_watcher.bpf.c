@@ -32,33 +32,33 @@ const volatile bool execute_exit=false;
 
 
 struct {
-	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, 256 * 1024);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx)
 {   
-	if(execute_vcpu_wakeup){
-		trace_kvm_vcpu_wakeup(ctx,&rb,vm_pid);
-	}
-	return 0;
+    if(execute_vcpu_wakeup){
+        trace_kvm_vcpu_wakeup(ctx,&rb,vm_pid);
+    }
+    return 0;
 }
 
 SEC("tp/kvm/kvm_exit")
 int tp_exit(struct exit *ctx)
 {   
-	if(execute_exit){
-		trace_kvm_exit(ctx,vm_pid);
-	}
-	return 0;
+    if(execute_exit){
+        trace_kvm_exit(ctx,vm_pid);
+    }
+    return 0;
 }
 
 SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx)
 {   
-	if(execute_exit){
-		trace_kvm_entry(&rb);
-	}
-	return 0;
+    if(execute_exit){
+        trace_kvm_entry(&rb);
+    }
+    return 0;
 }
