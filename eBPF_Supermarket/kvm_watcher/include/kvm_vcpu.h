@@ -25,31 +25,31 @@
 #include <bpf/bpf_tracing.h>
 
 struct vcpu_wakeup{
-	u64 pad;
-	__u64 ns;
-	bool waited;
-	bool vaild;
+    u64 pad;
+    __u64 ns;
+    bool waited;
+    bool vaild;
 };
 
 static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx,void *rb,pid_t vm_pid)
 {
-	unsigned pid = bpf_get_current_pid_tgid() >> 32;
-	if (vm_pid == 0 || pid == vm_pid){
-		u32 tid = bpf_get_current_pid_tgid();
-		struct vcpu_wakeup_event *e;
-		e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
-		if (!e){
-			return 0;
-		}
-		u64 hlt_time = bpf_ktime_get_ns();
-		e->waited = ctx->waited;
-		e->process.pid = pid;
-		e->process.tid = tid;
-		e->dur_hlt_ns = ctx->ns;
-		e->hlt_time = hlt_time;
-		bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-		bpf_ringbuf_submit(e, 0);
-	}
-	return 0;
+    unsigned pid = bpf_get_current_pid_tgid() >> 32;
+    if (vm_pid == 0 || pid == vm_pid){
+        u32 tid = bpf_get_current_pid_tgid();
+        struct vcpu_wakeup_event *e;
+        e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
+        if (!e){
+            return 0;
+        }
+        u64 hlt_time = bpf_ktime_get_ns();
+        e->waited = ctx->waited;
+        e->process.pid = pid;
+        e->process.tid = tid;
+        e->dur_hlt_ns = ctx->ns;
+        e->hlt_time = hlt_time;
+        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+        bpf_ringbuf_submit(e, 0);
+    }
+    return 0;
 }
 #endif /* __KVM_VCPU_H */
