@@ -15,20 +15,14 @@
 // author: nanshuaibo811@163.com
 //
 // Kernel space BPF program used for monitoring data for vCPU HLT.
+#ifndef __KVM_VCPU_H
+#define __KVM_VCPU_H
 
+#include "kvm_watcher.h"
 #include "vmlinux.h"
-#include "kvm_vcpu.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
-struct {
-	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, 256 * 1024);
-} rb SEC(".maps");
-
-const volatile bool execute_vcpu_wakeup=false;
 
 struct vcpu_wakeup{
 	u64 pad;
@@ -37,29 +31,25 @@ struct vcpu_wakeup{
 	bool vaild;
 };
 
-int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx){
+static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx,void *rb,pid_t vm_pid)
+{
 	unsigned pid = bpf_get_current_pid_tgid() >> 32;
-	u32 tid = bpf_get_current_pid_tgid();
-	struct event *e;
-	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
-	u64 hlt_time = bpf_ktime_get_ns();
-	if (!e)
-		return 0;
-	e->waited = ctx->waited;
-	e->pid = pid;
-	e->tid = tid;
-	e->dur_hlt_ns = ctx->ns;
-	e->hlt_time = hlt_time;
-	bpf_get_current_comm(&e->comm, sizeof(e->comm));
-	bpf_ringbuf_submit(e, 0);
-	return 0;
-}
-
-SEC("tp/kvm/kvm_vcpu_wakeup")
-int tp_vcpu_wakeup(struct vcpu_wakeup *ctx)
-{   
-	if(execute_vcpu_wakeup){
-		trace_kvm_vcpu_wakeup(ctx);
+	if (vm_pid == 0 || pid == vm_pid){
+		u32 tid = bpf_get_current_pid_tgid();
+		struct vcpu_wakeup_event *e;
+		e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
+		if (!e){
+			return 0;
+		}
+		u64 hlt_time = bpf_ktime_get_ns();
+		e->waited = ctx->waited;
+		e->process.pid = pid;
+		e->process.tid = tid;
+		e->dur_hlt_ns = ctx->ns;
+		e->hlt_time = hlt_time;
+		bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+		bpf_ringbuf_submit(e, 0);
 	}
 	return 0;
 }
+#endif /* __KVM_VCPU_H */

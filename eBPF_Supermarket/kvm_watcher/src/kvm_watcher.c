@@ -14,7 +14,8 @@
 //
 // author: nanshuaibo811@163.com
 //
-// User space BPF program used for outputting VM exit reason.
+// User space BPF program used for monitoring KVM event.
+
 
 #include <stdio.h>
 #include <unistd.h>
@@ -25,12 +26,10 @@
 #include <time.h>
 #include <argp.h>
 #include <bpf/libbpf.h>
-#include "kvm_exits.skel.h"
-#include "kvm_exits.h"
+#include "kvm_watcher.skel.h"
+#include "include/kvm_watcher.h"
 
 
-// 存储所有exit reason的映射关系
-// from arch/x86/include/uapi/asm/vmx.h
 struct ExitReason exitReasons[] = {
     {0, "EXCEPTION_NMI"},
     {1, "EXTERNAL_INTERRUPT"},
@@ -96,7 +95,6 @@ struct ExitReason exitReasons[] = {
     {75, "NOTIFY"}
 };
 
-
 const char* getExitReasonName(int number) {
     for (int i = 0; i < sizeof(exitReasons) / sizeof(exitReasons[0]); i++) {
         if (exitReasons[i].number == number) {
@@ -107,16 +105,16 @@ const char* getExitReasonName(int number) {
 }
 
 typedef struct {
-    	int exit_reason;
-    	char info[256]; // 替换成适当的大小
+    int exit_reason;
+    char info[256]; // 替换成适当的大小
 	unsigned long long total_dur;
 	unsigned long long avg_dur;
 } ExitInfo;
 
 // 链表节点
 typedef struct Node {
-    	ExitInfo data;
-    	struct Node* next;
+    ExitInfo data;
+    struct Node* next;
 } Node;
 
 Node* exitInfoBuffer = NULL;
@@ -175,9 +173,9 @@ void freeExitInfoList(Node* head) {
 
 void printExitInfo(Node* head) {
     Node* current = head;
-    printf("%-23s %-10s %-14s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","AVG_DURATION(ns)"/*,"PCT"*/);
+    printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","AVG_DURATION(ns)");
     while (current != NULL) {
-		printf("%-2d/%-20s %-32s %-13llu \n", current->data.exit_reason,getExitReasonName(current->data.exit_reason), current->data.info,current->data.avg_dur);
+		printf("%-2d/%-20s %-33s %-13llu \n", current->data.exit_reason,getExitReasonName(current->data.exit_reason), current->data.info,current->data.avg_dur);
        	 	current = current->next;
     }
 }
@@ -209,39 +207,72 @@ int doesVmProcessExist(pid_t pid) {
 }
 
 static struct env {
+	bool execute_vcpu_wakeup;
+    bool execute_exit;
+	bool ShowStats;
 	int monitoring_time;
 	pid_t vm_pid;
-    bool ShowStats;
 } env={
+	.execute_vcpu_wakeup=false,
+    .execute_exit=false,
 	.monitoring_time=0,
 	.vm_pid=0,
-    .ShowStats=false,
 };
 
-const char *argp_program_version = "kvm_exits 1.0";
+const char *argp_program_version = "kvm_watcher 1.0";
 const char *argp_program_bug_address = "<nanshuaibo811@163.com>";
-const char argp_program_doc[] = "BPF program used for outputting VM exit reason\n";
+const char argp_program_doc[] = "BPF program used for monitoring KVM event\n";
+int option_selected = 0; // 功能标志变量,确保同时只能运行一个功能
 
 static const struct argp_option opts[] = {
-	{ "monitoring_time", 't', "TIME-SEC", 0, "Set the time for profiling VM exit event reasons" },
+	{ "vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu." },
+	{ "vm_exit)", 'e', NULL, 0, "Monitoring the event of vm exit." },
+	{ "stat",'s',NULL,0,"Display statistical data.(The -e option must be specified.)" },
 	{ "vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor." },
-    { "stat",'s',NULL,0,"After monitoring is completed, display statistical data." },
+	{ "monitoring_time", 't', "SEC", 0, "Time for monitoring event." },
 	{},
 };
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	switch (key) {
-	case 't':
-		errno = 0;
-		env.monitoring_time = strtol(arg, NULL, 10);
-		if (errno || env.monitoring_time <= 0) {
-			fprintf(stderr, "Invalid duration: %s\n", arg);
+    case 'w':
+        if (option_selected == 0) {
+            env.execute_vcpu_wakeup = true;
+            option_selected = 1;
+        } else {
+            fprintf(stderr, "Use either the -w or -e option.\n");
+			argp_usage(state);
+        }
+        break;
+	case 'e':
+        if (option_selected == 0) {
+            env.execute_exit = true;
+            option_selected = 1;
+        } else {
+            fprintf(stderr, "Use either the -w or -e option.\n");
+			argp_usage(state);
+        }
+        break;
+	case 's':
+		if(env.execute_exit){
+        	env.ShowStats=true;
+		}else{
+			fprintf(stderr, "The -e option must be specified.\n");
 			argp_usage(state);
 		}
-        else{
-            alarm(env.monitoring_time);
-        }
+        break;
+	case 't':
+		env.monitoring_time = strtol(arg, NULL, 10);
+		if (env.monitoring_time <= 0) {
+			fprintf(stderr, "Invalid duration: %s\n", arg);
+			argp_usage(state);
+		} else if (!env.execute_vcpu_wakeup && !env.execute_exit) {
+            fprintf(stderr, "No monitoring options activated!\n");
+            argp_usage(state);
+		}else{
+			alarm(env.monitoring_time);
+		}
 		break;
 	case 'p':
 		env.vm_pid=strtol(arg, NULL, 10);
@@ -250,9 +281,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 			argp_usage(state);
 		}
 		break;
-    case 's':
-        env.ShowStats=true;
-        break;
 	case ARGP_KEY_ARG:
 		argp_usage(state);
 		break;
@@ -283,18 +311,26 @@ static void sig_handler(int sig)
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
-	const struct event *e = data;
-	char info_buffer[256];
-	printf("%-2d/%-20s %-10s %-5u/%-8u %-8d %-13llu \n", e->reason_number,getExitReasonName(e->reason_number), e->comm, e->pid,e->tid,e->count,e->duration_ns/*,(double)e->count / e->total * 100.0*/);
-	snprintf(info_buffer, sizeof(info_buffer), "%-10s %-5u/%-8u %-8d", e->comm, e->pid,e->tid,e->count);
-	addExitInfo(&exitInfoBuffer,e->reason_number,info_buffer,e->duration_ns,e->count);
+	if(env.execute_vcpu_wakeup){
+		const struct vcpu_wakeup_event *e = data;
+		printf("%-18llu %-20llu %-15s %-6d/%-8d %-10s\n", e->hlt_time,e->dur_hlt_ns, e->process.comm, e->process.pid,e->process.tid,e->waited ? "wait" : "poll");
+	}
+	if(env.execute_exit){
+		char info_buffer[256];
+		const struct exit_event *e = data;
+		printf("%-2d/%-20s %-10s %-6u/%-8u %-8d %-13llu \n", e->reason_number,getExitReasonName(e->reason_number), e->process.comm, e->process.pid,e->process.tid,e->count,e->duration_ns);
+		if(env.ShowStats){
+			snprintf(info_buffer, sizeof(info_buffer), "%-10s %-6u/%-8u %-8d", e->process.comm, e->process.pid,e->process.tid,e->count);
+			addExitInfo(&exitInfoBuffer,e->reason_number,info_buffer,e->duration_ns,e->count);
+		}
+	}
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
-    	struct ring_buffer *rb = NULL;
-	struct kvm_exits_bpf *skel;
+    struct ring_buffer *rb = NULL;
+	struct kvm_watcher_bpf *skel;
 	int err;
 
     /* Parse command line arguments */
@@ -308,23 +344,28 @@ int main(int argc, char **argv)
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-    	signal(SIGALRM, sig_handler);
+	signal(SIGALRM, sig_handler);
 	/* Open BPF application */
-	skel = kvm_exits_bpf__open();
+	skel = kvm_watcher_bpf__open();
 	if (!skel) {
 		fprintf(stderr, "Failed to open BPF skeleton\n");
 		return 1;
 	}
-	skel->rodata->vm_pid = env.vm_pid;
+
+	/* Parameterize BPF code with parameter */
+	skel->rodata->vm_pid= env.vm_pid;
+	skel->rodata->execute_vcpu_wakeup = env.execute_vcpu_wakeup;
+	skel->rodata->execute_exit = env.execute_exit;
+	
 	/* Load & verify BPF programs */
-	err = kvm_exits_bpf__load(skel);
+	err = kvm_watcher_bpf__load(skel);
 	if (err) {
 		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 		goto cleanup;
 	}
 
 	/* Attach tracepoint handler */
-	err = kvm_exits_bpf__attach(skel);
+	err = kvm_watcher_bpf__attach(skel);
 	if (err) {
 		fprintf(stderr, "Failed to attach BPF skeleton\n");
 		goto cleanup;
@@ -338,7 +379,12 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 		/* Process events */
-	printf("%-23s %-10s %-14s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","DURATION(ns)"/*,"PCT"*/);
+	if(env.execute_vcpu_wakeup){
+		printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(ns)", "DURATIONS_TIME(ns)","VCPUID/COMM","PID/TID","WAIT/POLL");
+	}
+	if(env.execute_exit){
+		printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","DURATION(ns)");
+	}
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 10 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
@@ -351,14 +397,13 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
-    if(env.ShowStats){
-        printf("\n---------------------------------------------------------------------------\n");
-        printExitInfo(exitInfoBuffer);
-        freeExitInfoList(exitInfoBuffer);
-    }
+	if(env.ShowStats){
+		printf("\n---------------------------------------------------------------------------\n");
+		printExitInfo(exitInfoBuffer);
+		freeExitInfoList(exitInfoBuffer);
+	}
 cleanup:
-    /* Clean up */
 	ring_buffer__free(rb);
-	kvm_exits_bpf__destroy(skel);
+	kvm_watcher_bpf__destroy(skel);
 	return -err;
 }

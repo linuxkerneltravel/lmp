@@ -16,12 +16,14 @@
 //
 // Kernel space BPF program used for counting VM exit reason.
 
+#ifndef __KVM_EXITS_H
+#define __KVM_EXITS_H
+
+#include "kvm_watcher.h"
 #include "vmlinux.h"
-#include "kvm_exits.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -37,11 +39,6 @@ struct {
 	__type(value, u32);
 } counts SEC(".maps");
 
-struct {
-	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, 256 * 1024);
-} rb SEC(".maps");
-
 struct exit{
     u64 pad;
     unsigned int exit_reason;
@@ -55,17 +52,13 @@ struct exit{
 };
 
 int total=0;
-const volatile pid_t vm_pid = 0;
 
-
-SEC("tp/kvm/kvm_exit")
-int  handle_kvm_exit(struct exit *ctx)
+static int  trace_kvm_exit(struct exit *ctx, pid_t vm_pid)
 {   
-        pid_t tid,pid;
-        u64 id,ts;
-        id = bpf_get_current_pid_tgid();
-	tid = (u32)id;
-	pid = id >> 32;
+    u64 id,ts;
+    id = bpf_get_current_pid_tgid();
+	pid_t tid = (u32)id;
+	pid_t pid = id >> 32;
 	if (vm_pid == 0 || pid == vm_pid){
 		ts = bpf_ktime_get_ns();
 		u32 reason;
@@ -88,8 +81,7 @@ int  handle_kvm_exit(struct exit *ctx)
 	return 0;
 }
 
-SEC("tp/kvm/kvm_entry")
-int handle_kvm_entry()
+static int trace_kvm_entry(void *rb)
 { 
 	struct reason_info *reas;
 	pid_t pid, tid;
@@ -100,21 +92,21 @@ int handle_kvm_entry()
 	reas = bpf_map_lookup_elem(&times, &tid);
 	if(reas){
 	u32 reason;
-    	struct event *e;
+    	struct exit_event *e;
 		int count=0;
 		duration_ns=bpf_ktime_get_ns() - reas->time;
 		bpf_map_delete_elem(&times, &tid);
 		reason=reas->reason;
 		count=reas->count;
-		e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+		e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
 		if (!e){
 			return 0;
 		}
 		e->reason_number=reason;
-		e->pid=pid;
+		e->process.pid=pid;
 		e->duration_ns = duration_ns;
-		bpf_get_current_comm(&e->comm, sizeof(e->comm));
-		e->tid=tid;
+		bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+		e->process.tid=tid;
 		e->total=++total;
 		if (count) {
 			e->count = count;
@@ -128,6 +120,6 @@ int handle_kvm_entry()
 		return 0;
 	}	   	
 }
-
+#endif /* __KVM_EXITS_H */
 
 
