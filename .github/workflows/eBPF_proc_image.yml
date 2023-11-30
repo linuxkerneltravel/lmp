@@ -60,7 +60,7 @@ jobs:
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/developing
           make proc_image
-          sudo ./proc_image -s -t 1
+          sudo ./proc_image -r -s -t 1
 
       - name: Run mutex_test
         run: |
