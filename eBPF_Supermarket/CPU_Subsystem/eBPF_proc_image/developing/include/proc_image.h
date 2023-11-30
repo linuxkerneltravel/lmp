@@ -20,7 +20,6 @@
 #define __PROC_IMAGE_H
 
 #define MAX_SYSCALL_COUNT 58
-#define EVENT_SIZE(e) (BASE_EVENT_SIZE + e->args_size)
 
 // resource_image
 struct proc_id{

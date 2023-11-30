@@ -30,7 +30,9 @@
 #include <bpf/bpf.h>
 #include "proc_image.h"
 #include "resource_image.skel.h"
+/*
 #include "syscall_image.skel.h"
+*/
 
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
     do                                                           \
@@ -109,13 +111,6 @@ static struct env {
 	.enable_syscall = false,
 };
 
-/*
-// 定义定时器结构体和定时器ID
-static struct sigevent sev;
-static struct itimerspec its;
-static timer_t timerid;
-*/
-
 static struct timespec prevtime;
 static struct timespec currentime;
 
@@ -169,13 +164,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	
 	return 0;
 }
-
-/*
-// 定时器处理函数
-void timer_handler(int signo) {
-	env.enable_output = true;
-}
-*/
 
 static void sig_handler(int signo)
 {
@@ -247,14 +235,11 @@ delete_elem:
 	// 获取当前高精度时间
     clock_gettime(CLOCK_REALTIME, &prevtime);
 	env.enable_output = false;
-/*
-	// 重新启动定时器
-    timer_settime(timerid, 0, &its, NULL);
-*/
 
 	return 0;
 }
 
+/*
 static void print_syscall(void *ctx, int cpu, void *data, __u32 data_sz)
 {
 	const struct syscall_seq *e = data;
@@ -282,6 +267,7 @@ static void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
 {
 	fprintf(stderr, "Lost %llu events on CPU #%d!\n", lost_cnt, cpu);
 }
+*/
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -302,8 +288,10 @@ void *thread_function(void *arg) {
 int main(int argc, char **argv)
 {
 	struct resource_image_bpf *resource_skel;
+/*
 	struct syscall_image_bpf *syscall_skel;
 	struct perf_buffer *syscall_pb = NULL;
+*/
 	pthread_t thread_id;
 	int err;
 	static const struct argp argp = {
@@ -350,26 +338,9 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 
-/*
-		// 设置定时器处理函数
-		sev.sigev_notify = SIGEV_SIGNAL;
-		sev.sigev_signo = SIGALRM;
-		sev.sigev_value.sival_ptr = &timerid;
-		// 注册SIGALRM信号的处理函数为timer_handler
-		signal(SIGALRM, timer_handler);
-
-		// 创建定时器
-		timer_create(CLOCK_REALTIME, &sev, &timerid);
-
-		// 设置初次定时器到期时间为1秒
-		its.it_value.tv_sec = 1;
-		its.it_value.tv_nsec = 0;
-
-		// 启动定时器
-		timer_settime(timerid, 0, &its, NULL);
-*/
 	}
 
+/*
 	if(env.enable_syscall){
 		syscall_skel = syscall_image_bpf__open();
 		if(!syscall_skel) {
@@ -399,6 +370,7 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 	}
+*/
 
 	/* 处理事件 */
 	while (!exiting) {
@@ -431,6 +403,7 @@ int main(int argc, char **argv)
 			}
 		}
 
+/*
 		if(env.enable_syscall){
 			err = perf_buffer__poll(syscall_pb, 0);
 			if (err < 0 && err != -EINTR) {
@@ -439,13 +412,16 @@ int main(int argc, char **argv)
 			}
 			err = 0;
 		}
+*/
 	}
 
 /* 卸载BPF程序 */
 cleanup:
 	resource_image_bpf__destroy(resource_skel);
+/*
 	perf_buffer__free(syscall_pb);
 	syscall_image_bpf__destroy(syscall_skel);
-	
+*/
+
 	return err < 0 ? -err : 0;
 }
