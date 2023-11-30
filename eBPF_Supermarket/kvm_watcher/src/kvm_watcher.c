@@ -374,6 +374,7 @@ int main(int argc, char **argv)
     skel->rodata->execute_vcpu_wakeup = env.execute_vcpu_wakeup;
     skel->rodata->execute_exit = env.execute_exit;
     skel->rodata->execute_halt_poll_ns=env.execute_halt_poll_ns;
+    
     /* Load & verify BPF programs */
     err = kvm_watcher_bpf__load(skel);
     if (err) {
