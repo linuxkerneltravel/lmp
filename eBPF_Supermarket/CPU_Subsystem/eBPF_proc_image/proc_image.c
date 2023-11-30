@@ -30,8 +30,6 @@
 #include "include/proc_image.h"
 #include "proc_image.skel.h"
 
-#include <sys/utsname.h>
-
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
     do                                                           \
     {                                                            \
@@ -545,15 +543,6 @@ int main(int argc, char **argv)
 	}
 
 	printf("%-15s %-15s %-16s %-6s %-6s %-3s %-15s %3s %s\n", "TIME", "TYPE", "COMM", "PID", "PPID", "CPU", "time(us)", "RET", "ARGS");
-
-	struct utsname uname_data;
-
-    if (uname(&uname_data) == -1) {
-        perror("uname");
-        return 1;
-    }
-
-    printf("Kernel Version: %s\n", uname_data.release);
 
 	/* 设置事件回调 */
 	pb = perf_buffer__new(bpf_map__fd(skel->maps.events), PERF_BUFFER_PAGES,
