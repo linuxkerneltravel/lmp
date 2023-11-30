@@ -326,6 +326,7 @@ int main(int argc, char **argv)
 	*/
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+	signal(SIGALRM,sig_handler);
 
 	if(env.enable_resource){
 		resource_skel = resource_image_bpf__open();
