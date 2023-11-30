@@ -59,7 +59,7 @@ static int  trace_kvm_exit(struct exit *ctx, pid_t vm_pid)
     id = bpf_get_current_pid_tgid();
     pid_t tid = (u32)id;
     pid_t pid = id >> 32;
-    if (vm_pid == 0 || pid == vm_pid){
+    if (vm_pid < 0  || pid == vm_pid){
         ts = bpf_ktime_get_ns();
         u32 reason;
         reason=(u32)ctx->exit_reason;

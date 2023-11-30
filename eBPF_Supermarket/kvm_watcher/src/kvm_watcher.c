@@ -27,7 +27,7 @@
 #include <argp.h>
 #include <bpf/libbpf.h>
 #include "kvm_watcher.skel.h"
-#include "include/kvm_watcher.h"
+#include "../include/kvm_watcher.h"
 
 
 struct ExitReason exitReasons[] = {
@@ -210,13 +210,16 @@ static struct env {
     bool execute_vcpu_wakeup;
     bool execute_exit;
     bool ShowStats;
+    bool execute_halt_poll_ns;
     int monitoring_time;
     pid_t vm_pid;
 } env={
     .execute_vcpu_wakeup=false,
     .execute_exit=false,
+    .ShowStats=false,
+    .execute_halt_poll_ns=false,
     .monitoring_time=0,
-    .vm_pid=0,
+    .vm_pid=-1,
 };
 
 const char *argp_program_version = "kvm_watcher 1.0";
@@ -227,6 +230,7 @@ int option_selected = 0; // 功能标志变量,确保同时只能运行一个功
 static const struct argp_option opts[] = {
     { "vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu." },
     { "vm_exit)", 'e', NULL, 0, "Monitoring the event of vm exit." },
+    { "vcpu_halt_poll_ns)", 'n', NULL, 0, "Monitoring the variation in vCPU polling time." },
     { "stat",'s',NULL,0,"Display statistical data.(The -e option must be specified.)" },
     { "vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor." },
     { "monitoring_time", 't', "SEC", 0, "Time for monitoring event." },
@@ -241,7 +245,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             env.execute_vcpu_wakeup = true;
             option_selected = 1;
         } else {
-            fprintf(stderr, "Use either the -w or -e option.\n");
+            fprintf(stderr, "Use either the -w ,-p or -e option.\n");
             argp_usage(state);
         }
         break;
@@ -250,7 +254,16 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             env.execute_exit = true;
             option_selected = 1;
         } else {
-            fprintf(stderr, "Use either the -w or -e option.\n");
+            fprintf(stderr, "Use either the -w ,p or -e option.\n");
+            argp_usage(state);
+        }
+        break;
+    case 'n':
+        if (option_selected == 0) {
+            env.execute_halt_poll_ns = true;
+            option_selected = 1;
+        } else {
+            fprintf(stderr, "Use either the -w ,-n or -e option.\n");
             argp_usage(state);
         }
         break;
@@ -324,6 +337,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
             addExitInfo(&exitInfoBuffer,e->reason_number,info_buffer,e->duration_ns,e->count);
         }
     }
+    if(env.execute_halt_poll_ns){
+        const struct halt_poll_ns_event *e = data;
+        printf("%-18llu %-15s %-6d/%-8d  %-10s %10d %10d \n", e->time, e->process.comm, e->process.pid,e->process.tid,e->grow ? "grow" : "shrink",e->old,e->new);
+    }
     return 0;
 }
 
@@ -356,7 +373,7 @@ int main(int argc, char **argv)
     skel->rodata->vm_pid= env.vm_pid;
     skel->rodata->execute_vcpu_wakeup = env.execute_vcpu_wakeup;
     skel->rodata->execute_exit = env.execute_exit;
-    
+    skel->rodata->execute_halt_poll_ns=env.execute_halt_poll_ns;
     /* Load & verify BPF programs */
     err = kvm_watcher_bpf__load(skel);
     if (err) {
@@ -384,6 +401,9 @@ int main(int argc, char **argv)
     }
     if(env.execute_exit){
         printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","DURATION(ns)");
+    }
+    if(env.execute_halt_poll_ns){
+        printf("%-18s %-15s %-15s %-10s %10s %10s\n", "TIME(ns)", "VCPUID/COMM","PID/TID","TYPE","OLD(ns)","NEW(ns)");
     }
     while (!exiting) {
         err = ring_buffer__poll(rb, 10 /* timeout, ms */);

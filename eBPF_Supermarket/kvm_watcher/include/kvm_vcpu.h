@@ -32,10 +32,18 @@ struct vcpu_wakeup{
     bool vaild;
 };
 
+struct halt_poll_ns{
+	u64 pad;
+	bool grow;
+	unsigned int vcpu_id;
+	unsigned int new;
+	unsigned int old;
+};
+
 static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx,void *rb,pid_t vm_pid)
 {
     unsigned pid = bpf_get_current_pid_tgid() >> 32;
-    if (vm_pid == 0 || pid == vm_pid){
+    if (vm_pid < 0 || pid == vm_pid){
         u32 tid = bpf_get_current_pid_tgid();
         struct vcpu_wakeup_event *e;
         e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
@@ -53,4 +61,27 @@ static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx,void *rb,pid_t vm_pid)
     }
     return 0;
 }
+
+static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx,void *rb,pid_t vm_pid)
+{   
+	unsigned pid = bpf_get_current_pid_tgid() >> 32;
+    if (vm_pid < 0 || pid == vm_pid){
+        u32 tid = bpf_get_current_pid_tgid();
+        struct halt_poll_ns_event *e;
+        e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
+        if (!e)
+            return 0;
+        u64 time = bpf_ktime_get_ns();
+        e->process.pid = pid;
+        e->process.tid = tid;
+        e->time = time;
+        e->grow=ctx->grow;
+        e->old=ctx->old;
+        e->new=ctx->new;
+        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+        bpf_ringbuf_submit(e, 0);
+    }
+	return 0;
+}
+
 #endif /* __KVM_VCPU_H */

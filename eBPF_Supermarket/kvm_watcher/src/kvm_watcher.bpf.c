@@ -26,10 +26,10 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const volatile pid_t vm_pid = 0;
+const volatile pid_t vm_pid = -1;
 const volatile bool execute_vcpu_wakeup=false;
 const volatile bool execute_exit=false;
-
+const volatile bool execute_halt_poll_ns=false;
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -41,6 +41,15 @@ int tp_vcpu_wakeup(struct vcpu_wakeup *ctx)
 {   
     if(execute_vcpu_wakeup){
         trace_kvm_vcpu_wakeup(ctx,&rb,vm_pid);
+    }
+    return 0;
+}
+
+SEC("tp/kvm/kvm_halt_poll_ns")
+int tp_kvm_halt_poll_ns(struct halt_poll_ns *ctx)
+{   
+    if(execute_halt_poll_ns){
+        trace_kvm_halt_poll_ns(ctx,&rb,vm_pid);
     }
     return 0;
 }
