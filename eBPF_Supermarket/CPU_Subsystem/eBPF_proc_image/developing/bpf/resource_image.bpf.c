@@ -75,6 +75,7 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 				long long *c;
 				rss = BPF_CORE_READ(prev, mm, rss_stat);
 				c = (long long *)(rss.count);
+				if(!c)	return 0;
 				memused = *c + *(c + 1) + *(c + 3);
 #endif
 				
@@ -101,6 +102,7 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 				long long *c;
 				rss = BPF_CORE_READ(prev, mm, rss_stat);
 				c = (long long *)(rss.count);
+				if(!c)	return 0;
 				memused = *c + *(c + 1) + *(c + 3);
 #endif
 				
