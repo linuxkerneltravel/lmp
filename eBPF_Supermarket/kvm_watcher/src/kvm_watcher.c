@@ -280,7 +280,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         if (env.monitoring_time <= 0) {
             fprintf(stderr, "Invalid duration: %s\n", arg);
             argp_usage(state);
-        } else if (!env.execute_vcpu_wakeup && !env.execute_exit) {
+        } else if (!env.execute_vcpu_wakeup && !env.execute_exit && !env.execute_halt_poll_ns) {
             fprintf(stderr, "No monitoring options activated!\n");
             argp_usage(state);
         }else{
