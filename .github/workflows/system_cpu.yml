@@ -118,5 +118,5 @@ jobs:
       - name: Run cpu_watcher
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher
-          make cpu_wacher
-          sudo ./cpu_wacher
+          make cpu_watcher
+          sudo ./cpu_watcher -s
