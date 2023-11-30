@@ -16,7 +16,7 @@ on:
 
 jobs:
   proc_image-project-build-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-23.10
     steps:
       - uses: actions/checkout@v3
 
