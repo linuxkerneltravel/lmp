@@ -1202,14 +1202,12 @@ int BPF_KPROBE(udp_rcv,struct sk_buff *skb)
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
-    //tinfo = bpf_map_lookup_elem(&tinfo, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
-    //bpf_printk("udp_rcv : %lld\n",tinfo->tran_time);
-    bpf_printk("1---saddr : %u daddr : %u sport : %u dport : %u tran_flag : %u seq:%u ack:%u\n",
-    pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport,pkt_tuple.tran_flag,pkt_tuple.seq,pkt_tuple.ack);
+    //bpf_printk("1---saddr : %u daddr : %u sport : %u dport : %u tran_flag : %u seq:%u ack:%u\n",
+    //pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport,pkt_tuple.tran_flag,pkt_tuple.seq,pkt_tuple.ack);
     return 0;
 
 }
@@ -1225,23 +1223,17 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb,struct sock *sk, struct sk_buff *skb)
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     u16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
-    // pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
-    // pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
-    // pkt_tuple.sport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    // pkt_tuple.dport = __bpf_ntohs(dport);
     pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
     pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
     pkt_tuple.dport = BPF_CORE_READ(sk, __sk_common.skc_num);
     pkt_tuple.sport = __bpf_ntohs(dport);
     pkt_tuple.tran_flag=2;
-    //get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-    bpf_printk("2---saddr : %u daddr : %u sport : %u dport : %u tran_flag : %u seq:%u ack:%u\n",
-    pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport,pkt_tuple.tran_flag,pkt_tuple.seq,pkt_tuple.ack);
+    //bpf_printk("2---saddr : %u daddr : %u sport : %u dport : %u tran_flag : %u seq:%u ack:%u\n",
+    //pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport,pkt_tuple.tran_flag,pkt_tuple.seq,pkt_tuple.ack);
     
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
-        bpf_printk("1");
         return 0;
     }
     bpf_printk("udp_time : %lld\n",bpf_ktime_get_ns() / 1000 - tinfo->tran_time);
