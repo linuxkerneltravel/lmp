@@ -33,11 +33,11 @@ struct vcpu_wakeup{
 };
 
 struct halt_poll_ns{
-	u64 pad;
-	bool grow;
-	unsigned int vcpu_id;
-	unsigned int new;
-	unsigned int old;
+    u64 pad;
+    bool grow;
+    unsigned int vcpu_id;
+    unsigned int new;
+    unsigned int old;
 };
 
 static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx,void *rb,pid_t vm_pid)
@@ -64,7 +64,7 @@ static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx,void *rb,pid_t vm_pid)
 
 static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx,void *rb,pid_t vm_pid)
 {   
-	unsigned pid = bpf_get_current_pid_tgid() >> 32;
+    unsigned pid = bpf_get_current_pid_tgid() >> 32;
     if (vm_pid < 0 || pid == vm_pid){
         u32 tid = bpf_get_current_pid_tgid();
         struct halt_poll_ns_event *e;
@@ -81,7 +81,7 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx,void *rb,pid_t vm_pid
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
         bpf_ringbuf_submit(e, 0);
     }
-	return 0;
+    return 0;
 }
 
 #endif /* __KVM_VCPU_H */
