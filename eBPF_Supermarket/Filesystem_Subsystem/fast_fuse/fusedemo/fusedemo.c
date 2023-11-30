@@ -33,9 +33,9 @@
 
 
 
-#define TOTOL_SIZE ((uint64_t)1024*1024*1024*2)   // totol size of fsdemo
-#define BANK_SIZE (1024*1024*4)					
-#define BANK_NUM (TOTOL_SIZE/BANK_SIZE)
+#define TOTOL_SIZE ((uint64_t)1024*1024*1024*2)   	//文件系统的总大小
+#define BANK_SIZE (1024*1024*4)						//内存块的大小为 4MB			
+#define BANK_NUM (TOTOL_SIZE/BANK_SIZE)				//内存块数量
 #define CHUNK_SIZE (1024*16)
 #define CHUNK_NUM (TOTOL_SIZE/CHUNK_SIZE)
 
@@ -48,17 +48,17 @@ struct context{
 };
 
 struct inode{ 
-	char filename[FILE_NAME_LEN];
-	size_t size;
-	time_t timeLastModified;
-	char isDirectories;
+	char filename[FILE_NAME_LEN];			// 文件或目录的名称
+	size_t size;							// 文件的大小（字节数）
+	time_t timeLastModified;				// 最后修改时间
+	char isDirectories;						// 表示是否是目录，1 表示是目录，0 表示不是目录
 	
 	struct{
-		struct context * context;
+		struct context * context;			// 文件或目录的上下文信息
 	};
 	struct {
-		struct inode * son;
-		struct inode * bro;
+		struct inode * son;					// 指向第一个子节点（如果是目录）
+		struct inode * bro;					// 指向兄弟节点
 	};
 	
 };
@@ -161,17 +161,20 @@ void dhmp_fs_write_to_bank(int chunk_index, char * buf, size_t size, off_t chunk
 
 static int dhmp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
+	//初始化内存池
     int init_bank_i ;
     for(init_bank_i = 0;init_bank_i < BANK_NUM;init_bank_i++)
             bank[init_bank_i] = malloc(BANK_SIZE);	
+	//初始化文件系统的根目录
 	root = (struct inode*) malloc(sizeof(struct inode));
 	root -> bro = NULL;
 	root -> son = NULL;
-	root -> isDirectories = 1;
+	root -> isDirectories = 1;		//表示是否为目录文件，1是，0非
 	root -> size = 0;
 	root -> timeLastModified = time(NULL);
 	memset(root->filename,0,FILE_NAME_LEN);
 	root->filename[0] = '/';
+	//初始化位图
 	memset(bitmap,0,sizeof(bitmap));
 	return 0;
 }
@@ -208,40 +211,61 @@ void deal(const char *path,char * dirname,char * filename)
 	filename[k] = 0;
 }
 
+/**
+ * 获取指定目录的父目录的 inode 结构体指针
+ *
+ * dirname 目录的路径
+ * 返回 返回指定目录的父目录的 inode 结构体指针，如果失败返回 NULL
+ */
 struct inode * get_father_inode(char *dirname)
 {
+	// 初始化父目录为根目录
 	struct inode* head = root;
+	// 用于存储目录名的临时数组
 	char s[FILE_NAME_LEN];
+	// 初始化索引变量和查找标志
 	int i = 1,j,is_find = 0;
+	// 如果目录路径长度为1，直接返回根目录的 inode 结构体指针
 	if(strlen(dirname) == 1)
 	{
 		return head;
 	}
+	// 如果目录路径末尾没有斜杠，则在路径末尾添加斜杠
 	int len = strlen(dirname);
 	if(dirname[len-1] != '/'){
 		dirname[len] = '/';  
 		dirname[len+1] = 0;  
 	} 
+	// 循环遍历目录路径
 	while(1)
 	{
+		// 移动到子目录
 		head = head->son;
+		// 如果子目录为空，跳出循环
 		if(head == NULL) break;	
 		j = 0;	
+		// 循环处理目录名
 		while(1){
+			// 将目录名添加到临时数组
 			s[j++] = dirname[i++];
+			// 如果遇到'/'，表示目录名结束
 			if(dirname[i] == '/') 
 			{
 				s[j] = 0;
+				// 在当前目录下查找匹配的子目录
 				while(1){
 					if(strcmp(head->filename,s) == 0) 
 					{
 						is_find = 1;
 						break;//to 1
 					}
+					// 移动到兄弟目录
 					head = head -> bro;
+					// 如果兄弟目录为空，返回 NULL
 					if(head == NULL) return NULL;
 				}
 			}
+			// 如果找到匹配的子目录，跳出内层循环
 			if(is_find == 1) {
 				is_find = 0;
 				if(!dirname[i+1])
@@ -251,6 +275,7 @@ struct inode * get_father_inode(char *dirname)
 		}
 		if(!dirname[++i]) break;
 	}
+	// 如果找到父目录，返回父目录的 inode 结构体指针
 	if(is_find == 1)
 	{
 		return head;
@@ -282,7 +307,7 @@ int dhmpMknod(const char * path)
 			return  -1;
 		} 
 	}
-	struct inode * now = malloc(sizeof(struct inode));;
+	struct inode * now = malloc(sizeof(struct inode));
 	now -> isDirectories = 0;
 	now -> son = NULL;
 	now -> bro = NULL;
@@ -308,7 +333,7 @@ int dhmpCreateDirectory(const char * path)
 	char filename[FILE_NAME_LEN],dirname[FILE_NAME_LEN];
 	deal(path,dirname,filename);
 
-	struct inode * now = malloc(sizeof(struct inode));;
+	struct inode * now = malloc(sizeof(struct inode));
 	now -> isDirectories = 1;  
 	now -> son = NULL;
 	now -> size = 0;
@@ -324,15 +349,26 @@ int dhmpCreateDirectory(const char * path)
 	return 1;
 }
 
-
+/**
+ * 获取文件或目录的属性信息
+ *
+ * path 文件或目录的路径
+ * attr 用于存储属性信息的结构体指针（struct attr）
+ * 返回 返回操作是否成功，成功返回0，失败返回负值
+ */
 int dhmpGetAttr(const char *path,struct attr *attr)
 {
+	// 用于构造完整文件路径的临时数组
 	char filename[FILE_NAME_LEN];
+	// 获取路径长度
 	int len = strlen(path);
 	strcpy(filename,path);
+	// 在路径末尾添加斜杠，构造完整文件路径
 	filename[len] = '/'; filename[len+1] = 0;
+	// 调用自定义函数获取父目录的 inode 结构体指针
 	struct inode* head = get_father_inode(filename);
 	if(head == NULL) return -1;
+	// 将获取到的属性信息填充到 attr 结构体中
 	attr->isDirectories = head->isDirectories;
 	attr->size = head->size;
 	attr->timeLastModified = head->timeLastModified;
@@ -446,11 +482,21 @@ int dhmpDelete(const char *path)
 	return dhmpDelFromInode(father,filename);
 }
 
+/**
+ * 获取文件或目录的属性信息
+ *
+ * path 文件或目录的路径
+ * stbuf 用于存储属性信息的结构体指针（struct stat）
+ * fi 文件信息结构体指针（fuse_file_info），可为空
+ * return 返回操作是否成功，成功返回0，失败返回负值
+ */
 static int dhmp_fs_getattr(const char *path, struct stat *stbuf,
 		       struct fuse_file_info *fi)
 {
+	// 用于存储获取到的文件或目录属性信息的结构体
 	struct attr attr;
 	int ret = 0;
+	// 是否为根目录
 	if(strlen(path) == 1)
 	{
 		attr.size = 0;
@@ -461,6 +507,7 @@ static int dhmp_fs_getattr(const char *path, struct stat *stbuf,
 		ret = dhmpGetAttr(path,&attr);
 	if(ret < 0)
 		return -2;
+	// 根据属性信息设置 struct stat 结构体
 	if(attr.isDirectories == 1)
 	{
 		stbuf->st_mode = S_IFDIR | 0777;
@@ -709,30 +756,33 @@ static int dhmp_fs_statfs(const char *path, struct statvfs *stbuf)
 
 
 static struct fuse_operations dhmp_fs_oper = {
-	.init       	= dhmp_init,
-	.getattr	= dhmp_fs_getattr,
-	.access		= dhmp_fs_access,
-	.readdir	= dhmp_fs_readdir,
-	.mknod		= dhmp_fs_mknod,
-	.mkdir		= dhmp_fs_mkdir,
-	.unlink		= dhmp_fs_unlink,
-	.rmdir		= dhmp_fs_rmdir,
-	.rename		= dhmp_fs_rename,
-	.chmod		= dhmp_fs_chmod,
-	.chown		= dhmp_fs_chown,
-	.truncate	= dhmp_fs_truncate,
-	.open		= dhmp_fs_open,
-	.read		= dhmp_fs_read,
-	.write		= dhmp_fs_write,
-	.statfs		= dhmp_fs_statfs,
+	.init       	= dhmp_init,		// 初始化文件系统
+	.getattr	= dhmp_fs_getattr,		// 获取文件属性
+	.access		= dhmp_fs_access,		// 检查文件访问权限
+	.readdir	= dhmp_fs_readdir,		// 读取目录内容
+	.mknod		= dhmp_fs_mknod,		// 创建节点
+	.mkdir		= dhmp_fs_mkdir,		// 创建目录
+	.unlink		= dhmp_fs_unlink,		// 删除文件
+	.rmdir		= dhmp_fs_rmdir,		// 删除目录
+	.rename		= dhmp_fs_rename,		// 重命名文件或目录
+	.chmod		= dhmp_fs_chmod,		// 修改文件权限
+	.chown		= dhmp_fs_chown,		// 修改文件所有者
+	.truncate	= dhmp_fs_truncate,		// 截断文件
+	.open		= dhmp_fs_open,			// 打开文件
+	.read		= dhmp_fs_read,			// 读取文件内容
+	.write		= dhmp_fs_write,		// 写入文件内容
+	.statfs		= dhmp_fs_statfs,		// 获取文件系统统计信息
 };
 
 int main(int argc, char *argv[])
 {
+	//分配本地缓冲区
 	dhmp_local_buf = malloc(BANK_SIZE+1);
+	//是否开启调试
 	#ifdef DEBUG_ON
 		fp = fopen(DEBUG_FILE, "ab+");
 	#endif
+	//调用fuse_main函数启动FUSE文件系统
 	int ret = fuse_main(argc, argv, &dhmp_fs_oper, NULL);
 	return ret;
 }
