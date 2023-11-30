@@ -88,7 +88,9 @@
 
 static int prev_image = 0;
 static volatile bool exiting = false;
+/*
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
+*/
 static struct env {
     int pid;
     int cpu_id;
@@ -207,16 +209,21 @@ static int print_resource(struct bpf_map *map)
 		clock_gettime(CLOCK_REALTIME, &currentime);
 		interval = currentime.tv_nsec-prevtime.tv_nsec+(currentime.tv_sec-prevtime.tv_sec)*1000000000;
 
-		pcpu = (100.0*event.time)/interval;
-		pmem = (100.0*event.memused)/memtotal;
-		read_rate = (1.0*event.readchar)/1024/((1.0*event.time)/1000000000);            // kb/s
-		write_rate = (1.0*event.writechar)/1024/((1.0*event.time)/1000000000);          // kb/s
+		if(interval>0 && memtotal>0 && event.time>0){
+			pcpu = (100.0*event.time)/interval;
+			pmem = (100.0*event.memused)/memtotal;
+			read_rate = (1.0*event.readchar)/1024/((1.0*event.time)/1000000000);            // kb/s
+			write_rate = (1.0*event.writechar)/1024/((1.0*event.time)/1000000000);          // kb/s
+		}else{
+			goto next_elem;
+		}
 		
 		if(pcpu<=100 && pmem<=100){
 			printf("%02d:%02d:%02d  %-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
 					hour,min,sec,event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
 		}
-		
+
+next_elem:
 		lookup_key = next_key;
 	}
 
