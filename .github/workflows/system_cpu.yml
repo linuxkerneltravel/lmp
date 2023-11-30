@@ -117,6 +117,6 @@ jobs:
 
       - name: Run libbpf_sar
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/libbpf_sar
+          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher
           make libbpf_sar
-          sudo ./libbpf_sar -t 1
+          sudo ./cpuwatcher -c
