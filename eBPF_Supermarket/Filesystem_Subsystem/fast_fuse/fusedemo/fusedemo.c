@@ -33,55 +33,55 @@
 
 
 
-#define TOTOL_SIZE ((uint64_t)1024*1024*1024*2)   	//文件系统的总大小
-#define BANK_SIZE (1024*1024*4)						//内存块的大小为 4MB			
-#define BANK_NUM (TOTOL_SIZE/BANK_SIZE)				//内存块数量
-#define CHUNK_SIZE (1024*16)
-#define CHUNK_NUM (TOTOL_SIZE/CHUNK_SIZE)
+#define TOTOL_SIZE ((uint64_t)1024*1024*1024*2)   	/* Size of fusdemo */
+#define BANK_SIZE (1024*1024*4)						/* Size of a memory block, set to 4MB */			
+#define BANK_NUM (TOTOL_SIZE/BANK_SIZE)				/* Number of memory blocks */
+#define CHUNK_SIZE (1024*16)						/* Size of a data block, set to 16KB */
+#define CHUNK_NUM (TOTOL_SIZE/CHUNK_SIZE)			/* Number of data blocks */
 
-#define FILE_NAME_LEN 1024
+#define FILE_NAME_LEN 1024							/* Maximum length of file */
 
 struct context{
-	int chunk_index;
-	size_t size;
-	struct context * next;
+	int chunk_index;						/* Identifier for the data block */
+	size_t size;							/* Size of the block */
+	struct context * next;					/* Next context */
 };
 
 struct inode{ 
-	char filename[FILE_NAME_LEN];			// 文件或目录的名称
-	size_t size;							// 文件的大小（字节数）
-	time_t timeLastModified;				// 最后修改时间
-	char isDirectories;						// 表示是否是目录，1 表示是目录，0 表示不是目录
+	char filename[FILE_NAME_LEN];			/* Name of the file or directory */
+	size_t size;							/* Size of the file */
+	time_t timeLastModified;				/* Last modification time */
+	char isDirectories;						/* Indicates whether it is a directory (1 for directory, 0 otherwise) */
 	
 	struct{
-		struct context * context;			// 文件或目录的上下文信息
+		struct context * context;			/* Context information for the file or directory */
 	};
 	struct {
-		struct inode * son;					// 指向第一个子节点（如果是目录）
-		struct inode * bro;					// 指向兄弟节点
+		struct inode * son;					/* Child node */
+		struct inode * bro;					/* Brother node */
 	};
 	
 };
 
 struct attr {
-	int size;
-	time_t timeLastModified;
-	char isDirectories;
+	int size;								/* Size of the file */
+	time_t timeLastModified;				/* Last modification time */
+	char isDirectories;						/* Indicates whether it is a directory (1 for directory, 0 otherwise) */
 };
 
 struct inode_list{
-	struct inode_list * next;
-	char isDirectories;
-	char filename[FILE_NAME_LEN];
+	struct inode_list * next;				/* Next directory entry node */
+	char isDirectories;						/* Indicates whether it is a directory (1 for directory, 0 otherwise) */
+	char filename[FILE_NAME_LEN];			/* File name */
 };
 
-void * bank[BANK_NUM];
-char * dhmp_local_buf;
-struct inode *root;
+void * bank[BANK_NUM];						/* Memory pool */
+char * dhmp_local_buf;						/* Local buffer */
+struct inode *root;							/* Root node */
 
 FILE * fp;
 char msg[1024];
-char msg_tmp[1024];
+char msg_tmp[1024];							/* DEBUG message */
 
 //#define DEBUG_ON
 #ifdef DEBUG_ON
@@ -96,11 +96,17 @@ char msg_tmp[1024];
 	#define DEBUG_END() {}
 	#define DEBUG_P(x) {}
 #endif
-char bitmap[CHUNK_NUM];
+char bitmap[CHUNK_NUM];						/* Allocation status of data blocks (1 for allocated, 0 for free) */
 
+/**
+ * Get a free chunk index from data blocks.
+ *
+ * @return The index of the free chunk.
+ */
 int getFreeChunk()
 {
 	int i =0;
+	/* Iterate through the chunk bitmap to find a free chunk */
 	for(;i < CHUNK_NUM; i++)
 	{
 		if(bitmap[i] == 1)continue;
@@ -115,6 +121,14 @@ int getFreeChunk()
 	return i;
 }
 
+/**
+ * Reads data from Memory pool.
+ *
+ * @param chunk_index Data block index.
+ * @param buf Buffer to store read data.
+ * @param size Number of bytes to read.
+ * @param chunk_offset Offset within the data block.
+ */
 void dhmp_fs_read_from_bank( int chunk_index, char * buf, size_t size, off_t chunk_offset)
 {
 	DEBUG("dhmp_fs_read_from_bank size =");
@@ -122,6 +136,7 @@ void dhmp_fs_read_from_bank( int chunk_index, char * buf, size_t size, off_t chu
 	DEBUG("chunk_offset=");
 	DEBUG_INT(chunk_offset);
 
+	/* Calculate the position of the data block in the bank */
 	void * tbank = (bank[chunk_index / (CHUNK_NUM/BANK_NUM)]);
 	int times = chunk_index % (CHUNK_NUM/BANK_NUM);
 	off_t offset = chunk_offset + times * CHUNK_SIZE;
@@ -131,12 +146,25 @@ void dhmp_fs_read_from_bank( int chunk_index, char * buf, size_t size, off_t chu
 	DEBUG_INT(offset);
 	DEBUG_INT(times);
 
+	/**
+	* Calculate the actual size of data to be read,
+ 	* Copy data from the bank to the local buffer,
+ 	* Copy data from the local buffer to the output buffer.
+	*/
 	size_t Tsize = chunk_offset + size + times * CHUNK_SIZE;
 	memcpy(dhmp_local_buf, tbank, Tsize);
 
 	memcpy(buf, dhmp_local_buf + offset, size);
 }
 
+/**
+ * Write data to Memory pool.
+ * 
+ * @param chunk_index Data bank index.
+ * @param buf Buffer containing the data to be written.
+ * @param size Size of the data to be written.
+ * @param chunk_offset Offset within the data bank.
+ */
 void dhmp_fs_write_to_bank(int chunk_index, char * buf, size_t size, off_t chunk_offset)
 {
 	DEBUG("dhmp_fs_write_to_bank size =");
@@ -144,6 +172,7 @@ void dhmp_fs_write_to_bank(int chunk_index, char * buf, size_t size, off_t chunk
 	DEBUG("chunk_offset=");
 	DEBUG_INT(chunk_offset);
 
+	/* Calculate the position of the data block in the bank */
 	void * tbank = (bank[chunk_index / (CHUNK_NUM/BANK_NUM)]);
 	int times = chunk_index % (CHUNK_NUM/BANK_NUM);
 	off_t offset = chunk_offset + times * CHUNK_SIZE;
@@ -153,6 +182,12 @@ void dhmp_fs_write_to_bank(int chunk_index, char * buf, size_t size, off_t chunk
 	DEBUG_INT(offset);
 	DEBUG_INT(times);
 
+	/**
+	* Calculate the actual size of data to be written,
+ 	* Copy data from the bank to the local buffer,
+ 	* Copy data from the input buffer to the local buffer,
+ 	* Copy data from the local buffer back to the bank.
+	*/
 	size_t Tsize = chunk_offset + size + times * CHUNK_SIZE;
 	memcpy(dhmp_local_buf, tbank, offset);
 	memcpy(dhmp_local_buf + offset, buf, size);
@@ -629,6 +664,16 @@ static int dhmp_fs_open(const char *path, struct fuse_file_info *fi)
 	return 0;
 }
 
+/**
+ * Read data from file.
+ *
+ * @param path      The path to the file.
+ * @param buf       Buffer to store the read data.
+ * @param size      Number of bytes to read.
+ * @param offset    Offset in the file to start reading from.
+ * @param fi        File information struct.
+ * @return          Returns the number of bytes read or a negative value on error.
+ */
 static int dhmp_fs_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
@@ -638,10 +683,19 @@ static int dhmp_fs_read(const char *path, char *buf, size_t size, off_t offset,
 	strcpy(filename,path);
 	filename[len] = '/'; filename[len+1] = 0;
 	struct inode* head = get_father_inode(filename);
-	if(head == NULL || head->isDirectories == 1) return -1;
+	/**
+	* If getting the inode fails or the file is a directory, 
+	* free the temporary buffer and return error code
+	*/
+	if(head == NULL || head->isDirectories == 1) 
+	{
+		free(bbuf);
+		return -1;
+	}
 
 	struct context * cnt = head->context;
 	if(cnt == NULL) return 0;
+	/* Locate the chunk to read */ 
 	off_t read_offset = offset;
 	int i = read_offset / CHUNK_SIZE;
 	while(i > 0)
@@ -651,16 +705,29 @@ static int dhmp_fs_read(const char *path, char *buf, size_t size, off_t offset,
 		i--;
 	}
 	read_offset = read_offset % CHUNK_SIZE;
+	/* Read data chunk by chunk */
 	size_t read_size = 0,un_read_size = size;
 	while(un_read_size > 0)
 	{
 		if(cnt == NULL) {DEBUG("dhmp_fs_read eror");break;}
+
+		/**
+		 * If the remaining data to read is greater than or equal to the remaining data in the current chunk,
+   		 * read data from the bank to the buffer. Increase the total read size by adding the remaining size in the
+   		 * current chunk, decrease the remaining size to read, and reset the read offset to start from the beginning
+   		 * 	of the next chunk. 
+		 */
 		if(un_read_size >= cnt->size - read_offset){
 			dhmp_fs_read_from_bank( cnt->chunk_index, bbuf + read_size, (cnt->size - read_offset), read_offset);
 			read_size += cnt->size - read_offset;
 			un_read_size = un_read_size - (cnt->size - read_offset);
 			read_offset = 0;
 		}
+		/**
+		 * If the remaining data to read is less than the remaining data in the current chunk,
+   		 * read data from the bank to the buffer. Increase the total read size by adding the remaining size to read,
+   		 * and reset the un_read_size to start from the beginning of the next chunk.  
+		 */
 		else
 		{
 			dhmp_fs_read_from_bank( cnt->chunk_index, bbuf + read_size , un_read_size, read_offset);
@@ -670,11 +737,21 @@ static int dhmp_fs_read(const char *path, char *buf, size_t size, off_t offset,
 		cnt = cnt->next;
 	}
 	bbuf[read_size] = 0;
-	memcpy(buf,bbuf,read_size);
+	memcpy(buf,bbuf,read_size);			/* Copy the read data to the output buffer */
 	free(bbuf);
 	return read_size;
 }
 
+/**
+ * Write data to file.
+ *
+ * @param path The path of the file.
+ * @param buf The buffer containing the data to be written.
+ * @param size The size of the data to be written.
+ * @param offset The offset where the data should be written.
+ * @param fi File information struct (not used in this implementation).
+ * @return The number of bytes written on success, or -1 on failure.
+ */
 static int dhmp_fs_write(const char *path, const char *buf, size_t size,
 		     off_t offset, struct fuse_file_info *fi)
 {
@@ -686,6 +763,11 @@ static int dhmp_fs_write(const char *path, const char *buf, size_t size,
 	struct inode* head = get_father_inode(filename);
 	if(head == NULL || head->isDirectories == 1) return -1;
 	struct context * cnt = head->context;
+	/**
+	* If the context of the file is NULL, 
+	* allocate new context for the file, 
+	* initialize its properties, and assign a free chunk index.
+	*/
 	if(cnt == NULL)
 	{
 		head->context = malloc(sizeof(struct context));
@@ -694,9 +776,11 @@ static int dhmp_fs_write(const char *path, const char *buf, size_t size,
 		cnt->chunk_index = getFreeChunk();
 		cnt->next = NULL;
 	}
+	/* Calculate the position of the starting offset for writing in the file's data block. */
 	off_t write_offset = offset;
 	int i = write_offset / CHUNK_SIZE;
 	write_offset = write_offset % CHUNK_SIZE;
+	/* Iterate through chunks to find the one corresponding to the offset for writing, create a new chunk if needed. */
 	while(i > 0)
 	{
 		if(cnt == NULL) return 0;
@@ -715,6 +799,13 @@ static int dhmp_fs_write(const char *path, const char *buf, size_t size,
 	size_t write_size = 0,un_write_size = size;
 	while(un_write_size > 0)
 	{
+		/**
+		 * If the size of the data to be written is greater than or equal to the remaining space in the current block:
+ 		 * Write the data to the current block, increase the file size, and reduce the remaining size to be written.
+		 * Update the file size by subtracting the current block size and adding the standard block size.
+ 		 * Reset the write offset and set the current block size to the standard block size.
+ 		 * If the current block is the last one and there is still remaining data, create a new block.
+		 */
 		if(un_write_size >= (CHUNK_SIZE - write_offset)){
 			dhmp_fs_write_to_bank(cnt->chunk_index, buf + write_size, (CHUNK_SIZE - write_offset), write_offset);
 			write_size += (CHUNK_SIZE - write_offset);
@@ -731,6 +822,11 @@ static int dhmp_fs_write(const char *path, const char *buf, size_t size,
 				cnt->next->next = NULL;
 			}
 		}
+		/**
+		 * If the size of the data to be written is less than the remaining space in the current block:
+ 		 * write the data to the current block, update sizes,
+		 * If the current block is not full,update file size.
+		 */
 		else
 		{
 			dhmp_fs_write_to_bank(cnt->chunk_index, buf + write_size , un_write_size, write_offset);
