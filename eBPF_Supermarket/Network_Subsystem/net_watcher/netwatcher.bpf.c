@@ -1240,22 +1240,3 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb,struct sock *sk, struct sk_buff *skb)
     return 0;
 
 }
-// SEC("kprobe/tcp_rcv_state_process")
-// int BPF_KPROBE(tcp_rcv_state_process, struct sock *sk)
-// {
-//     bpf_printk("tcp_rcv_state_process");
-//     return 0;
-// }
-// SEC("kprobe/napi_complete_done")
-// int BPF_KPROBE(napi_complete_done)
-// {
-// 	bpf_printk("napi_complete_done");
-//     return 0;
-// }
-
-// SEC("kprobe/netif_receive_skb_list_internal")
-// int BPF_KPROBE(netif_receive_skb_list_internal, struct sock *sk)
-// {
-// 	bpf_printk("netif_receive_skb_list_internal");
-//     return 0;
-// }
