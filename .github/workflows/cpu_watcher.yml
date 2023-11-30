@@ -30,4 +30,4 @@ jobs:
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/
           make cpu_watcher
-          sudo ./cpu_watcher -s
+          sudo ./cpu_watcher 
