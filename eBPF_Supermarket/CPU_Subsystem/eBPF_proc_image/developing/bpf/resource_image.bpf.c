@@ -20,6 +20,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
+#include <linux/version.h>
 #include "proc_image.h"
 
 const volatile pid_t target_pid = -1;
@@ -65,13 +66,17 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 			
 			if(bpf_map_lookup_elem(&total,&prev_pd) == NULL){
 				struct total_rsc prev_total = {0};
-				struct mm_rss_stat rss = {};
-				long long *c;
 				long unsigned int memused;
 				
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+
+#else
+				struct mm_rss_stat rss = {};
+				long long *c;
 				rss = BPF_CORE_READ(prev, mm, rss_stat);
 				c = (long long *)(rss.count);
 				memused = *c + *(c + 1) + *(c + 3);
+#endif
 				
 				prev_total.pid = prev_pd.pid;
 				prev_total.cpu_id = prev_cpu;
@@ -87,13 +92,17 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 					return 0; 
 				}
 				
-				struct mm_rss_stat rss = {};
-				long long *c;
 				long unsigned int memused;
 				
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+
+#else
+				struct mm_rss_stat rss = {};
+				long long *c;
 				rss = BPF_CORE_READ(prev, mm, rss_stat);
 				c = (long long *)(rss.count);
 				memused = *c + *(c + 1) + *(c + 3);
+#endif
 				
 				prev_total->cpu_id = prev_cpu;
 				prev_total->time += bpf_ktime_get_ns() - prev_start->time;

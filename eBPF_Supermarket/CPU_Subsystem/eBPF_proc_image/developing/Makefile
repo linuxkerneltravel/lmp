@@ -42,7 +42,7 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBB
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = resource_image
+APPS = resource_image syscall_image
 TARGETS = proc_image
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
