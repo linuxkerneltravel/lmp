@@ -290,11 +290,11 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 
 // 新线程的执行函数
 void *thread_function(void *arg) {
-    env.create_thread = 1;
+    env.create_thread = true;
     sleep(1);
     env.enable_output = true;
-    env.create_thread = 0;
-    env.exit_thread = 1;
+    env.create_thread = false;
+    env.exit_thread = true;
 
     return NULL;
 }
@@ -404,7 +404,7 @@ int main(int argc, char **argv)
 	while (!exiting) {
 		// 等待新线程结束，回收资源
         if(env.exit_thread){
-            env.exit_thread = 0;
+            env.exit_thread = false;
             if (pthread_join(thread_id, NULL) != 0) {
                 perror("pthread_join");
                 exit(EXIT_FAILURE);
