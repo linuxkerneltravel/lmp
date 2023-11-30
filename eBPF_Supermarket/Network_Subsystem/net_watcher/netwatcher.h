@@ -33,6 +33,8 @@
 #define TCP_SKB_CB(__skb) ((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
 #define MAX_COMM 16
+#define TCP 1
+#define UDP 2
 
 struct conn_t {
     void *sock;              // 此tcp连接的 socket 地址
