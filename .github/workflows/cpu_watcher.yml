@@ -1,18 +1,18 @@
-name: libbpf
+name: cpu_watcher
 
 on:
   push:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay/**'
-      - '.github/workflows/libbpf.yml'
+      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/**'
+      - '.github/workflows/cpu_watcher.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay/**'
-      - '.github/workflows/libbpf.yml'
+      - 'eBPF_Supermarket/CPU_Subsystem/cpu_watcher/**'
+      - '.github/workflows/cpu_watcher.yml'
 
 jobs:
   libbpf-project-build-and-test:
@@ -26,8 +26,8 @@ jobs:
           sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
           git submodule update --init --recursive
 
-      - name: Run cs_delay
+      - name: Run cpu_watcher
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cs_delay/libbpf_cs_delay
-          make cs_delay
-          sudo ./cs_delay
+          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/
+          make cpu_watcher
+          sudo ./cpu_watcher 
