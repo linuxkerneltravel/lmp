@@ -54,9 +54,9 @@ struct reason_info {
 
 struct halt_poll_ns_event {
     struct process process;
-	bool grow;
-	unsigned int new;
-	unsigned int old;	
-	unsigned long long time;
+    bool grow;
+    unsigned int new;
+    unsigned int old;	
+    unsigned long long time;
 };
 #endif /* __KVM_WATCHER_H */
