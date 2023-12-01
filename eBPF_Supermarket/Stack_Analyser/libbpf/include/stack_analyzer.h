@@ -26,6 +26,116 @@
 #include <asm/types.h>
 #include <linux/version.h>
 
+// ================= common struct ================
+
+/// @brief 栈计数的键，可以唯一标识一个用户内核栈
+typedef struct
+{
+    __u32 pid;
+    __s32 ksid, usid;
+} psid;
+
+/// @brief 进程名
+typedef struct
+{
+    char str[COMM_LEN];
+} comm;
+
+/// @brief 内存信息的键，唯一标识一块被分配的内存
+/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
+typedef struct
+{
+    __u64 addr;
+    __u32 pid, o;
+} piddr;
+
+/// @brief 内存分配信息，可溯源的一次内存分配
+/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
+typedef struct
+{
+    __u64 size;
+    __u32 usid, o;
+} mem_info;
+
+typedef struct
+{
+    __u64 truth;
+    __u64 expect;
+} tuple;
+
+// ============= eBPF api ===================
+
+/// @brief 创建一个指定名字的ebpf调用栈表
+/// @param 新栈表的名字
+#define BPF_STACK_TRACE(name)                           \
+    struct                                              \
+    {                                                   \
+        __uint(type, BPF_MAP_TYPE_STACK_TRACE);         \
+        __uint(key_size, sizeof(__u32));                \
+        __uint(value_size, MAX_STACKS * sizeof(__u64)); \
+        __uint(max_entries, MAX_ENTRIES);               \
+    } name SEC(".maps")
+
+/// @brief 创建一个指定名字和键值类型的ebpf散列表
+/// @param name 新散列表的名字
+/// @param type1 键的类型
+/// @param type2 值的类型
+#define BPF_HASH(name, type1, type2)       \
+    struct                                 \
+    {                                      \
+        __uint(type, BPF_MAP_TYPE_HASH);   \
+        __uint(key_size, sizeof(type1));   \
+        __uint(value_size, sizeof(type2)); \
+        __uint(max_entries, MAX_ENTRIES);  \
+    } name SEC(".maps")
+
+/// @brief 当前进程上下文内核态调用栈id
+#define KERNEL_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP)
+
+/// @brief 当前进程上下文用户态调用栈id
+#define USER_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
+
+/**
+ * 用于在eBPF代码中声明通用的maps，其中
+ * psid_count 存储 <psid, count> 键值对，记录了id（由pid、ksid和usid（内核、用户栈id））及相应的值
+ * stack_trace 存储 <sid（ksid或usid）, trace> 键值对，记录了栈id（ksid或usid）及相应的栈
+ * pid_tgid 存储 <pid, tgid> 键值对，记录pid以及对应的tgid
+ * pid_comm 存储 <pid, comm> 键值对，记录pid以及对应的命令名
+ * type：指定count值的类型
+ */
+#define DECLARE_MAPS(type)            \
+    BPF_HASH(psid_count, psid, type); \
+    BPF_STACK_TRACE(stack_trace);     \
+    BPF_HASH(pid_tgid, u32, u32);     \
+    BPF_HASH(pid_comm, u32, comm);
+
+// =================== user api ===================
+
+/// @brief 栈处理工具当前支持的采集模式
+typedef enum
+{
+    MOD_ON_CPU,  // on—cpu模式
+    MOD_OFF_CPU, // off-cpu模式
+    MOD_MEM,     // 内存模式
+    MOD_IO,      // io模式
+    MOD_RA,      // 预读取分析模式
+} MOD;
+
+typedef enum
+{
+    NO_OUTPUT,
+    LIST_OUTPUT,
+    FLAME_OUTPUT
+} display_t;
+
+/// @brief 将指定地址转变为指定类型的ebpf骨架指针
+/// @param type ebpf骨架类型
+/// @param name 指针
+#define BPF(type, name) (struct type##_bpf *)name
+#define bpf_open_load(type, name) struct type##_bpf *name = type##_bpf__open_and_load()
+#define bpf_destroy(type, name) type##_bpf__destroy(BPF(type, name))
+#define bpf_attach(type, name) type##_bpf__attach(BPF(type, name))
+
 extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
@@ -137,44 +247,6 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
         exit(EXIT_FAILURE);                          \
     }
 
-/// @brief 创建一个指定名字的ebpf调用栈表
-/// @param 新栈表的名字
-#define BPF_STACK_TRACE(name)                           \
-    struct                                              \
-    {                                                   \
-        __uint(type, BPF_MAP_TYPE_STACK_TRACE);         \
-        __uint(key_size, sizeof(__u32));                \
-        __uint(value_size, MAX_STACKS * sizeof(__u64)); \
-        __uint(max_entries, MAX_ENTRIES);               \
-    } name SEC(".maps")
-
-/// @brief 创建一个指定名字和键值类型的ebpf散列表
-/// @param name 新散列表的名字
-/// @param type1 键的类型
-/// @param type2 值的类型
-#define BPF_HASH(name, type1, type2)       \
-    struct                                 \
-    {                                      \
-        __uint(type, BPF_MAP_TYPE_HASH);   \
-        __uint(key_size, sizeof(type1));   \
-        __uint(value_size, sizeof(type2)); \
-        __uint(max_entries, MAX_ENTRIES);  \
-    } name SEC(".maps")
-
-/// @brief 将指定地址转变为指定类型的ebpf骨架指针
-/// @param type ebpf骨架类型
-/// @param name 指针
-#define BPF(type, name) (struct type##_bpf *)name
-#define bpf_open_load(type, name) struct type##_bpf *name = type##_bpf__open_and_load()
-#define bpf_destroy(type, name) type##_bpf__destroy(BPF(type, name))
-#define bpf_attach(type, name) type##_bpf__attach(BPF(type, name))
-
-/// @brief 当前进程上下文内核态调用栈id
-#define KERNEL_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP)
-
-/// @brief 当前进程上下文用户态调用栈id
-#define USER_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
-
 /// @brief 遍历ebpf表值的循环头部
 /// @param mapfd 要遍历的ebpf表的描述符
 /// @param ktype ebpf表的键类型
@@ -187,57 +259,5 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 /// @brief 遍历ebpf表值的循环尾部
 #define TRAVERSE_MAP_TAIL \
     }
-
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct
-{
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
-
-/// @brief 进程名
-typedef struct
-{
-    char str[COMM_LEN];
-} comm;
-
-/// @brief 内存信息的键，唯一标识一块被分配的内存
-/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
-typedef struct
-{
-    __u64 addr;
-    __u32 pid, o;
-} piddr;
-
-/// @brief 内存分配信息，可溯源的一次内存分配
-/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
-typedef struct
-{
-    __u64 size;
-    __u32 usid, o;
-} mem_info;
-
-/// @brief 栈处理工具当前支持的采集模式
-typedef enum
-{
-    MOD_ON_CPU,  // on—cpu模式
-    MOD_OFF_CPU, // off-cpu模式
-    MOD_MEM,     // 内存模式
-    MOD_IO,      // io模式
-    MOD_RA,      // 预读取分析模式
-} MOD;
-
-typedef enum
-{
-    NO_OUTPUT,
-    LIST_OUTPUT,
-    FLAME_OUTPUT
-} display_t;
-
-typedef struct
-{
-    __u64 truth;
-    __u64 expect;
-} tuple;
 
 #endif
