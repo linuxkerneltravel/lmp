@@ -238,15 +238,15 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
             if (layer_time) {
                  printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
                    pack_info->sock, pack_info->seq, pack_info->ack,
-                   pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time,
+                   pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
                    pack_info->rx, http_data);
                  fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                    "mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",http_"
+                    "mac_time=\"%llu\",ip_time=\"%llu\",tran_time=\"%llu\",http_"
                     "info=\"%s\",rx=\"%d\"} \n",
                     pack_info->sock, pack_info->seq, pack_info->ack,
                     pack_info->mac_time, pack_info->ip_time,
-                    pack_info->tcp_time, http_data, pack_info->rx);
+                    pack_info->tran_time, http_data, pack_info->rx);
             } 
             if(http_info|| retrans_info||extra_conn_info){
                   printf("%-22p %-10u %-10u %-5d %s\n",
@@ -322,7 +322,7 @@ int main(int argc, char **argv) {
 
     if(layer_time) {
         printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-           "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
+           "ACK", "MAC_TIME", "IP_TIME", "tran_time", "RX", "HTTP");
 
     }
     
@@ -360,7 +360,6 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 
         if(http_info) {
-            printf("==============================\n");
             print_conns(skel);
             sleep(1);
         }
