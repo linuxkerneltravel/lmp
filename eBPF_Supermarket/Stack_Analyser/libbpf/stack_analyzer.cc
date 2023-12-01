@@ -155,6 +155,7 @@ namespace env
 	int min = 0;
 	unsigned delay = 5;
 	display_t d_mode = NO_OUTPUT;
+	bool clear = false; /*clear data after every show*/
 }
 
 void __handler(int signo)
@@ -322,6 +323,17 @@ protected:
 		}
 	}
 
+	/// @brief 清除count map的数据
+	/// @param  无
+	void clear_count(void)
+	{
+		uint c = MAX_ENTRIES;
+		for (psid prev = {0}, id; c && !bpf_map_get_next_key(value_fd, &prev, &id); c--, prev = id)
+		{
+			bpf_map_delete_elem(value_fd, &id);
+		}
+	}
+
 	/// @brief 每隔5s输出计数表中的栈及数量
 	/// @param time 输出的持续时间
 	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
@@ -349,6 +361,10 @@ protected:
 				break;
 			}
 		};
+		if (env::clear && time > 0 && !env::exiting)
+		{
+			clear_count();
+		}
 		return time;
 	};
 
@@ -1025,17 +1041,18 @@ int main(int argc, char *argv[])
 				   clipp::option("-s", "--in-size").set(env::count, false) % "sample the IO data in count instead of in size");
 	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
 	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
-				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid)) |
-					 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command)),
-				 clipp::option("-U", "--user-stack-only").set(env::k, false),
-				 clipp::option("-K", "--kernel-stack-only").set(env::u, false),
+				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid) % "set pid of process to monitor") |
+					 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command) % "set command for monitoring the whole life"),
+				 clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
+				 clipp::option("-K", "--kernel-stack-only").set(env::u, false) "only sample kernel stacks",
 				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled process", env::max),
 				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled process", env::min),
 				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay),
 				 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
 				  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
 					 "display mode (default none)",
-				 clipp::opt_value("simpling time", env::run_time));
+				 clipp::opt_value("simpling time", env::run_time),
+				 clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count");
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,
 				clipp::option("-v", "--version").call([]
