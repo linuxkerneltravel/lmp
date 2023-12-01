@@ -86,4 +86,12 @@ struct pack_t {
     int rx;                              // rx packet(1) or tx packet(0)
 };
 
+struct udp_message
+{
+    unsigned int saddr;
+    unsigned int  daddr;
+    unsigned short sport;
+    unsigned short dport;
+    unsigned long long tran_time;
+};
 #endif /* __NETWATCHER_H */
