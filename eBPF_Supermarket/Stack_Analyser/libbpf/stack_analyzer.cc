@@ -1044,14 +1044,14 @@ int main(int argc, char *argv[])
 				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid) % "set pid of process to monitor") |
 					 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command) % "set command for monitoring the whole life"),
 				 clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
-				 clipp::option("-K", "--kernel-stack-only").set(env::u, false) "only sample kernel stacks",
-				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled process", env::max),
-				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled process", env::min),
-				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay),
+				 clipp::option("-K", "--kernel-stack-only").set(env::u, false) % "only sample kernel stacks",
+				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", env::max) % "set the max threshold of sampled value",
+				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", env::min) % "set the min threshold of sampled value",
+				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay) % "set the interval to output",
 				 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
 				  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
 					 "display mode (default none)",
-				 clipp::opt_value("simpling time", env::run_time),
+				 clipp::opt_value("simpling time", env::run_time) % "set the total simpling time",
 				 clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count");
 	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
 				opti,
