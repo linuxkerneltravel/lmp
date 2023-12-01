@@ -339,7 +339,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     }
     if(env.execute_halt_poll_ns){
         const struct halt_poll_ns_event *e = data;
-        printf("%-18llu %-15s %-6d/%-8d  %-10s %10d %10d \n", e->time, e->process.comm, e->process.pid,e->process.tid,e->grow ? "grow" : "shrink",e->old,e->new);
+        printf("%-18llu %-15s %-6d/%-8d %-10s %-7d --> %d \n", e->time, e->process.comm, e->process.pid,e->process.tid,e->grow ? "grow" : "shrink",e->old,e->new);
     }
     return 0;
 }
@@ -404,7 +404,7 @@ int main(int argc, char **argv)
         printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM","PID/TID","COUNT","DURATION(ns)");
     }
     if(env.execute_halt_poll_ns){
-        printf("%-18s %-15s %-15s %-10s %10s %10s\n", "TIME(ns)", "VCPUID/COMM","PID/TID","TYPE","OLD(ns)","NEW(ns)");
+        printf("%-18s %-15s %-15s %-10s %-11s %-10s\n", "TIME(ns)", "VCPUID/COMM","PID/TID","TYPE","OLD(ns)","NEW(ns)");
     }
     while (!exiting) {
         err = ring_buffer__poll(rb, 10 /* timeout, ms */);
