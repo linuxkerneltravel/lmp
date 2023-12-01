@@ -225,7 +225,7 @@ static struct env {
 const char *argp_program_version = "kvm_watcher 1.0";
 const char *argp_program_bug_address = "<nanshuaibo811@163.com>";
 const char argp_program_doc[] = "BPF program used for monitoring KVM event\n";
-int option_selected = 0; // 功能标志变量,确保同时只能运行一个功能
+int option_selected = 0; // 功能标志变量,确保激活子功能
 
 static const struct argp_option opts[] = {
     { "vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu." },
@@ -280,7 +280,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         if (env.monitoring_time <= 0) {
             fprintf(stderr, "Invalid duration: %s\n", arg);
             argp_usage(state);
-        } else if (!env.execute_vcpu_wakeup && !env.execute_exit && !env.execute_halt_poll_ns) {
+        } else if (!option_selected) {
             fprintf(stderr, "No monitoring options activated!\n");
             argp_usage(state);
         }else{
