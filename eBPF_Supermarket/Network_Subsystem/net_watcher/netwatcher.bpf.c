@@ -29,7 +29,8 @@ struct ktime_info {                      // us time stamp info发送数据包
     unsigned long long qdisc_time;       // tx包离开mac层时间戳
     unsigned long long mac_time;         // tx、rx包到达mac层时间戳
     unsigned long long ip_time;          // tx、rx包到达ip层时间戳
-    unsigned long long tcp_time;         // tx、rx包到达tcp层时间戳
+    //unsigned long long tcp_time;         // tx、rx包到达tcp层时间戳
+    unsigned long long tran_time;         // tx、rx包到达传输层时间戳
     unsigned long long app_time;         // rx包离开tcp层时间戳
     void *sk;                            // 此包所属 socket套接字
     unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
@@ -44,6 +45,8 @@ struct packet_tuple {
     unsigned short dport;	//目的端口号
     unsigned int seq;	//seq报文序号
     unsigned int ack;	//ack确认号
+    unsigned int tran_flag;     //1:tcp 2:udp
+    
 };
 
 //操作BPF映射的一个辅助函数
@@ -256,6 +259,11 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
 static struct tcp_sock *tcp_sk(const struct sock *sk) {
     return (struct tcp_sock *)sk;
 }
+//将struct sk_buff类型的指针转化为struct udphdr类型的指针
+static struct udphdr *skb_to_udphdr(const struct sk_buff *skb) {
+    return (struct udphdr *)((BPF_CORE_READ(skb, head) +                //报文头部偏移
+                              BPF_CORE_READ(skb, transport_header)));   //传输层部分偏移
+}
 //将struct sk_buff类型的指针转化为struct tcphdr类型的指针
 static struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb) {
     return (struct tcphdr *)((BPF_CORE_READ(skb, head) +                //报文头部偏移
@@ -287,8 +295,23 @@ static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
     pkt_tuple->seq = __bpf_ntohl(seq);
     //__bpf_ntohls根据字节序来转化为真实值(32位)
     pkt_tuple->ack = __bpf_ntohl(ack);
+    
+    pkt_tuple->tran_flag=TCP; //tcp包
 }
-
+//初始化packet_tuple结构指针pkt_tuple
+static void get_udp_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
+                          struct udphdr *udp) {
+    pkt_tuple->saddr = BPF_CORE_READ(ip, saddr);
+    pkt_tuple->daddr = BPF_CORE_READ(ip, daddr);
+    u16 sport = BPF_CORE_READ(udp, source);
+    u16 dport = BPF_CORE_READ(udp, dest);
+    pkt_tuple->sport = __bpf_ntohs(sport);
+    //__bpf_ntohs根据字节序来转化为真实值(16位) 网络传输中为大端序(即为真实值)
+    pkt_tuple->dport = __bpf_ntohs(dport);
+    pkt_tuple->seq = 0;
+    pkt_tuple->ack = 0;
+    pkt_tuple->tran_flag = UDP; //udp包
+}
 //初始化packet_tuple结构指针pkt_tuple
 static void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
                              struct ipv6hdr *ip6h, struct tcphdr *tcp) {
@@ -300,11 +323,13 @@ static void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
     u16 dport = BPF_CORE_READ(tcp, dest);
     pkt_tuple->sport = __bpf_ntohs(sport);
     pkt_tuple->dport = __bpf_ntohs(dport);
-
     u32 seq = BPF_CORE_READ(tcp, seq);
     u32 ack = BPF_CORE_READ(tcp, ack_seq);
     pkt_tuple->seq = __bpf_ntohl(seq);
     pkt_tuple->ack = __bpf_ntohl(ack);
+
+    pkt_tuple->tran_flag=TCP; //tcp包
+
 }
 /* help functions end */
 
@@ -593,13 +618,12 @@ int BPF_KPROBE(tcp_v4_rcv, struct sk_buff *skb) {
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
-
     struct ktime_info *tinfo;
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
+    tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     // bpf_printk("rx enter tcp4 layer.\n");
     return 0;
 }
@@ -622,7 +646,7 @@ int BPF_KPROBE(tcp_v6_rcv, struct sk_buff *skb) {
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
+    tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     // bpf_printk("rx enter tcp6 layer.\n");
     return 0;
 }
@@ -714,7 +738,7 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
         /** ipv6 */
         struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
         get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
-
+        
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
@@ -736,12 +760,11 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
     PACKET_INIT_WITH_COMMON_INFO
 
     if (layer_time) {
-        bpf_printk("%llu          %llu\n",tinfo->ip_time,tinfo->mac_time);
         packet->mac_time = tinfo->ip_time - tinfo->mac_time;
         //计算MAC层和ip层之间的时间差
-        packet->ip_time = tinfo->tcp_time - tinfo->ip_time;
+        packet->ip_time = tinfo->tran_time - tinfo->ip_time;
          //计算ip层和tcp层之间的时间差
-        packet->tcp_time = tinfo->app_time - tinfo->tcp_time;
+        packet->tran_time = tinfo->app_time - tinfo->tran_time;
          //计算tcp层和应用层之间的时间差
     }
     packet->rx = 1;//数据包已经被接收
@@ -889,7 +912,7 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
         if (tinfo == NULL) {
             return 0;
         }
-        tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
+        tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     } else if (family == AF_INET6) {
         //读取ipv6源地址
         bpf_probe_read_kernel(
@@ -917,7 +940,7 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
         if (tinfo == NULL) {
             return 0;
         }
-        tinfo->tcp_time = bpf_ktime_get_ns() / 1000;
+        tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     }
 
     CONN_INFO_TRANSFER
@@ -968,7 +991,6 @@ int BPF_KPROBE(ip_queue_xmit, struct sock *sk, struct sk_buff *skb) {
             return 0;
         }
         tinfo->ip_time = bpf_ktime_get_ns() / 1000;
-        bpf_printk("%llu   2",tinfo->ip_time);
     }
     return 0;
 };
@@ -1102,7 +1124,7 @@ int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
     PACKET_INIT_WITH_COMMON_INFO
  //记录各层的时间差值
     if (layer_time) {
-        packet->tcp_time = tinfo->ip_time - tinfo->tcp_time;
+        packet->tran_time = tinfo->ip_time - tinfo->tran_time;
         packet->ip_time = tinfo->mac_time - tinfo->ip_time;
         packet->mac_time = tinfo->qdisc_time - tinfo->mac_time;//队列纪律层，处于网络协议栈最底层，负责实际数据传输与接收
     }
@@ -1161,3 +1183,60 @@ int BPF_KPROBE(tcp_enter_loss, struct sock *sk) {
 }
 
 /**** retrans end ****/
+
+
+/* new */
+
+SEC("kprobe/udp_rcv")
+int BPF_KPROBE(udp_rcv,struct sk_buff *skb)
+{
+    if (skb == NULL)//判断是否为空
+        return 0;
+    bpf_printk("udp_rcv %u",bpf_get_current_pid_tgid());
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct udphdr *udp = skb_to_udphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+
+    get_udp_pkt_tuple(&pkt_tuple, ip, udp);
+
+    struct ktime_info *tinfo, zero = {0};
+    tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
+            &timestamps, &pkt_tuple, &zero);
+    if (tinfo == NULL) {
+        return 0;
+    }
+    tinfo->tran_time = bpf_ktime_get_ns() / 1000;
+    //bpf_printk("1---saddr : %u daddr : %u sport : %u dport : %u tran_flag : %u seq:%u ack:%u\n",
+    //pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport,pkt_tuple.tran_flag,pkt_tuple.seq,pkt_tuple.ack);
+    return 0;
+
+}
+
+
+SEC("kprobe/__udp_enqueue_schedule_skb")
+int BPF_KPROBE(__udp_enqueue_schedule_skb,struct sock *sk, struct sk_buff *skb)
+{
+    bpf_printk("__udp_enqueue_schedule_skb %u",bpf_get_current_pid_tgid());
+    if (skb == NULL)//判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct udphdr *udp = skb_to_udphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    u16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
+    pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+    pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+    pkt_tuple.dport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    pkt_tuple.sport = __bpf_ntohs(dport);
+    pkt_tuple.tran_flag=2;
+    //bpf_printk("2---saddr : %u daddr : %u sport : %u dport : %u tran_flag : %u seq:%u ack:%u\n",
+    //pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport,pkt_tuple.tran_flag,pkt_tuple.seq,pkt_tuple.ack);
+    
+    struct ktime_info *tinfo, zero = {0};
+    tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
+    if (tinfo == NULL) {
+        return 0;
+    }
+    bpf_printk("udp_time : %lld\n",bpf_ktime_get_ns() / 1000 - tinfo->tran_time);
+    return 0;
+
+}

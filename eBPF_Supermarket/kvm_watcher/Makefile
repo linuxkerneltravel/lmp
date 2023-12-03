@@ -5,19 +5,20 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-APP = kvm_exits
+APP = src/kvm_watcher
 
 all: $(APP)
 
 .PHONY: $(APP)
 $(APP):
-ifeq ($(wildcard ./vmlinux.h),)
-	bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+ifeq ($(wildcard ./include/vmlinux.h),)
+	bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./include/vmlinux.h
 endif
 	clang -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -I/usr/include/x86_64-linux-gnu -I. -c $@.bpf.c -o $@.bpf.o
 	bpftool gen skeleton $@.bpf.o > $@.skel.h
 	clang -g -O2 -Wall -I . -c $@.c -o $@.o
-	clang -Wall -O2 -g $@.o -static -lbpf -lelf -lz -o $@
+	clang -Wall -O2 -g $@.o -static -lbpf -lelf -lz -o $(notdir $@)  
 
 clean:
-	rm -f *.o *.skel.h $(APP) vmlinux.h
+	cd src && rm -f *.o *.skel.h 
+	rm -f $(notdir $(APP)) include/vmlinux.h
