@@ -51,4 +51,25 @@ struct syscall_seq{
 	long int record_syscall[MAX_SYSCALL_COUNT];
 };
 
+// lock_image
+struct proc_flag{
+    int pid;
+    // 1代表用户态互斥锁
+    // 2代表用户态读写锁
+    int flag;
+};
+
+struct lock_event{
+    /* lock_status：
+        1代表mutex_req；2代表mutex_lock；3代表mutex_unlock
+        4代表rdlock_req；5代表rdlock_lock；6代表rdlock_unlock
+        7代表wrlock_req；8代表wrlock_lock；9代表wrlock_unlock
+    */
+    int lock_status;
+    int pid;
+	int ret;
+    long long unsigned int lock_ptr;
+    long long unsigned int time;
+};
+
 #endif /* __PROCESS_H */

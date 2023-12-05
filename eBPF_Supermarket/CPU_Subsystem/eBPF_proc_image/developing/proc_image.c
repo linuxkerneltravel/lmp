@@ -33,6 +33,7 @@
 /*
 #include "syscall_image.skel.h"
 */
+#include "lock_image.skel.h"
 
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
     do                                                           \
@@ -85,12 +86,11 @@
 
 #define RESOURCE_IMAGE 1
 #define SYSCALL_IMAGE 2
+#define LOCK_IMAGE 3
 
 static int prev_image = 0;
 static volatile bool exiting = false;
-/*
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
-*/
 static struct env {
     int pid;
     int cpu_id;
@@ -101,6 +101,7 @@ static struct env {
     bool enable_resource;
 	bool first_rsc;
 	bool enable_syscall;
+	bool enable_lock;
 } env = {
     .pid = -1,
     .cpu_id = -1,
@@ -111,10 +112,15 @@ static struct env {
     .enable_resource = false,
 	.first_rsc = true,
 	.enable_syscall = false,
+	.enable_lock = false,
 };
 
 static struct timespec prevtime;
 static struct timespec currentime;
+
+char *lock_status[] = {"", "mutex_req", "mutex_lock", "mutex_unlock",
+						   "rdlock_req", "rdlock_lock", "rdlock_unlock",
+						   "wrlock_req", "wrlock_lock", "wrlock_unlock"};
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
@@ -122,8 +128,10 @@ static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
     { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
+	{ "all", 'a', NULL, 0, "Start all functions" },
     { "resource", 'r', NULL, 0, "Collects resource usage information about processes" },
 	{ "syscall", 's', NULL, 0, "Collects syscall sequence information about processes" },
+	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
     {},
 };
 
@@ -154,11 +162,19 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.time = strtol(arg, NULL, 10);
 				if(env.time) alarm(env.time);
 				break;
+		case 'a':
+				env.enable_resource = true;
+				env.enable_syscall = true;
+				env.enable_lock = true;
+				break;
         case 'r':
                 env.enable_resource = true;
                 break;
 		case 's':
                 env.enable_syscall = true;
+                break;
+		case 'l':
+                env.enable_lock = true;
                 break;
         default:
 				return ARGP_ERR_UNKNOWN;
@@ -196,7 +212,7 @@ static int print_resource(struct bpf_map *map)
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
 		if(prev_image != RESOURCE_IMAGE){
 			printf("RESOURCE------------------------------------------------------------\n");
-			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","read(kb/s)","write(kb/s)");
+			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
 
@@ -256,7 +272,7 @@ static void print_syscall(void *ctx, int cpu, void *data, __u32 data_sz)
 
 	if(prev_image != SYSCALL_IMAGE){
         printf("SYSCALL------------------------------------------------------------\n");
-        printf("%-29s  %-6s  %-8s\n","TIME(oncpu-offcpu)","PID","syscalls");
+        printf("%-29s  %-6s  %-8s\n","TIME(oncpu-offcpu)","PID","SYSCALLS");
 
 		prev_image = SYSCALL_IMAGE;
     }
@@ -276,9 +292,60 @@ static void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
 }
 */
 
+static int print_lock(void *ctx, void *data,unsigned long data_sz)
+{
+	const struct lock_event *e = data;
+	
+	if(prev_image != LOCK_IMAGE){
+        printf("USERLOCK------------------------------------------------------------\n");
+        printf("%-14s  %-6s  %-15s  %s\n","TIME","PID","LockAddr","LockStatus");
+
+		prev_image = LOCK_IMAGE;
+    }
+
+	printf("%-14lld  %-6d  %-15lld  ",e->time,e->pid,e->lock_ptr);
+	if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8){
+		printf("%s_%d\n",lock_status[e->lock_status],e->ret);
+	}else{
+		printf("%s\n",lock_status[e->lock_status]);
+	}
+
+	return 0;
+}
+
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
+}
+
+static int attach(struct lock_image_bpf *skel)
+{
+	int err;
+	
+	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_exit);
+	ATTACH_UPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_exit);
+	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_exit);
+	
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_rdlock,__pthread_rwlock_rdlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_rdlock,__pthread_rwlock_rdlock_exit);
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_tryrdlock,__pthread_rwlock_tryrdlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_tryrdlock,__pthread_rwlock_tryrdlock_exit);
+	
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_wrlock,__pthread_rwlock_wrlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_wrlock,__pthread_rwlock_wrlock_exit);
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_trywrlock,__pthread_rwlock_trywrlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_trywrlock,__pthread_rwlock_trywrlock_exit);
+	
+	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_exit);
+	
+	err = lock_image_bpf__attach(skel);
+	CHECK_ERR(err, "Failed to attach BPF skeleton");
+	
+	return 0;
 }
 
 // 新线程的执行函数
@@ -299,6 +366,8 @@ int main(int argc, char **argv)
 	struct syscall_image_bpf *syscall_skel;
 	struct perf_buffer *syscall_pb = NULL;
 */
+	struct ring_buffer *lock_rb = NULL;
+	struct lock_image_bpf *lock_skel;
 	pthread_t thread_id;
 	int err;
 	static const struct argp argp = {
@@ -379,6 +448,36 @@ int main(int argc, char **argv)
 	}
 */
 
+	if(env.enable_syscall){
+		lock_skel = lock_image_bpf__open();
+		if (!lock_skel) {
+			fprintf(stderr, "Failed to open BPF lock skeleton\n");
+			return 1;
+		}
+
+		err = lock_image_bpf__load(lock_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF lock skeleton\n");
+			goto cleanup;
+		}
+		
+		/* 附加跟踪点处理程序 */
+		err = attach(lock_skel);
+		if (err) {
+				fprintf(stderr, "Failed to attach BPF lock skeleton\n");
+				goto cleanup;
+		}
+		
+		/* 设置环形缓冲区轮询 */
+		//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		lock_rb = ring_buffer__new(bpf_map__fd(lock_skel->maps.lock_rb), print_lock, NULL, NULL);
+		if (!lock_rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create lock ring buffer\n");
+			goto cleanup;
+		}
+	}
+
 	/* 处理事件 */
 	while (!exiting) {
 		// 等待新线程结束，回收资源
@@ -420,6 +519,18 @@ int main(int argc, char **argv)
 			err = 0;
 		}
 */
+		if(env.enable_lock){
+			err = ring_buffer__poll(lock_rb, 0);
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling lock ring buffer: %d\n", err);
+				break;
+			}
+		}
 	}
 
 /* 卸载BPF程序 */
@@ -429,6 +540,8 @@ cleanup:
 	perf_buffer__free(syscall_pb);
 	syscall_image_bpf__destroy(syscall_skel);
 */
+	ring_buffer__free(lock_rb);
+	lock_image_bpf__destroy(lock_skel);
 
 	return err < 0 ? -err : 0;
 }
