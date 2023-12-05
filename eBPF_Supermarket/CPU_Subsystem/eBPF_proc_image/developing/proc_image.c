@@ -160,7 +160,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				break;
 		case 't':
 				env.time = strtol(arg, NULL, 10);
-				if(env.time) alarm(env.time);
 				break;
 		case 'a':
 				env.enable_resource = true;
@@ -366,6 +365,7 @@ void *signal_function(void *arg) {
     sigaddset(&set, SIGINT);
     sigaddset(&set, SIGTERM);
     sigaddset(&set, SIGALRM);
+	if(env.time) alarm(env.time);
 	// 等待多个信号中的一个到来
 	sigwait(&set, &sig);
 
