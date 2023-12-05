@@ -160,6 +160,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				break;
 		case 't':
 				env.time = strtol(arg, NULL, 10);
+				if(env.time) alarm(env.time);
 				break;
 		case 'a':
 				env.enable_resource = true;
@@ -342,7 +343,6 @@ static int attach(struct lock_image_bpf *skel)
 	return 0;
 }
 
-// 新线程的执行函数
 void *enable_function(void *arg) {
     env.create_thread = true;
     sleep(1);
@@ -353,25 +353,9 @@ void *enable_function(void *arg) {
     return NULL;
 }
 
-void *signal_function(void *arg) {
-	/* 更干净地处理Ctrl-C
-	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-	   SIGTERM：请求中止进程，kill命令发送
-	*/
-	int sig;
-	sigset_t set;
-	
-    sigemptyset(&set);
-    sigaddset(&set, SIGINT);
-    sigaddset(&set, SIGTERM);
-    sigaddset(&set, SIGALRM);
-	if(env.time) alarm(env.time);
-	// 等待多个信号中的一个到来
-	sigwait(&set, &sig);
-
+static void sig_handler(int signo)
+{
 	exiting = true;
-
-	return NULL;
 }
 
 int main(int argc, char **argv)
@@ -384,7 +368,6 @@ int main(int argc, char **argv)
 	struct ring_buffer *lock_rb = NULL;
 	struct lock_image_bpf *lock_skel;
 	pthread_t thread_enable;
-	pthread_t thread_signal;
 	int err;
 	static const struct argp argp = {
 		.options = opts,
@@ -400,12 +383,7 @@ int main(int argc, char **argv)
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
 
-	// 使用线程接受信号，设置 exiting 变量
-	// 避免主进程过度频繁打印无法接受信号
-	if (pthread_create(&thread_signal, NULL, signal_function, NULL) != 0) {
-		perror("pthread_create");
-		exit(EXIT_FAILURE);
-	}
+	signal(SIGALRM,sig_handler);
 
 	if(env.enable_resource){
 		resource_skel = resource_image_bpf__open();
