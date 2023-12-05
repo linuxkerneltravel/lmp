@@ -27,28 +27,28 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 1024);
+	__uint(max_entries, 10240);
 	__type(key, struct proc_flag);
 	__type(value, u64);
 } proc_lock SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 1024);
+	__uint(max_entries, 10240);
 	__type(key, struct proc_flag);
 	__type(value, u64);
 } proc_unlock SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 1024);
+	__uint(max_entries, 10240);
 	__type(key, u64);
 	__type(value, int);
 } locktype SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries,256 * 1024);
+	__uint(max_entries,256 * 10240);
 } lock_rb SEC(".maps");
 
 // 用户态互斥锁

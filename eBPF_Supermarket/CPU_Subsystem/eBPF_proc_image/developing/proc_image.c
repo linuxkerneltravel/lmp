@@ -100,7 +100,7 @@ static struct env {
 	bool exit_thread;
     bool enable_resource;
 	bool first_rsc;
-	bool enable_syscall;
+//	bool enable_syscall;
 	bool enable_lock;
 } env = {
     .pid = -1,
@@ -111,7 +111,7 @@ static struct env {
 	.exit_thread = false,
     .enable_resource = false,
 	.first_rsc = true,
-	.enable_syscall = false,
+//	.enable_syscall = false,
 	.enable_lock = false,
 };
 
@@ -164,15 +164,15 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				break;
 		case 'a':
 				env.enable_resource = true;
-				env.enable_syscall = true;
+//				env.enable_syscall = true;
 				env.enable_lock = true;
 				break;
         case 'r':
                 env.enable_resource = true;
                 break;
-		case 's':
+/*		case 's':
                 env.enable_syscall = true;
-                break;
+                break;*/
 		case 'l':
                 env.enable_lock = true;
                 break;
@@ -181,11 +181,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	}
 	
 	return 0;
-}
-
-static void sig_handler(int signo)
-{
-	exiting = 1;
 }
 
 static int print_resource(struct bpf_map *map)
@@ -305,7 +300,7 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 
 	printf("%-14lld  %-6d  %-15lld  ",e->time,e->pid,e->lock_ptr);
 	if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8){
-		printf("%s_%d\n",lock_status[e->lock_status],e->ret);
+		printf("%s-%d\n",lock_status[e->lock_status],e->ret);
 	}else{
 		printf("%s\n",lock_status[e->lock_status]);
 	}
@@ -343,13 +338,13 @@ static int attach(struct lock_image_bpf *skel)
 	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_exit);
 	
 	err = lock_image_bpf__attach(skel);
-	CHECK_ERR(err, "Failed to attach BPF skeleton");
+	CHECK_ERR(err, "Failed to attach BPF lock skeleton");
 	
 	return 0;
 }
 
 // 新线程的执行函数
-void *thread_function(void *arg) {
+void *enable_function(void *arg) {
     env.create_thread = true;
     sleep(1);
     env.enable_output = true;
@@ -357,6 +352,26 @@ void *thread_function(void *arg) {
     env.exit_thread = true;
 
     return NULL;
+}
+
+void *signal_function(void *arg) {
+	/* 更干净地处理Ctrl-C
+	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
+	   SIGTERM：请求中止进程，kill命令发送
+	*/
+	int sig;
+	sigset_t set;
+	
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGTERM);
+    sigaddset(&set, SIGALRM);
+	// 等待多个信号中的一个到来
+	sigwait(&set, &sig);
+
+	exiting = true;
+
+	return NULL;
 }
 
 int main(int argc, char **argv)
@@ -368,7 +383,8 @@ int main(int argc, char **argv)
 */
 	struct ring_buffer *lock_rb = NULL;
 	struct lock_image_bpf *lock_skel;
-	pthread_t thread_id;
+	pthread_t thread_enable;
+	pthread_t thread_signal;
 	int err;
 	static const struct argp argp = {
 		.options = opts,
@@ -384,13 +400,12 @@ int main(int argc, char **argv)
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
 
-	/* 更干净地处理Ctrl-C
-	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-	   SIGTERM：请求中止进程，kill命令发送
-	*/
-	signal(SIGINT, sig_handler);
-	signal(SIGTERM, sig_handler);
-	signal(SIGALRM,sig_handler);
+	// 使用线程接受信号，设置 exiting 变量
+	// 避免主进程过度频繁打印无法接受信号
+	if (pthread_create(&thread_signal, NULL, signal_function, NULL) != 0) {
+		perror("pthread_create");
+		exit(EXIT_FAILURE);
+	}
 
 	if(env.enable_resource){
 		resource_skel = resource_image_bpf__open();
@@ -448,7 +463,7 @@ int main(int argc, char **argv)
 	}
 */
 
-	if(env.enable_syscall){
+	if(env.enable_lock){
 		lock_skel = lock_image_bpf__open();
 		if (!lock_skel) {
 			fprintf(stderr, "Failed to open BPF lock skeleton\n");
@@ -464,8 +479,8 @@ int main(int argc, char **argv)
 		/* 附加跟踪点处理程序 */
 		err = attach(lock_skel);
 		if (err) {
-				fprintf(stderr, "Failed to attach BPF lock skeleton\n");
-				goto cleanup;
+			fprintf(stderr, "Failed to attach BPF lock skeleton\n");
+			goto cleanup;
 		}
 		
 		/* 设置环形缓冲区轮询 */
@@ -483,7 +498,7 @@ int main(int argc, char **argv)
 		// 等待新线程结束，回收资源
         if(env.exit_thread){
             env.exit_thread = false;
-            if (pthread_join(thread_id, NULL) != 0) {
+            if (pthread_join(thread_enable, NULL) != 0) {
                 perror("pthread_join");
                 exit(EXIT_FAILURE);
             }
@@ -491,7 +506,7 @@ int main(int argc, char **argv)
 
 		// 创建新线程，设置 env.enable_output
         if(!env.create_thread){
-            if (pthread_create(&thread_id, NULL, thread_function, NULL) != 0) {
+            if (pthread_create(&thread_enable, NULL, enable_function, NULL) != 0) {
                 perror("pthread_create");
                 exit(EXIT_FAILURE);
             }
