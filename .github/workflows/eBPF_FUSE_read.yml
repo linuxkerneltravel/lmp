@@ -11,7 +11,7 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/eBPF_FUSE/eBPF_FUSE_read/fast_fuse/**'
+      - 'eBPF_Supermarket/eBPF_FUSE/Filesystem_Subsystem/fast_fuse/**'
       - '.github/workflows/ebpf_FUSE_read.yml'
   
 jobs:
@@ -33,3 +33,10 @@ jobs:
           mkdir ./yourdir
           ./fusedemo ./yourdir
           df -T ./yourdir
+
+        - name: Run frida
+          run: |
+            pip install frida-tools
+            cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/frida
+            sudo sysctl kernel.yama.ptrace_scope=0
+            python cat.py
