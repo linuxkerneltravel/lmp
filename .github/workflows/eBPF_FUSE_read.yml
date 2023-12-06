@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
+      
       - name: Run fusedemo
         run: |
           cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/fusedemo/
@@ -33,8 +34,8 @@ jobs:
           ./fusedemo ./yourdir
           df -T ./yourdir
 
-        - name: Run frida
-          run: |
+      - name: Run frida
+        run: |
             pip install frida-tools
             cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/frida
             sudo sysctl kernel.yama.ptrace_scope=0
