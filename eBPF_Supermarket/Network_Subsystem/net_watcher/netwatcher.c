@@ -223,7 +223,9 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
     } else {
         FILE *file = fopen(packets_file_path, "a");
         char http_data[256];
-        if (strstr((char *)pack_info->data, "HTTP/1")) {
+    
+     if (strstr((char *)pack_info->data, "HTTP/1")) {
+            
             for (int i = 0; i < sizeof(pack_info->data); ++i) {
                 if (pack_info->data[i] == '\r') {
                     http_data[i] = '\0';
@@ -232,7 +234,8 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
                 http_data[i] = pack_info->data[i];
             }
         } else {
-            sprintf(http_data, "-");
+            
+          sprintf(http_data, "-");
         }
             if (layer_time) {
                  printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
