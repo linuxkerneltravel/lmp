@@ -170,15 +170,12 @@ int BPF_KRETPROBE(schedule_exit)
 	}else{
 		return 0;
 	}
-	
 	struct event *e;
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)	return 0;	
-	
 	e->t1=t1;//开始时间
 	e->t2=t2;//结束时间
 	e->delay=delay;//时间间隔
-	
 	/* 成功地将其提交到用户空间进行后期处理 */
 	bpf_ringbuf_submit(e, 0);
 	
@@ -189,8 +186,7 @@ int BPF_KRETPROBE(schedule_exit)
 /*           sar跟踪函数                         */
 /*----------------------------------------------*/
 // 统计fork数
-//SEC("kprobe/finish_task_switch.isra.0")
-SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
