@@ -132,7 +132,8 @@ static const struct argp_option opts[] = {
     { "resource", 'r', NULL, 0, "Collects resource usage information about processes" },
 	{ "syscall", 's', NULL, 0, "Collects syscall sequence information about processes" },
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
-    {},
+    { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
+	{},
 };
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
@@ -176,6 +177,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'l':
                 env.enable_lock = true;
                 break;
+		case 'h':
+				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+				break;
         default:
 				return ARGP_ERR_UNKNOWN;
 	}
