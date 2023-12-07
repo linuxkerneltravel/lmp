@@ -774,7 +774,6 @@ int BPF_KPROBE(skb_copy_datagram_iter, struct sk_buff *skb) {
                 //计算tcp的负载开始位置就是tcp头部之后的数据，将tcp指针指向tcp头部位置将其转换成unsigned char类型
             //doff * 4数据偏移值(tcp的头部长度20个字节)乘以4计算tcp头部实际字节长度，32位为单位就是4字节
         bpf_probe_read_str(packet->data, sizeof(packet->data), user_data); //将tcp负载数据读取到packet->data
-        bpf_printk("http_info : %s\n",user_data);
     }
     bpf_ringbuf_submit(packet, 0);//将packet提交到缓冲区
     return 0;
