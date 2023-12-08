@@ -16,7 +16,7 @@
 //
 // eBPF kernel-mode code that collects process resource usage
 
-#include <vmlinux.h>
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
@@ -68,18 +68,19 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 				struct total_rsc prev_total = {0};
 				long unsigned int memused;
 				
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
-
-#else
-/*
+// #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				struct percpu_counter *rss;
+				rss = BPF_CORE_READ(prev,mm,rss_stat);
+				if(!rss)	return 0;
+				memused = rss[0].count + rss[1].count + rss[3].count;
+/* #else
 				struct mm_rss_stat rss = {};
 				long long *c;
 				rss = BPF_CORE_READ(prev, mm, rss_stat);
 				c = (long long *)(rss.count);
 				if(!c)	return 0;
 				memused = *c + *(c + 1) + *(c + 3);
-*/
-#endif
+#endif */
 				
 				prev_total.pid = prev_pd.pid;
 				prev_total.cpu_id = prev_cpu;
@@ -97,18 +98,19 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 				
 				long unsigned int memused;
 				
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
-
-#else
-/*
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+				struct percpu_counter *rss;
+				rss = BPF_CORE_READ(prev,mm,rss_stat);
+				if(!rss)	return 0;
+				memused = rss[0].count + rss[1].count + rss[3].count;
+/* #else
 				struct mm_rss_stat rss = {};
 				long long *c;
 				rss = BPF_CORE_READ(prev, mm, rss_stat);
 				c = (long long *)(rss.count);
 				if(!c)	return 0;
 				memused = *c + *(c + 1) + *(c + 3);
-*/
-#endif
+#endif */
 				
 				prev_total->cpu_id = prev_cpu;
 				prev_total->time += bpf_ktime_get_ns() - prev_start->time;
