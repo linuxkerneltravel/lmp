@@ -63,6 +63,13 @@ typedef struct
     __u64 expect;
 } tuple;
 
+typedef struct 
+{
+    __u64 count;
+    __u64 size;
+}io_tuple;
+
+
 // ============= eBPF api ===================
 
 /// @brief 创建一个指定名字的ebpf调用栈表
@@ -259,5 +266,12 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 /// @brief 遍历ebpf表值的循环尾部
 #define TRAVERSE_MAP_TAIL \
     }
+
+
+typedef enum{
+    COUNT,
+    SIZE,
+    AVE
+}DATA;
 
 #endif
