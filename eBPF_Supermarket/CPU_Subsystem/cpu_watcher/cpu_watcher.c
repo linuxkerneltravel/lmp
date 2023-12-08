@@ -31,6 +31,42 @@
 #include "cpu_watcher.h"
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
+
+#define __ATTACH_KPROBE(skel, sym_name, prog_name, is_retprobe)  \
+    do                                                           \
+    {                                                            \
+		LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                \
+                    .retprobe = is_retprobe,                     \
+                    .func_name = #sym_name);                     \
+        skel->links.prog_name = bpf_program__attach_kprobe_opts( \
+            skel->progs.prog_name,                               \
+            0,                                                 \
+            object,                                              \
+            0,                                                   \
+            &uprobe_opts);                                       \
+    } while (false)
+#define __CHECK_PROGRAM(skel, prog_name)                                                      \
+    do                                                                                        \
+    {                                                                                         \
+        if (!skel->links.prog_name)                                                           \
+        {                                                                                     \
+            fprintf(stderr, "[%s] no program attached for" #prog_name "\n", strerror(errno)); \
+            return -errno;                                                                    \
+        }                                                                                     \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do                                                                  \
+    {                                                                   \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+//选择性挂载
+
 typedef long long unsigned int u64;
 typedef unsigned int u32;
 static volatile bool exiting = false;//全局变量，表示程序是否正在退出
@@ -41,7 +77,8 @@ u64 irqtime = 0;//初始化irq;
 u64 idle = 0;//初始化idle;
 u64 sched = 0;
 u64 proc = 0;
-unsigned long ktLastTime = 0;
+unsigned long ktTime = 0;
+unsigned long utTime = 0;
 
 // sar 工具的参数设置
 static struct env {
@@ -288,24 +325,33 @@ static int print_all()
 	/*kthread*/
 	int key_kthread = 0;
 	int err_kthread, fd_kthread = bpf_map__fd(skel->maps.kt_LastTime);
-	unsigned long  _ktLastTime=0; 
-	_ktLastTime = ktLastTime;
-	err_kthread = bpf_map_lookup_elem(fd_kthread, &key_kthread,&ktLastTime);
+	unsigned long  _ktTime=0; 
+	_ktTime = ktTime;
+	err_kthread = bpf_map_lookup_elem(fd_kthread, &key_kthread,&ktTime);
 	if (err_kthread < 0) {
 		fprintf(stderr, "failed to lookup infos: %d\n", err_kthread);
 		return -1;
 	}
-	unsigned long dtaKT = ktLastTime -_ktLastTime;
+	unsigned long dtaKT = ktTime -_ktTime;
 
-
-
+	/*Uthread*/
+	int key_uthread = 0;
+	int err_uthread, fd_uthread = bpf_map__fd(skel->maps.ut_LastTime);
+	unsigned long  _utTime=0; 
+	_utTime = utTime;
+	err_uthread = bpf_map_lookup_elem(fd_uthread, &key_uthread,&utTime);
+	if (err_uthread < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err_uthread);
+		return -1;
+	}
+	unsigned long dtaUT = utTime -_utTime;
 
 	if(env.enable_proc){
 		//判断打印：
 		time_t now = time(NULL);// 获取当前时间
 		struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
-		printf("%02d:%02d:%02d %8llu %8llu %8llu %8llu  %8llu %8lu\n",
-				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,dtaKT/1000);
+		printf("%02d:%02d:%02d %8llu %8llu %8llu %8llu  %8llu %10lu %13lu\n",
+				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,dtaKT/1000,dtaUT/1000);
 	}
 	else{
 		env.enable_proc = true;
@@ -371,7 +417,7 @@ int main(int argc, char **argv)
 	if(env.libbpf_sar){
 		//printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
 		//printf("  time   softirq\n");
-		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us\n");
+		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us uthread/ms\n");
 	}
 	else if(env.cs_delay){
 		/* 设置环形缓冲区轮询 */

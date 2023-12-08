@@ -134,6 +134,13 @@ struct {
     __type(value, u64);
 } kt_LastTime SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, u64);
+} ut_LastTime SEC(".maps");
+
 /*----------------------------------------------*/
 /*          cs_delay跟踪函数                    */
 /*----------------------------------------------*/
@@ -163,15 +170,12 @@ int BPF_KRETPROBE(schedule_exit)
 	}else{
 		return 0;
 	}
-	
 	struct event *e;
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)	return 0;	
-	
 	e->t1=t1;//开始时间
 	e->t2=t2;//结束时间
 	e->delay=delay;//时间间隔
-	
 	/* 成功地将其提交到用户空间进行后期处理 */
 	bpf_ringbuf_submit(e, 0);
 	
@@ -213,7 +217,7 @@ int trace_sched_switch2(struct cswch_args *info) {
 
 		// 将下一个进程的进程号赋给pid
 		pid_t pid = next;
-		u64 time = bpf_ktime_get_ns()/1000;//获取当前时间，ms；
+		u64 time = bpf_ktime_get_ns();//获取当前时间，ns；
 
 		// Step1: 记录next进程的起始时间
 		bpf_map_update_elem(&procStartTime,&pid,&time,BPF_ANY);//上传当前时间到start map中
@@ -239,7 +243,7 @@ int trace_sched_switch2(struct cswch_args *info) {
 	return 0;
 }
 
-SEC("kprobe/finish_task_switch.isra.0") 
+SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
@@ -249,13 +253,23 @@ int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 		val = bpf_map_lookup_elem(&procStartTime, &pid);
 		if (val) {
 			u32 key = 0;
-			delta = time - *val*1000;
+			delta = time - *val;
 			val = bpf_map_lookup_elem(&kt_LastTime, &key);
 			if (val) *val += delta;
 			else bpf_map_update_elem(&kt_LastTime, &key, &delta, BPF_ANY);
+		}// Step2: 记录用户进程的运行时间
+	}else if (!(BPF_CORE_READ(prev,flags) & PF_KTHREAD) && !(BPF_CORE_READ(prev,flags) &PF_IDLE)) {
+		val = bpf_map_lookup_elem(&procStartTime, &pid);
+		if (val) {
+		u32 key = 0;
+ 		delta = (time - *val)/1000;//us
+ 		val = bpf_map_lookup_elem(&ut_LastTime, &key);
+		if (val) *val += delta;
+ 		else bpf_map_update_elem(&ut_LastTime, &key, &delta, BPF_ANY);
 		}
 	} 
 	return 0;
+
 }
 
 /*
@@ -310,7 +324,6 @@ int kprobe_update_rq_clock(struct pt_regs *ctx){
     if (!p_rq) {
         return 0;
     }
-
     bpf_probe_read_kernel(p_rq, sizeof(struct rq), (void *)PT_REGS_PARM1(ctx));
     //使用bpf_probe_read_kernel函数将内核空间中的数据复制到p_rq所指向的内存区域中，以便后续对该数据进行访问和操作。
     u64 val = p_rq->nr_running;
@@ -321,7 +334,6 @@ int kprobe_update_rq_clock(struct pt_regs *ctx){
 //软中断
 SEC("tracepoint/irq/softirq_entry")
 int trace_softirq_entry(struct __softirq_info *info) {
-
 	u32 key = info->vec;//获取软中断向量号，作为 BPF Map 的键
 	u64 val = bpf_ktime_get_ns();//获取当前时间
 	bpf_map_update_elem(&softirqCpuEnterTime, &key, &val, BPF_ANY);
@@ -330,16 +342,13 @@ int trace_softirq_entry(struct __softirq_info *info) {
 
 SEC("tracepoint/irq/softirq_exit")
 int trace_softirq_exit(struct __softirq_info *info) {
-
 	u32 key = info->vec;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
-
 	valp =bpf_map_lookup_elem(&softirqCpuEnterTime, &key);
 	if (valp) {
 		// 找到表项
 		u64 last_time = now - *valp;
 		u32 key0 = 0;
-
 		valp = bpf_map_lookup_elem(&softirqLastTime, &key0);//在lasttime数组中找，因为大小是1
 		if (!valp) bpf_map_update_elem(&softirqLastTime, &key0, &last_time, BPF_ANY);
 		else *valp += last_time;
@@ -354,10 +363,8 @@ int trace_softirq_exit(struct __softirq_info *info) {
 注意这是所有CPU时间的叠加，平均到每个CPU应该除以CPU个数。*/
 SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
-	
 	u32 key = info->irq;//获取irq硬中断的信息
 	u64 ts = bpf_ktime_get_ns();//获取当前时间
-
     bpf_map_update_elem(&irq_cpu_enter_start, &key, &ts, BPF_ANY);//将时间戳上传;
 	return 0;
 }
@@ -371,7 +378,6 @@ int trace_irq_handler_exit(struct __irq_info *info) {
     // e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	// if (!e)
 	// 	return 0;
-
     ts = bpf_map_lookup_elem(&irq_cpu_enter_start, &key);//ts中断开始的时间;
     // if(ts==NULL){
     //     return 0;
@@ -386,7 +392,6 @@ int trace_irq_handler_exit(struct __irq_info *info) {
 		else        *ts += last_time;//该中断已记录持续时间，将ts所指向的持续时间+这次的持续时间；
 		
 	}
-
     // e->irqtime = bpf_map_lookup_elem(&irq_Last_time, &key0);
     // bpf_ringbuf_submit(e, 0);//将填充的event提交到BPF缓冲区,以供用户空间进行后续处理
 	return 0;
@@ -399,7 +404,6 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 	u64 delta, time = bpf_ktime_get_ns();
 	u32 key = pIDLE->cpu_id;
 	// 按cpuid记录空闲的开始，这十分重要，因为IDLE-0进程可同时运行在两个核上
-
 	if (pIDLE->state == -1) {
 		// 结束idle
 		u64 *valp = bpf_map_lookup_elem(&idleStart,&key);
