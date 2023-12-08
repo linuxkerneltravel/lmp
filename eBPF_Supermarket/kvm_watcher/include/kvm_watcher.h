@@ -20,6 +20,25 @@
 #define __KVM_WATCHER_H
 
 #define TASK_COMM_LEN	 16
+#define KVM_MEM_LOG_DIRTY_PAGES	(1UL << 0)
+
+#define PRINT_USAGE_ERR() \
+    do { \
+        fprintf(stderr, "Use either the -w, -p, -d, or -e option.\n"); \
+        argp_usage(state); \
+    } while (0)
+
+#define RESERVE_RINGBUF_ENTRY(rb, e) \
+    do { \
+        typeof(e) _tmp = bpf_ringbuf_reserve(rb, sizeof(*e), 0); \
+        if (!_tmp) \
+            return 0; \
+        e = _tmp; \
+    } while (0)
+
+#define CHECK_PID(vm_pid) \
+    unsigned pid = bpf_get_current_pid_tgid() >> 32; \
+    if ((vm_pid) < 0 || pid == (vm_pid))
 
 struct process{
     unsigned pid;
@@ -58,5 +77,15 @@ struct halt_poll_ns_event {
     unsigned int new;
     unsigned int old;	
     unsigned long long time;
+};
+
+struct mark_page_dirty_in_slot_event{
+    struct process process;
+    unsigned long long time;
+    unsigned long npages;
+    unsigned long userspace_addr;
+    unsigned long long rel_gfn;
+    unsigned long long gfn;
+    short slot_id;
 };
 #endif /* __KVM_WATCHER_H */

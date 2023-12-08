@@ -21,4 +21,4 @@ endif
 
 clean:
 	cd src && rm -f *.o *.skel.h 
-	rm -f $(notdir $(APP)) include/vmlinux.h
+	sudo rm -rf $(notdir $(APP)) include/vmlinux.h temp
