@@ -19,28 +19,28 @@
 #ifndef __KVM_WATCHER_H
 #define __KVM_WATCHER_H
 
-#define TASK_COMM_LEN	 16
-#define KVM_MEM_LOG_DIRTY_PAGES	(1UL << 0)
+#define TASK_COMM_LEN 16
+#define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
 
-#define PRINT_USAGE_ERR() \
-    do { \
+#define PRINT_USAGE_ERR()                                              \
+    do {                                                               \
         fprintf(stderr, "Use either the -w, -p, -d, or -e option.\n"); \
-        argp_usage(state); \
+        argp_usage(state);                                             \
     } while (0)
 
-#define RESERVE_RINGBUF_ENTRY(rb, e) \
-    do { \
+#define RESERVE_RINGBUF_ENTRY(rb, e)                             \
+    do {                                                         \
         typeof(e) _tmp = bpf_ringbuf_reserve(rb, sizeof(*e), 0); \
-        if (!_tmp) \
-            return 0; \
-        e = _tmp; \
+        if (!_tmp)                                               \
+            return 0;                                            \
+        e = _tmp;                                                \
     } while (0)
 
-#define CHECK_PID(vm_pid) \
+#define CHECK_PID(vm_pid)                            \
     unsigned pid = bpf_get_current_pid_tgid() >> 32; \
     if ((vm_pid) < 0 || pid == (vm_pid))
 
-struct process{
+struct process {
     unsigned pid;
     unsigned tid;
     char comm[TASK_COMM_LEN];
@@ -62,12 +62,12 @@ struct exit_event {
 
 struct ExitReason {
     int number;
-    const char* name;
+    const char *name;
 };
 
 struct reason_info {
     unsigned long long time;
-    unsigned long  reason;
+    unsigned long reason;
     int count;
 };
 
@@ -75,11 +75,11 @@ struct halt_poll_ns_event {
     struct process process;
     bool grow;
     unsigned int new;
-    unsigned int old;	
+    unsigned int old;
     unsigned long long time;
 };
 
-struct mark_page_dirty_in_slot_event{
+struct mark_page_dirty_in_slot_event {
     struct process process;
     unsigned long long time;
     unsigned long npages;
