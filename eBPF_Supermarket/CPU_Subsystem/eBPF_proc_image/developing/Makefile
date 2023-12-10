@@ -41,7 +41,7 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(LIBBLAZESYM_INC) -I./inc
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = resource_image lock_image #syscall_image
+APPS = resource_image lock_image syscall_image
 TARGETS = proc_image
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs

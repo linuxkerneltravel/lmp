@@ -30,9 +30,7 @@
 #include <bpf/bpf.h>
 #include "proc_image.h"
 #include "resource_image.skel.h"
-/*
 #include "syscall_image.skel.h"
-*/
 #include "lock_image.skel.h"
 
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
@@ -100,7 +98,7 @@ static struct env {
 	bool exit_thread;
     bool enable_resource;
 	bool first_rsc;
-//	bool enable_syscall;
+	bool enable_syscall;
 	bool enable_lock;
 } env = {
     .pid = -1,
@@ -111,7 +109,7 @@ static struct env {
 	.exit_thread = false,
     .enable_resource = false,
 	.first_rsc = true,
-//	.enable_syscall = false,
+	.enable_syscall = false,
 	.enable_lock = false,
 };
 
@@ -165,15 +163,15 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				break;
 		case 'a':
 				env.enable_resource = true;
-//				env.enable_syscall = true;
+				env.enable_syscall = true;
 				env.enable_lock = true;
 				break;
         case 'r':
                 env.enable_resource = true;
                 break;
-/*		case 's':
+		case 's':
                 env.enable_syscall = true;
-                break;*/
+                break;
 		case 'l':
                 env.enable_lock = true;
                 break;
@@ -261,13 +259,12 @@ delete_elem:
 	return 0;
 }
 
-/*
-static void print_syscall(void *ctx, int cpu, void *data, __u32 data_sz)
+static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct syscall_seq *e = data;
 	int count = e->count;
 
-	if(count == 0)	return;
+	if(count == 0)	return 0;
 
 	if(prev_image != SYSCALL_IMAGE){
         printf("SYSCALL------------------------------------------------------------\n");
@@ -278,18 +275,14 @@ static void print_syscall(void *ctx, int cpu, void *data, __u32 data_sz)
 
 	printf("%-14lld-%14lld  %-6d  ",e->oncpu_time,e->offcpu_time,e->pid);
 	for(int i=0; i<count; i++){
-		if(i == count-1)	printf("%ld",e->record_syscall[i]);
-		else	printf("%ld,",e->record_syscall[i]);
+		if(i == count-1)	printf("%d",e->record_syscall[i]);
+		else	printf("%d,",e->record_syscall[i]);
 	}
 
 	putchar('\n');
-}
 
-static void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
-{
-	fprintf(stderr, "Lost %llu events on CPU #%d!\n", lost_cnt, cpu);
+	return 0;
 }
-*/
 
 static int print_lock(void *ctx, void *data,unsigned long data_sz)
 {
@@ -365,12 +358,10 @@ static void sig_handler(int signo)
 int main(int argc, char **argv)
 {
 	struct resource_image_bpf *resource_skel;
-/*
 	struct syscall_image_bpf *syscall_skel;
-	struct perf_buffer *syscall_pb = NULL;
-*/
-	struct ring_buffer *lock_rb = NULL;
+	struct ring_buffer *syscall_rb = NULL;
 	struct lock_image_bpf *lock_skel;
+	struct ring_buffer *lock_rb = NULL;
 	pthread_t thread_enable;
 	int err;
 	static const struct argp argp = {
@@ -413,7 +404,7 @@ int main(int argc, char **argv)
 
 	}
 
-/*
+
 	if(env.enable_syscall){
 		syscall_skel = syscall_image_bpf__open();
 		if(!syscall_skel) {
@@ -435,15 +426,15 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 
-		syscall_pb = perf_buffer__new(bpf_map__fd(syscall_skel->maps.syscalls), PERF_BUFFER_PAGES,
-			      print_syscall, handle_lost_events, NULL, NULL);
-		if (!syscall_pb) {
-			err = -errno;
-			fprintf(stderr, "failed to open syscall perf buffer: %d\n", err);
+		/* 设置环形缓冲区轮询 */
+		//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		syscall_rb = ring_buffer__new(bpf_map__fd(syscall_skel->maps.syscall_rb), print_syscall, NULL, NULL);
+		if (!syscall_rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create syscall ring buffer\n");
 			goto cleanup;
 		}
 	}
-*/
 
 	if(env.enable_lock){
 		lock_skel = lock_image_bpf__open();
@@ -506,16 +497,19 @@ int main(int argc, char **argv)
 			}
 		}
 
-/*
 		if(env.enable_syscall){
-			err = perf_buffer__poll(syscall_pb, 0);
-			if (err < 0 && err != -EINTR) {
-				fprintf(stderr, "error polling syscall perf buffer: %s\n", strerror(-err));
-				goto cleanup;
+			err = ring_buffer__poll(syscall_rb, 0);
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
 			}
-			err = 0;
+			if (err < 0) {
+				printf("Error polling syscall ring buffer: %d\n", err);
+				break;
+			}
 		}
-*/
+
 		if(env.enable_lock){
 			err = ring_buffer__poll(lock_rb, 0);
 			/* Ctrl-C will cause -EINTR */
@@ -533,10 +527,8 @@ int main(int argc, char **argv)
 /* 卸载BPF程序 */
 cleanup:
 	resource_image_bpf__destroy(resource_skel);
-/*
-	perf_buffer__free(syscall_pb);
+	ring_buffer__free(syscall_rb);
 	syscall_image_bpf__destroy(syscall_skel);
-*/
 	ring_buffer__free(lock_rb);
 	lock_image_bpf__destroy(lock_skel);
 
