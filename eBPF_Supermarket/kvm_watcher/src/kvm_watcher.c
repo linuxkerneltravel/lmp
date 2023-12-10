@@ -329,36 +329,19 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
         case 'w':
-            if (option_selected == 0) {
-                env.execute_vcpu_wakeup = true;
-                option_selected = 1;
-            } else {
-                PRINT_USAGE_ERR();
-            }
+            SET_OPTION_AND_CHECK_USAGE(option_selected,
+                                       env.execute_vcpu_wakeup);
             break;
         case 'e':
-            if (option_selected == 0) {
-                env.execute_exit = true;
-                option_selected = 1;
-            } else {
-                PRINT_USAGE_ERR();
-            }
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_exit);
             break;
         case 'n':
-            if (option_selected == 0) {
-                env.execute_halt_poll_ns = true;
-                option_selected = 1;
-            } else {
-                PRINT_USAGE_ERR();
-            }
+            SET_OPTION_AND_CHECK_USAGE(option_selected,
+                                       env.execute_halt_poll_ns);
             break;
         case 'd':
-            if (option_selected == 0) {
-                env.execute_mark_page_dirty = true;
-                option_selected = 1;
-            } else {
-                PRINT_USAGE_ERR();
-            }
+            SET_OPTION_AND_CHECK_USAGE(option_selected,
+                                       env.execute_mark_page_dirty);
             break;
         case 's':
             if (env.execute_exit) {

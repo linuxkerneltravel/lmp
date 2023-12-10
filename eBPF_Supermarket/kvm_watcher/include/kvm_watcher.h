@@ -28,6 +28,16 @@
         argp_usage(state);                                             \
     } while (0)
 
+#define SET_OPTION_AND_CHECK_USAGE(option, value) \
+    do {                                          \
+        if (option == 0) {                        \
+            value = true;                         \
+            option = 1;                           \
+        } else {                                  \
+            PRINT_USAGE_ERR();                    \
+        }                                         \
+    } while (0)
+
 #define RESERVE_RINGBUF_ENTRY(rb, e)                             \
     do {                                                         \
         typeof(e) _tmp = bpf_ringbuf_reserve(rb, sizeof(*e), 0); \
