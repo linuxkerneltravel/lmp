@@ -32,6 +32,7 @@
 #include "resource_image.skel.h"
 #include "syscall_image.skel.h"
 #include "lock_image.skel.h"
+#include "keytime_image.skel.h"
 
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
     do                                                           \
@@ -85,6 +86,7 @@
 #define RESOURCE_IMAGE 1
 #define SYSCALL_IMAGE 2
 #define LOCK_IMAGE 3
+#define KEYTIME_IMAGE 4
 
 static int prev_image = 0;
 static volatile bool exiting = false;
@@ -100,6 +102,9 @@ static struct env {
 	bool first_rsc;
 	bool enable_syscall;
 	bool enable_lock;
+	bool quote;
+	int max_args;
+	bool enable_keytime;
 } env = {
     .pid = -1,
     .cpu_id = -1,
@@ -111,6 +116,9 @@ static struct env {
 	.first_rsc = true,
 	.enable_syscall = false,
 	.enable_lock = false,
+	.quote = false,
+	.max_args = DEFAULT_MAXARGS,
+	.enable_keytime = false,
 };
 
 static struct timespec prevtime;
@@ -119,6 +127,12 @@ static struct timespec currentime;
 char *lock_status[] = {"", "mutex_req", "mutex_lock", "mutex_unlock",
 						   "rdlock_req", "rdlock_lock", "rdlock_unlock",
 						   "wrlock_req", "wrlock_lock", "wrlock_unlock"};
+
+char *keytime_type[] = {"", "exec_enter", "exec_exit", 
+						   "exit_enter", 
+						   "fork_enter", "fork_exit",
+						   "vfork_enter", "vfork_exit",
+						   "pthread_enter", "pthread_exit",};
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
@@ -130,6 +144,8 @@ static const struct argp_option opts[] = {
     { "resource", 'r', NULL, 0, "Collects resource usage information about processes" },
 	{ "syscall", 's', NULL, 0, "Collects syscall sequence information about processes" },
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
+	{ "quote", 'q', NULL, 0, "Add quotemarks (\") around arguments" },
+	{ "keytime", 'k', NULL, 0, "Collects keytime information about processes" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
@@ -165,6 +181,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.enable_resource = true;
 				env.enable_syscall = true;
 				env.enable_lock = true;
+				env.enable_keytime = true;
 				break;
         case 'r':
                 env.enable_resource = true;
@@ -175,6 +192,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'l':
                 env.enable_lock = true;
                 break;
+		case 'q':
+				env.quote = true;
+				break;
+		case 'k':
+				env.enable_keytime = true;
+				break;
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 				break;
@@ -305,6 +328,101 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 	return 0;
 }
 
+static void inline quoted_symbol(char c) {
+	switch(c) {
+		case '"':
+			putchar('\\');
+			putchar('"');
+			break;
+		case '\t':
+			putchar('\\');
+			putchar('t');
+			break;
+		case '\n':
+			putchar('\\');
+			putchar('n');
+			break;
+		default:
+			putchar(c);
+			break;
+	}
+}
+
+static void print_args1(const struct keytime_event *e)
+{
+	int i, args_counter = 0;
+
+	if (env.quote)
+		putchar('"');
+
+	for (i = 0; i < e->args_size && args_counter < e->count; i++) {
+		char c = e->args[i];
+
+		if (env.quote) {
+			if (c == '\0') {
+				args_counter++;
+				putchar('"');
+				putchar(' ');
+				if (args_counter < e->count) {
+					putchar('"');
+				}
+			} else {
+				quoted_symbol(c);
+			}
+		} else {
+			if (c == '\0') {
+				args_counter++;
+				putchar(' ');
+			} else {
+				putchar(c);
+			}
+		}
+	}
+	if (e->count == env.max_args + 1) {
+		fputs(" ...", stdout);
+	}
+}
+
+static void print_args2(const struct keytime_event *e)
+{
+	int i=0;
+	for(int tmp=e->count; tmp>0 ; tmp--){
+		if(env.quote){
+			printf("\"%llu\" ",e->info[i++]);
+		}else{
+			printf("%llu ",e->info[i++]);
+		}
+	}
+}
+
+static int print_keytime(void *ctx, void *data,unsigned long data_sz)
+{
+	const struct keytime_event *e = data;
+	time_t now = time(NULL);
+    struct tm *localTime = localtime(&now);
+    int hour = localTime->tm_hour;
+    int min = localTime->tm_min;
+    int sec = localTime->tm_sec;
+	
+	if(prev_image != KEYTIME_IMAGE){
+        printf("KEYTIME_IMAGE------------------------------------------------------------\n");
+        printf("%-8s  %-6s  %-15s  %s\n","TIME","PID","EVENT","ARGS/RET/OTHERS");
+
+		prev_image = KEYTIME_IMAGE;
+    }
+
+	printf("%02d:%02d:%02d  %-6d  %-15s",hour,min,sec,e->pid,keytime_type[e->type]);
+	if(e->enable_char_args){
+		print_args1(e);
+	}else{
+		print_args2(e);
+	}
+
+	putchar('\n');
+
+	return 0;
+}
+
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
@@ -362,6 +480,8 @@ int main(int argc, char **argv)
 	struct ring_buffer *syscall_rb = NULL;
 	struct lock_image_bpf *lock_skel;
 	struct ring_buffer *lock_rb = NULL;
+	struct keytime_image_bpf *keytime_skel;
+	struct ring_buffer *keytime_rb = NULL;
 	pthread_t thread_enable;
 	int err;
 	static const struct argp argp = {
@@ -466,6 +586,38 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if(env.enable_keytime){
+		keytime_skel = keytime_image_bpf__open();
+		if (!keytime_skel) {
+			fprintf(stderr, "Failed to open BPF keytime skeleton\n");
+			return 1;
+		}
+
+		keytime_skel->rodata->target_pid = env.pid;
+
+		err = keytime_image_bpf__load(keytime_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF keytime skeleton\n");
+			goto cleanup;
+		}
+		
+		/* 附加跟踪点处理程序 */
+		err = keytime_image_bpf__attach(keytime_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF keytime skeleton\n");
+			goto cleanup;
+		}
+		
+		/* 设置环形缓冲区轮询 */
+		//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		keytime_rb = ring_buffer__new(bpf_map__fd(keytime_skel->maps.keytime_rb), print_keytime, NULL, NULL);
+		if (!keytime_rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create keytime ring buffer\n");
+			goto cleanup;
+		}
+	}
+
 	/* 处理事件 */
 	while (!exiting) {
 		// 等待新线程结束，回收资源
@@ -522,6 +674,19 @@ int main(int argc, char **argv)
 				break;
 			}
 		}
+
+		if(env.enable_keytime){
+			err = ring_buffer__poll(keytime_rb, 0);
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling keytime ring buffer: %d\n", err);
+				break;
+			}
+		}
 	}
 
 /* 卸载BPF程序 */
@@ -531,6 +696,8 @@ cleanup:
 	syscall_image_bpf__destroy(syscall_skel);
 	ring_buffer__free(lock_rb);
 	lock_image_bpf__destroy(lock_skel);
+	ring_buffer__free(keytime_rb);
+	keytime_image_bpf__destroy(keytime_skel);
 
 	return err < 0 ? -err : 0;
 }

@@ -20,6 +20,11 @@
 #define __PROC_IMAGE_H
 
 #define MAX_SYSCALL_COUNT 116
+#define ARGSIZE  128
+#define TOTAL_MAX_ARGS 60
+#define DEFAULT_MAXARGS 20
+#define FULL_MAX_ARGS_ARR 440
+#define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
 
 // resource_image
 struct proc_id{
@@ -71,5 +76,26 @@ struct lock_event{
     long long unsigned int lock_ptr;
     long long unsigned int time;
 };
+
+// keytime_image
+struct keytime_event{
+	/* type:
+		1代表exec_enter；2代表exec_exit
+		3代表exit_enter
+		4代表fork_enter；5代表fork_exit
+		6代表vfork_enter；7代表vfork_exit
+		8代表pthread_enter；9代表pthread_exit
+	*/
+	int type;
+	int pid;
+	int retval;
+	bool enable_char_args;
+	int count;
+	long long unsigned int info[6];
+	unsigned int args_size;
+	char args[FULL_MAX_ARGS_ARR];
+};
+
+
 
 #endif /* __PROCESS_H */
