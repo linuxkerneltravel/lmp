@@ -27,14 +27,14 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 const volatile int max_args = DEFAULT_MAXARGS;
 
 const volatile pid_t target_pid = -1;
-
+/*
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 10240);
 	__type(key, pid_t);
 	__type(value, struct keytime_event);
 } keytime SEC(".maps");
-
+*/
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries,256 * 10240);
@@ -43,8 +43,7 @@ struct {
 SEC("tracepoint/syscalls/sys_enter_execve")
 int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx)
 {
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    int pid = BPF_CORE_READ(task,pid);
+    int pid = bpf_get_current_pid_tgid();
     if(target_pid==-1 || pid==target_pid){
         struct keytime_event* event;
         event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
@@ -58,24 +57,24 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx
 
         event->type = 1;
         event->pid = pid;
-        event->count = 0;
-        event->args_size = 0;
-        event->enable_char_args = true;
+        event->info_count = 0;
+        event->info_size = 0;
+        event->enable_char_info = true;
 
-        ret = bpf_probe_read_user_str(event->args, ARGSIZE, (const char*)ctx->args[0]);
+        ret = bpf_probe_read_user_str(event->char_info, ARGSIZE, (const char*)ctx->args[0]);
         if (ret < 0) {
             bpf_ringbuf_submit(event, 0);
             return 0;
         }
         if (ret <= ARGSIZE) {
-            event->args_size += ret;
+            event->info_size += ret;
         } else {
             /* 写一个空字符串 */
-            event->args[0] = '\0';
-            event->args_size++;
+            event->char_info[0] = '\0';
+            event->info_size++;
         }
 
-        event->count++;
+        event->info_count++;
         #pragma unroll
         for (i = 1; i < TOTAL_MAX_ARGS && i < max_args; i++) {
             ret = bpf_probe_read_user(&argp, sizeof(argp), &args[i]);
@@ -84,19 +83,19 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx
                 return 0;
             }
 
-            if (event->args_size > LAST_ARG){
+            if (event->info_size > LAST_ARG){
                 bpf_ringbuf_submit(event, 0);
                 return 0;
             }
 
-            ret = bpf_probe_read_user_str(&event->args[event->args_size], ARGSIZE, argp);
+            ret = bpf_probe_read_user_str(&event->char_info[event->info_size], ARGSIZE, argp);
             if (ret < 0){
                 bpf_ringbuf_submit(event, 0);
                 return 0;
             }
 
-            event->count++;
-            event->args_size += ret;
+            event->info_count++;
+            event->info_size += ret;
         }
         /* 试着再读一个参数来检查是否有 */
         ret = bpf_probe_read_user(&argp, sizeof(argp), &args[max_args]);
@@ -106,7 +105,73 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx
         }
 
         /* 指向max_args+1的指针不为空，假设我们有更多的参数 */
-        event->count++;
+        event->info_count++;
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_execve")
+int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit* ctx)
+{
+    int pid = bpf_get_current_pid_tgid();
+    if(target_pid==-1 || pid==target_pid){
+        struct keytime_event* event;
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        event->type = 2;
+        event->pid = pid;
+        event->enable_char_info = false;
+        event->info_count = 1;
+        event->info[0] = ctx->ret;
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_exit_group")
+int tracepoint__syscalls__sys_enter_exit_group(struct trace_event_raw_sys_enter* ctx)
+{
+    int pid = bpf_get_current_pid_tgid();
+    if(target_pid==-1 || pid==target_pid){
+        struct keytime_event* event;
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+        
+        event->type = 3;
+        event->pid = pid;
+        event->enable_char_info = false;
+        event->info_count = 1;
+        event->info[0] = ctx->args[0];
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_exit")
+int tracepoint__syscalls__sys_enter_exit(struct trace_event_raw_sys_enter* ctx)
+{
+    int pid = bpf_get_current_pid_tgid();
+    if(target_pid==-1 || pid==target_pid){
+        struct keytime_event* event;
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+        
+        event->type = 3;
+        event->pid = pid;
+        event->enable_char_info = false;
+        event->info_count = 1;
+        event->info[0] = ctx->args[0];
 
         bpf_ringbuf_submit(event, 0);
     }

@@ -129,10 +129,10 @@ char *lock_status[] = {"", "mutex_req", "mutex_lock", "mutex_unlock",
 						   "wrlock_req", "wrlock_lock", "wrlock_unlock"};
 
 char *keytime_type[] = {"", "exec_enter", "exec_exit", 
-						   "exit_enter", 
-						   "fork_enter", "fork_exit",
-						   "vfork_enter", "vfork_exit",
-						   "pthread_enter", "pthread_exit",};
+						    "exit", 
+						    "forkP_enter", "forkP_exit",
+						    "vforkP_enter", "vforkP_exit",
+						    "createT_enter", "createT_exit"};
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
@@ -348,22 +348,22 @@ static void inline quoted_symbol(char c) {
 	}
 }
 
-static void print_args1(const struct keytime_event *e)
+static void print_info1(const struct keytime_event *e)
 {
 	int i, args_counter = 0;
 
 	if (env.quote)
 		putchar('"');
 
-	for (i = 0; i < e->args_size && args_counter < e->count; i++) {
-		char c = e->args[i];
+	for (i = 0; i < e->info_size && args_counter < e->info_count; i++) {
+		char c = e->char_info[i];
 
 		if (env.quote) {
 			if (c == '\0') {
 				args_counter++;
 				putchar('"');
 				putchar(' ');
-				if (args_counter < e->count) {
+				if (args_counter < e->info_count) {
 					putchar('"');
 				}
 			} else {
@@ -378,15 +378,15 @@ static void print_args1(const struct keytime_event *e)
 			}
 		}
 	}
-	if (e->count == env.max_args + 1) {
+	if (e->info_count == env.max_args + 1) {
 		fputs(" ...", stdout);
 	}
 }
 
-static void print_args2(const struct keytime_event *e)
+static void print_info2(const struct keytime_event *e)
 {
 	int i=0;
-	for(int tmp=e->count; tmp>0 ; tmp--){
+	for(int tmp=e->info_count; tmp>0 ; tmp--){
 		if(env.quote){
 			printf("\"%llu\" ",e->info[i++]);
 		}else{
@@ -411,11 +411,14 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
 		prev_image = KEYTIME_IMAGE;
     }
 
-	printf("%02d:%02d:%02d  %-6d  %-15s",hour,min,sec,e->pid,keytime_type[e->type]);
-	if(e->enable_char_args){
-		print_args1(e);
+	printf("%02d:%02d:%02d  %-6d  %-15s  ",hour,min,sec,e->pid,keytime_type[e->type]);
+	if(e->type==4 || e->type==5 || e->type==6 || e->type==7 || e->type==8 || e->type==9){
+		printf("child_pid:");
+	}
+	if(e->enable_char_info){
+		print_info1(e);
 	}else{
-		print_args2(e);
+		print_info2(e);
 	}
 
 	putchar('\n');

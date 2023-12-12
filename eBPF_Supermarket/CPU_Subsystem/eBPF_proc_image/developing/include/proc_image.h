@@ -81,19 +81,18 @@ struct lock_event{
 struct keytime_event{
 	/* type:
 		1代表exec_enter；2代表exec_exit
-		3代表exit_enter
-		4代表fork_enter；5代表fork_exit
-		6代表vfork_enter；7代表vfork_exit
-		8代表pthread_enter；9代表pthread_exit
+		3代表exit
+		4代表forkP_enter；5代表forkP_exit
+		6代表vforkP_enter；7代表vforkP_exit
+		8代表createT_enter；9代表createT_exit
 	*/
 	int type;
 	int pid;
-	int retval;
-	bool enable_char_args;
-	int count;
+	bool enable_char_info;
+	int info_count;
 	long long unsigned int info[6];
-	unsigned int args_size;
-	char args[FULL_MAX_ARGS_ARR];
+	unsigned int info_size;
+	char char_info[FULL_MAX_ARGS_ARR];
 };
 
 
