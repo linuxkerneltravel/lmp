@@ -80,9 +80,6 @@
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
-#define PERF_BUFFER_PAGES   64
-#define PERF_POLL_TIMEOUT_MS	100
-
 #define RESOURCE_IMAGE 1
 #define SYSCALL_IMAGE 2
 #define LOCK_IMAGE 3
@@ -290,7 +287,7 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 	if(count == 0)	return 0;
 
 	if(prev_image != SYSCALL_IMAGE){
-        printf("SYSCALL------------------------------------------------------------\n");
+        printf("SYSCALL-------------------------------------------------------------\n");
         printf("%-29s  %-6s  %-8s\n","TIME(oncpu-offcpu)","PID","SYSCALLS");
 
 		prev_image = SYSCALL_IMAGE;
@@ -405,7 +402,7 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
     int sec = localTime->tm_sec;
 	
 	if(prev_image != KEYTIME_IMAGE){
-        printf("KEYTIME_IMAGE------------------------------------------------------------\n");
+        printf("KEYTIME_IMAGE-------------------------------------------------------\n");
         printf("%-8s  %-6s  %-15s  %s\n","TIME","PID","EVENT","ARGS/RET/OTHERS");
 
 		prev_image = KEYTIME_IMAGE;
@@ -431,7 +428,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 	return vfprintf(stderr, format, args);
 }
 
-static int attach(struct lock_image_bpf *skel)
+static int lock_attach(struct lock_image_bpf *skel)
 {
 	int err;
 	
@@ -458,6 +455,21 @@ static int attach(struct lock_image_bpf *skel)
 	err = lock_image_bpf__attach(skel);
 	CHECK_ERR(err, "Failed to attach BPF lock skeleton");
 	
+	return 0;
+}
+
+static int keytime_attach(struct keytime_image_bpf *skel)
+{
+	int err;
+
+	ATTACH_URETPROBE_CHECKED(skel,fork,fork_exit);
+	ATTACH_URETPROBE_CHECKED(skel,vfork,vfork_exit);
+	ATTACH_UPROBE_CHECKED(skel,pthread_create,pthread_create_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_create,pthread_create_exit);
+
+	err = keytime_image_bpf__attach(skel);
+	CHECK_ERR(err, "Failed to attach BPF keytime skeleton");
+
 	return 0;
 }
 
@@ -573,7 +585,7 @@ int main(int argc, char **argv)
 		}
 		
 		/* 附加跟踪点处理程序 */
-		err = attach(lock_skel);
+		err = lock_attach(lock_skel);
 		if (err) {
 			fprintf(stderr, "Failed to attach BPF lock skeleton\n");
 			goto cleanup;
@@ -605,7 +617,7 @@ int main(int argc, char **argv)
 		}
 		
 		/* 附加跟踪点处理程序 */
-		err = keytime_image_bpf__attach(keytime_skel);
+		err = keytime_attach(keytime_skel);
 		if (err) {
 			fprintf(stderr, "Failed to attach BPF keytime skeleton\n");
 			goto cleanup;

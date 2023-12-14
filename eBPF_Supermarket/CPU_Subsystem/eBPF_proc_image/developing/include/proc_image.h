@@ -78,6 +78,11 @@ struct lock_event{
 };
 
 // keytime_image
+struct child_info{
+	int type;
+	int ppid;
+};
+
 struct keytime_event{
 	/* type:
 		1代表exec_enter；2代表exec_exit
@@ -94,7 +99,5 @@ struct keytime_event{
 	unsigned int info_size;
 	char char_info[FULL_MAX_ARGS_ARR];
 };
-
-
 
 #endif /* __PROCESS_H */
