@@ -33,57 +33,7 @@
 #include "syscall_image.skel.h"
 #include "lock_image.skel.h"
 #include "keytime_image.skel.h"
-
-#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
-    do                                                           \
-    {                                                            \
-		LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                \
-                    .retprobe = is_retprobe,                     \
-                    .func_name = #sym_name);                     \
-        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
-            skel->progs.prog_name,                               \
-            env.pid,                                                 \
-            object,                                              \
-            0,                                                   \
-            &uprobe_opts);                                       \
-    } while (false)
-
-#define __CHECK_PROGRAM(skel, prog_name)                                                      \
-    do                                                                                        \
-    {                                                                                         \
-        if (!skel->links.prog_name)                                                           \
-        {                                                                                     \
-            fprintf(stderr, "[%s] no program attached for" #prog_name "\n", strerror(errno)); \
-            return -errno;                                                                    \
-        }                                                                                     \
-    } while (false)
-
-#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
-    do                                                                  \
-    {                                                                   \
-        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
-        __CHECK_PROGRAM(skel, prog_name);                               \
-    } while (false)
-
-#define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, true)
-
-#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
-
-#define CHECK_ERR(cond, info)                               \
-    if (cond)                                               \
-    {                                                       \
-        fprintf(stderr, "[%s]" info "\n", strerror(errno));                                   \
-        return -1;                                          \
-    }
-
-#define warn(...) fprintf(stderr, __VA_ARGS__)
-
-#define RESOURCE_IMAGE 1
-#define SYSCALL_IMAGE 2
-#define LOCK_IMAGE 3
-#define KEYTIME_IMAGE 4
+#include "helpers.h"
 
 static int prev_image = 0;
 static volatile bool exiting = false;
