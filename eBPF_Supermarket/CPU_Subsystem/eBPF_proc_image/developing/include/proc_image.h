@@ -19,7 +19,12 @@
 #ifndef __PROC_IMAGE_H
 #define __PROC_IMAGE_H
 
-#define MAX_SYSCALL_COUNT 58
+#define MAX_SYSCALL_COUNT 116
+#define ARGSIZE  128
+#define TOTAL_MAX_ARGS 60
+#define DEFAULT_MAXARGS 20
+#define FULL_MAX_ARGS_ARR 440
+#define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
 
 // resource_image
 struct proc_id{
@@ -48,7 +53,7 @@ struct syscall_seq{
 	long long unsigned int oncpu_time;
 	long long unsigned int offcpu_time;
 	int count;		// 若count值超过MAX_SYSCALL_COUNT，则record_syscall数组最后一个元素的值用-1表示以作说明
-	long int record_syscall[MAX_SYSCALL_COUNT];
+	int record_syscall[MAX_SYSCALL_COUNT];
 };
 
 // lock_image
@@ -70,6 +75,29 @@ struct lock_event{
 	int ret;
     long long unsigned int lock_ptr;
     long long unsigned int time;
+};
+
+// keytime_image
+struct child_info{
+	int type;
+	int ppid;
+};
+
+struct keytime_event{
+	/* type:
+		1代表exec_enter；2代表exec_exit
+		3代表exit
+		4代表forkP_enter；5代表forkP_exit
+		6代表vforkP_enter；7代表vforkP_exit
+		8代表createT_enter；9代表createT_exit
+	*/
+	int type;
+	int pid;
+	bool enable_char_info;
+	int info_count;
+	long long unsigned int info[6];
+	unsigned int info_size;
+	char char_info[FULL_MAX_ARGS_ARR];
 };
 
 #endif /* __PROCESS_H */

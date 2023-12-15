@@ -156,6 +156,7 @@ namespace env
 	unsigned delay = 5;
 	display_t d_mode = NO_OUTPUT;
 	bool clear = false; /*clear data after every show*/
+	DATA data = COUNT;
 }
 
 void __handler(int signo)
@@ -929,21 +930,26 @@ class io_loader : public bpf_loader
 {
 protected:
 	struct io_count_bpf *skel;
-	bool in_count;
-
+	DATA d = env::data;
 	std::string data_str(uint64_t f) override
 	{
-		std::string p = "size(B):";
-		if (in_count)
+		std::string p;
+		if (d == SIZE)
+			p = "size(B):";
+		else if (d == COUNT)
 			p = "counts:";
+		else
+			p = "(size/counts):";
 		return p + std::to_string(f);
 	};
 
 public:
-	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, bool cot = env::count) : bpf_loader(p, c, u, k)
+	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
 	{
 		skel = 0;
-		in_count = cot;
+		// in_count = cot;
+		delete (uint64_t *)data_buf;
+		data_buf = new io_tuple{0};
 	};
 	int load(void) override
 	{
@@ -951,7 +957,7 @@ public:
 			skel->bss->apid = pid;
 			skel->bss->u = ustack;
 			skel->bss->k = kstack;
-			skel->bss->cot = in_count;
+			// skel->bss->cot = in_count;
 		});
 		return 0;
 	};
@@ -972,109 +978,128 @@ public:
 			io_count_bpf__destroy(skel);
 		skel = 0;
 	};
-};
-
-class pre_loader : public bpf_loader
-{
-protected:
-	struct pre_count_bpf *skel;
-
-	std::string data_str(uint64_t f) override { return "rest_pages:" + std::to_string(f); };
-
-public:
-	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
-	{
-		skel = 0;
-		delete (uint64_t *)data_buf;
-		data_buf = new tuple{0};
-	};
-	int load(void) override
-	{
-		LO(pre_count, psid_util, {
-			skel->bss->apid = pid;
-			skel->bss->u = ustack;
-			skel->bss->k = kstack;
-		});
-		return 0;
-	};
-	int attach(void) override
-	{
-		// auto object = env::object;
-		// ATTACH_UPROBE_CHECKED(skel, read, read_enter);
-		err = pre_count_bpf__attach(skel);
-		CHECK_ERR(err, "Failed to attach BPF skeleton");
-		return 0;
-	};
-	void detach(void) override
-	{
-		if (skel)
-			pre_count_bpf__detach(skel);
-	};
-	void unload(void) override
-	{
-		if (skel)
-			pre_count_bpf__destroy(skel);
-		skel = 0;
-	};
-
 	uint64_t data_value() override
 	{
-		tuple *p = (tuple *)data_buf;
-		return p->expect - p->truth;
+		io_tuple *p = (io_tuple *)data_buf;
+		// return p->expect - p->truth;
+		if (env::data == AVE)
+			return p->size / p->count;
+		else if (env::data == SIZE)
+			return p->size;
+		else
+			return p->count;
 	};
 
-	~pre_loader() override
+	~io_loader() override
 	{
-		delete (tuple *)data_buf;
-	}
+		delete (io_tuple *)data_buf;
+	};
 };
-
-typedef bpf_loader *(*bpf_load)();
-
-int main(int argc, char *argv[])
-{
-	auto oncpu_mod = (clipp::command("on-cpu").set(env::mod, MOD_ON_CPU) % "sample the call stacks of on-cpu processes",
-					  clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency");
-	auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
-	auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
-	auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
-				   clipp::option("-s", "--in-size").set(env::count, false) % "sample the IO data in count instead of in size");
-	auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
-	auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
-				 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid) % "set pid of process to monitor") |
-					 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command) % "set command for monitoring the whole life"),
-				 clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
-				 clipp::option("-K", "--kernel-stack-only").set(env::u, false) % "only sample kernel stacks",
-				 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", env::max) % "set the max threshold of sampled value",
-				 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", env::min) % "set the min threshold of sampled value",
-				 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay) % "set the interval to output",
-				 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
-				  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
-					 "display mode (default none)",
-				 clipp::opt_value("simpling time", env::run_time) % "set the total simpling time",
-				 clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count");
-	auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
-				opti,
-				clipp::option("-v", "--version").call([]
-													  { std::cout << "verion 1.0\n\n"; }) %
-					"show version");
-	if (!clipp::parse(argc, argv, cli))
+	class pre_loader : public bpf_loader
 	{
-		std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
-		return 0;
-	}
+	protected:
+		struct pre_count_bpf *skel;
 
-	bpf_load arr[] = {
-		[]() -> bpf_loader *
-		{ return new on_cpu_loader(); },
-		[]() -> bpf_loader *
-		{ return new off_cpu_loader(); },
-		[]() -> bpf_loader *
-		{ return new mem_loader(); },
-		[]() -> bpf_loader *
-		{ return new io_loader(); },
-		[]() -> bpf_loader *
-		{ return new pre_loader(); },
+		std::string data_str(uint64_t f) override { return "rest_pages:" + std::to_string(f); };
+
+	public:
+		pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
+		{
+			skel = 0;
+			delete (uint64_t *)data_buf;
+			data_buf = new tuple{0};
+		};
+		int load(void) override
+		{
+			LO(pre_count, psid_util, {
+				skel->bss->apid = pid;
+				skel->bss->u = ustack;
+				skel->bss->k = kstack;
+			});
+			return 0;
+		};
+		int attach(void) override
+		{
+			// auto object = env::object;
+			// ATTACH_UPROBE_CHECKED(skel, read, read_enter);
+			err = pre_count_bpf__attach(skel);
+			CHECK_ERR(err, "Failed to attach BPF skeleton");
+			return 0;
+		};
+		void detach(void) override
+		{
+			if (skel)
+				pre_count_bpf__detach(skel);
+		};
+		void unload(void) override
+		{
+			if (skel)
+				pre_count_bpf__destroy(skel);
+			skel = 0;
+		};
+
+		uint64_t data_value() override
+		{
+			tuple *p = (tuple *)data_buf;
+			return p->expect - p->truth;
+		};
+
+		~pre_loader() override
+		{
+			delete (tuple *)data_buf;
+		}
+	
 	};
-	return arr[env::mod]()->test(env::run_time);
-}
+
+	typedef bpf_loader *(*bpf_load)();
+
+	int main(int argc, char *argv[])
+	{
+		auto oncpu_mod = (clipp::command("on-cpu").set(env::mod, MOD_ON_CPU) % "sample the call stacks of on-cpu processes",
+						  clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency");
+		auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
+		auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
+		auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
+					   clipp::option("--input") & clipp::one_of(
+													  clipp::option("count").set(env::data, COUNT) % "Counting the number of I/O operations",
+													  clipp::option("ave").set(env::data, AVE) % "Counting the ave of I/O operations",
+													  clipp::option("size").set(env::data, SIZE) % "Counting the size of I/O operations"));
+		auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
+		auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
+					 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid) % "set pid of process to monitor") |
+						 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command) % "set command for monitoring the whole life"),
+					 clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
+					 clipp::option("-K", "--kernel-stack-only").set(env::u, false) % "only sample kernel stacks",
+					 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", env::max) % "set the max threshold of sampled value",
+					 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", env::min) % "set the min threshold of sampled value",
+					 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay) % "set the interval to output",
+					 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
+					  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
+						 "display mode (default none)",
+					 clipp::opt_value("simpling time", env::run_time) % "set the total simpling time",
+				 clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count");
+		auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
+					opti,
+					clipp::option("-v", "--version").call([]
+														  { std::cout << "verion 1.0\n\n"; }) %
+						"show version");
+		if (!clipp::parse(argc, argv, cli))
+		{
+			std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
+			return 0;
+		}
+		
+		bpf_load arr[] = {
+			[]() -> bpf_loader *
+			{ return new on_cpu_loader(); },
+			[]() -> bpf_loader *
+			{ return new off_cpu_loader(); },
+			[]() -> bpf_loader *
+			{ return new mem_loader(); },
+			[]() -> bpf_loader *
+			{ return new io_loader(); },
+			[]() -> bpf_loader *
+			{ return new pre_loader(); },
+		};
+		return arr[env::mod]()->test(env::run_time);
+	}
