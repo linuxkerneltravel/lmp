@@ -28,7 +28,7 @@ jobs:
           sudo apt install linux-cloud-tools-$(uname -r)
       - name: Load KVM mod
         run: |   
-          sudo modprobe kvm
+          sudo modprobe kvm && sudo modprobe kvm-intel
       - name: Run kvm_watcher
         run: |
           cd eBPF_Supermarket/kvm_watcher/
