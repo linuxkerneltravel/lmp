@@ -26,6 +26,8 @@ jobs:
           sudo apt install libbpf-dev
           sudo apt install linux-tools-$(uname -r)
           sudo apt install linux-cloud-tools-$(uname -r)
+      - name: Load KVM mod
+        run: |   
           sudo modprobe kvm
       - name: Run kvm_watcher
         run: |
@@ -35,5 +37,6 @@ jobs:
           sudo ./kvm_watcher -e -t 5 -s
           sudo ./kvm_watcher -n -t 5 
           sudo ./kvm_watcher -d -t 5 
+          sudo ./kvm_watcher -f -t 5
           make clean
 
