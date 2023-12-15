@@ -175,7 +175,7 @@ void printExitInfo(Node *head) {
     printf(
         "\n-----------------------------------------------------------------"
         "----------\n");
-    printf("%-23s %-10s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID/TID",
+    printf("%-23s %-18s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID/TID",
            "COUNT", "AVG_DURATION(ns)");
     while (current != NULL) {
         printf("%-2d/%-20s %-33s %-13llu \n", current->data.exit_reason,
@@ -406,36 +406,36 @@ static void sig_handler(int sig) {
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     if (env.execute_vcpu_wakeup) {
         const struct vcpu_wakeup_event *e = data;
-        printf("%-18llu %-20llu %-15s %-6d/%-8d %-10s\n", e->hlt_time,
+        printf("%-18llu %-20llu %-18s %-6d/%-8d %-10s\n", e->hlt_time,
                e->dur_hlt_ns, e->process.comm, e->process.pid, e->process.tid,
                e->waited ? "wait" : "poll");
     } else if (env.execute_exit) {
         char info_buffer[256];
         const struct exit_event *e = data;
-        printf("%-18llu %-2d/%-20s %-10s %-6u/%-8u %-8d %-13llu \n", e->time,
+        printf("%-18llu %-2d/%-20s %-18s %-6u/%-8u %-8d %-13llu \n", e->time,
                e->reason_number, getExitReasonName(e->reason_number),
                e->process.comm, e->process.pid, e->process.tid, e->count,
                e->duration_ns);
         if (env.ShowStats) {
-            snprintf(info_buffer, sizeof(info_buffer), "%-10s %-6u/%-8u %-8d",
+            snprintf(info_buffer, sizeof(info_buffer), "%-18s %-6u/%-8u %-8d",
                      e->process.comm, e->process.pid, e->process.tid, e->count);
             addExitInfo(&exitInfoBuffer, e->reason_number, info_buffer,
                         e->duration_ns, e->count);
         }
     } else if (env.execute_halt_poll_ns) {
         const struct halt_poll_ns_event *e = data;
-        printf("%-18llu %-15s %-6d/%-8d %-10s %-7d --> %d \n", e->time,
+        printf("%-18llu %-18s %-6d/%-8d %-10s %-7d --> %d \n", e->time,
                e->process.comm, e->process.pid, e->process.tid,
                e->grow ? "grow" : "shrink", e->old, e->new);
     } else if (env.execute_mark_page_dirty) {
         const struct mark_page_dirty_in_slot_event *e = data;
-        printf("%-18llu %-15s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
+        printf("%-18llu %-18s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
                e->time, e->process.comm, e->process.pid, e->process.tid, e->gfn,
                e->rel_gfn, e->npages, e->userspace_addr, e->slot_id);
     } else if (env.execute_page_fault) {
         const struct page_fault_event *e = data;
         printf(
-            "%-18llu %-10s %-10u %-12llx %-6u %-10llu %-20llx %-17llx %-10d ",
+            "%-18llu %-18s %-10u %-12llx %-6u %-10llu %-20llx %-17llx %-10d ",
             e->time, e->process.comm, e->process.pid, e->addr, e->count,
             e->delay, e->hva, e->pfn, e->memslot_id);
         if (e->error_code & (1ULL << PFERR_PRESENT_BIT)) {
@@ -529,20 +529,20 @@ int main(int argc, char **argv) {
     }
     /* Process events */
     if (env.execute_vcpu_wakeup) {
-        printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(ns)",
-               "DURATIONS_TIME(ns)", "VCPUID/COMM", "PID/TID", "WAIT/POLL");
+        printf("%-18s %-20s %-18s %-15s %-10s\n", "HLT_TIME(ns)",
+               "DURATIONS_TIME(ns)", "COMM", "PID/TID", "WAIT/POLL");
     } else if (env.execute_exit) {
-        printf("%-18s %-23s %-10s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
+        printf("%-18s %-23s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
                "COMM", "PID/TID", "COUNT", "DURATION(ns)");
     } else if (env.execute_halt_poll_ns) {
-        printf("%-18s %-15s %-15s %-10s %-11s %-10s\n", "TIME(ns)",
-               "VCPUID/COMM", "PID/TID", "TYPE", "OLD(ns)", "NEW(ns)");
+        printf("%-18s %-18s %-15s %-10s %-11s %-10s\n", "TIME(ns)",
+               "COMM", "PID/TID", "TYPE", "OLD(ns)", "NEW(ns)");
     } else if (env.execute_mark_page_dirty) {
-        printf("%-18s %-15s %-15s %-10s %-11s %-10s %-10s %-10s\n", "TIME(ns)",
-               "VCPUID/COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
+        printf("%-18s %-18s %-15s %-10s %-11s %-10s %-10s %-10s\n", "TIME(ns)",
+               "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
                "USERSPACE_ADDR", "SLOT_ID");
     } else if (env.execute_page_fault) {
-        printf("%-18s %-10s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %-10s\n",
+        printf("%-18s %-18s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %-10s\n",
                "TIMESTAMP", "COMM", "PID", "ADDRESS", "COUNT", "DELAY", "HVA",
                "PFN", "MEM_SLOTID", "ERROR_TYPE");
     }
