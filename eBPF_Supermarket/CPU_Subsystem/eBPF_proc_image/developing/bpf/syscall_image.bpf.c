@@ -34,10 +34,9 @@ struct {
 } proc_syscall SEC(".maps");
 
 struct {
-	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-	__uint(key_size, sizeof(u32));
-	__uint(value_size, sizeof(u32));
-} syscalls SEC(".maps");
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries,256 * 10240);
+} syscall_rb SEC(".maps");
 
 // 记录进程的系统调用序列
 SEC("tracepoint/raw_syscalls/sys_enter")
@@ -53,11 +52,10 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
             return 0;
         }
 
-        if(syscall_seq->count < MAX_SYSCALL_COUNT-1 && syscall_seq->count >= 0){
-            if((syscall_seq->record_syscall+syscall_seq->count) <= (syscall_seq->record_syscall+MAX_SYSCALL_COUNT)){
-                syscall_seq->record_syscall[syscall_seq->count] = args->id;
+        if(syscall_seq->count < MAX_SYSCALL_COUNT-1 && syscall_seq->count >= 0 && 
+            syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+MAX_SYSCALL_COUNT){
+                syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
                 syscall_seq->count ++;
-            }
         }else if(syscall_seq->count == MAX_SYSCALL_COUNT-1){
             syscall_seq->record_syscall[syscall_seq->count] = -1;
             syscall_seq->count = MAX_SYSCALL_COUNT;
@@ -82,9 +80,19 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 
         prev_syscall_seq = bpf_map_lookup_elem(&proc_syscall, &prev_pid);
         if(prev_syscall_seq){
-            prev_syscall_seq->offcpu_time = current_time;
+            struct syscall_seq* e;
+            e = bpf_ringbuf_reserve(&syscall_rb, sizeof(*e), 0);
+            if(!e)
+                return 0;
+            
+            e->pid = prev_syscall_seq->pid;
+            e->oncpu_time = prev_syscall_seq->oncpu_time;
+            e->offcpu_time = current_time;
+            e->count = prev_syscall_seq->count;
+            for(int i=0; i<=prev_syscall_seq->count && i<=MAX_SYSCALL_COUNT-1; i++)
+                e->record_syscall[i] = prev_syscall_seq->record_syscall[i];
 
-            bpf_perf_event_output(ctx, &syscalls, BPF_F_CURRENT_CPU, prev_syscall_seq, sizeof(*prev_syscall_seq));
+            bpf_ringbuf_submit(e, 0);
             bpf_map_delete_elem(&proc_syscall, &prev_pid);
         }
     }
