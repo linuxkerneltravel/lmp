@@ -26,17 +26,24 @@ jobs:
           sudo apt install libbpf-dev
           sudo apt install linux-tools-$(uname -r)
           sudo apt install linux-cloud-tools-$(uname -r)
-      - name: Load KVM mod
+          sudo apt-get update && sudo apt-get install -y qemu-kvm
+      - name: Download Cirros image
+        run: |
+          wget http://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img
+      - name: Load KVM module
         run: |   
           sudo modprobe kvm && sudo modprobe kvm-intel
+      - name: Run QEMU to start VM
+        run: |
+          qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -drive file=cirros-0.5.1-x86_64-disk.img,format=qcow2 -boot c
       - name: Run kvm_watcher
         run: |
           cd eBPF_Supermarket/kvm_watcher/
           make
-          sudo ./kvm_watcher -w -t 5
-          sudo ./kvm_watcher -e -t 5 -s
-          sudo ./kvm_watcher -n -t 5 
-          sudo ./kvm_watcher -d -t 5 
-          sudo ./kvm_watcher -f -t 5
+          sudo ./kvm_watcher -w -t 10
+          sudo ./kvm_watcher -e -t 10 -s
+          sudo ./kvm_watcher -n -t 10 
+          sudo ./kvm_watcher -d -t 10 
+          sudo ./kvm_watcher -f -t 10
           make clean
 
