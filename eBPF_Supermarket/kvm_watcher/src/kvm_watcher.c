@@ -175,10 +175,10 @@ void printExitInfo(Node *head) {
     printf(
         "\n-----------------------------------------------------------------"
         "----------\n");
-    printf("%-20s %-18s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID/TID",
+    printf("%-21s %-18s %-8s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID",
            "COUNT", "AVG_DURATION(ns)");
     while (current != NULL) {
-        printf("%-4d/%-15s %-33s %-13llu \n", current->data.exit_reason,
+        printf("%-2d/%-18s %-33s %-13llu \n", current->data.exit_reason,
                getExitReasonName(current->data.exit_reason), current->data.info,
                current->data.avg_dur);
         current = current->next;
@@ -412,13 +412,13 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     } else if (env.execute_exit) {
         char info_buffer[256];
         const struct exit_event *e = data;
-        printf("%-18llu %-4d/%-15s %-18s %-6u/%-8u %-8d %-13llu \n", e->time,
+        printf("%-18llu %-2d/%-18s %-18s %-6u/%-8u %-8d %-13llu \n", e->time,
                e->reason_number, getExitReasonName(e->reason_number),
                e->process.comm, e->process.pid, e->process.tid, e->count,
                e->duration_ns);
         if (env.ShowStats) {
-            snprintf(info_buffer, sizeof(info_buffer), "%-10s %-6u/%-8u %-8d",
-                     e->process.comm, e->process.pid, e->process.tid, e->count);
+            snprintf(info_buffer, sizeof(info_buffer), "%-18s %-8u %-8d",
+                     e->process.comm, e->process.pid, e->count);
             addExitInfo(&exitInfoBuffer, e->reason_number, info_buffer,
                         e->duration_ns, e->count);
         }
@@ -532,7 +532,7 @@ int main(int argc, char **argv) {
         printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(ns)",
                "DURATIONS_TIME(ns)", "VCPUID/COMM", "PID/TID", "WAIT/POLL");
     } else if (env.execute_exit) {
-        printf("%-18s %-20s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
+        printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
                "COMM", "PID/TID", "COUNT", "DURATION(ns)");
     } else if (env.execute_halt_poll_ns) {
         printf("%-18s %-15s %-15s %-10s %-11s %-10s\n", "TIME(ns)",
