@@ -178,7 +178,7 @@ void printExitInfo(Node *head) {
     printf("%-20s %-18s %-15s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID/TID",
            "COUNT", "AVG_DURATION(ns)");
     while (current != NULL) {
-        printf("%-2d/%-22s %-33s %-13llu \n", current->data.exit_reason,
+        printf("%-4d/%-15s %-33s %-13llu \n", current->data.exit_reason,
                getExitReasonName(current->data.exit_reason), current->data.info,
                current->data.avg_dur);
         current = current->next;
