@@ -530,16 +530,16 @@ int main(int argc, char **argv) {
     /* Process events */
     if (env.execute_vcpu_wakeup) {
         printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(ns)",
-               "DURATIONS_TIME(ns)", "VCPUID/COMM", "PID/TID", "WAIT/POLL");
+               "DURATIONS_TIME(ns)", "COMM", "PID/TID", "WAIT/POLL");
     } else if (env.execute_exit) {
         printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
                "COMM", "PID/TID", "COUNT", "DURATION(ns)");
     } else if (env.execute_halt_poll_ns) {
         printf("%-18s %-15s %-15s %-10s %-11s %-10s\n", "TIME(ns)",
-               "VCPUID/COMM", "PID/TID", "TYPE", "OLD(ns)", "NEW(ns)");
+               "COMM", "PID/TID", "TYPE", "OLD(ns)", "NEW(ns)");
     } else if (env.execute_mark_page_dirty) {
         printf("%-18s %-15s %-15s %-10s %-11s %-10s %-10s %-10s\n", "TIME(ns)",
-               "VCPUID/COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
+               "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
                "USERSPACE_ADDR", "SLOT_ID");
     } else if (env.execute_page_fault) {
         printf("%-18s %-10s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %-10s\n",
