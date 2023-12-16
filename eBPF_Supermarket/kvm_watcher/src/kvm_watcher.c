@@ -435,7 +435,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     } else if (env.execute_page_fault) {
         const struct page_fault_event *e = data;
         printf(
-            "%-18llu %-10s %-10u %-12llx %-6u %-10llu %-20llx %-17llx %-10d ",
+            "%-18llu %-15s %-10u %-12llx %-6u %-10llu %-20llx %-17llx %-10d ",
             e->time, e->process.comm, e->process.pid, e->addr, e->count,
             e->delay, e->hva, e->pfn, e->memslot_id);
         if (e->error_code & (1ULL << PFERR_PRESENT_BIT)) {
@@ -542,7 +542,7 @@ int main(int argc, char **argv) {
                "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
                "USERSPACE_ADDR", "SLOT_ID");
     } else if (env.execute_page_fault) {
-        printf("%-18s %-10s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %-10s\n",
+        printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %-10s\n",
                "TIMESTAMP", "COMM", "PID", "ADDRESS", "COUNT", "DELAY", "HVA",
                "PFN", "MEM_SLOTID", "ERROR_TYPE");
     }
