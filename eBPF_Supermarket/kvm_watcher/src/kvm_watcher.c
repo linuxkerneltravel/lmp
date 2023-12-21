@@ -424,9 +424,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
     } else if (env.execute_halt_poll_ns) {
         const struct halt_poll_ns_event *e = data;
-        printf("%-18llu %-15s %-6d/%-8d %-10s %-7d --> %d \n", e->time,
+        printf("%-18llu %-15s %-6d/%-8d %-10s %-7d %-7d --> %d \n", e->time,
                e->process.comm, e->process.pid, e->process.tid,
-               e->grow ? "grow" : "shrink", e->old, e->new);
+               e->grow ? "grow" : "shrink", e->vcpu_id, e->old, e->new);
     } else if (env.execute_mark_page_dirty) {
         const struct mark_page_dirty_in_slot_event *e = data;
         printf("%-18llu %-15s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
@@ -535,8 +535,8 @@ int main(int argc, char **argv) {
         printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
                "COMM", "PID/TID", "COUNT", "DURATION(ns)");
     } else if (env.execute_halt_poll_ns) {
-        printf("%-18s %-15s %-15s %-10s %-11s %-10s\n", "TIME(ns)",
-               "COMM", "PID/TID", "TYPE", "OLD(ns)", "NEW(ns)");
+        printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ns)",
+               "COMM", "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
     } else if (env.execute_mark_page_dirty) {
         printf("%-18s %-15s %-15s %-10s %-11s %-10s %-10s %-10s\n", "TIME(ns)",
                "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",

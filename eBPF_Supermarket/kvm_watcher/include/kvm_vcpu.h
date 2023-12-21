@@ -78,6 +78,7 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
         e->grow = ctx->grow;
         e->old = ctx->old;
         e->new = ctx->new;
+        e->vcpu_id = ctx->vcpu_id;
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
         bpf_ringbuf_submit(e, 0);
     }

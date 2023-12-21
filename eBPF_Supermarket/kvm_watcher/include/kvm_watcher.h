@@ -96,6 +96,7 @@ struct halt_poll_ns_event {
     unsigned int new;
     unsigned int old;
     unsigned long long time;
+    unsigned vcpu_id;
 };
 
 struct mark_page_dirty_in_slot_event {
