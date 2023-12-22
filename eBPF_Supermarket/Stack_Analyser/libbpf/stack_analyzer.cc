@@ -30,19 +30,14 @@
 #include "clipp.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-#include <sys/syscall.h>
-#include <unistd.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <bpf/bpf.h>
-#include <errno.h>
 #include <bpf/libbpf.h>
 #include <signal.h>
-#include <sys/eventfd.h>
 #include <sys/wait.h>
 
 #include "stack_analyzer.h"
@@ -56,88 +51,7 @@ extern "C"
 }
 #endif
 
-/// @brief staring perf event
-/// @param hw_event attribution of the perf event
-/// @param pid the pid to track. 0 for the calling process. -1 for all processes.
-/// @param cpu the cpu to track. -1 for all cpu
-/// @param group_fd fd of event group leader
-/// @param flags setting
-/// @return fd of perf event
-static long perf_event_open(struct perf_event_attr *hw_event, pid_t pid, int cpu, int group_fd,
-							unsigned long flags)
-{
-	return syscall(SYS_perf_event_open, hw_event, pid, cpu, group_fd, flags);
-}
-
-/// @brief 初始化eventfd
-/// @param fd 事件描述符
-/// @return 成功返回0，失败返回-1
-int event_init(int *fd)
-{
-	CHECK_ERR(!fd, "pointer to fd is null");
-	const int tmp_fd = eventfd(0, EFD_CLOEXEC);
-	CHECK_ERR(tmp_fd < 0, "failed to create event fd");
-	*fd = tmp_fd;
-	return 0;
-}
-
-/// @brief 等待事件
-/// @param fd 事件描述符
-/// @param expected_event 期望事件
-/// @return 成功返回0，失败返回-1
-int event_wait(int fd, uint64_t expected_event)
-{
-	uint64_t event = 0;
-	const ssize_t bytes = read(fd, &event, sizeof(event));
-
-	CHECK_ERR(bytes < 0, "failed to read from fd")
-	else CHECK_ERR(bytes != sizeof(event), "read unexpected size");
-
-	CHECK_ERR(event != expected_event, "read event %lu, expected %lu", event, expected_event);
-
-	return 0;
-}
-
-pid_t fork_sync_exec(const char *command, int fd)
-{
-	// auto cmd = std::string(command) + " > /dev/null";
-	const pid_t pid = fork();
-	sigset_t ss, oss;
-	sigemptyset(&ss);
-	sigaddset(&ss, SIGINT);
-	sigprocmask(SIG_BLOCK, &ss, &oss);
-	switch (pid)
-	{
-	case -1:
-		perror("failed to create child process");
-		break;
-	case 0:
-		CHECK_ERR_EXIT(event_wait(fd, (uint64_t)1), "failed to wait on event");
-		printf("received go event. executing child command\n");
-		CHECK_ERR_EXIT(execl("/bin/bash", "bash", "-c", command, NULL), "failed to execute child command");
-		break;
-	default:
-		printf("child created with pid: %d\n", pid);
-		sigprocmask(SIG_SETMASK, &oss, NULL);
-		break;
-	}
-	return pid;
-}
-
-/// @brief 更新事件
-/// @param fd 事件描述符
-/// @param event 通知的事件
-/// @return 失败返回-1，成功返回0
-int event_notify(int fd, uint64_t event)
-{
-	const ssize_t bytes = write(fd, &event, sizeof(event));
-	CHECK_ERR(bytes < 0, "failed to write to fd")
-	else CHECK_ERR(bytes != sizeof(event), "attempted to write %zu bytes, wrote %zd bytes", sizeof(event), bytes);
-	return 0;
-}
-
-namespace env
-{
+namespace env {
 	int pid = -1;												  /*pid filter*/
 	int cpu = -1;												  /*cpu index*/
 	int run_time = __INT_MAX__;									  /*run time*/
@@ -146,7 +60,7 @@ namespace env
 	bool u = true;												  /*user stack setting*/
 	bool k = true;												  /*kernel stack setting*/
 	bool fla = false;											  /*flame graph instead of json*/
-	char *object = (char *)"/usr/lib/x86_64-linux-gnu/libc.so.6"; /*executable binary file for uprobe*/
+	char *object = (char *)"libc.so.6"; /*executable binary file for uprobe*/
 	static volatile sig_atomic_t exiting, child_exited;			  /*exiting flag*/
 	static int child_exec_event_fd = -1;
 	std::string command = "";
@@ -159,14 +73,11 @@ namespace env
 	DATA data = COUNT;
 }
 
-void __handler(int signo)
-{
+void __handler(int signo) {
 	// printf("sig %d %d\n", signo, kill(env::pid, 0));
-	switch (signo)
-	{
+	switch (signo) {
 	case SIGCHLD:
-		if (waitpid(env::pid, NULL, WNOHANG)) // 子进程主动退出的情况
-		{
+		if (waitpid(env::pid, NULL, WNOHANG)) { // 子进程主动退出的情况 
 			env::exiting = env::child_exited = 1;
 		}
 		break;
@@ -195,85 +106,49 @@ protected:
 	display_t d_mode;
 	void *data_buf;
 
-/// @brief 获取epbf程序中指定表的文件描述符
-/// @param name 表的名字
-#define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
-
-/// @brief 获取所有表的文件描述符
-#define OPEN_ALL_MAP(value_map_name)     \
-	value_fd = OPEN_MAP(value_map_name); \
-	tgid_fd = OPEN_MAP(pid_tgid);        \
-	comm_fd = OPEN_MAP(pid_comm);        \
-	trace_fd = OPEN_MAP(stack_trace);
-
-/// @brief 加载、初始化参数并打开指定类型的ebpf程序
-/// @param name ebpf程序的类型名
-/// @param ... 一些ebpf程序全局变量初始化语句
-/// @note 失败会使上层函数返回-1
-#define LO(name, val_map_name, ...)                \
-	skel = name##_bpf__open();                     \
-	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
-	skel->bss->min = min;                          \
-	skel->bss->max = max;                          \
-	__VA_ARGS__;                                   \
-	err = name##_bpf__load(skel);                  \
-	CHECK_ERR(err, "Fail to load BPF skeleton");   \
-	OPEN_ALL_MAP(val_map_name)
-
-/// @class rapidjson::Value
-/// @brief 添加字符串常量键和任意值，值可使用内存分配器
-/// @param k 设置为键的字符串常量
-/// @param ... 对应值，可使用内存分配器
-#define CKV(k, ...)                                 \
-	AddMember(k,                                    \
-			  rapidjson::Value(__VA_ARGS__).Move(), \
-			  alc)
-
-/// @class rapidjson::Value
-/// @brief 添加需要分配内存的变量字符串键和值，值可使用内存分配器
-/// @param k 设置为键的字符串变量
-/// @param ... 对应值，可使用内存分配器
-#define KV(k, ...)                                  \
-	AddMember(rapidjson::Value(k, alc).Move(),      \
-			  rapidjson::Value(__VA_ARGS__).Move(), \
-			  alc)
-
-/// @class rapidjson::Value::kArray
-/// @brief 添加字符串变量
-/// @param v 要添加的字符串变量
-#define PV(v) PushBack(rapidjson::Value(v, alc), alc)
-
-	virtual uint64_t data_value(void)
-	{
+	/// @brief 将缓冲区的数据解析为特定值
+	/// @param  无
+	/// @return 解析出的值
+	virtual uint64_t data_value(void) {
 		return *(uint64_t *)data_buf;
 	};
 
-	virtual std::string data_str(uint64_t f) { return "value:" + std::to_string(f); };
+	/// @brief 为特定值添加注解
+	/// @param f 特定值
+	/// @return 字符串
+	virtual std::string data_str(uint64_t f) { 
+		return "value:" + std::to_string(f); 
+	};
 
-	class pksid_val
-	{
+	/// @brief count类，主要是为了重载比较运算，便于自动排序
+	class pksid_val {
 	public:
 		uint32_t pid;
 		int32_t ksid, usid;
 		uint64_t val;
-		pksid_val(int32_t p, int32_t k, int32_t u, uint64_t v)
-		{
+		pksid_val(int32_t p, int32_t k, int32_t u, uint64_t v) {
 			pid = p;
 			ksid = k;
 			usid = u;
 			val = v;
 		};
 
-		bool operator<(const pksid_val b) { return val < b.val; };
+		/// @brief count对象的大小取决于val的大小
+		/// @param b 要比较的对象
+		/// @return 小于b则为真，否则为假
+		bool operator<(const pksid_val b) { 
+			return val < b.val; 
+		};
 	};
 
-	std::vector<pksid_val> *sortD()
-	{
-		if (value_fd < 0)
+	/// @brief 从count_map中取出数据并按val值生成有序列表
+	/// @return 一个列表指针
+	std::vector<pksid_val> *sortD() {
+		if (value_fd < 0) {
 			return NULL;
+		}
 		std::vector<pksid_val> *D = new std::vector<pksid_val>();
-		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
-		{
+		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
 			bpf_map_lookup_elem(value_fd, &id, data_buf);
 			pksid_val d(id.pid, id.ksid, id.usid, data_value());
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
@@ -281,45 +156,50 @@ protected:
 		return D;
 	};
 
-	void cache_user_syms(unsigned pid, int usid)
-	{
-		if (usid >= 0)
-		{
+	/// @brief 缓存用户态程序符号
+	/// @param pid 用户态进程号
+	/// @param usid 用户态调用栈号
+	void cache_user_syms(unsigned pid, int usid) {
+		if (usid >= 0) {
 			__u64 ip[MAX_STACKS];
 			bpf_map_lookup_elem(trace_fd, &usid, ip);
 			std::string symbol;
 			struct symbol sym;
 			elf_file file;
-			for (auto p : ip)
-			{
-				if (!p)
+			for (auto p : ip) {
+				if (!p) {
 					break;
+				}
 				sym.reset(p);
 
-				if (g_symbol_parser.find_symbol_in_cache(pid, p, symbol))
+				if (g_symbol_parser.find_symbol_in_cache(pid, p, symbol)) {
 					continue;
+				}
 				if (g_symbol_parser.get_symbol_info(pid, sym, file) &&
-					g_symbol_parser.find_elf_symbol(sym, file, pid, pid))
+					g_symbol_parser.find_elf_symbol(sym, file, pid, pid)) {
 					g_symbol_parser.putin_symbol_cache(pid, p, sym.name);
+				}
 			}
 		}
 	}
 
+	/// @brief 打印count列表
+	/// @param  无
 	void print_list(void)
 	{
 		auto D = sortD();
-		for (auto id : *D)
-		{
+		for (auto id : *D) {
 			cache_user_syms(id.pid, id.usid);
 			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\t%s\n", id.pid, id.usid, id.ksid, data_str(id.val).c_str());
 		}
 		delete D;
 	}
 
+	/// @brief 缓存 count_map中记录的所有进程的用户态程序的 函数符号
+	/// @param  无
 	void traverse_cache(void)
 	{
-		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
-		{
+		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
 			cache_user_syms(id.pid, id.usid);
 		}
 	}
@@ -329,8 +209,7 @@ protected:
 	void clear_count(void)
 	{
 		uint c = MAX_ENTRIES;
-		for (psid prev = {0}, id; c && !bpf_map_get_next_key(value_fd, &prev, &id); c--, prev = id)
-		{
+		for (psid prev = {0}, id; c && !bpf_map_get_next_key(value_fd, &prev, &id); c--, prev = id) {
 			bpf_map_delete_elem(value_fd, &id);
 		}
 	}
@@ -338,13 +217,11 @@ protected:
 	/// @brief 每隔5s输出计数表中的栈及数量
 	/// @param time 输出的持续时间
 	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
-	int log(int time)
-	{
+	int log(int time) {
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		/*for traverse map*/
 		time_t timep;
-		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= delay)
-		{
+		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= delay) {
 			// printf("exiting:%d, time:%d, pid:%d, existing:%d\n", env::exiting, time, pid, kill(pid, 0));
 			sleep(delay);
 			::time(&timep);
@@ -362,15 +239,15 @@ protected:
 				break;
 			}
 		};
-		if (env::clear && time > 0 && !env::exiting)
-		{
+		if (env::clear && time > 0 && !env::exiting) {
 			clear_count();
 		}
 		return time;
 	};
 
-	int exec_command()
-	{
+	/// @brief 创建子进程以执行特定命令
+	/// @return 无
+	int exec_command(void) {
 		// if specific userspace program was specified,
 		// create the child process and use an eventfd to synchronize the call to exec()
 		CHECK_ERR(env::pid >= 0, "cannot specify both command and pid");
@@ -380,17 +257,18 @@ protected:
 		return 0;
 	};
 
-	int activate_child()
-	{
+	/// @brief 唤醒子进程以开始执行特定的命令
+	/// @return 无
+	int activate_child(void) {
 		int ret = event_notify(env::child_exec_event_fd, 1);
 		CHECK_ERR(ret, "failed to notify child to perform exec");
 		return 0;
 	};
 
-	int clear_child()
-	{
-		if (!env::child_exited) // 子进程未主动退出的情况
-		{
+	/// @brief 清除创建的用于执行监测命令的子进程
+	/// @return 无
+	int clear_child(void) {
+		if (!env::child_exited) { // 子进程未主动退出的情况
 			CHECK_ERR(kill(env::pid, SIGTERM), "failed to signal child process");
 			printf("signaled child process\n");
 			CHECK_ERR(waitpid(env::pid, NULL, 0) < 0, "failed to reap child process");
@@ -400,23 +278,16 @@ protected:
 	};
 
 public:
-	bpf_loader(
-		int p = env::pid,
-		int c = env::cpu,
-		bool u = env::u,
-		bool k = env::k,
-		unsigned d = env::delay,
-		display_t disp = env::d_mode,
-		uint64_t n = env::min,
-		uint64_t m = env::max) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), d_mode(disp)
-	{
+	bpf_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k,
+				unsigned d = env::delay, display_t disp = env::d_mode, uint64_t n = env::min,
+				uint64_t m = env::max
+			) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), d_mode(disp) {
 		value_fd = tgid_fd = comm_fd = trace_fd = -1;
 		err = 0;
 		data_buf = new uint64_t(0);
 	};
 
-	virtual ~bpf_loader()
-	{
+	virtual ~bpf_loader() {
 		delete (uint64_t *)data_buf;
 	};
 
@@ -447,35 +318,21 @@ public:
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
-		// int max_deep = 0;
-		// for (psid prev = {}, key; !bpf_map_get_next_key(value_fd, &prev, &key); prev = key)
-		// {
-		// 	__u64 ip[MAX_STACKS];
-		// 	bpf_map_lookup_elem(trace_fd, &key.usid, ip);
-		// 	int deep = 0;
-		// 	for (int i = 0; i < MAX_STACKS && ip[i]; i++)
-		// 		deep++;
-		// 	if (max_deep < deep)
-		// 		max_deep = deep;
-		// }
 		std::ostringstream tex("");
-		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id)
-		{
+		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
 			std::string line("");
 			symbol sym;
 			__u64 ip[MAX_STACKS];
-			if (id.ksid >= 0)
-			{
+			if (id.ksid >= 0) {
 				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
-				for (auto p : ip)
-				{
-					if (!p)
+				for (auto p : ip) {
+					if (!p) {
 						break;
+					}
 					sym.reset(p);
-					if (g_symbol_parser.find_kernel_symbol(sym))
+					if (g_symbol_parser.find_kernel_symbol(sym)) {
 						line = sym.name + ';' + line;
-					else
-					{
+					} else {
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string s(a);
@@ -483,58 +340,42 @@ public:
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
 					}
 				}
-			}
-			else
+			} else {
 				line = "[MISSING KERNEL STACK];" + line;
+			}
 			line = std::string("----------------;") + line;
 			{
 				std::string usr_strace("");
 				{
 					// unsigned deep = 0;
-					if (id.usid >= 0)
-					{
+					if (id.usid >= 0) {
 						bpf_map_lookup_elem(trace_fd, &id.usid, ip);
 						std::string *s = 0, symbol;
 						elf_file file;
-						for (auto p : ip)
-						{
-							if (!p)
+						for (auto p : ip) {
+							if (!p) {
 								break;
+							}
 							sym.reset(p);
 
-							if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol))
-							{
+							if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol)) {
 								s = &symbol;
 								usr_strace = *s + ';' + usr_strace;
-							}
-							else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-									 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
-							{
+							} else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+									 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid)) {
 								usr_strace = sym.name + ';' + usr_strace;
 								g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
-							}
-							else
-							{
+							} else {
 								char a[19];
 								sprintf(a, "0x%016llx", p);
 								std::string s(a);
 								usr_strace = s + ';' + usr_strace;
 								g_symbol_parser.putin_symbol_cache(id.pid, p, s);
 							}
-
-							// deep++;
 						}
-					}
-					else
-					{
+					} else {
 						usr_strace = std::string("[MISSING USER STACK];");
-						// deep = 1;
 					}
-					// deep = max_deep - deep;
-					// for (int i = 0; i < deep; i++)
-					// {
-					// 	line = ".;" + line;
-					// }
 				}
 				line = usr_strace + line;
 			}
@@ -584,17 +425,17 @@ public:
 			std::string tgid_s = std::to_string(tgid);
 			const char *tgid_c = tgid_s.c_str();
 			if (!ajson.HasMember(tgid_c))
-				ajson.KV(tgid_c, rapidjson::kObjectType);
+				ajson.AddKeyAndValue(tgid_c, rapidjson::kObjectType);
 
 			std::string pid_s = std::to_string(pid);
 			const char *pid_c = pid_s.c_str();
-			ajson[tgid_c].KV(pid_c, rapidjson::kObjectType);
+			ajson[tgid_c].AddKeyAndValue(pid_c, rapidjson::kObjectType);
 
-			ajson[tgid_c][pid_c].CKV("stacks", rapidjson::kObjectType);
+			ajson[tgid_c][pid_c].AddStringAndValue("stacks", rapidjson::kObjectType);
 
 			comm cmd;
 			bpf_map_lookup_elem(comm_fd, &pid, &cmd);
-			ajson[tgid_c][pid_c].CKV("name", cmd.str, alc);
+			ajson[tgid_c][pid_c].AddStringAndValue("name", cmd.str, alc);
 			pidtgid_map[pid] = tgid;
 		}
 
@@ -614,9 +455,9 @@ public:
 					auto sid = std::to_string(id->usid) + "," + std::to_string(id->ksid);
 					sid_c = sid.c_str();
 				}
-				stacks->KV(sid_c, rapidjson::kObjectType);
-				(*stacks)[sid_c].CKV("count", id->val);
-				(*stacks)[sid_c].CKV("trace", rapidjson::kArrayType);
+				stacks->AddKeyAndValue(sid_c, rapidjson::kObjectType);
+				(*stacks)[sid_c].AddStringAndValue("count", id->val);
+				(*stacks)[sid_c].AddStringAndValue("trace", rapidjson::kArrayType);
 				trace = &((*stacks)[sid_c]["trace"]);
 			}
 			// symbolize
@@ -636,21 +477,21 @@ public:
 						char offs[20];
 						sprintf(offs, "+0x%x", offset);
 						std::string s = sym.name + std::string(offs);
-						trace->PV(s.c_str());
+						trace->PushString(s.c_str());
 					}
 					else
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string s(a);
-						trace->PV(a);
+						trace->PushString(a);
 						g_symbol_parser.putin_symbol_cache(pid, p, s);
 					}
 				}
 			}
 			else
-				trace->PV("[MISSING KERNEL STACK]");
-			trace->PV("----------------");
+				trace->PushString("[MISSING KERNEL STACK]");
+			trace->PushString("----------------");
 			if (id->usid >= 0)
 			{
 				std::string symbol;
@@ -669,19 +510,19 @@ public:
 						char offs[20];
 						sprintf(offs, " +0x%x", offset);
 						*s = *s + std::string(offs);
-						trace->PV(s->c_str());
+						trace->PushString(s->c_str());
 					}
 					else
 					{
 						char a[19];
 						sprintf(a, "0x%016llx", p);
 						std::string addr_s(a);
-						trace->PV(a);
+						trace->PushString(a);
 					}
 				}
 			}
 			else
-				trace->PV("[MISSING USER STACK]");
+				trace->PushString("[MISSING USER STACK]");
 		}
 		delete D;
 
@@ -697,41 +538,49 @@ public:
 	/// @brief 一个执行ebpf程序的总流程
 	/// @param  无
 	/// @return 成功则返回0，失败返回负数
-	int test(int time)
-	{
-		do
-		{
-			if (env::command.length())
-				if (exec_command())
+	int test(int time) {
+		do {
+			if (env::command.length()) {
+				if (exec_command()) {
 					break;
-			if (signal(SIGINT, __handler) == SIG_ERR)
+				}
+			}
+			if (signal(SIGINT, __handler) == SIG_ERR) {
 				break;
-			if (load())
+			}
+			if (load()) {
 				break;
-			if (attach())
+			}
+			if (attach()) {
 				break;
-			if (env::command.length())
-				if (activate_child())
+			}
+			if (env::command.length()) {
+				if (activate_child()) {
 					break;
-			if (env::command.length())
-				if (signal(SIGCHLD, __handler) == SIG_ERR)
+				}
+			}
+			if (env::command.length()) {
+				if (signal(SIGCHLD, __handler) == SIG_ERR) {
 					break;
+				}
+			}
 			log(time);
 		} while (false);
 		detach();
-		if (env::fla || env::d_mode == FLAME_OUTPUT)
+		if (env::fla || env::d_mode == FLAME_OUTPUT) {
 			err = flame_save();
-		else
+		} else {
 			err = data_save();
-		// unload();
-		if (env::command.length())
+		}
+		unload();
+		if (env::command.length()) {
 			clear_child();
+		}
 		return err;
 	};
 };
 
-class on_cpu_loader : public bpf_loader
-{
+class on_cpu_loader : public bpf_loader {
 protected:
 	int *pefds, num_cpus, num_online_cpus;
 	unsigned long long freq;
@@ -741,11 +590,12 @@ protected:
 	bool *online_mask;
 	const char *online_cpus_file;
 
-	std::string data_str(uint64_t f) override { return "counts:" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { 
+		return "counts:" + std::to_string(f); 
+	};
 
 public:
-	on_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, unsigned long long f = env::freq) : bpf_loader(p, c, u, k), freq(f)
-	{
+	on_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, unsigned long long f = env::freq) : bpf_loader(p, c, u, k), freq(f) {
 		online_mask = NULL;
 		online_cpus_file = "/sys/devices/system/cpu/online";
 		err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
@@ -754,8 +604,7 @@ public:
 		CHECK_ERR_EXIT(num_cpus <= 0, "Fail to get the number of processors");
 
 		pefds = (int *)malloc(num_cpus * sizeof(int));
-		for (int i = 0; i < num_cpus; i++)
-		{
+		for (int i = 0; i < num_cpus; i++) {
 			pefds[i] = -1;
 		}
 		links = (struct bpf_link **)calloc(num_cpus, sizeof(struct bpf_link *));
@@ -769,28 +618,29 @@ public:
 		};
 		skel = 0;
 	};
-	int load(void) override
-	{
+
+	int load(void) override {
 		FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
 		CHECK_ERR(!fp, "Failed to draw flame graph");
-		// fwrite("", 1, 0, fp);
 		unsigned long *load_a;
 		fscanf(fp, "%p", &load_a);
 		pclose(fp);
-		LO(on_cpu_count,
-		   psid_count,
-		   skel->bss->load_a = load_a,
-		   skel->bss->u = ustack,
-		   skel->bss->k = kstack)
+		StackProgLoadOpen(
+			on_cpu_count,
+			psid_count,
+			skel->bss->load_a = load_a,
+			skel->bss->u = ustack,
+			skel->bss->k = kstack
+		)
 		return 0;
 	};
-	int attach(void) override
-	{
-		for (int cpu = 0; cpu < num_cpus; cpu++)
-		{
+
+	int attach(void) override {
+		for (int cpu = 0; cpu < num_cpus; cpu++) {
 			/* skip offline/not present CPUs */
-			if (cpu >= num_online_cpus || !online_mask[cpu])
+			if (cpu >= num_online_cpus || !online_mask[cpu]) {
 				continue;
+			}
 
 			/* Set up performance monitoring on a CPU/Core */
 			int pefd = perf_event_open(&attr, pid, cpu, -1, 0);
@@ -803,74 +653,78 @@ public:
 		}
 		return 0;
 	}
-	void detach(void) override
-	{
-		if (links)
-		{
-			for (int cpu = 0; cpu < num_cpus; cpu++)
+
+	void detach(void) override {
+		if (links) {
+			for (int cpu = 0; cpu < num_cpus; cpu++) {
 				bpf_link__destroy(links[cpu]);
+			}
 			free(links);
 		}
 		if (pefds)
 		{
-			for (int i = 0; i < num_cpus; i++)
-			{
-				if (pefds[i] >= 0)
+			for (int i = 0; i < num_cpus; i++) {
+				if (pefds[i] >= 0) {
 					close(pefds[i]);
+				}
 			}
 			free(pefds);
 		}
 	}
-	void unload(void) override
-	{
-		if (skel)
+
+	void unload(void) override {
+		if (skel) {
 			on_cpu_count_bpf__destroy(skel);
+		}
 		skel = 0;
 	}
 };
 
-class off_cpu_loader : public bpf_loader
-{
+class off_cpu_loader : public bpf_loader {
 protected:
 	struct off_cpu_count_bpf *skel;
 
-	std::string data_str(uint64_t f) override { return "time(ms):" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { 
+		return "time(ms):" + std::to_string(f); 
+	};
 
 public:
-	off_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
-	{
+	off_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
 		skel = 0;
 	};
-	int load(void) override
-	{
-		LO(off_cpu_count,
-		   psid_count,
-		   skel->bss->apid = pid,
-		   skel->bss->u = ustack,
-		   skel->bss->k = kstack)
+
+	int load(void) override {
+		StackProgLoadOpen(
+			off_cpu_count,
+			psid_count,
+			skel->bss->apid = pid,
+			skel->bss->u = ustack,
+			skel->bss->k = kstack
+		)
 		return 0;
 	};
-	int attach(void) override
-	{
+
+	int attach(void) override {
 		err = bpf_attach(off_cpu_count, skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
-	void detach(void) override
-	{
-		if (skel)
+
+	void detach(void) override {
+		if (skel) {
 			off_cpu_count_bpf__detach(skel);
+		}
 	};
-	void unload(void) override
-	{
-		if (skel)
+
+	void unload(void) override {
+		if (skel) {
 			off_cpu_count_bpf__destroy(skel);
+		}
 		skel = 0;
 	};
 };
 
-class mem_loader : public bpf_loader
-{
+class mem_loader : public bpf_loader {
 protected:
 	struct mem_count_bpf *skel;
 	char *object;
@@ -878,21 +732,21 @@ protected:
 	std::string data_str(uint64_t f) override { return "size(Byte):" + std::to_string(f); };
 
 public:
-	mem_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, char *e = env::object) : bpf_loader(p, c, u, k), object(e)
-	{
+	mem_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, char *e = env::object) : bpf_loader(p, c, u, k), object(e) {
 		skel = 0;
 	};
-	int load(void) override
-	{
-		LO(mem_count,
-		   psid_count,
-		   skel->bss->u = ustack,
-		   //    skel->bss->k = kstack,
-		   skel->bss->apid = pid)
+
+	int load(void) override {
+		StackProgLoadOpen(
+			mem_count,
+			psid_count,
+			skel->bss->u = ustack,
+			skel->bss->apid = pid
+		)
 		return 0;
 	};
-	int attach(void) override
-	{
+
+	int attach(void) override {
 		ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
 		ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
 		ATTACH_UPROBE_CHECKED(skel, calloc, calloc_enter);
@@ -909,51 +763,53 @@ public:
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
-	void detach(void) override
-	{
-		if (skel->links.free_enter)
+
+	void detach(void) override {
+		if (skel->links.free_enter) {
 			bpf_link__destroy(skel->links.free_enter);
-		if (skel->links.malloc_exit)
+		}
+		if (skel->links.malloc_exit) {
 			bpf_link__destroy(skel->links.malloc_exit);
-		if (skel->links.malloc_enter)
+		}
+		if (skel->links.malloc_enter) {
 			bpf_link__destroy(skel->links.malloc_enter);
+		}
 	};
-	void unload(void) override
-	{
-		if (skel)
+
+	void unload(void) override {
+		if (skel) {
 			mem_count_bpf__destroy(skel);
+		}
 		skel = 0;
 	};
 };
 
-class io_loader : public bpf_loader
-{
+class io_loader : public bpf_loader {
 protected:
 	struct io_count_bpf *skel;
 	DATA d = env::data;
-	std::string data_str(uint64_t f) override
-	{
+	std::string data_str(uint64_t f) override {
 		std::string p;
-		if (d == SIZE)
+		if (d == SIZE) {
 			p = "size(B):";
-		else if (d == COUNT)
+		} else if (d == COUNT) {
 			p = "counts:";
-		else
+		} else {
 			p = "(size/counts):";
+		}
 		return p + std::to_string(f);
 	};
 
 public:
-	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
-	{
+	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
 		skel = 0;
 		// in_count = cot;
 		delete (uint64_t *)data_buf;
 		data_buf = new io_tuple{0};
 	};
-	int load(void) override
-	{
-		LO(io_count, psid_count, {
+	
+	int load(void) override {
+		StackProgLoadOpen(io_count, psid_count, {
 			skel->bss->apid = pid;
 			skel->bss->u = ustack;
 			skel->bss->k = kstack;
@@ -961,25 +817,25 @@ public:
 		});
 		return 0;
 	};
-	int attach(void) override
-	{
+	
+	int attach(void) override {
 		err = bpf_attach(io_count, skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
-	void detach(void) override
-	{
+	
+	void detach(void) override {
 		if (skel)
 			io_count_bpf__detach(skel);
 	};
-	void unload(void) override
-	{
+	
+	void unload(void) override {
 		if (skel)
 			io_count_bpf__destroy(skel);
 		skel = 0;
 	};
-	uint64_t data_value() override
-	{
+
+	uint64_t data_value() override {
 		io_tuple *p = (io_tuple *)data_buf;
 		// return p->expect - p->truth;
 		if (env::data == AVE)
@@ -990,116 +846,134 @@ public:
 			return p->count;
 	};
 
-	~io_loader() override
-	{
+	~io_loader() override {
 		delete (io_tuple *)data_buf;
 	};
 };
-	class pre_loader : public bpf_loader
-	{
-	protected:
-		struct pre_count_bpf *skel;
 
-		std::string data_str(uint64_t f) override { return "rest_pages:" + std::to_string(f); };
+class pre_loader : public bpf_loader {
+protected:
+	struct pre_count_bpf *skel;
 
-	public:
-		pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k)
-		{
-			skel = 0;
-			delete (uint64_t *)data_buf;
-			data_buf = new tuple{0};
-		};
-		int load(void) override
-		{
-			LO(pre_count, psid_util, {
+	std::string data_str(uint64_t f) override {
+		return "rest_pages:" + std::to_string(f); 
+	};
+
+public:
+	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
+		skel = 0;
+		delete (uint64_t *)data_buf;
+		data_buf = new tuple{0};
+	};
+	int load(void) override {
+		StackProgLoadOpen(
+			pre_count, 
+			psid_util, 
+			{
 				skel->bss->apid = pid;
 				skel->bss->u = ustack;
 				skel->bss->k = kstack;
-			});
-			return 0;
-		};
-		int attach(void) override
-		{
-			// auto object = env::object;
-			// ATTACH_UPROBE_CHECKED(skel, read, read_enter);
-			err = pre_count_bpf__attach(skel);
-			CHECK_ERR(err, "Failed to attach BPF skeleton");
-			return 0;
-		};
-		void detach(void) override
-		{
-			if (skel)
-				pre_count_bpf__detach(skel);
-		};
-		void unload(void) override
-		{
-			if (skel)
-				pre_count_bpf__destroy(skel);
-			skel = 0;
-		};
-
-		uint64_t data_value() override
-		{
-			tuple *p = (tuple *)data_buf;
-			return p->expect - p->truth;
-		};
-
-		~pre_loader() override
-		{
-			delete (tuple *)data_buf;
+			}
+		);
+		return 0;
+	};
+	int attach(void) override {
+		err = pre_count_bpf__attach(skel);
+		CHECK_ERR(err, "Failed to attach BPF skeleton");
+		return 0;
+	};
+	void detach(void) override
+	{
+		if (skel) {
+			pre_count_bpf__detach(skel);
 		}
-	
+	};
+	void unload(void) override {
+		if (skel) {
+			pre_count_bpf__destroy(skel);
+		}
+		skel = 0;
 	};
 
-	typedef bpf_loader *(*bpf_load)();
+	uint64_t data_value() override {
+		tuple *p = (tuple *)data_buf;
+		return p->expect - p->truth;
+	};
 
-	int main(int argc, char *argv[])
-	{
-		auto oncpu_mod = (clipp::command("on-cpu").set(env::mod, MOD_ON_CPU) % "sample the call stacks of on-cpu processes",
-						  clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency");
-		auto offcpu_mod = (clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU) % "sample the call stacks of off-cpu processes");
-		auto mem_mod = (clipp::command("mem").set(env::mod, MOD_MEM) % "sample the memory usage of call stacks");
-		auto io_mod = (clipp::command("io").set(env::mod, MOD_IO) % "sample the IO data volume of call stacks",
-					   clipp::option("--input") & clipp::one_of(
-													  clipp::option("count").set(env::data, COUNT) % "Counting the number of I/O operations",
-													  clipp::option("ave").set(env::data, AVE) % "Counting the ave of I/O operations",
-													  clipp::option("size").set(env::data, SIZE) % "Counting the size of I/O operations"));
-		auto pre_mod = (clipp::command("ra").set(env::mod, MOD_RA) % "sample the readahead hit rate of call stacks");
-		auto opti = (clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
-					 (clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid) % "set pid of process to monitor") |
-						 (clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command) % "set command for monitoring the whole life"),
-					 clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
-					 clipp::option("-K", "--kernel-stack-only").set(env::u, false) % "only sample kernel stacks",
-					 clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", env::max) % "set the max threshold of sampled value",
-					 clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", env::min) % "set the min threshold of sampled value",
-					 clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay) % "set the interval to output",
-					 (clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
-					  clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console") %
-						 "display mode (default none)",
-					 clipp::opt_value("simpling time", env::run_time) % "set the total simpling time",
-				 clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count");
-		auto cli = ((oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
-					opti,
-					clipp::option("-v", "--version").call([]
-														  { std::cout << "verion 1.0\n\n"; }) %
-						"show version");
-		if (!clipp::parse(argc, argv, cli))
-		{
-			std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
-			return 0;
-		}
-		
-		bpf_load arr[] = {
-			[]() -> bpf_loader *
-			{ return new on_cpu_loader(); },
-			[]() -> bpf_loader *
-			{ return new off_cpu_loader(); },
-			[]() -> bpf_loader *
-			{ return new mem_loader(); },
-			[]() -> bpf_loader *
-			{ return new io_loader(); },
-			[]() -> bpf_loader *
-			{ return new pre_loader(); },
-		};
-		return arr[env::mod]()->test(env::run_time);
+	~pre_loader() override {
+		delete (tuple *)data_buf;
 	}
+
+};
+
+typedef bpf_loader *(*bpf_load)();
+
+int main(int argc, char *argv[]) {
+	auto oncpu_mod = (
+		clipp::command("on-cpu").set(env::mod, MOD_ON_CPU),
+		clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency"
+	) % "sample the call stacks of on-cpu processes";
+
+	auto offcpu_mod = (
+		clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU)
+	) % "sample the call stacks of off-cpu processes";
+	
+	auto mem_mod = (
+		clipp::command("mem").set(env::mod, MOD_MEM)
+	) % "sample the memory usage of call stacks";
+	
+	auto io_mod = (
+		clipp::command("io").set(env::mod, MOD_IO),
+		(clipp::option("--mod") & (
+			clipp::option("count").set(env::data, COUNT) % "Counting the number of I/O operations" |
+			clipp::option("ave").set(env::data, AVE) % "Counting the ave of I/O operations" |
+			clipp::option("size").set(env::data, SIZE) % "Counting the size of I/O operations"
+		)) % "set the statistic mod"
+	) % "sample the IO data volume of call stacks";
+	
+	auto pre_mod = (
+		clipp::command("ra").set(env::mod, MOD_RA)
+	) % "sample the readahead hit rate of call stacks";
+	
+	auto opti = (
+		clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
+		(
+			((clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid)) % "set pid of process to monitor") |
+			((clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command)) % "set command for monitoring the whole life")
+		),
+		clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
+		clipp::option("-K", "--kernel-stack-only").set(env::u, false) % "only sample kernel stacks",
+		(clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", env::max)) % "set the max threshold of sampled value",
+		(clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", env::min)) % "set the min threshold of sampled value",
+		(clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay)) % "set the interval to output",
+		(
+			clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
+			clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console"
+		) % "display mode (default none)",
+		clipp::opt_value("simpling time", env::run_time) % "set the total simpling time",
+		clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count"
+	);
+	
+	auto cli = (
+		(oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
+		opti,
+		clipp::option("-v", "--version").call([] {
+			std::cout << "verion 1.0\n\n"; 
+		}) % "show version"
+	) % "statistic call trace relate with some metrics";
+	
+	if (!clipp::parse(argc, argv, cli)) {
+		std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
+		return 0;
+	}
+	
+	bpf_load arr[] = {
+		[]() -> bpf_loader *{ return new on_cpu_loader(); },
+		[]() -> bpf_loader *{ return new off_cpu_loader(); },
+		[]() -> bpf_loader *{ return new mem_loader(); },
+		[]() -> bpf_loader *{ return new io_loader(); },
+		[]() -> bpf_loader *{ return new pre_loader(); },
+	};
+
+	return arr[env::mod]()->test(env::run_time);
+}
