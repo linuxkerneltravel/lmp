@@ -24,17 +24,13 @@
 #include "sa_ebpf.h"
 #include "task.h"
 
-BPF_HASH(psid_count, psid, u32);                                    //记录了进程的运行总时间
-BPF_HASH(start, u32, u64);                                          //记录进程运行的起始时间
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(pid_comm, u32, comm);
-
-const char LICENSE[] SEC("license") = "GPL";
+DeclareCommonMaps(io_tuple);
+DeclareCommonVar();
 
 int apid = 0;
-bool u = false, k = false;
-__u64 min = 0, max = 0;
+BPF_HASH(start, u32, u64);                                                  //记录进程运行的起始时间
+
+const char LICENSE[] SEC("license") = "GPL";
 
 SEC("kprobe/finish_task_switch.isra.0")                                     //动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)

@@ -57,14 +57,13 @@
  * pid_comm 存储 <pid, comm> 键值对，记录pid以及对应的命令名
  * type：指定count值的类型
  */
-#define DeclareStackMaps(type)            \
+#define DeclareCommonMaps(type)            \
     BPF_HASH(psid_count, psid, type); \
     BPF_STACK_TRACE(stack_trace);     \
     BPF_HASH(pid_tgid, u32, u32);     \
     BPF_HASH(pid_comm, u32, comm);
 
-#define DeclareStackVar()       \
-    int apid = 0;               \
+#define DeclareCommonVar()       \
     bool u = false, k = false;  \
     __u64 min = 0, max = 0;     \
 

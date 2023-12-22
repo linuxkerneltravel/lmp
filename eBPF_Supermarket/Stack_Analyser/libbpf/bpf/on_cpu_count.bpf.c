@@ -25,15 +25,9 @@
 
 const char LICENSE[] SEC("license") = "GPL";
 
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(psid_count, psid, u32);                                                //记录了内核栈以及用户栈的使用次数
-BPF_HASH(pid_comm, u32, comm);
-
-bool u = false, k = false;
-__u64 min = 0, max = 0;
+DeclareCommonMaps(io_tuple);
+DeclareCommonVar();
 unsigned long *load_a = NULL;
-
 
 SEC("perf_event")                                                               //挂载点为perf_event
 int do_stack(void *ctx)

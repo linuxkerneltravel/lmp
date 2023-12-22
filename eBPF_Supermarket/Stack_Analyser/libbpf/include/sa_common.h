@@ -36,20 +36,6 @@ typedef struct {
     char str[COMM_LEN];
 } comm;
 
-/// @brief 内存信息的键，唯一标识一块被分配的内存
-/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
-typedef struct {
-    __u64 addr;
-    __u32 pid, o;
-} piddr;
-
-/// @brief 内存分配信息，可溯源的一次内存分配
-/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
-typedef struct {
-    __u64 size;
-    __u32 usid, o;
-} mem_info;
-
 typedef struct {
     __u64 truth;
     __u64 expect;

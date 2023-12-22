@@ -24,8 +24,9 @@
 #include "sa_ebpf.h"
 #include "task.h"
 
-DeclareStackMaps(io_tuple);
-DeclareStackVar();
+DeclareCommonMaps(io_tuple);
+DeclareCommonVar();
+int apid = 0; 
 
 const char LICENSE[] SEC("license") = "GPL";
 

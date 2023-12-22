@@ -25,29 +25,32 @@
 #include "task.h"
 
 //定义的哈希表以及堆栈跟踪对象
-BPF_HASH(psid_count, psid, u64);                                        //记录对应进程申请的总内存空间大小
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(pid_comm, u32, comm);
+DeclareCommonMaps(io_tuple);
+DeclareCommonVar();
+
+/// @brief 内存信息的键，唯一标识一块被分配的内存
+/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
+typedef struct {
+    __u64 addr;
+    __u32 pid, o;
+} piddr;
+
+/// @brief 内存分配信息，可溯源的一次内存分配
+/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
+typedef struct {
+    __u64 size;
+    __u32 usid, o;
+} mem_info;
 
 BPF_HASH(pid_size, u32, u64);                                           //记录了对应进程使用malloc,calloc等函数申请内存的大小
 BPF_HASH(piddr_meminfo, piddr, mem_info);                               //记录了每次申请的内存空间的起始地址等信息
 
 const char LICENSE[] SEC("license") = "GPL";
 
-bool u = false, k = false;
-int apid = 0;
-__u64 min = 0, max = 0;
-
 int gen_alloc_enter(size_t size)
 {
-    // bpf_printk("malloc_enter");
-    // record data
     if (size <= min || size > max)
         return 0;
-    // u64 pt = bpf_get_current_pid_tgid();
-    // u32 pid = pt >> 32;
-    // u32 tgid = pt;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();    //利用bpf_get_current_task()获得当前的进程tsk
     u32 pid = get_task_ns_pid(curr); // also kernel pid, but attached ns pid on kernel pid, invaild!
     u32 tgid = get_task_ns_tgid(curr);                                          //利用帮助函数获得当前进程的tgid
@@ -93,10 +96,6 @@ int gen_alloc_exit(struct pt_regs *ctx)                                     //�
     void *addr = (void *)PT_REGS_RC(ctx);                                   //从 struct pt_regs ctx 中提取函数的返回值
     if (!addr)
         return 0;
-    // bpf_printk("malloc_exit");
-    // get size
-    // u32 pid = bpf_get_current_pid_tgid() >> 32;
-    // struct task_struct* curr = ;
     u32 pid = get_task_ns_pid((struct task_struct*)bpf_get_current_task());//通过bpf_get_current_task函数得到当前进程的tsk。再通过get_task_ns_pid得到该进程的pid
     u64 *size = bpf_map_lookup_elem(&pid_size, &pid);                       //size指向pid_size哈希表pid对应的值
     if (!size)                                                              //size不存在

@@ -572,7 +572,7 @@ public:
 		} else {
 			err = data_save();
 		}
-		unload();
+		// unload(); // segment fault
 		if (env::command.length()) {
 			clear_child();
 		}
@@ -737,8 +737,7 @@ public:
 	int load(void) override {
 		StackProgLoadOpen(
 			mem_count,
-			skel->bss->u = ustack,
-			skel->bss->apid = pid
+			skel->bss->u = ustack
 		)
 		return 0;
 	};
