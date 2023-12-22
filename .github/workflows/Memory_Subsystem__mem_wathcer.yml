@@ -5,14 +5,14 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Memory_Subsystem/**'
-      - '.github/workflows/system_memory.yml'
+      - 'eBPF_Supermarket/Memory_Subsystem/applications/mem_watcher**'
+      - '.github/workflows/Memory_Subsystem__mem_wathcer.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Memory_Subsystem/**'
-      - '.github/workflows/system_memory.yml'
+      - 'eBPF_Supermarket/Memory_Subsystem/applications/mem_watcher**'
+      - '.github/workflows/Memory_Subsystem__mem_wathcer.yml'
 
 jobs:
   Memory_Subsystem-project-build-and-test:
@@ -28,6 +28,6 @@ jobs:
 
       - name: run mem_watcher
         run: |
-            cd eBPF_Supermarket/Memory_Subsystem/mem_watcher
+            cd eBPF_Supermarket/Memory_Subsystem/applications/mem_watcher
             make mem_watcher
             sudo ./mem_watcher
