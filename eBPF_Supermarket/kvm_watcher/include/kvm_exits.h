@@ -39,7 +39,7 @@ struct {
     __type(value, u32);
 } counts SEC(".maps");
 
-struct exit{
+struct exit {
     u64 pad;
     unsigned int exit_reason;
     unsigned long guest_rip;
@@ -51,29 +51,28 @@ struct exit{
     unsigned int vcpu_id;
 };
 
-int total=0;
+int total = 0;
 
-static int  trace_kvm_exit(struct exit *ctx, pid_t vm_pid)
-{   
-    u64 id,ts;
+static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
+    u64 id, ts;
     id = bpf_get_current_pid_tgid();
     pid_t tid = (u32)id;
     pid_t pid = id >> 32;
-    if (vm_pid < 0  || pid == vm_pid){
+    if (vm_pid < 0 || pid == vm_pid) {
         ts = bpf_ktime_get_ns();
         u32 reason;
-        reason=(u32)ctx->exit_reason;
-        struct reason_info reas={};
-        reas.reason=reason;
-        reas.time=ts;
+        reason = (u32)ctx->exit_reason;
+        struct reason_info reas = {};
+        reas.reason = reason;
+        reas.time = ts;
         u32 *count;
-        count=bpf_map_lookup_elem(&counts, &reason);
-        if(count){
+        count = bpf_map_lookup_elem(&counts, &reason);
+        if (count) {
             (*count)++;
-            reas.count=*count;
-        }else{
+            reas.count = *count;
+        } else {
             u32 new_count = 1;
-            reas.count=new_count;
+            reas.count = new_count;
             bpf_map_update_elem(&counts, &reason, &new_count, BPF_ANY);
         }
         bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
@@ -81,33 +80,32 @@ static int  trace_kvm_exit(struct exit *ctx, pid_t vm_pid)
     return 0;
 }
 
-static int trace_kvm_entry(void *rb)
-{ 
+static int trace_kvm_entry(void *rb) {
     struct reason_info *reas;
     pid_t pid, tid;
-    u64 id, ts, *start_ts, duration_ns=0;
+    u64 id, ts, *start_ts, duration_ns = 0;
     id = bpf_get_current_pid_tgid();
     pid = id >> 32;
     tid = (u32)id;
     reas = bpf_map_lookup_elem(&times, &tid);
-    if(reas){
+    if (reas) {
         u32 reason;
         struct exit_event *e;
-        int count=0;
-        duration_ns=bpf_ktime_get_ns() - reas->time;
+        int count = 0;
+        duration_ns = bpf_ktime_get_ns() - reas->time;
         bpf_map_delete_elem(&times, &tid);
-        reason=reas->reason;
-        count=reas->count;
+        reason = reas->reason;
+        count = reas->count;
         e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
-        if (!e){
+        if (!e) {
             return 0;
         }
-        e->reason_number=reason;
-        e->process.pid=pid;
+        e->reason_number = reason;
+        e->process.pid = pid;
         e->duration_ns = duration_ns;
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-        e->process.tid=tid;
-        e->total=++total;
+        e->process.tid = tid;
+        e->total = ++total;
         if (count) {
             e->count = count;
         } else {
@@ -115,11 +113,8 @@ static int trace_kvm_entry(void *rb)
         }
         bpf_ringbuf_submit(e, 0);
         return 0;
-    }
-    else{
+    } else {
         return 0;
-    }	   	
+    }
 }
 #endif /* __KVM_EXITS_H */
-
-

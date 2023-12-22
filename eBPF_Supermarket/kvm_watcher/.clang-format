@@ -1,0 +1,50 @@
+# .clang-format for kvm_watcher project
+#
+# This configuration file defines the coding style for the kvm_watcher project.
+# It is based on the Google style with some specific modifications.
+#
+# Author: nanshuaibo811@163.com
+# Project: kvm_watcher
+# Description: This file defines the coding style for the kvm_watcher project.
+
+
+# 使用Google风格作为基础
+BasedOnStyle: Google
+
+# 设置缩进为4个空格
+IndentWidth: 4
+
+# 禁用使用制表符
+UseTab: Never
+
+# 左大括号放在同一行
+BraceWrapping:
+  AfterClass:      false
+  AfterControlStatement: false
+  AfterEnum:       false
+  AfterFunction:   false
+  AfterNamespace:  false
+  AfterStruct:     false
+  AfterUnion:      false
+  BeforeCatch:     true
+  BeforeElse:      true
+  IndentBraces:    false
+
+# switch下的case语句缩进
+IndentCaseLabels: true
+
+# 不允许将简短的循环写在同一行
+AllowShortLoopsOnASingleLine: false
+
+# 不允许将简短的函数写在同一行
+AllowShortFunctionsOnASingleLine: false
+
+# if 语句和 return 语句不能在同一行
+AllowShortIfStatementsOnASingleLine: false
+
+# 设置一行的字符数限制
+ColumnLimit: 80
+
+# 保留原始的 #include 排序
+SortIncludes: false
+

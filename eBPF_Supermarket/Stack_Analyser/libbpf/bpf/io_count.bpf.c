@@ -26,10 +26,11 @@
 
 
                                                                     //定义的哈希表以及堆栈跟踪对象
-BPF_HASH(psid_count, psid, u64);
+// BPF_HASH(psid_count, psid, u64);
 BPF_STACK_TRACE(stack_trace);                                       //记录了相应的函数内核栈以及用户栈的使用次数
 BPF_HASH(pid_tgid, u32, u32);
 BPF_HASH(pid_comm, u32, comm);
+BPF_HASH(psid_count, psid, io_tuple);
 
 const char LICENSE[] SEC("license") = "GPL";
 
@@ -69,26 +70,17 @@ static int do_stack(struct trace_event_raw_sys_enter *ctx)
     };
 
     // record time delta
-    u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);                          //count指向psid_count表当中的apsid表项，即size
-    if (cot)
-    {
-        if (count)                                                                  //如果count不为NULL，则对count指向的值+1
-            (*count)++;
-        else
-        {
-            u64 one = 1;                                                            //当psid_count中不存在apsid，就更新表项中的apsid=1
-            bpf_map_update_elem(&psid_count, &apsid, &one, BPF_NOEXIST);
+    io_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid);                          //count指向psid_count表当中的apsid表项，即size
+                         
+        if(!d){
+            io_tuple it = {.count = 1, .size = len};
+            bpf_map_update_elem(&psid_count, &apsid, &it, BPF_NOEXIST);
+            return 0;
         }
-    }
-   else                                                                             //cot=false
-    {
-        if (count)                                                                  //如果count不为NULL，则对count指向的值+len
-            (*count) += len;
-        else
-                                             
-            bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);            //当psid_count中不存在apsid，就更新表项中的apsid=len
-    }
-    return 0;
+        d->count++;
+        d->size += len;
+    
+       return 0;
 }
 
 #define io_sec_tp(name)                         \
