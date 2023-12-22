@@ -1,4 +1,5 @@
-#include "vmlinux.h"
+/* 请一定注意这个架构依赖头文件 */
+#include "../../vmlinux/vmlinux_x86.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
