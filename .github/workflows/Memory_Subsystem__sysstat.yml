@@ -6,13 +6,13 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/Memory_Subsystem/applications/sysstat/**'
-      - '.github/workflows/sysstat.yml'
+      - '.github/workflows/Memory_Subsystem__sysstat.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/Memory_Subsystem/applications/sysstat/**'
-      - '.github/workflows/sysstat.yml'
+      - '.github/workflows/Memory_Subsystem__sysstat.yml'
 
 jobs:
   libbpf-project-build-and-test:
