@@ -27,10 +27,9 @@ jobs:
           git submodule update --init --recursive
 
       - name: Run sysstat
+        continue-on-error: true
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/applications/sysstat/
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           sudo make sysstat
-          trap 'exit 0' EXIT
-          sudo timeout 10 ./sysstat
-      
+          sudo timeout 20 ./sysstat
