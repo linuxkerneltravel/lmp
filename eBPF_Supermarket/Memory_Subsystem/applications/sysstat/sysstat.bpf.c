@@ -1,4 +1,4 @@
-#include "../../vmlinux/x86/vmlinux_x86.h"
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>

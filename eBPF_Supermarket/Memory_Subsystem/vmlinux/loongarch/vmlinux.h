@@ -1,1 +1,1 @@
-vmlinux_loongarch.h
+vmlinux_602.h

@@ -1,1 +1,1 @@
-vmlinux_riscv.h
+vmlinux_602.h
