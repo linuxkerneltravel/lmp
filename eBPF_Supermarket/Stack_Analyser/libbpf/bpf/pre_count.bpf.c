@@ -21,16 +21,12 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "stack_analyzer.h"
+#include "sa_ebpf.h"
 
 #define MINBLOCK_US 1ULL
 #define MAXBLOCK_US 99999999ULL
 
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(pid_comm, u32, comm);
-
-BPF_HASH(psid_util, psid, tuple);
+DeclareStackMaps(ra_tuple);
 
 BPF_HASH(in_ra, u32, psid);
 BPF_HASH(page_psid, struct page *, psid);
@@ -66,17 +62,11 @@ int BPF_PROG(page_cache_ra_unbounded)
         .ksid = k ? KERNEL_STACK : -1,
     };
 
-// typedef struct
-// {
-//     __u64 truth;
-//     __u64 expect;
-// } tuple;
-
-    tuple *d = bpf_map_lookup_elem(&psid_util, &apsid);         //d指向psid_util表中的apsid对应的类型为tuple的值
+    ra_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid);         //d指向psid_count表中的apsid对应的类型为tuple的值
     if (!d)
     {
-        tuple a = {.expect = 0, .truth = 0};                    //初始化为0
-        bpf_map_update_elem(&psid_util, &apsid, &a, BPF_ANY);   //更新psid_util表中的apsid的值为a
+        ra_tuple a = {.expect = 0, .truth = 0};                    //初始化为0
+        bpf_map_update_elem(&psid_count, &apsid, &a, BPF_ANY);   //更新psid_count表中的apsid的值为a
     }
     bpf_map_update_elem(&in_ra, &pid, &apsid, BPF_ANY);         //更新in_ra表中的pid对应的值为apsid
     return 0;
@@ -96,7 +86,7 @@ int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
     if (!apsid)
         return 0;
 
-    tuple *a = bpf_map_lookup_elem(&psid_util, apsid);          //a是指向psid_util的apsid对应的内容
+    ra_tuple *a = bpf_map_lookup_elem(&psid_count, apsid);          //a是指向psid_count的apsid对应的内容
     if (!a)
         return 0;
 
@@ -137,7 +127,7 @@ int BPF_PROG(mark_page_accessed, u64 page)
     apsid = bpf_map_lookup_elem(&page_psid, &page);             //查看page_psid对应的 地址page 对应类型为psid的值，并保存在apsid
     if (!apsid)
         return 0;
-    tuple *a = bpf_map_lookup_elem(&psid_util, apsid);          //a指向psid_util的apsid的内容
+    ra_tuple *a = bpf_map_lookup_elem(&psid_count, apsid);      //a指向psid_count的apsid的内容
     if (!a)
         return 0;
     a->truth++;                                                 //已访问

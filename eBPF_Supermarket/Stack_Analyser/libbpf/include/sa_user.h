@@ -14,118 +14,58 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 通用数据结构和宏
+// 用户态使用的宏
 
-#ifndef STACK_ANALYZER
-#define STACK_ANALYZER
+#ifndef STACK_ANALYZER_USER
+#define STACK_ANALYZER_USER
 
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
-#define COMM_LEN 16        // 进程名最大长度
-
-#include <asm/types.h>
 #include <linux/version.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/eventfd.h>
+#include <signal.h>
 
-// ================= common struct ================
-
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
-
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
-
-/// @brief 内存信息的键，唯一标识一块被分配的内存
-/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
-typedef struct {
-    __u64 addr;
-    __u32 pid, o;
-} piddr;
-
-/// @brief 内存分配信息，可溯源的一次内存分配
-/// @note o为可初始化的填充对齐成员，贴合bpf verifier要求
-typedef struct {
-    __u64 size;
-    __u32 usid, o;
-} mem_info;
-
-typedef struct {
-    __u64 truth;
-    __u64 expect;
-} tuple;
-
-typedef struct {
-    __u64 count;
-    __u64 size;
-} io_tuple;
+#include "sa_common.h"
 
 
-// ============= eBPF api ===================
+/// @brief 栈处理工具当前支持的采集模式
+typedef enum {
+    MOD_ON_CPU,  // on—cpu模式
+    MOD_OFF_CPU, // off-cpu模式
+    MOD_MEM,     // 内存模式
+    MOD_IO,      // io模式
+    MOD_RA,      // 预读取分析模式
+} MOD;
 
-/// @brief 创建一个指定名字的ebpf调用栈表
-/// @param 新栈表的名字
-#define BPF_STACK_TRACE(name)                           \
-    struct {                                            \
-        __uint(type, BPF_MAP_TYPE_STACK_TRACE);         \
-        __uint(key_size, sizeof(__u32));                \
-        __uint(value_size, MAX_STACKS * sizeof(__u64)); \
-        __uint(max_entries, MAX_ENTRIES);               \
-    } name SEC(".maps")
+typedef enum {
+    NO_OUTPUT,
+    LIST_OUTPUT,
+    FLAME_OUTPUT
+} display_t;
 
-/// @brief 创建一个指定名字和键值类型的ebpf散列表
-/// @param name 新散列表的名字
-/// @param type1 键的类型
-/// @param type2 值的类型
-#define BPF_HASH(name, type1, type2)       \
-    struct {                               \
-        __uint(type, BPF_MAP_TYPE_HASH);   \
-        __uint(key_size, sizeof(type1));   \
-        __uint(value_size, sizeof(type2)); \
-        __uint(max_entries, MAX_ENTRIES);  \
-    } name SEC(".maps")
-
-/// @brief 当前进程上下文内核态调用栈id
-#define KERNEL_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP)
-
-/// @brief 当前进程上下文用户态调用栈id
-#define USER_STACK bpf_get_stackid(ctx, &stack_trace, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
-
-/**
- * 用于在eBPF代码中声明通用的maps，其中
- * psid_count 存储 <psid, count> 键值对，记录了id（由pid、ksid和usid（内核、用户栈id））及相应的值
- * stack_trace 存储 <sid（ksid或usid）, trace> 键值对，记录了栈id（ksid或usid）及相应的栈
- * pid_tgid 存储 <pid, tgid> 键值对，记录pid以及对应的tgid
- * pid_comm 存储 <pid, comm> 键值对，记录pid以及对应的命令名
- * type：指定count值的类型
- */
-#define DECLARE_MAPS(type)            \
-    BPF_HASH(psid_count, psid, type); \
-    BPF_STACK_TRACE(stack_trace);     \
-    BPF_HASH(pid_tgid, u32, u32);     \
-    BPF_HASH(pid_comm, u32, comm);
-
-// =================== user api ===================
+typedef enum {
+    COUNT,
+    SIZE,
+    AVE
+} io_mod;
 
 /// @brief 获取epbf程序中指定表的文件描述符
 /// @param name 表的名字
 #define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
 
 /// @brief 获取所有表的文件描述符
-#define OPEN_ALL_MAP(value_map_name)     \
-	value_fd = OPEN_MAP(value_map_name); \
-	tgid_fd = OPEN_MAP(pid_tgid);        \
-	comm_fd = OPEN_MAP(pid_comm);        \
+#define OPEN_ALL_MAP()                  \
+	value_fd = OPEN_MAP(psid_count);    \
+	tgid_fd = OPEN_MAP(pid_tgid);       \
+	comm_fd = OPEN_MAP(pid_comm);       \
 	trace_fd = OPEN_MAP(stack_trace);
 
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param name ebpf程序的类型名
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define StackProgLoadOpen(name, val_map_name, ...) \
+#define StackProgLoadOpen(name, ...) \
 	skel = name##_bpf__open();                     \
 	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
 	skel->bss->min = min;                          \
@@ -133,7 +73,7 @@ typedef struct {
 	__VA_ARGS__;                                   \
 	err = name##_bpf__load(skel);                  \
 	CHECK_ERR(err, "Fail to load BPF skeleton");   \
-	OPEN_ALL_MAP(val_map_name)
+	OPEN_ALL_MAP()
 
 /// @class rapidjson::Value
 /// @brief 添加字符串常量键和任意值，值可使用内存分配器
@@ -160,11 +100,6 @@ typedef struct {
 /// @param v 要添加的字符串变量
 #define PushString(v) PushBack(rapidjson::Value(v, alc), alc)
 
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/eventfd.h>
-#include <signal.h>
 /// @brief 检查错误，若错误成立则打印带原因的错误信息并使上层函数返回-1
 /// @param cond 被检查的条件表达式
 /// @param info 要打印的错误信息
@@ -263,20 +198,6 @@ static long perf_event_open(struct perf_event_attr *hw_event, pid_t pid, int cpu
 	return syscall(SYS_perf_event_open, hw_event, pid, cpu, group_fd, flags);
 }
 
-/// @brief 栈处理工具当前支持的采集模式
-typedef enum {
-    MOD_ON_CPU,  // on—cpu模式
-    MOD_OFF_CPU, // off-cpu模式
-    MOD_MEM,     // 内存模式
-    MOD_IO,      // io模式
-    MOD_RA,      // 预读取分析模式
-} MOD;
-
-typedef enum {
-    NO_OUTPUT,
-    LIST_OUTPUT,
-    FLAME_OUTPUT
-} display_t;
 
 /// @brief 将指定地址转变为指定类型的ebpf骨架指针
 /// @param type ebpf骨架类型
@@ -374,11 +295,5 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 /// @note 如果检查到没有被附加则使上层函数返回负的错误代码
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
-
-typedef enum {
-    COUNT,
-    SIZE,
-    AVE
-} DATA;
 
 #endif

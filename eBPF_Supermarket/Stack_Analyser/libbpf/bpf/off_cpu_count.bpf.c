@@ -21,7 +21,7 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "stack_analyzer.h"
+#include "sa_ebpf.h"
 #include "task.h"
 
 BPF_HASH(psid_count, psid, u32);                                    //记录了进程的运行总时间

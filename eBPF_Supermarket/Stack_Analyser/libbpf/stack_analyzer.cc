@@ -40,7 +40,7 @@ extern "C" {
 #include <signal.h>
 #include <sys/wait.h>
 
-#include "stack_analyzer.h"
+#include "sa_user.h"
 #include "bpf/on_cpu_count.skel.h"
 #include "bpf/off_cpu_count.skel.h"
 #include "bpf/mem_count.skel.h"
@@ -70,7 +70,7 @@ namespace env {
 	unsigned delay = 5;
 	display_t d_mode = NO_OUTPUT;
 	bool clear = false; /*clear data after every show*/
-	DATA data = COUNT;
+	io_mod data = COUNT;
 }
 
 void __handler(int signo) {
@@ -627,7 +627,6 @@ public:
 		pclose(fp);
 		StackProgLoadOpen(
 			on_cpu_count,
-			psid_count,
 			skel->bss->load_a = load_a,
 			skel->bss->u = ustack,
 			skel->bss->k = kstack
@@ -696,7 +695,6 @@ public:
 	int load(void) override {
 		StackProgLoadOpen(
 			off_cpu_count,
-			psid_count,
 			skel->bss->apid = pid,
 			skel->bss->u = ustack,
 			skel->bss->k = kstack
@@ -739,7 +737,6 @@ public:
 	int load(void) override {
 		StackProgLoadOpen(
 			mem_count,
-			psid_count,
 			skel->bss->u = ustack,
 			skel->bss->apid = pid
 		)
@@ -787,15 +784,20 @@ public:
 class io_loader : public bpf_loader {
 protected:
 	struct io_count_bpf *skel;
-	DATA d = env::data;
 	std::string data_str(uint64_t f) override {
 		std::string p;
-		if (d == SIZE) {
+		switch(env::data) {
+		case SIZE:
 			p = "size(B):";
-		} else if (d == COUNT) {
+			break;
+		case COUNT:
 			p = "counts:";
-		} else {
-			p = "(size/counts):";
+			break;
+		case AVE:
+			p = "aver(B/1):";
+			break;
+		default:
+			break;
 		}
 		return p + std::to_string(f);
 	};
@@ -803,22 +805,22 @@ protected:
 public:
 	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
 		skel = 0;
-		// in_count = cot;
 		delete (uint64_t *)data_buf;
 		data_buf = new io_tuple{0};
 	};
 	
 	int load(void) override {
-		StackProgLoadOpen(io_count, psid_count, {
-			skel->bss->apid = pid;
-			skel->bss->u = ustack;
-			skel->bss->k = kstack;
-			// skel->bss->cot = in_count;
-		});
+		StackProgLoadOpen(
+			io_count,
+			skel->bss->apid = pid,
+			skel->bss->u = ustack,
+			skel->bss->k = kstack
+		);
 		return 0;
 	};
 	
 	int attach(void) override {
+		printf("pid %d, apid %d\n", pid, skel->bss->apid);
 		err = bpf_attach(io_count, skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
@@ -837,13 +839,16 @@ public:
 
 	uint64_t data_value() override {
 		io_tuple *p = (io_tuple *)data_buf;
-		// return p->expect - p->truth;
-		if (env::data == AVE)
+		switch (env::data) {
+		case AVE:
 			return p->size / p->count;
-		else if (env::data == SIZE)
+		case SIZE:
 			return p->size;
-		else
+		case COUNT:
 			return p->count;
+		default:
+			return 0;
+		}
 	};
 
 	~io_loader() override {
@@ -863,17 +868,14 @@ public:
 	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
 		skel = 0;
 		delete (uint64_t *)data_buf;
-		data_buf = new tuple{0};
+		data_buf = new ra_tuple{0};
 	};
 	int load(void) override {
 		StackProgLoadOpen(
-			pre_count, 
-			psid_util, 
-			{
-				skel->bss->apid = pid;
-				skel->bss->u = ustack;
-				skel->bss->k = kstack;
-			}
+			pre_count,
+			skel->bss->apid = pid,
+			skel->bss->u = ustack,
+			skel->bss->k = kstack
 		);
 		return 0;
 	};
@@ -896,12 +898,12 @@ public:
 	};
 
 	uint64_t data_value() override {
-		tuple *p = (tuple *)data_buf;
+		ra_tuple *p = (ra_tuple *)data_buf;
 		return p->expect - p->truth;
 	};
 
 	~pre_loader() override {
-		delete (tuple *)data_buf;
+		delete (ra_tuple *)data_buf;
 	}
 
 };

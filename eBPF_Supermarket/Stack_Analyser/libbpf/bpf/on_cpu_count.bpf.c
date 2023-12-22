@@ -21,7 +21,7 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "stack_analyzer.h"
+#include "sa_ebpf.h"
 
 const char LICENSE[] SEC("license") = "GPL";
 
