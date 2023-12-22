@@ -23,11 +23,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential linux-tools-$(uname -r)
           git submodule update --init --recursive
 
       - name: Run sysstat
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/applications/sysstat/
+          bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           sudo make sysstat
           sudo timeout 20 ./sysstat

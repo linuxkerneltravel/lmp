@@ -1,5 +1,7 @@
-/* 请一定注意这个架构依赖头文件 */
-#include "../../vmlinux/vmlinux_x86.h"
+/* 请一定注意vmlinux.h头文件是依赖于特定架构的，建议自行在代码同级目录下生成，
+生成方法：1、切换至本代码同级目录下；2、安装Linux开发工具包：sudo apt install linux-tools-$(uname -r)
+3、生成vmlinux.h文件：bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h */
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
