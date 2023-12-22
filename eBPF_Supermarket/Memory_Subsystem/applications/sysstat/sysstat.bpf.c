@@ -1,6 +1,10 @@
-/* 请一定注意vmlinux.h头文件是依赖于特定架构的，建议自行在代码同级目录下生成，
-生成方法：1、切换至本代码同级目录下；2、安装Linux开发工具包：sudo apt install linux-tools-$(uname -r)
-3、生成vmlinux.h文件：bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h */
+/* 请一定注意vmlinux.h头文件是依赖于特定架构的，建议自行生成，
+生成方法：
+1、切换至本代码../../vmlinux/你的架构目录下；
+2、安装Linux开发工具包：sudo apt install linux-tools-$(uname -r)
+3、删除那个vmlinux_数字.h文件；
+4、生成vmlinux.h文件：bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+5、将生成的vmlinux.h文件名字改成刚刚删除的vmlinux_数字.h */
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
