@@ -24,7 +24,7 @@
 #include "sa_ebpf.h"
 #include "task.h"
 
-DeclareCommonMaps(io_tuple);
+DeclareCommonMaps(u32);
 DeclareCommonVar();
 
 int apid = 0;

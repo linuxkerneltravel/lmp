@@ -25,7 +25,7 @@
 #include "task.h"
 
 //定义的哈希表以及堆栈跟踪对象
-DeclareCommonMaps(io_tuple);
+DeclareCommonMaps(u64);
 DeclareCommonVar();
 
 /// @brief 内存信息的键，唯一标识一块被分配的内存
@@ -65,7 +65,7 @@ int gen_alloc_enter(size_t size)
     }
 
     // record size
-                                                                                //size为挂载点传递的值
+    //size为挂载点传递的值
     return bpf_map_update_elem(&pid_size, &pid, &size, BPF_ANY);                //更新pid_size哈希表的pid项对应的值为size，如果不存在该项，则创建
 }
 
@@ -107,17 +107,16 @@ int gen_alloc_exit(struct pt_regs *ctx)                                     //�
         .usid = u ? USER_STACK : -1,
         .ksid = k ? KERNEL_STACK: -1,
     };
-      u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);//count指向psid_count表apsid对应的值
-   
-    if (!count)                                             //如果count为空，，若表的apsid表项不存在，则更新psid_count表的apsid为size
+    u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);  //count指向psid_count表apsid对应的值
+
+    if (!count)                                             //如果count为空，若表的apsid表项不存在，则更新psid_count表的apsid为size
         bpf_map_update_elem(&psid_count, &apsid, size, BPF_NOEXIST);
     else
         (*count) += *size;                                  //psid_count表apsid对应的值+=pid_size哈希表pid对应的值
 
-
     // record pid_addr-info
     piddr a = {
-        .addr = (u64)addr,                                 //函数的返回值
+        .addr = (u64)addr,                                  //函数的返回值
         .pid = pid,
         .o = 0,
     };

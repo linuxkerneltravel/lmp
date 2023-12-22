@@ -25,7 +25,7 @@
 
 const char LICENSE[] SEC("license") = "GPL";
 
-DeclareCommonMaps(io_tuple);
+DeclareCommonMaps(u32);
 DeclareCommonVar();
 unsigned long *load_a = NULL;
 
