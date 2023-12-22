@@ -84,7 +84,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 	printf("%-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu----- %-8lu %-8lu %-8lu %-8lu %-8lu----- %-8lu %-8lu %-8lu %-8lu--- %-8lu %-8lu %-8lu %-8lu %-8lu\n",
 		   e->anon_active + e->file_active, e->file_inactive + e->anon_inactive, e->anon_active, e->anon_inactive, e->file_active, e->file_inactive, e->unevictable, e->file_dirty, e->writeback, e->anon_mapped, e->file_mapped, e->shmem, e->slab_reclaimable + e->kernel_misc_reclaimable, e->slab_reclaimable + e->slab_unreclaimable, e->slab_reclaimable, e->slab_unreclaimable, e->unstable_nfs, e->writeback_temp, e->anon_thps, e->shmem_thps, e->pmdmapped);
-	/* 睡眠会导致程序无法终止，所以注释掉 */
+	/* 睡眠会导致程序无法终止，所以注释掉这个代码块 */
 	// if (env.time_s != 0)
 	// {
 	// 	msleep(env.time_s);
