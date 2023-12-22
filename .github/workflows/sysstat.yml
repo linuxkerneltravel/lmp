@@ -1,0 +1,33 @@
+name: sysstat
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Memory_Subsystem/applications/sysstat/**'
+      - '.github/workflows/sysstat.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Memory_Subsystem/applications/sysstat/**'
+      - '.github/workflows/sysstat.yml'
+
+jobs:
+  libbpf-project-build-and-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          git submodule update --init --recursive
+
+      - name: Run sysstat
+        run: |
+          cd eBPF_Supermarket/Memory_Subsystem/applications/sysstat/
+          make sysstat
+          sudo ./sysstat 
