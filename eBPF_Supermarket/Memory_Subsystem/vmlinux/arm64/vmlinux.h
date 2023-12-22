@@ -1,1 +1,1 @@
-vmlinux_601.h
+vmlinux_arm64.h

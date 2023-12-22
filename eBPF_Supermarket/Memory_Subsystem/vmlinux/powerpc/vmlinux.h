@@ -1,1 +1,1 @@
-vmlinux_600.h
+vmlinux_powerpc.h

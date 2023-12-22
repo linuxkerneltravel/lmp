@@ -30,4 +30,4 @@ jobs:
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/applications/sysstat/
           make sysstat
-          sudo ./sysstat 
+          sudo timeout 10 ./sysstat 
