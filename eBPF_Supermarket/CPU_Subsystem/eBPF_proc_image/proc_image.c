@@ -440,12 +440,12 @@ static void sig_handler(int signo)
 
 int main(int argc, char **argv)
 {
-	struct resource_image_bpf *resource_skel;
-	struct syscall_image_bpf *syscall_skel;
+	struct resource_image_bpf *resource_skel = NULL;
+	struct syscall_image_bpf *syscall_skel = NULL;
 	struct ring_buffer *syscall_rb = NULL;
-	struct lock_image_bpf *lock_skel;
+	struct lock_image_bpf *lock_skel = NULL;
 	struct ring_buffer *lock_rb = NULL;
-	struct keytime_image_bpf *keytime_skel;
+	struct keytime_image_bpf *keytime_skel = NULL;
 	struct ring_buffer *keytime_rb = NULL;
 	pthread_t thread_enable;
 	int err;
@@ -488,7 +488,6 @@ int main(int argc, char **argv)
 		}
 
 	}
-
 
 	if(env.enable_syscall){
 		syscall_skel = syscall_image_bpf__open();
