@@ -30,9 +30,5 @@ jobs:
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/applications/sysstat/
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
-          sudo make sysstat
-          sudo timeout 10 ./sysstat
-          ret=$?
-          if [ $ret -ne 124 ]; then
-            exit $ret
-          fi
+          make sysstat
+          (sudo timeout 600 ./cpu_watcher) || [ $? -eq 124 ]
