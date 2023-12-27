@@ -93,6 +93,8 @@ protected:
 	int trace_fd = -1; // 栈id-栈轨迹表的文件描述符
 
 	void *data_buf = NULL;		// 用于存储单个指标值的缓冲区
+	
+	bool showDelta = true;
 
 	/// @brief 将缓冲区的数据解析为特定值
 	/// @param  无
@@ -121,7 +123,10 @@ public:
 
 	bool clear = false;	// 清除已输出的指标积累量
 
+	int self_pid;
+
 	StackCollector() {
+		self_pid = getpid();
 		data_buf = new uint64_t(0);
 	};
 
@@ -175,8 +180,8 @@ public:
 
 	/// @brief 清除count map的数据
 	/// @param  无
-	void clear_count(void)
-	{
+	void check_clear_count(void) {
+		if(!showDelta) return;
 		uint c = MAX_ENTRIES;
 		for (psid prev = {0}, id; c && !bpf_map_get_next_key(value_fd, &prev, &id); c--, prev = id) {
 			bpf_map_delete_elem(value_fd, &id);
@@ -382,7 +387,7 @@ protected:
 public:
 	char *object = (char *)"libc.so.6";
 	
-	MemoryStackCollector() { kstack = false; name = "memory"; };
+	MemoryStackCollector() { kstack = false; name = "memory"; showDelta = false; };
 
 	int load(void) override {
 		StackProgLoadOpen();
@@ -408,16 +413,21 @@ public:
 	};
 
 	void detach(void) override {
-		// leak
-		if (skel->links.free_enter) {
-			bpf_link__destroy(skel->links.free_enter);
+		skel->detach(skel);
+		#define destoryBPFLinkIfExist(name) \
+		if(skel->links.name) { \
+			bpf_link__destroy(skel->links.name); \
 		}
-		if (skel->links.malloc_exit) {
-			bpf_link__destroy(skel->links.malloc_exit);
-		}
-		if (skel->links.malloc_enter) {
-			bpf_link__destroy(skel->links.malloc_enter);
-		}
+		destoryBPFLinkIfExist(malloc_enter);
+		destoryBPFLinkIfExist(malloc_exit);
+		destoryBPFLinkIfExist(calloc_enter);
+		destoryBPFLinkIfExist(calloc_exit);
+		destoryBPFLinkIfExist(realloc_enter);
+		destoryBPFLinkIfExist(realloc_exit);
+		destoryBPFLinkIfExist(free_enter);
+		destoryBPFLinkIfExist(mmap_enter);
+		destoryBPFLinkIfExist(mmap_exit);
+		destoryBPFLinkIfExist(munmap_enter);
 	};
 
 	defaultUnload;
@@ -491,6 +501,7 @@ public:
 		delete (uint64_t *)data_buf;
 		data_buf = new ra_tuple{0};
 		name = "readahead";
+		showDelta = false;
 	};
 
 	~ReadaheadStackCollector() override {
@@ -509,13 +520,15 @@ namespace MainConfig {
 std::vector<StackCollector*> StackCollectorList;
 void endCollect(void) {
 	signal(SIGINT, SIG_IGN);
-	if (MainConfig::command.length()) {
-		kill(MainConfig::target_pid, SIGTERM);
-	}
 	for(auto Item : StackCollectorList) {
-		Item->format();
+		if(MainConfig::run_time > 0) {
+			Item->format();
+		}
 		Item->detach();
 		Item->unload();
+	}
+	if (MainConfig::command.length()) {
+		kill(MainConfig::target_pid, SIGTERM);
 	}
 }
 
@@ -654,11 +667,13 @@ int main(int argc, char *argv[]) {
 		::time(&timep);
 		printf("%s", ctime(&timep));
 		for(auto Item : StackCollectorList) {
+			Item->detach();
 			if(MainConfig::d_mode == display_t::LIST_OUTPUT) {
 				Item->print_list();
 			}
 			Item->format();
-			Item->clear_count();
+			Item->check_clear_count();
+			Item->attach();
 		}
 	}
 	atexit(endCollect);
