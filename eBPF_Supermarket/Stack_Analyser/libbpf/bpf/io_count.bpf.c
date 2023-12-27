@@ -33,8 +33,9 @@ const char LICENSE[] SEC("license") = "GPL";
 static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
     struct task_struct* curr = (struct task_struct*)bpf_get_current_task(); //利用bpf_get_current_task()获得当前的进程tsk
+    ignoreKthread(curr);
     u32 pid = get_task_ns_pid(curr);                                        //利用帮助函数获得当前进程的pid
-    if ((apid >= 0 && pid != apid) || !pid)
+    if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
     u64 len = BPF_CORE_READ(ctx, args[2]);                                  //从当前ctx中读取64位的值，并保存在len中
     bpf_printk("%llu", len);

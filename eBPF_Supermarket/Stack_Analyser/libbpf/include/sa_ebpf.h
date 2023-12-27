@@ -21,6 +21,15 @@
 
 #include "sa_common.h"
 
+#define PF_KTHREAD 0x00200000
+#define ignoreKthread(task) \
+    do { \
+        int flags = BPF_CORE_READ(task, flags); \
+        if(flags & PF_KTHREAD) \
+            return 0; \
+    } while(false)
+
+
 /// @brief 创建一个指定名字的ebpf调用栈表
 /// @param 新栈表的名字
 #define BPF_STACK_TRACE(name)                           \
@@ -66,5 +75,6 @@
 #define DeclareCommonVar()       \
     bool u = false, k = false;  \
     __u64 min = 0, max = 0;     \
+    int self_pid = 0;
 
 #endif

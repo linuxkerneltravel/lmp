@@ -22,6 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "sa_ebpf.h"
+#include "task.h"
 
 #define MINBLOCK_US 1ULL
 #define MAXBLOCK_US 99999999ULL
@@ -36,13 +37,14 @@ BPF_HASH(page_psid, struct page *, psid);
 SEC("fentry/page_cache_ra_unbounded")                               //fentry在内核函数page_cache_ra_unbounded进入时触发的挂载点 
 int BPF_PROG(page_cache_ra_unbounded)
 {
-    u64 td = bpf_get_current_pid_tgid();
-    u32 pid = td >> 32;                                             //获取当前进程tgid，用户空间的pid即是tgid
+    struct task_struct* curr = (struct task_struct*)bpf_get_current_task();
+    ignoreKthread(curr);
+    u32 pid = get_task_ns_pid(curr);                                             //获取当前进程tgid，用户空间的pid即是tgid
 
-    if ((apid >= 0 && pid != apid) || !pid)
+    if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
 
-    u32 tgid = td;
+    u32 tgid = get_task_ns_tgid(curr);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);           //更新pid_tgid表中的pid对应的值
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);                 //p指向pid_comm表中pid对应的值
     if (!p)

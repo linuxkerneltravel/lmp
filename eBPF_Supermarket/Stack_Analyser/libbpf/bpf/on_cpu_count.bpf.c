@@ -22,6 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "sa_ebpf.h"
+#include "task.h"
 
 const char LICENSE[] SEC("license") = "GPL";
 
@@ -38,13 +39,13 @@ int do_stack(void *ctx)
     bpf_printk("%lu %lu", load, min);                                           //输出load 以及min
     if (load < min || load > max)
         return 0;
-
     // record data
     struct task_struct *curr = (void *)bpf_get_current_task();                  //curr指向当前进程的tsk
-    u32 pid = BPF_CORE_READ(curr, pid);                                         //pid保存当前进程的pid
-    if (!pid)
+    ignoreKthread(curr);                                                        // 忽略内核线程
+    u32 pid = get_task_ns_pid(curr);                                      //pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
+    if (!pid || pid == self_pid)
         return 0;
-    u32 tgid = BPF_CORE_READ(curr, tgid);                                       //tgid保存当前进程的tgid
+    u32 tgid = get_task_ns_tgid(curr);                                  //tgid保存当前进程的tgid
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);                       //更新pid_tgid表中的pid表项
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);                             //p指向pid_comm中的Pid对应的值
     if (!p)

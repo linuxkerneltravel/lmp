@@ -52,7 +52,10 @@ int gen_alloc_enter(size_t size)
     if (size <= min || size > max)
         return 0;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();    //利用bpf_get_current_task()获得当前的进程tsk
+    ignoreKthread(curr);
     u32 pid = get_task_ns_pid(curr); // also kernel pid, but attached ns pid on kernel pid, invaild!
+    if(pid == self_pid)
+        return 0;
     u32 tgid = get_task_ns_tgid(curr);                                          //利用帮助函数获得当前进程的tgid
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);                       //更新pid_tgid哈希表中的pid项目为tgid,如果该项不存在，则创建该表项
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);                             //p指向pid_comm哈希表中的pid表项对应的value

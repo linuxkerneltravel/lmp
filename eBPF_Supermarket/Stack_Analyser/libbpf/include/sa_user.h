@@ -70,6 +70,7 @@ typedef enum {
 	skel->bss->max = max;                          \
 	skel->bss->u = ustack;						   \
 	skel->bss->k = kstack;						   \
+	skel->bss->self_pid = self_pid;				   \
 	__VA_ARGS__;                                   \
 	err = skel->load(skel);                		   \
 	CHECK_ERR(err, "Fail to load BPF skeleton");   \

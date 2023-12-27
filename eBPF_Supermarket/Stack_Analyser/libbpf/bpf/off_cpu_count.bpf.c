@@ -37,15 +37,15 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     // u32 pid = BPF_CORE_READ(curr, pid);
     u32 pid = get_task_ns_pid(curr);                                        //利用帮助函数获取当前进程tsk的pid
-
-    if ((apid >= 0 && pid == apid) || (apid < 0 && pid))
+    ignoreKthread(curr);
+    if ((apid >= 0 && pid == apid) || (apid < 0 && pid && pid != self_pid))
     {
-        // record next start time
+        // record curr block time
         u64 ts = bpf_ktime_get_ns();                                        //ts=当前的时间戳（ns）
         bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);                //如果start表中不存在pid对应的时间，则就创建pid-->ts
     }
     
-    // calculate time delta
+    // calculate time delta, next ready to run
     struct task_struct *next = (struct task_struct *)bpf_get_current_task();//next指向当前的结构体
     // pid = BPF_CORE_READ(next, pid);
     pid = get_task_ns_pid(next);                                            //利用帮助函数获取next指向的tsk的pid
