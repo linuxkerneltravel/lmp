@@ -36,12 +36,11 @@ typedef enum {
     MOD_MEM,     // 内存模式
     MOD_IO,      // io模式
     MOD_RA,      // 预读取分析模式
-} MOD;
+} StackCollectMode;
 
 typedef enum {
     NO_OUTPUT,
-    LIST_OUTPUT,
-    FLAME_OUTPUT
+    LIST_OUTPUT
 } display_t;
 
 typedef enum {
@@ -62,16 +61,17 @@ typedef enum {
 	trace_fd = OPEN_MAP(stack_trace);
 
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
-/// @param name ebpf程序的类型名
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define StackProgLoadOpen(name, ...) \
-	skel = name##_bpf__open();                     \
+#define StackProgLoadOpen(...) \
+	skel = skel->open(NULL);                       \
 	CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
 	skel->bss->min = min;                          \
 	skel->bss->max = max;                          \
+	skel->bss->u = ustack;						   \
+	skel->bss->k = kstack;						   \
 	__VA_ARGS__;                                   \
-	err = name##_bpf__load(skel);                  \
+	err = skel->load(skel);                		   \
 	CHECK_ERR(err, "Fail to load BPF skeleton");   \
 	OPEN_ALL_MAP()
 
@@ -126,7 +126,7 @@ typedef enum {
 /// @return 成功返回0，失败返回-1
 int event_init(int *fd) {
 	CHECK_ERR(!fd, "pointer to fd is null");
-	const int tmp_fd = eventfd(0, EFD_CLOEXEC);
+	const int tmp_fd = eventfd(0, EFD_CLOEXEC & EFD_SEMAPHORE);
 	CHECK_ERR(tmp_fd < 0, "failed to create event fd");
 	*fd = tmp_fd;
 	return 0;
@@ -197,15 +197,6 @@ static long perf_event_open(struct perf_event_attr *hw_event, pid_t pid, int cpu
 							unsigned long flags) {
 	return syscall(SYS_perf_event_open, hw_event, pid, cpu, group_fd, flags);
 }
-
-
-/// @brief 将指定地址转变为指定类型的ebpf骨架指针
-/// @param type ebpf骨架类型
-/// @param name 指针
-#define BPF(type, name) (struct type##_bpf *)name
-#define bpf_open_load(type, name) struct type##_bpf *name = type##_bpf__open_and_load()
-#define bpf_destroy(type, name) type##_bpf__destroy(BPF(type, name))
-#define bpf_attach(type, name) type##_bpf__attach(BPF(type, name))
 
 extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 
