@@ -295,12 +295,6 @@ public:
 		CHECK_ERR_EXIT(err, "Fail to get online CPU numbers");
 		num_cpus = libbpf_num_possible_cpus();
 		CHECK_ERR_EXIT(num_cpus <= 0, "Fail to get the number of processors");
-
-		pefds = (int *)malloc(num_cpus * sizeof(int));
-		for (int i = 0; i < num_cpus; i++) {
-			pefds[i] = -1;
-		}
-		links = (struct bpf_link **)calloc(num_cpus, sizeof(struct bpf_link *));
 	};
 
 	std::string data_str(uint64_t f) override { return "counts:" + std::to_string(f); };
@@ -326,6 +320,11 @@ public:
 			.inherit = 1,
 			.freq = 1, // use freq instead of period
 		};
+		pefds = (int *)malloc(num_cpus * sizeof(int));
+		for (int i = 0; i < num_cpus; i++) {
+			pefds[i] = -1;
+		}
+		links = (struct bpf_link **)calloc(num_cpus, sizeof(struct bpf_link *));
 		for (int cpu = 0; cpu < num_cpus; cpu++) {
 			/* skip offline/not present CPUs */
 			if (cpu >= num_online_cpus || !online_mask[cpu]) {
