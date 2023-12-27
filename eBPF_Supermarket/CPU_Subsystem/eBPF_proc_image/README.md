@@ -29,22 +29,13 @@ proc_image 工具的参数信息：
 | -------------------- | ------------------------------------------------- |
 | -p, --pid=PID        | 指定跟踪进程的pid，默认为0号进程                  |
 | -t, --time=TIME-SEC  | 设置程序的最大运行时间（0表示无限），默认一直运行 |
-| -C, --cpuid=CPUID    | 为每CPU进程设置，其他进程不需要设置该参数         |
-| -c, --cputime        | 统计进程上下CPU时间信息                           |
-| -e, --execve         | 对进程execve关键时间点进行画像                    |
-| -E, --exit           | 对进程exit关键时间点进行画像                      |
+| -c, --cpuid=CPUID    | 为每CPU进程设置，其他进程不需要设置该参数         |
+| -r, --resource        | 采集进程的资源使用情况，包括CPU利用率、内存利用率、每秒读写字节数（可持续开发）                           |
+| -s, --syscall         | 采集进程在on_CPU时间段内的系统调用序列                    |
+| -l, --lock           | 采集进程持有的用户态锁信息，包括用户态互斥锁、用户态读写锁（可持续开发）                      |
 | -q, --quote          | 在参数周围添加引号(")                             |
-| -K, --keytime        | 对进程的关键时间点进行画像，即execve和exit        |
-| -m, --user-mutex     | 对进程的用户态互斥锁进行画像                      |
-| -M, --kernel-mutex   | 对进程的内核态互斥锁进行画像                      |
-| -r, --user-rwlock-rd | 对进程用户态读模式下的读写锁进行画像              |
-| -w, --user-rwlock-wr | 对进程用户态写模式下的读写锁进行画像              |
-| -L, --lock           | 对进程的各种锁进行画像                            |
-| -f, --fork           | 对fork出来的子进程进行画像                        |
-| -F, --vfork          | 对vfork出来的子进程进行画像                       |
-| -T, --newthread      | 对pthread_create出来的新线程进行画像              |
-| -S, --child          | 对新创建进程和线程进行画像                        |
-| -A, --all            | 开启所有的功能                                    |
+| -k, --keytime        | 采集进程关键时间点的相关信息，包括execve、exit、fork、vfork、pthread_create       |
+| -a, --all     | 启动所有的采集进程数据的功能                      |
 | -h, --help           | 显示帮助信息                                      |
 
 ## 四、tools
