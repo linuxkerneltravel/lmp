@@ -26,13 +26,10 @@
 #include "rapidjson/document.h"
 #include "rapidjson/filewritestream.h"
 #include "rapidjson/writer.h"
-#include "symbol.h" /*符号解析库头文件*/
+#include "symbol.h"
 #include "clipp.h"
 
-#ifdef __cplusplus
 extern "C" {
-#endif
-
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
 #include <bpf/bpf.h>
@@ -46,87 +43,20 @@ extern "C" {
 #include "bpf/mem_count.skel.h"
 #include "bpf/io_count.skel.h"
 #include "bpf/pre_count.skel.h"
-
-#ifdef __cplusplus
-}
-#endif
-
-namespace env {
-	int pid = -1;												  /*pid filter*/
-	int cpu = -1;												  /*cpu index*/
-	int run_time = __INT_MAX__;									  /*run time*/
-	int freq = 49;												  /*simple frequency*/
-	MOD mod = MOD_ON_CPU;										  /*mod setting*/
-	bool u = true;												  /*user stack setting*/
-	bool k = true;												  /*kernel stack setting*/
-	bool fla = false;											  /*flame graph instead of json*/
-	char *object = (char *)"libc.so.6"; /*executable binary file for uprobe*/
-	static volatile sig_atomic_t exiting, child_exited;			  /*exiting flag*/
-	static int child_exec_event_fd = -1;
-	std::string command = "";
-	bool count = true; /*for io counts*/
-	int max = __INT_MAX__;
-	int min = 0;
-	unsigned delay = 5;
-	display_t d_mode = NO_OUTPUT;
-	bool clear = false; /*clear data after every show*/
-	io_mod data = COUNT;
 }
 
-void __handler(int signo) {
-	// printf("sig %d %d\n", signo, kill(env::pid, 0));
-	switch (signo) {
-	case SIGCHLD:
-		if (waitpid(env::pid, NULL, WNOHANG)) { // 子进程主动退出的情况 
-			env::exiting = env::child_exited = 1;
-		}
-		break;
-	case SIGINT:
-		env::exiting = 1;
-		break;
-	default:
-		break;
-	}
-}
+// 模板用来统一调用多个类有同样但未被抽象的接口
+// 虚函数用来规范接口来被统一调用
 
-class bpf_loader
-{
-protected:
-	int pid;	  // 用于设置ebpf程序跟踪的pid
-	int cpu;	  // 用于设置ebpf程序跟踪的cpu
-	int err;	  // 用于保存错误代码
-	int value_fd; // 栈计数表的文件描述符
-	int tgid_fd;  // pid-tgid表的文件描述符
-	int comm_fd;  // pid-进程名表的文件描述符
-	int trace_fd; // 栈id-栈轨迹表的文件描述符
-	bool ustack;  // 是否跟踪用户栈
-	bool kstack;  // 是否跟踪内核栈
-	uint64_t min, max;
-	unsigned delay;
-	display_t d_mode;
-	void *data_buf;
-
-	/// @brief 将缓冲区的数据解析为特定值
-	/// @param  无
-	/// @return 解析出的值
-	virtual uint64_t data_value(void) {
-		return *(uint64_t *)data_buf;
-	};
-
-	/// @brief 为特定值添加注解
-	/// @param f 特定值
-	/// @return 字符串
-	virtual std::string data_str(uint64_t f) { 
-		return "value:" + std::to_string(f); 
-	};
-
+class StackCollector {
+private:
 	/// @brief count类，主要是为了重载比较运算，便于自动排序
-	class pksid_val {
+	class CountItem {
 	public:
 		uint32_t pid;
 		int32_t ksid, usid;
 		uint64_t val;
-		pksid_val(int32_t p, int32_t k, int32_t u, uint64_t v) {
+		CountItem(int32_t p, int32_t k, int32_t u, uint64_t v) {
 			pid = p;
 			ksid = k;
 			usid = u;
@@ -136,73 +66,112 @@ protected:
 		/// @brief count对象的大小取决于val的大小
 		/// @param b 要比较的对象
 		/// @return 小于b则为真，否则为假
-		bool operator<(const pksid_val b) { 
+		bool operator<(const CountItem b) { 
 			return val < b.val; 
 		};
 	};
 
 	/// @brief 从count_map中取出数据并按val值生成有序列表
 	/// @return 一个列表指针
-	std::vector<pksid_val> *sortD() {
+	std::vector<CountItem> *sortedCountList(void) {
 		if (value_fd < 0) {
 			return NULL;
 		}
-		std::vector<pksid_val> *D = new std::vector<pksid_val>();
+		std::vector<CountItem> *D = new std::vector<CountItem>();
 		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
 			bpf_map_lookup_elem(value_fd, &id, data_buf);
-			pksid_val d(id.pid, id.ksid, id.usid, data_value());
+			CountItem d(id.pid, id.ksid, id.usid, data_value());
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
 		}
 		return D;
 	};
 
-	/// @brief 缓存用户态程序符号
-	/// @param pid 用户态进程号
-	/// @param usid 用户态调用栈号
-	void cache_user_syms(unsigned pid, int usid) {
-		if (usid >= 0) {
-			__u64 ip[MAX_STACKS];
-			bpf_map_lookup_elem(trace_fd, &usid, ip);
-			std::string symbol;
-			struct symbol sym;
-			elf_file file;
-			for (auto p : ip) {
-				if (!p) {
-					break;
-				}
-				sym.reset(p);
+protected:
+	int value_fd = -1; // 栈计数表的文件描述符
+	int tgid_fd = -1;  // pid-tgid表的文件描述符
+	int comm_fd = -1;  // pid-进程名表的文件描述符
+	int trace_fd = -1; // 栈id-栈轨迹表的文件描述符
 
-				if (g_symbol_parser.find_symbol_in_cache(pid, p, symbol)) {
-					continue;
-				}
-				if (g_symbol_parser.get_symbol_info(pid, sym, file) &&
-					g_symbol_parser.find_elf_symbol(sym, file, pid, pid)) {
-					g_symbol_parser.putin_symbol_cache(pid, p, sym.name);
-				}
-			}
-		}
-	}
+	void *data_buf = NULL;		// 用于存储单个指标值的缓冲区
 
-	/// @brief 打印count列表
+	/// @brief 将缓冲区的数据解析为特定值
 	/// @param  无
-	void print_list(void)
-	{
-		auto D = sortD();
-		for (auto id : *D) {
-			cache_user_syms(id.pid, id.usid);
-			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\t%s\n", id.pid, id.usid, id.ksid, data_str(id.val).c_str());
-		}
-		delete D;
-	}
+	/// @return 解析出的值
+	virtual uint64_t data_value(void) { return *(uint64_t *)data_buf; };
 
-	/// @brief 缓存 count_map中记录的所有进程的用户态程序的 函数符号
+	/// @brief 为特定值添加注解
+	/// @param f 特定值
+	/// @return 字符串
+	virtual std::string data_str(uint64_t f) { return "value:" + std::to_string(f); };
+
+	#define declareEBPF(eBPFName) \
+	struct eBPFName *skel = NULL;
+
+public:
+	std::string name;	// 标识类名
+
+	int pid = -1;	  // 用于设置ebpf程序跟踪的pid
+	int cpu = -1;	  // 用于设置ebpf程序跟踪的cpu
+	int err = 0;	  // 用于保存错误代码
+	
+	bool ustack = true;  // 是否跟踪用户栈
+	bool kstack = true;  // 是否跟踪内核栈
+	uint64_t min = 0; 
+	uint64_t max = __UINT64_MAX__;	// 设置采集指标最大值，最小值
+
+	bool clear = false;	// 清除已输出的指标积累量
+
+	StackCollector() {
+		data_buf = new uint64_t(0);
+	};
+
+	virtual ~StackCollector() {
+		delete (uint64_t *)data_buf;
+	};
+
+	/// @brief 负责ebpf程序的加载、参数设置和打开操作
 	/// @param  无
-	void traverse_cache(void)
-	{
-		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
-			cache_user_syms(id.pid, id.usid);
-		}
-	}
+	/// @return 成功则返回0，否则返回负数
+	virtual int load(void) = 0;
+	#define defaultLoad 			\
+	int load(void) override { 		\
+		StackProgLoadOpen(			\
+			skel->bss->apid = pid	\
+		);							\
+		return 0;					\
+	};
+
+	/// @brief 将ebpf程序挂载到跟踪点上
+	/// @param  无
+	/// @return 成功则返回0，否则返回负数
+	virtual int attach(void) = 0;
+	#define defaultAttach 								\
+	int attach(void) override {							\
+		err = skel->attach(skel);						\
+		CHECK_ERR(err, "Failed to attach BPF skeleton");\
+		return 0;										\
+	};
+
+	/// @brief 断开ebpf的跟踪点和处理函数间的连接
+	/// @param  无
+	virtual void detach(void) = 0;
+	#define defaultDetach		\
+	void detach(void) override {\
+		if (skel) {				\
+			skel->detach(skel);	\
+		}						\
+	};
+
+	/// @brief 卸载ebpf程序
+	/// @param  无
+	virtual void unload(void) = 0;
+	#define defaultUnload 		\
+	void unload(void) override {\
+		if (skel) {				\
+			skel->destroy(skel);\
+		}						\
+		skel = NULL;			\
+	};
 
 	/// @brief 清除count map的数据
 	/// @param  无
@@ -214,390 +183,109 @@ protected:
 		}
 	}
 
-	/// @brief 每隔5s输出计数表中的栈及数量
-	/// @param time 输出的持续时间
-	/// @return 返回被强制退出时的剩余时间，计数表未打开则返回-1
-	int log(int time) {
-		CHECK_ERR(value_fd < 0, "count map open failure");
-		/*for traverse map*/
-		time_t timep;
-		for (; !env::exiting && time > 0 && (pid < 0 || !kill(pid, 0)); time -= delay) {
-			// printf("exiting:%d, time:%d, pid:%d, existing:%d\n", env::exiting, time, pid, kill(pid, 0));
-			sleep(delay);
-			::time(&timep);
-			printf("%s", ctime(&timep));
-			switch (d_mode)
-			{
-			case FLAME_OUTPUT:
-				flame_save();
-				break;
-			case LIST_OUTPUT:
-				print_list();
-				break;
-			default:
-				traverse_cache();
-				break;
-			}
-		};
-		if (env::clear && time > 0 && !env::exiting) {
-			clear_count();
+	/// @brief 打印count列表
+	/// @param  无
+	void print_list(void)
+	{
+		auto D = sortedCountList();
+		for (auto id : *D) {
+			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\t%s\n", id.pid, id.usid, id.ksid, data_str(id.val).c_str());
 		}
-		return time;
-	};
-
-	/// @brief 创建子进程以执行特定命令
-	/// @return 无
-	int exec_command(void) {
-		// if specific userspace program was specified,
-		// create the child process and use an eventfd to synchronize the call to exec()
-		CHECK_ERR(env::pid >= 0, "cannot specify both command and pid");
-		CHECK_ERR(event_init(&env::child_exec_event_fd), "failed to init child event");
-		env::pid = pid = fork_sync_exec(env::command.c_str(), env::child_exec_event_fd);
-		CHECK_ERR(pid < 0, "failed to spawn child process");
-		return 0;
-	};
-
-	/// @brief 唤醒子进程以开始执行特定的命令
-	/// @return 无
-	int activate_child(void) {
-		int ret = event_notify(env::child_exec_event_fd, 1);
-		CHECK_ERR(ret, "failed to notify child to perform exec");
-		return 0;
-	};
-
-	/// @brief 清除创建的用于执行监测命令的子进程
-	/// @return 无
-	int clear_child(void) {
-		if (!env::child_exited) { // 子进程未主动退出的情况
-			CHECK_ERR(kill(env::pid, SIGTERM), "failed to signal child process");
-			printf("signaled child process\n");
-			CHECK_ERR(waitpid(env::pid, NULL, 0) < 0, "failed to reap child process");
-			printf("reaped child process\n");
-		}
-		return 0;
-	};
-
-public:
-	bpf_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k,
-				unsigned d = env::delay, display_t disp = env::d_mode, uint64_t n = env::min,
-				uint64_t m = env::max
-			) : pid(p), cpu(c), ustack(u), kstack(k), min(n), max(m), delay(d), d_mode(disp) {
-		value_fd = tgid_fd = comm_fd = trace_fd = -1;
-		err = 0;
-		data_buf = new uint64_t(0);
-	};
-
-	virtual ~bpf_loader() {
-		delete (uint64_t *)data_buf;
-	};
-
-	/// @brief 负责ebpf程序的加载、参数设置和打开操作
-	/// @param  无
-	/// @return 成功则返回0，否则返回负数
-	virtual int load(void) = 0;
-
-	/// @brief 将ebpf程序挂载到跟踪点上
-	/// @param  无
-	/// @return 成功则返回0，否则返回负数
-	virtual int attach(void) = 0;
-
-	/// @brief 断开ebpf的跟踪点和处理函数间的连接
-	/// @param  无
-	virtual void detach(void) = 0;
-
-	/// @brief 卸载ebpf程序
-	/// @param  无
-	virtual void unload(void) = 0;
+		delete D;
+	}
 
 	/// @brief 将表中的栈数据保存为火焰图
 	/// @param  无
 	/// @return 表未成功打开则返回负数
-	int flame_save(void)
+	int format(void)
 	{
-		printf("saving flame...\n");
 		CHECK_ERR(value_fd < 0, "count map open failure");
 		CHECK_ERR(trace_fd < 0, "trace map open failure");
 		CHECK_ERR(comm_fd < 0, "comm map open failure");
-		std::ostringstream tex("");
+		std::filebuf DataFileBuf;
+		const std::string DataFileName = name + "_stack_data.log";
+		CHECK_ERR(DataFileBuf.open(DataFileName, std::ios::app) == nullptr, "data file open failed"); 
+		std::ostream DataText(&DataFileBuf);
 		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
-			std::string line("");
-			symbol sym;
-			__u64 ip[MAX_STACKS];
-			if (id.ksid >= 0) {
-				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
-				for (auto p : ip) {
-					if (!p) {
-						break;
-					}
-					sym.reset(p);
-					if (g_symbol_parser.find_kernel_symbol(sym)) {
-						line = sym.name + ';' + line;
-					} else {
-						char a[19];
-						sprintf(a, "0x%016llx", p);
-						std::string s(a);
-						line = s + ';' + line;
-						g_symbol_parser.putin_symbol_cache(pid, p, s);
-					}
-				}
-			} else {
-				line = "[MISSING KERNEL STACK];" + line;
-			}
-			line = std::string("----------------;") + line;
-			{
-				std::string usr_strace("");
-				{
-					// unsigned deep = 0;
-					if (id.usid >= 0) {
-						bpf_map_lookup_elem(trace_fd, &id.usid, ip);
-						std::string *s = 0, symbol;
-						elf_file file;
-						for (auto p : ip) {
-							if (!p) {
-								break;
-							}
-							sym.reset(p);
-
-							if (g_symbol_parser.find_symbol_in_cache(id.pid, p, symbol)) {
-								s = &symbol;
-								usr_strace = *s + ';' + usr_strace;
-							} else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-									 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid)) {
-								usr_strace = sym.name + ';' + usr_strace;
-								g_symbol_parser.putin_symbol_cache(id.pid, p, sym.name);
-							} else {
-								char a[19];
-								sprintf(a, "0x%016llx", p);
-								std::string s(a);
-								usr_strace = s + ';' + usr_strace;
-								g_symbol_parser.putin_symbol_cache(id.pid, p, s);
-							}
-						}
-					} else {
-						usr_strace = std::string("[MISSING USER STACK];");
-					}
-				}
-				line = usr_strace + line;
-			}
 			{
 				char cmd[COMM_LEN];
 				bpf_map_lookup_elem(comm_fd, &id.pid, cmd);
-				line = std::string(cmd) + ':' + std::to_string(id.pid) + ';' + line;
+				DataText << std::string(cmd) << ':' << std::to_string(id.pid) << ';';
+			}
+			symbol sym;
+			uint64_t ip[MAX_STACKS];
+			if (id.usid >= 0) {
+				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
+				std::string *s = 0, symbol;
+				elf_file file;
+				uint64_t *p = ip + MAX_STACKS -1;
+				for(; !*p; p--);
+				for (; p >= ip; p--) {
+					uint64_t &addr = *p;
+					sym.reset(addr);
+					if (g_symbol_parser.find_symbol_in_cache(id.pid, addr, symbol)) {
+						s = &symbol;
+						DataText << *s << ';';
+					} else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+								g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid)) {
+						std::stringstream ss("");
+						ss << "+0x" << std::hex << (addr - sym.ip);
+						sym.name += ss.str();
+						DataText << sym.name << ';';
+						g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
+					} else {
+						std::stringstream ss("");
+						ss << "0x" << std::hex << addr;
+						auto addr_str = ss.str();
+						DataText << addr_str << ';';
+						g_symbol_parser.putin_symbol_cache(id.pid, addr, addr_str);
+					}
+				}
+			} else {
+				DataText << "[MISSING USER STACK];";
+			}
+			DataText << "---------;";
+			if (id.ksid >= 0) {
+				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
+				uint64_t *p = ip + MAX_STACKS - 1;
+				for(; !*p; p--);
+				for (; p >= ip; p--) {
+					uint64_t &addr = *p;
+					sym.reset(addr);
+					if (g_symbol_parser.find_kernel_symbol(sym)) {
+						DataText << sym.name << ';';
+					} else {
+						std::stringstream ss("");
+						ss << "0x" << std::hex << addr;
+						auto addr_str = ss.str();
+						DataText << addr_str << ';';
+						g_symbol_parser.putin_symbol_cache(pid, addr, addr_str);
+					}
+				}
+			} else {
+				DataText << "[MISSING KERNEL STACK];";
 			}
 			bpf_map_lookup_elem(value_fd, &id, data_buf);
-			line += " " + std::to_string(data_value()) + "\n";
-			tex << line;
+			DataText << ' ' + std::to_string(data_value()) << '\n';
 		}
-		std::string tex_s = tex.str();
-		FILE *fp = 0;
-
-		fp = fopen("flatex.log", "w");
-		CHECK_ERR(!fp, "Failed to save flame text");
-		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
-		fclose(fp);
-		fp = popen("flamegraph.pl --cp > flame.svg", "w");
-		CHECK_ERR(!fp, "Failed to draw flame graph");
-		fwrite(tex_s.c_str(), sizeof(char), tex_s.size(), fp);
-		pclose(fp);
-		printf("complete\n");
 		return 0;
 	}
-
-	/// @brief 将表中的栈数据保存为json文件
-	/// @param  无
-	/// @return 表未成功打开则返回负数
-	int data_save(void)
-	{
-		printf("saving...\n");
-		CHECK_ERR(comm_fd < 0, "comm map open failure");
-		CHECK_ERR(tgid_fd < 0, "tgid map open failure");
-		CHECK_ERR(value_fd < 0, "count map open failure");
-		CHECK_ERR(trace_fd < 0, "trace map open failure");
-		rapidjson::Document ajson;
-		rapidjson::Document::AllocatorType &alc = ajson.GetAllocator();
-		ajson.SetObject();
-
-		std::map<int, int> pidtgid_map;
-		for (int prev = 0, pid, tgid; !bpf_map_get_next_key(tgid_fd, &prev, &pid); prev = pid)
-		{
-			bpf_map_lookup_elem(tgid_fd, &pid, &tgid);
-
-			std::string tgid_s = std::to_string(tgid);
-			const char *tgid_c = tgid_s.c_str();
-			if (!ajson.HasMember(tgid_c))
-				ajson.AddKeyAndValue(tgid_c, rapidjson::kObjectType);
-
-			std::string pid_s = std::to_string(pid);
-			const char *pid_c = pid_s.c_str();
-			ajson[tgid_c].AddKeyAndValue(pid_c, rapidjson::kObjectType);
-
-			ajson[tgid_c][pid_c].AddStringAndValue("stacks", rapidjson::kObjectType);
-
-			comm cmd;
-			bpf_map_lookup_elem(comm_fd, &pid, &cmd);
-			ajson[tgid_c][pid_c].AddStringAndValue("name", cmd.str, alc);
-			pidtgid_map[pid] = tgid;
-		}
-
-		auto D = sortD();
-		for (auto id = D->rbegin(); id != D->rend(); ++id)
-		{
-			rapidjson::Value *trace;
-			{
-				rapidjson::Value *stacks;
-				{
-					std::string tgid_s = std::to_string(pidtgid_map[id->pid]);
-					std::string pid_s = std::to_string(id->pid);
-					stacks = &(ajson[tgid_s.c_str()][pid_s.c_str()]["stacks"]);
-				}
-				const char *sid_c;
-				{
-					auto sid = std::to_string(id->usid) + "," + std::to_string(id->ksid);
-					sid_c = sid.c_str();
-				}
-				stacks->AddKeyAndValue(sid_c, rapidjson::kObjectType);
-				(*stacks)[sid_c].AddStringAndValue("count", id->val);
-				(*stacks)[sid_c].AddStringAndValue("trace", rapidjson::kArrayType);
-				trace = &((*stacks)[sid_c]["trace"]);
-			}
-			// symbolize
-			symbol sym;
-			__u64 ip[MAX_STACKS];
-			if (id->ksid >= 0)
-			{
-				bpf_map_lookup_elem(trace_fd, &id->ksid, ip);
-				for (auto p : ip)
-				{
-					if (!p)
-						break;
-					sym.reset(p);
-					if (g_symbol_parser.find_kernel_symbol(sym))
-					{
-						unsigned offset = p - sym.start;
-						char offs[20];
-						sprintf(offs, "+0x%x", offset);
-						std::string s = sym.name + std::string(offs);
-						trace->PushString(s.c_str());
-					}
-					else
-					{
-						char a[19];
-						sprintf(a, "0x%016llx", p);
-						std::string s(a);
-						trace->PushString(a);
-						g_symbol_parser.putin_symbol_cache(pid, p, s);
-					}
-				}
-			}
-			else
-				trace->PushString("[MISSING KERNEL STACK]");
-			trace->PushString("----------------");
-			if (id->usid >= 0)
-			{
-				std::string symbol;
-				elf_file file;
-				bpf_map_lookup_elem(trace_fd, &id->usid, ip);
-				for (auto p : ip)
-				{
-					if (!p)
-						break;
-					sym.reset(p);
-					std::string *s = NULL;
-					if (g_symbol_parser.find_symbol_in_cache(id->pid, p, symbol))
-					{
-						s = &symbol;
-						unsigned offset = p - sym.start;
-						char offs[20];
-						sprintf(offs, " +0x%x", offset);
-						*s = *s + std::string(offs);
-						trace->PushString(s->c_str());
-					}
-					else
-					{
-						char a[19];
-						sprintf(a, "0x%016llx", p);
-						std::string addr_s(a);
-						trace->PushString(a);
-					}
-				}
-			}
-			else
-				trace->PushString("[MISSING USER STACK]");
-		}
-		delete D;
-
-		FILE *fp = fopen("stack_count.json", "w");
-		char writeBuffer[65536];
-		rapidjson::FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
-		rapidjson::Writer<rapidjson::FileWriteStream> writer(os);
-		ajson.Accept(writer);
-		fclose(fp);
-		return 0;
-	};
-
-	/// @brief 一个执行ebpf程序的总流程
-	/// @param  无
-	/// @return 成功则返回0，失败返回负数
-	int test(int time) {
-		do {
-			if (env::command.length()) {
-				if (exec_command()) {
-					break;
-				}
-			}
-			if (signal(SIGINT, __handler) == SIG_ERR) {
-				break;
-			}
-			if (load()) {
-				break;
-			}
-			if (attach()) {
-				break;
-			}
-			if (env::command.length()) {
-				if (activate_child()) {
-					break;
-				}
-			}
-			if (env::command.length()) {
-				if (signal(SIGCHLD, __handler) == SIG_ERR) {
-					break;
-				}
-			}
-			log(time);
-		} while (false);
-		detach();
-		if (env::fla || env::d_mode == FLAME_OUTPUT) {
-			err = flame_save();
-		} else {
-			err = data_save();
-		}
-		// unload(); // segment fault
-		if (env::command.length()) {
-			clear_child();
-		}
-		return err;
-	};
 };
 
-class on_cpu_loader : public bpf_loader {
-protected:
-	int *pefds, num_cpus, num_online_cpus;
-	unsigned long long freq;
-	struct perf_event_attr attr;
-	struct on_cpu_count_bpf *skel;
-	struct bpf_link **links;
-	bool *online_mask;
-	const char *online_cpus_file;
-
-	std::string data_str(uint64_t f) override { 
-		return "counts:" + std::to_string(f); 
-	};
+class OnCPUStackCollector : public StackCollector {
+private:
+	declareEBPF(on_cpu_count_bpf);
+	const char *online_cpus_file = "/sys/devices/system/cpu/online";
+	bool *online_mask = NULL;
+	int *pefds = NULL, num_cpus = 0, num_online_cpus = 0;
+	struct perf_event_attr attr = {0};
+	struct bpf_link **links = NULL;
 
 public:
-	on_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, unsigned long long f = env::freq) : bpf_loader(p, c, u, k), freq(f) {
-		online_mask = NULL;
-		online_cpus_file = "/sys/devices/system/cpu/online";
+	unsigned long long freq = 49;
+
+	OnCPUStackCollector() {
+		name = "on_cpu";
 		err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
 		CHECK_ERR_EXIT(err, "Fail to get online CPU numbers");
 		num_cpus = libbpf_num_possible_cpus();
@@ -608,16 +296,9 @@ public:
 			pefds[i] = -1;
 		}
 		links = (struct bpf_link **)calloc(num_cpus, sizeof(struct bpf_link *));
-		attr = {
-			.type = PERF_TYPE_SOFTWARE, // hardware event can't be used
-			.size = sizeof(attr),
-			.config = PERF_COUNT_SW_CPU_CLOCK,
-			.sample_freq = freq,
-			.inherit = 1,
-			.freq = 1, // use freq instead of period
-		};
-		skel = 0;
 	};
+
+	std::string data_str(uint64_t f) override { return "counts:" + std::to_string(f); };
 
 	int load(void) override {
 		FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
@@ -626,26 +307,29 @@ public:
 		fscanf(fp, "%p", &load_a);
 		pclose(fp);
 		StackProgLoadOpen(
-			on_cpu_count,
-			skel->bss->load_a = load_a,
-			skel->bss->u = ustack,
-			skel->bss->k = kstack
+			skel->bss->load_a = load_a
 		)
 		return 0;
 	};
 
 	int attach(void) override {
+		attr = {
+			.type = PERF_TYPE_SOFTWARE, // hardware event can't be used
+			.size = sizeof(attr),
+			.config = PERF_COUNT_SW_CPU_CLOCK,
+			.sample_freq = freq,
+			.inherit = 1,
+			.freq = 1, // use freq instead of period
+		};
 		for (int cpu = 0; cpu < num_cpus; cpu++) {
 			/* skip offline/not present CPUs */
 			if (cpu >= num_online_cpus || !online_mask[cpu]) {
 				continue;
 			}
-
 			/* Set up performance monitoring on a CPU/Core */
 			int pefd = perf_event_open(&attr, pid, cpu, -1, 0);
 			CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
 			pefds[cpu] = pefd;
-
 			/* Attach a BPF program on a CPU */
 			links[cpu] = bpf_program__attach_perf_event(skel->progs.do_stack, pefd); // 与内核bpf程序联系
 			CHECK_ERR(!links[cpu], "Fail to attach bpf program");
@@ -659,86 +343,49 @@ public:
 				bpf_link__destroy(links[cpu]);
 			}
 			free(links);
+			links = NULL;
 		}
-		if (pefds)
-		{
+		if (pefds) {
 			for (int i = 0; i < num_cpus; i++) {
 				if (pefds[i] >= 0) {
 					close(pefds[i]);
 				}
 			}
 			free(pefds);
+			pefds = NULL;
 		}
 	}
 
-	void unload(void) override {
-		if (skel) {
-			on_cpu_count_bpf__destroy(skel);
-		}
-		skel = 0;
-	}
+	defaultUnload;
 };
 
-class off_cpu_loader : public bpf_loader {
+class OffCPUStackCollector : public StackCollector{
+private:
+	declareEBPF(off_cpu_count_bpf);
 protected:
-	struct off_cpu_count_bpf *skel;
-
-	std::string data_str(uint64_t f) override { 
-		return "time(ms):" + std::to_string(f); 
-	};
-
+	std::string data_str(uint64_t f) override { return "time(ms):" + std::to_string(f); };
+	defaultLoad;
+	defaultAttach;
+	defaultDetach;
+	defaultUnload;
 public:
-	off_cpu_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
-		skel = 0;
-	};
-
-	int load(void) override {
-		StackProgLoadOpen(
-			off_cpu_count,
-			skel->bss->apid = pid,
-			skel->bss->u = ustack,
-			skel->bss->k = kstack
-		)
-		return 0;
-	};
-
-	int attach(void) override {
-		err = bpf_attach(off_cpu_count, skel);
-		CHECK_ERR(err, "Failed to attach BPF skeleton");
-		return 0;
-	};
-
-	void detach(void) override {
-		if (skel) {
-			off_cpu_count_bpf__detach(skel);
-		}
-	};
-
-	void unload(void) override {
-		if (skel) {
-			off_cpu_count_bpf__destroy(skel);
-		}
-		skel = 0;
-	};
+	OffCPUStackCollector() { name = "off-cpu"; };
 };
 
-class mem_loader : public bpf_loader {
-protected:
-	struct mem_count_bpf *skel;
-	char *object;
+class MemoryStackCollector : public StackCollector {
+private:
+	declareEBPF(mem_count_bpf);
 
+protected:
 	std::string data_str(uint64_t f) override { return "size(Byte):" + std::to_string(f); };
 
 public:
-	mem_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k, char *e = env::object) : bpf_loader(p, c, u, k), object(e) {
-		skel = 0;
-	};
+	char *object = (char *)"libc.so.6";
+	
+	MemoryStackCollector() { kstack = false; name = "memory"; };
 
 	int load(void) override {
-		StackProgLoadOpen(
-			mem_count,
-			skel->bss->u = ustack
-		)
+		StackProgLoadOpen();
 		return 0;
 	};
 
@@ -755,12 +402,13 @@ public:
 		ATTACH_URETPROBE_CHECKED(skel, mmap, mmap_exit);
 		ATTACH_UPROBE_CHECKED(skel, munmap, munmap_enter);
 
-		err = mem_count_bpf__attach(skel);
+		err = skel->attach(skel);
 		CHECK_ERR(err, "Failed to attach BPF skeleton");
 		return 0;
 	};
 
 	void detach(void) override {
+		// leak
 		if (skel->links.free_enter) {
 			bpf_link__destroy(skel->links.free_enter);
 		}
@@ -772,73 +420,22 @@ public:
 		}
 	};
 
-	void unload(void) override {
-		if (skel) {
-			mem_count_bpf__destroy(skel);
-		}
-		skel = 0;
-	};
+	defaultUnload;
+
 };
 
-class io_loader : public bpf_loader {
+class IOStackCollector : public StackCollector {
+private:
+	declareEBPF(io_count_bpf);
 protected:
-	struct io_count_bpf *skel;
 	std::string data_str(uint64_t f) override {
-		std::string p;
-		switch(env::data) {
-		case SIZE:
-			p = "size(B):";
-			break;
-		case COUNT:
-			p = "counts:";
-			break;
-		case AVE:
-			p = "aver(B/1):";
-			break;
-		default:
-			break;
-		}
-		return p + std::to_string(f);
-	};
-
-public:
-	io_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
-		skel = 0;
-		delete (uint64_t *)data_buf;
-		data_buf = new io_tuple{0};
-	};
-	
-	int load(void) override {
-		StackProgLoadOpen(
-			io_count,
-			skel->bss->apid = pid,
-			skel->bss->u = ustack,
-			skel->bss->k = kstack
-		);
-		return 0;
-	};
-	
-	int attach(void) override {
-		printf("pid %d, apid %d\n", pid, skel->bss->apid);
-		err = bpf_attach(io_count, skel);
-		CHECK_ERR(err, "Failed to attach BPF skeleton");
-		return 0;
-	};
-	
-	void detach(void) override {
-		if (skel)
-			io_count_bpf__detach(skel);
-	};
-	
-	void unload(void) override {
-		if (skel)
-			io_count_bpf__destroy(skel);
-		skel = 0;
+		const std::string IOScale[] = {"counts", "size(B)", "aver(B/1)"};
+		return IOScale[DataType] + ":" + std::to_string(f);
 	};
 
 	uint64_t data_value() override {
 		io_tuple *p = (io_tuple *)data_buf;
-		switch (env::data) {
+		switch (DataType) {
 		case AVE:
 			return p->size / p->count;
 		case SIZE:
@@ -850,50 +447,33 @@ public:
 		}
 	};
 
-	~io_loader() override {
+public:
+	io_mod DataType = io_mod::COUNT;
+
+	IOStackCollector() {
+		delete (uint64_t *)data_buf;
+		data_buf = new io_tuple{0};
+		name = "io";
+	};
+
+
+	~IOStackCollector() override {
 		delete (io_tuple *)data_buf;
 	};
+
+	defaultLoad;
+	defaultAttach;
+	defaultDetach;
+	defaultUnload;	
+
 };
 
-class pre_loader : public bpf_loader {
+class ReadaheadStackCollector : public StackCollector {
+private:
+	declareEBPF(pre_count_bpf);
 protected:
-	struct pre_count_bpf *skel;
-
 	std::string data_str(uint64_t f) override {
 		return "rest_pages:" + std::to_string(f); 
-	};
-
-public:
-	pre_loader(int p = env::pid, int c = env::cpu, bool u = env::u, bool k = env::k) : bpf_loader(p, c, u, k) {
-		skel = 0;
-		delete (uint64_t *)data_buf;
-		data_buf = new ra_tuple{0};
-	};
-	int load(void) override {
-		StackProgLoadOpen(
-			pre_count,
-			skel->bss->apid = pid,
-			skel->bss->u = ustack,
-			skel->bss->k = kstack
-		);
-		return 0;
-	};
-	int attach(void) override {
-		err = pre_count_bpf__attach(skel);
-		CHECK_ERR(err, "Failed to attach BPF skeleton");
-		return 0;
-	};
-	void detach(void) override
-	{
-		if (skel) {
-			pre_count_bpf__detach(skel);
-		}
-	};
-	void unload(void) override {
-		if (skel) {
-			pre_count_bpf__destroy(skel);
-		}
-		skel = 0;
 	};
 
 	uint64_t data_value() override {
@@ -901,80 +481,185 @@ public:
 		return p->expect - p->truth;
 	};
 
-	~pre_loader() override {
+public:
+	defaultLoad;
+	defaultAttach;
+	defaultDetach;
+	defaultUnload;
+
+	ReadaheadStackCollector() {
+		delete (uint64_t *)data_buf;
+		data_buf = new ra_tuple{0};
+		name = "readahead";
+	};
+
+	~ReadaheadStackCollector() override {
 		delete (ra_tuple *)data_buf;
 	}
-
 };
 
-typedef bpf_loader *(*bpf_load)();
+namespace MainConfig {
+	int run_time = __INT_MAX__;	// 运行时间
+	unsigned delay = 5; 	// 设置输出间隔
+	display_t d_mode = display_t::NO_OUTPUT;	// 设置显示模式
+	std::string command = "";
+	int32_t target_pid = -1;
+}
 
+std::vector<StackCollector*> StackCollectorList;
+void endCollect(void) {
+	signal(SIGINT, SIG_IGN);
+	if (MainConfig::command.length()) {
+		kill(MainConfig::target_pid, SIGTERM);
+	}
+	for(auto Item : StackCollectorList) {
+		Item->format();
+		Item->detach();
+		Item->unload();
+	}
+}
+
+uint64_t optbuff;
 int main(int argc, char *argv[]) {
-	auto oncpu_mod = (
-		clipp::command("on-cpu").set(env::mod, MOD_ON_CPU),
-		clipp::option("-F", "--frequency") & clipp::value("sampling frequency", env::freq) % "sampling at a set frequency"
-	) % "sample the call stacks of on-cpu processes";
-
-	auto offcpu_mod = (
-		clipp::command("off-cpu").set(env::mod, MOD_OFF_CPU)
-	) % "sample the call stacks of off-cpu processes";
-	
-	auto mem_mod = (
-		clipp::command("mem").set(env::mod, MOD_MEM)
-	) % "sample the memory usage of call stacks";
-	
-	auto io_mod = (
-		clipp::command("io").set(env::mod, MOD_IO),
-		(clipp::option("--mod") & (
-			clipp::option("count").set(env::data, COUNT) % "Counting the number of I/O operations" |
-			clipp::option("ave").set(env::data, AVE) % "Counting the ave of I/O operations" |
-			clipp::option("size").set(env::data, SIZE) % "Counting the size of I/O operations"
-		)) % "set the statistic mod"
-	) % "sample the IO data volume of call stacks";
-	
-	auto pre_mod = (
-		clipp::command("ra").set(env::mod, MOD_RA)
-	) % "sample the readahead hit rate of call stacks";
-	
-	auto opti = (
-		clipp::option("-f", "--flame-graph").set(env::fla) % "save in flame.svg instead of stack_count.json",
+	auto MainOption = (
 		(
-			((clipp::option("-p", "--pid") & clipp::value("pid of sampled process", env::pid)) % "set pid of process to monitor") |
-			((clipp::option("-c", "--command") & clipp::value("to be sampled command to run", env::command)) % "set command for monitoring the whole life")
+			((clipp::option("-p", "--pid") & clipp::value("pid of sampled process", MainConfig::target_pid)) % "set pid of process to monitor") |
+			((clipp::option("-c", "--command") & clipp::value("to be sampled command to run", MainConfig::command)) % "set command for monitoring the whole life")
 		),
-		clipp::option("-U", "--user-stack-only").set(env::k, false) % "only sample user stacks",
-		clipp::option("-K", "--kernel-stack-only").set(env::u, false) % "only sample kernel stacks",
-		(clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", env::max)) % "set the max threshold of sampled value",
-		(clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", env::min)) % "set the min threshold of sampled value",
-		(clipp::option("-d", "--delay") & clipp::value("delay time to output", env::delay)) % "set the interval to output",
-		(
-			clipp::option("-r", "--realtime-draw").set(env::d_mode, FLAME_OUTPUT) % "draw flame graph realtimely" |
-			clipp::option("-l", "--realtime-list").set(env::d_mode, LIST_OUTPUT) % "output in console"
-		) % "display mode (default none)",
-		clipp::opt_value("simpling time", env::run_time) % "set the total simpling time",
-		clipp::option("-D", "--delta").set(env::clear, true) % "show delta in the interval instead of total count"
+		(clipp::option("-d", "--delay") & clipp::value("delay time to output", MainConfig::delay)) % "set the interval to output",
+		clipp::option("-l", "--realtime-list").set(MainConfig::d_mode, LIST_OUTPUT) % "output in console (default none)",
+		clipp::option("-t", "--timeout") & clipp::value("run time", MainConfig::run_time) % "set the total simpling time"
+	);
+
+	auto SubOption = (
+		clipp::option("-U", "--user-stack-only").call([]{
+			StackCollectorList.back()->kstack = false;
+		}) % "only sample user stacks",
+		clipp::option("-K", "--kernel-stack-only").call([]{
+			StackCollectorList.back()->ustack = false;
+		}) % "only sample kernel stacks",
+		(clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", optbuff).call([]{
+			StackCollectorList.back()->max = optbuff;
+		})) % "set the max threshold of sampled value",
+		(clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", optbuff).call([]{
+			StackCollectorList.back()->min = optbuff;
+		})) % "set the min threshold of sampled value"
+	);
+
+	auto OnCpuOption = clipp::option("on-cpu").call([]{
+			StackCollectorList.push_back(new OnCPUStackCollector());
+	}) % "sample the call stacks of on-cpu processes" & (
+		clipp::option("-F", "--frequency") & clipp::value("sampling frequency", optbuff).call([]{
+			static_cast<OnCPUStackCollector*>(StackCollectorList.back())->freq = optbuff;
+		}) % "sampling at a set frequency", 
+		SubOption
+	);
+
+	auto OffCpuOption = clipp::option("off-cpu").call([]{ 
+		StackCollectorList.push_back(new OffCPUStackCollector());
+	}) % "sample the call stacks of off-cpu processes" & SubOption;
+	
+	auto MemoryOption = clipp::option("mem").call([]{
+		StackCollectorList.push_back(new MemoryStackCollector());
+	}) % "sample the memory usage of call stacks" & SubOption;
+	
+	auto IOOption = clipp::option("io").call([]{
+		StackCollectorList.push_back(new IOStackCollector());
+	}) % "sample the IO data volume of call stacks" & (
+		(clipp::option("--mod") & (
+			clipp::option("count").call([]{
+				static_cast<IOStackCollector*>(StackCollectorList.back())->DataType = COUNT;
+			}) % "Counting the number of I/O operations" |
+			clipp::option("ave").call([]{
+				static_cast<IOStackCollector*>(StackCollectorList.back())->DataType = AVE;
+			}) % "Counting the ave of I/O operations" |
+			clipp::option("size").call([]{
+				static_cast<IOStackCollector*>(StackCollectorList.back())->DataType = SIZE;
+			}) % "Counting the size of I/O operations"
+		)) % "set the statistic mod",
+		SubOption
 	);
 	
+	auto ReadaheadOption = clipp::option("ra").call([]{
+			StackCollectorList.push_back(new ReadaheadStackCollector());
+	}) % "sample the readahead hit rate of call stacks" & SubOption;
+
 	auto cli = (
-		(oncpu_mod | offcpu_mod | mem_mod | io_mod | pre_mod),
-		opti,
+		MainOption,
 		clipp::option("-v", "--version").call([] {
-			std::cout << "verion 1.0\n\n"; 
-		}) % "show version"
+			std::cout << "verion 2.0\n\n"; 
+		}) % "show version",
+		OnCpuOption,
+		OffCpuOption,
+		MemoryOption,
+		IOOption,
+		ReadaheadOption
 	) % "statistic call trace relate with some metrics";
 	
 	if (!clipp::parse(argc, argv, cli)) {
 		std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
 		return 0;
 	}
-	
-	bpf_load arr[] = {
-		[]() -> bpf_loader *{ return new on_cpu_loader(); },
-		[]() -> bpf_loader *{ return new off_cpu_loader(); },
-		[]() -> bpf_loader *{ return new mem_loader(); },
-		[]() -> bpf_loader *{ return new io_loader(); },
-		[]() -> bpf_loader *{ return new pre_loader(); },
-	};
 
-	return arr[env::mod]()->test(env::run_time);
+	uint64_t eventbuff = 1;
+	int child_exec_event_fd = eventfd(0, EFD_CLOEXEC);
+	CHECK_ERR(child_exec_event_fd < 0, "failed to create event fd");
+	if(MainConfig::command.length()) {
+		MainConfig::target_pid = fork();
+		switch(MainConfig::target_pid) {
+			case -1: {
+				std::cout << "command create failed." << std::endl;
+				return -1;
+			} case 0: {
+				const auto bytes = read(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
+				CHECK_ERR( bytes < 0, "failed to read from fd %ld", bytes)
+				else CHECK_ERR(bytes != sizeof(eventbuff), "read unexpected size %ld", bytes);
+				printf("child exec %s\n", MainConfig::command.c_str());
+				CHECK_ERR_EXIT(execl("/bin/bash", "bash", "-c", MainConfig::command.c_str(), NULL), "failed to execute child command");
+				break;
+			} default: {
+				printf("create child %d\n", MainConfig::target_pid);
+				break;
+			}
+		}
+	}
+
+	for(auto Item = StackCollectorList.begin(); Item != StackCollectorList.end(); ) {
+		(*Item)->pid = MainConfig::target_pid;
+		if ((*Item)->load()) { 
+			goto err;
+		}
+		if ((*Item)->attach()) {
+			goto err;
+		}
+		Item++;
+		continue;
+	err:
+		fprintf(stderr, "%s eBPF prog err\n", (*Item)->name.c_str());
+		(*Item)->detach();
+		(*Item)->unload(); // segment fault
+		Item = StackCollectorList.erase(Item);
+	}
+
+	if(MainConfig::command.length()) {
+		printf("wake up child\n");
+		write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
+	}
+
+	printf("display mode: %d\n", MainConfig::d_mode);
+	
+	for(; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay) {
+		sleep(MainConfig::delay);
+		time_t timep;
+		::time(&timep);
+		printf("%s", ctime(&timep));
+		for(auto Item : StackCollectorList) {
+			if(MainConfig::d_mode == display_t::LIST_OUTPUT) {
+				Item->print_list();
+			}
+			Item->format();
+			Item->clear_count();
+		}
+	}
+	atexit(endCollect);
 }
