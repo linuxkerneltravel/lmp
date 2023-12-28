@@ -31,5 +31,5 @@ jobs:
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/applications/paf/
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
-          sudo make paf
+          make paf
           sudo timeout 20 ./paf
