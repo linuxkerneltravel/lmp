@@ -19,40 +19,85 @@
 #ifndef __PROC_IMAGE_H
 #define __PROC_IMAGE_H
 
+#define MAX_SYSCALL_COUNT 116
 #define ARGSIZE  128
-#define TASK_COMM_LEN 16
 #define TOTAL_MAX_ARGS 60
 #define DEFAULT_MAXARGS 20
-#define FULL_MAX_ARGS_ARR (TOTAL_MAX_ARGS * ARGSIZE)
-#define BASE_EVENT_SIZE (size_t)(&((struct event*)0)->args)
-#define EVENT_SIZE(e) (BASE_EVENT_SIZE + e->args_size)
+#define FULL_MAX_ARGS_ARR 440
 #define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
 
-struct event {
-    /* type：
-        1代表on_cpu；2代表off_cpu；
-        3代表exec_enter；4代表exec_exit；5代表exit
-        6代表umutex_req；7代表umutex_lock；8代表umutex_unlock
-        9代表kmutex_req；10代表kmutex_lock；11代表kmutex_unlock
-        12代表rdlock_req；13代表rdlock_lock；14代表rdlock_unlock
-        15代表wrlock_req；16代表wrlock_lock；17代表wrlock_unlock
-        18代表fork_begin；19代表fork_end
-        20代表vfork_begin；21代表vfork_end
-        22代表pthread_begin；23代表pthread_end
-    */
-	int type;
-	pid_t pid;
-	pid_t ppid;
-    int cpu_id;
-	char comm[TASK_COMM_LEN];
-	long long unsigned int start;
-	long long unsigned int exit;
-	int retval;
-	bool enable_char_args;
-	int args_count;
-	long long unsigned int ctx_args[6];
-	unsigned int args_size;
-	char args[FULL_MAX_ARGS_ARR];
+// resource_image
+struct proc_id{
+	int pid;
+	int cpu_id;
+}; 
+
+struct start_rsc{
+	long long unsigned int time;
+	long long unsigned int readchar;
+	long long unsigned int writechar;
 };
 
-#endif /* __PROC_IMAGE_H */
+struct total_rsc{
+    int pid;
+	int cpu_id;
+	long long unsigned int time;
+	long unsigned int memused;
+	long long unsigned int readchar;
+	long long unsigned int writechar;
+};
+
+//syscall_image
+struct syscall_seq{
+	int pid;
+	long long unsigned int oncpu_time;
+	long long unsigned int offcpu_time;
+	int count;		// 若count值超过MAX_SYSCALL_COUNT，则record_syscall数组最后一个元素的值用-1表示以作说明
+	int record_syscall[MAX_SYSCALL_COUNT];
+};
+
+// lock_image
+struct proc_flag{
+    int pid;
+    // 1代表用户态互斥锁
+    // 2代表用户态读写锁
+    int flag;
+};
+
+struct lock_event{
+    /* lock_status：
+        1代表mutex_req；2代表mutex_lock；3代表mutex_unlock
+        4代表rdlock_req；5代表rdlock_lock；6代表rdlock_unlock
+        7代表wrlock_req；8代表wrlock_lock；9代表wrlock_unlock
+    */
+    int lock_status;
+    int pid;
+	int ret;
+    long long unsigned int lock_ptr;
+    long long unsigned int time;
+};
+
+// keytime_image
+struct child_info{
+	int type;
+	int ppid;
+};
+
+struct keytime_event{
+	/* type:
+		1代表exec_enter；2代表exec_exit
+		3代表exit
+		4代表forkP_enter；5代表forkP_exit
+		6代表vforkP_enter；7代表vforkP_exit
+		8代表createT_enter；9代表createT_exit
+	*/
+	int type;
+	int pid;
+	bool enable_char_info;
+	int info_count;
+	long long unsigned int info[6];
+	unsigned int info_size;
+	char char_info[FULL_MAX_ARGS_ARR];
+};
+
+#endif /* __PROCESS_H */

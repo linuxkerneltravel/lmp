@@ -21,70 +21,57 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "stack_analyzer.h"
+#include "sa_ebpf.h"
+#include "task.h"
 
 #define MINBLOCK_US 1ULL
 #define MAXBLOCK_US 99999999ULL
 
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(pid_comm, u32, comm);
-
-BPF_HASH(psid_util, psid, tuple);
-
-BPF_HASH(in_ra, u32, psid);
-BPF_HASH(page_psid, struct page *, psid);
+DeclareCommonMaps(ra_tuple);
+DeclareCommonVar();
 
 int apid = 0;
-bool u = false, k = false;
-__u64 min = 0, max = 0;
+BPF_HASH(in_ra, u32, psid);
+BPF_HASH(page_psid, struct page *, psid);
   
 SEC("fentry/page_cache_ra_unbounded")                               //fentry在内核函数page_cache_ra_unbounded进入时触发的挂载点 
-
-                                                                    //定义了一个名为BPF_PROG(page_cache_ra_unbounded)的探针，该探针在page_cache_ra_unbounded的入口处被触发
 int BPF_PROG(page_cache_ra_unbounded)
 {
-    u64 td = bpf_get_current_pid_tgid();
-    u32 pid = td >> 32;                                             //获取当前进程tgid，用户空间的pid即是tgid
+    struct task_struct* curr = (struct task_struct*)bpf_get_current_task();
+    ignoreKthread(curr);
+    u32 pid = get_task_ns_pid(curr);                                             //获取当前进程tgid，用户空间的pid即是tgid
 
-    if ((apid >= 0 && pid != apid) || !pid)
+    if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
 
-    u32 tgid = td;
+    u32 tgid = get_task_ns_tgid(curr);
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);           //更新pid_tgid表中的pid对应的值
     comm *p = bpf_map_lookup_elem(&pid_comm, &pid);                 //p指向pid_comm表中pid对应的值
     if (!p)
     {
         comm name;
-        bpf_get_current_comm(&name, COMM_LEN);                     //获取当前进程名
-        bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);//在pid_comm表中更新pid对应的值
+        bpf_get_current_comm(&name, COMM_LEN);                      //获取当前进程名
+        bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);   //在pid_comm表中更新pid对应的值
     }
-                                                                //栈计数的键，可以唯一标识一个用户内核栈
+
     psid apsid = {
         .pid = pid,
         .usid = u ? USER_STACK : -1,
         .ksid = k ? KERNEL_STACK : -1,
     };
 
-// typedef struct
-// {
-//     __u64 truth;
-//     __u64 expect;
-// } tuple;
-
-    tuple *d = bpf_map_lookup_elem(&psid_util, &apsid);         //d指向psid_util表中的apsid对应的类型为tuple的值
+    ra_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid);         //d指向psid_count表中的apsid对应的类型为tuple的值
     if (!d)
     {
-        tuple a = {.expect = 0, .truth = 0};                    //初始化为0
-        bpf_map_update_elem(&psid_util, &apsid, &a, BPF_ANY);   //更新psid_util表中的apsid的值为a
+        ra_tuple a = {.expect = 0, .truth = 0};                     //初始化为0
+        bpf_map_update_elem(&psid_count, &apsid, &a, BPF_ANY);      //更新psid_count表中的apsid的值为a
     }
-    bpf_map_update_elem(&in_ra, &pid, &apsid, BPF_ANY);         //更新in_ra表中的pid对应的值为apsid
+    bpf_map_update_elem(&in_ra, &pid, &apsid, BPF_ANY);             //更新in_ra表中的pid对应的值为apsid
     return 0;
 }
 
 
 SEC("fexit/alloc_pages")                                        //fexit在内核函数alloc_pages退出时触发，挂载点为alloc_pages
-                                                                //struct page *alloc_pages(gfp_t gfp_mask, unsigned int order); 参数分别是分配标志以及页的阶数
 int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
 {
     u32 pid = bpf_get_current_pid_tgid() >> 32;                 //pid为当前进程的pid
@@ -96,7 +83,7 @@ int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
     if (!apsid)
         return 0;
 
-    tuple *a = bpf_map_lookup_elem(&psid_util, apsid);          //a是指向psid_util的apsid对应的内容
+    ra_tuple *a = bpf_map_lookup_elem(&psid_count, apsid);          //a是指向psid_count的apsid对应的内容
     if (!a)
         return 0;
 
@@ -123,10 +110,7 @@ int BPF_PROG(page_cache_ra_unbounded_ret)                       //fexit在内核
 }
 
 
-SEC("fentry/mark_page_accessed")                                //fentry在内核函数/mark_page_accessed进入时触发的挂载点
-
-                                                                //void mark_page_accessed(struct page *page);用于标记页面（page）已经被访问
-
+SEC("fentry/mark_page_accessed")                                //fentry在内核函数/mark_page_accessed进入时触发的挂载点，用于标记页面（page）已经被访问
 int BPF_PROG(mark_page_accessed, u64 page)
 {
     u32 pid = bpf_get_current_pid_tgid() >> 32;                 //获取当前进程的pid
@@ -137,7 +121,7 @@ int BPF_PROG(mark_page_accessed, u64 page)
     apsid = bpf_map_lookup_elem(&page_psid, &page);             //查看page_psid对应的 地址page 对应类型为psid的值，并保存在apsid
     if (!apsid)
         return 0;
-    tuple *a = bpf_map_lookup_elem(&psid_util, apsid);          //a指向psid_util的apsid的内容
+    ra_tuple *a = bpf_map_lookup_elem(&psid_count, apsid);      //a指向psid_count的apsid的内容
     if (!a)
         return 0;
     a->truth++;                                                 //已访问

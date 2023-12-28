@@ -22,10 +22,18 @@
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
 
-#define PRINT_USAGE_ERR()                                              \
-    do {                                                               \
-        fprintf(stderr, "Use either the -w, -p, -d, or -e option.\n"); \
-        argp_usage(state);                                             \
+#define PFERR_PRESENT_BIT 0
+#define PFERR_WRITE_BIT 1
+#define PFERR_USER_BIT 2
+#define PFERR_RSVD_BIT 3
+#define PFERR_FETCH_BIT 4
+#define PFERR_PK_BIT 5
+#define PFERR_SGX_BIT 15
+
+#define PRINT_USAGE_ERR()                                                \
+    do {                                                                 \
+        fprintf(stderr, "Use either the -w, -p, -d,-f or -e option.\n"); \
+        argp_usage(state);                                               \
     } while (0)
 
 #define SET_OPTION_AND_CHECK_USAGE(option, value) \
@@ -68,6 +76,7 @@ struct exit_event {
     unsigned long long duration_ns;
     int count;
     int total;
+    unsigned long long time;
 };
 
 struct ExitReason {
@@ -87,6 +96,7 @@ struct halt_poll_ns_event {
     unsigned int new;
     unsigned int old;
     unsigned long long time;
+    unsigned vcpu_id;
 };
 
 struct mark_page_dirty_in_slot_event {
@@ -98,4 +108,17 @@ struct mark_page_dirty_in_slot_event {
     unsigned long long gfn;
     short slot_id;
 };
+
+struct page_fault_event {
+    struct process process;
+    unsigned long long time;
+    unsigned long long delay;
+    unsigned long long error_code;
+    unsigned long long addr;
+    unsigned long long pfn;
+    unsigned long long hva;
+    unsigned count;
+    short memslot_id;
+};
+
 #endif /* __KVM_WATCHER_H */

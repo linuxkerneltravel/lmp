@@ -12,7 +12,7 @@ all: $(APP)
 .PHONY: $(APP)
 $(APP):
 ifeq ($(wildcard ./include/vmlinux.h),)
-	bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./include/vmlinux.h
+	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
 endif
 	clang -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -I/usr/include/x86_64-linux-gnu -I. -c $@.bpf.c -o $@.bpf.o
 	bpftool gen skeleton $@.bpf.o > $@.skel.h

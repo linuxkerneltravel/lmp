@@ -96,21 +96,15 @@ static int trace_kvm_entry(void *rb) {
         bpf_map_delete_elem(&times, &tid);
         reason = reas->reason;
         count = reas->count;
-        e = bpf_ringbuf_reserve(rb, sizeof(*e), 0);
-        if (!e) {
-            return 0;
-        }
+        RESERVE_RINGBUF_ENTRY(rb, e);
         e->reason_number = reason;
         e->process.pid = pid;
         e->duration_ns = duration_ns;
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
         e->process.tid = tid;
         e->total = ++total;
-        if (count) {
-            e->count = count;
-        } else {
-            e->count = 1;
-        }
+        e->count = count;
+        e->time = reas->time;
         bpf_ringbuf_submit(e, 0);
         return 0;
     } else {
