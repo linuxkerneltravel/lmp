@@ -128,7 +128,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 	printf("%-8lu %-8lu  %-8lu %-8lu %-8x\n",
 		   e->min, e->low, e->high, e->present, e->flag);
-	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块  */
+	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块   */
 	// if(env.time_s != 0) {
 	// 	msleep(env.time_s);
 	// }
