@@ -14,7 +14,10 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-struct {
+pid_t user_pid = 0;
+
+struct
+{
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 1);
 } rb SEC(".maps");
@@ -22,10 +25,12 @@ struct {
 SEC("kprobe/get_page_from_freelist")
 int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int alloc_flags, const struct alloc_context *ac)
 {
-	struct event *e; 
+	struct event *e;
 	unsigned long *t, y;
 	int a;
-
+	pid_t pid = bpf_get_current_pid_tgid() >> 32;
+	if (pid == user_pid)
+		return 0;
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;
@@ -41,4 +46,3 @@ int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int a
 	bpf_ringbuf_submit(e, 0);
 	return 0;
 }
-
