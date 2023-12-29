@@ -61,15 +61,21 @@ func AddAService(svc *Aservice) error {
 	return nil
 }
 
+// 定义一个名为 RunServices 的函数，该函数接受一个函数作为参数。这个函数用于迭代全局服务列表，并对每个服务执行传入的函数
 func RunServices(fn func(nm string, svc *Aservice) error) error {
+	// 使用 GlobalServices.Lock() 对全局服务进行加锁，确保在执行期间不会有其他 goroutine 修改全局服务列表
 	GlobalServices.Lock()
+	// 使用 defer 关键字确保在函数结束时释放锁
 	defer GlobalServices.Unlock()
 
+	// 使用 for range 遍历全局服务列表 (GlobalServices.services)，其中 name 是服务名称，service 是服务实例
 	for name, service := range GlobalServices.services {
+		// 对每个服务执行传入的函数 fn，传递服务的名称和服务实例作为参数。如果函数执行过程中发生错误，立即返回该错误
 		if err := fn(name, service); err != nil {
 			return err
 		}
 	}
+	// 循环结束后，释放全局服务列表的锁，并返回 nil 表示函数执行成功。如果在执行期间没有出现错误，该函数返回 nil
 	return nil
 }
 

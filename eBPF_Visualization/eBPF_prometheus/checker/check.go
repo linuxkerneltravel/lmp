@@ -84,9 +84,13 @@ func CheckNormalError(err error) {
 	}
 }
 
+// 该函数接收一个字符串参数 content，用于判断是否符合 "proc" 命令的输出格式
 func IsProcOutput(content string) bool {
+	// 定义了一个包含正则表达式的字符串，用于匹配 "proc" 命令的输出格式。该正则表达式包含了多个条件，用 | 分隔
 	pattern := `flag:\d+\s+pid:\d+\s+comm:\S+\s+offcpu_id|oncpu_time:\d+\s+offcpu_time|oncpu_time:\d+\s+oncpu_id|offcpu_id:\d+\s+oncpu_time|offcpu_time:\d+\s+time:[\d.]+`
+	// 将字符串正则表达式编译成一个正则表达式对象 re
 	re := regexp.MustCompile(pattern)
+	// 检查传入的 content 是否与正则表达式匹配，如果匹配则返回 true，否则返回 false
 	return re.MatchString(content)
 }
 
