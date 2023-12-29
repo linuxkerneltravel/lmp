@@ -296,6 +296,7 @@ static struct env {
     bool execute_halt_poll_ns;
     bool execute_mark_page_dirty;
     bool execute_page_fault;
+    bool mmio_page_fault;
     int monitoring_time;
     pid_t vm_pid;
 } env = {
@@ -305,6 +306,7 @@ static struct env {
     .execute_halt_poll_ns = false,
     .execute_mark_page_dirty = false,
     .execute_page_fault = false,
+    .mmio_page_fault = false,
     .monitoring_time = 0,
     .vm_pid = -1,
 };
@@ -322,9 +324,12 @@ static const struct argp_option opts[] = {
     {"mark_page_dirty", 'd', NULL, 0,
      "Monitor virtual machine dirty page information."},
     {"kvmmmu_page_fault", 'f', NULL, 0,
-     "Monitoring the date of kvmmmu page fault."},
+     "Monitoring the data of kvmmmu page fault."},
     {"stat", 's', NULL, 0,
      "Display statistical data.(The -e option must be specified.)"},
+    {"mmio", 'm', NULL, 0,
+     "Monitoring the data of mmio page fault..(The -f option must be "
+     "specified.)"},
     {"vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor."},
     {"monitoring_time", 't', "SEC", 0, "Time for monitoring event."},
     {},
@@ -355,6 +360,14 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
                 env.ShowStats = true;
             } else {
                 fprintf(stderr, "The -e option must be specified.\n");
+                argp_usage(state);
+            }
+            break;
+        case 'm':
+            if (env.execute_page_fault) {
+                env.mmio_page_fault = true;
+            } else {
+                fprintf(stderr, "The -f option must be specified.\n");
                 argp_usage(state);
             }
             break;
@@ -434,30 +447,34 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
                e->rel_gfn, e->npages, e->userspace_addr, e->slot_id);
     } else if (env.execute_page_fault) {
         const struct page_fault_event *e = data;
-        printf(
-            "%-18llu %-15s %-10u %-12llx %-6u %-10llu %-20llx %-17llx %-10d ",
-            e->time, e->process.comm, e->process.pid, e->addr, e->count,
-            e->delay, e->hva, e->pfn, e->memslot_id);
+        printf("%-18llu %-15s %-10u %-12llx %-6u %-10llu ", e->time,
+               e->process.comm, e->process.pid, e->addr, e->count, e->delay);
+        if (e->error_code & (1ULL << PFERR_RSVD_BIT)) {
+            printf("%-20s %-17s %-10s", "-", "-", "-");
+        } else {
+            printf("%-20llx %-17llx %-10d", e->hva, e->pfn, e->memslot_id);
+        }
         if (e->error_code & (1ULL << PFERR_PRESENT_BIT)) {
-            printf("Present ");
+            printf(" Present");
         }
         if (e->error_code & (1ULL << PFERR_WRITE_BIT)) {
-            printf("Write ");
+            printf(" Write");
         }
         if (e->error_code & (1ULL << PFERR_USER_BIT)) {
-            printf("User ");
+            printf(" User");
         }
         if (e->error_code & (1ULL << PFERR_RSVD_BIT)) {
-            printf("Reserved ");
+            printf(" Reserved(MMIO)");
+            /*IOAPIC 的mmio基址 #define IOAPIC_DEFAULT_BASE_ADDRESS  0xfec00000*/
         }
         if (e->error_code & (1ULL << PFERR_FETCH_BIT)) {
-            printf("Exec ");
+            printf(" Exec");
         }
         if (e->error_code & (1ULL << PFERR_PK_BIT)) {
-            printf("Protection-Key ");
+            printf(" Protection-Key");
         }
         if (e->error_code & (1ULL << PFERR_SGX_BIT)) {
-            printf("SGX ");
+            printf(" SGX");
         }
         printf("\n");
     }
@@ -506,6 +523,10 @@ int main(int argc, char **argv) {
                               env.execute_page_fault ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_direct_page_fault,
                               env.execute_page_fault ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_mmu_page_fault,
+                              env.mmio_page_fault ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_handle_mmio_page_fault,
+                              env.mmio_page_fault ? true : false);
     /* Load & verify BPF programs */
     err = kvm_watcher_bpf__load(skel);
     if (err) {
@@ -535,14 +556,14 @@ int main(int argc, char **argv) {
         printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
                "COMM", "PID/TID", "COUNT", "DURATION(ns)");
     } else if (env.execute_halt_poll_ns) {
-        printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ns)",
-               "COMM", "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
+        printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ns)", "COMM",
+               "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
     } else if (env.execute_mark_page_dirty) {
         printf("%-18s %-15s %-15s %-10s %-11s %-10s %-10s %-10s\n", "TIME(ns)",
-               "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
-               "USERSPACE_ADDR", "SLOT_ID");
+               "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES", "USERSPACE_ADDR",
+               "SLOT_ID");
     } else if (env.execute_page_fault) {
-        printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %-10s\n",
+        printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
                "TIMESTAMP", "COMM", "PID", "ADDRESS", "COUNT", "DELAY", "HVA",
                "PFN", "MEM_SLOTID", "ERROR_TYPE");
     }

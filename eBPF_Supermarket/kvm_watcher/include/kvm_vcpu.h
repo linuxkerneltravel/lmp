@@ -93,7 +93,9 @@ static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
         struct kvm_memory_slot *slot;
         bpf_probe_read_kernel(&slot, sizeof(memslot), &memslot);
         bpf_probe_read_kernel(&flags, sizeof(memslot->flags), &memslot->flags);
-        if (slot && (flags & KVM_MEM_LOG_DIRTY_PAGES)) {  // 检查memslot是否启用了脏页追踪
+        if (slot &&
+            (flags &
+             KVM_MEM_LOG_DIRTY_PAGES)) {  // 检查memslot是否启用了脏页追踪
             gfn_t gfnum = gfn;
             u32 *count = bpf_map_lookup_elem(&count_dirty_map, &gfnum);
             if (count) {
