@@ -30,7 +30,7 @@
 #define PFERR_PK_BIT 5
 #define PFERR_SGX_BIT 15
 
-#define PFERR_RSVD_MASK (1UL << 3) //mmio
+#define PFERR_RSVD_MASK (1UL << 3)  // mmio
 
 #define PRINT_USAGE_ERR()                                                \
     do {                                                                 \

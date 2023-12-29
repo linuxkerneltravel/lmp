@@ -465,7 +465,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
         if (e->error_code & (1ULL << PFERR_RSVD_BIT)) {
             printf(" Reserved(MMIO)");
-            /*IOAPIC 的mmio基址 #define IOAPIC_DEFAULT_BASE_ADDRESS  0xfec00000*/
+            /*IOAPIC 的mmio基址 #define IOAPIC_DEFAULT_BASE_ADDRESS 0xfec00000*/
         }
         if (e->error_code & (1ULL << PFERR_FETCH_BIT)) {
             printf(" Exec");
