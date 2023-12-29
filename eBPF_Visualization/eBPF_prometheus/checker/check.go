@@ -32,25 +32,37 @@ const (
 	MaxFileSize int64 = 100 * 1024 * 1024
 )
 
+// 定义了一个名为 CollectCheck 的函数，用于检查和获取要收集的文件路径及其他参数
 func CollectCheck(ctx *cli.Context) (string, error) {
 	//if err := CheckArgs(ctx, 1, ConstExactArgs); err != nil {
 	//	return "", err
 	//}
 
+	// 从命令行上下文中获取第一个参数，即文件路径
 	file := ctx.Args().Get(0)
+
+	// 检查输入字符串是否有效
 	if !IsInputStringValid(file) {
 		return "", fmt.Errorf("input:%s is invalid", file)
 	}
 
+	// 检查文件是否存在
 	exist, err := PathExist(file)
 	if err != nil {
 		return "", err
 	}
+	// 如果文件不存在，返回相应的错误信息
 	if !exist {
 		return "", fmt.Errorf("file %s is not exist", file)
 	}
+
+	// 获取完整的命令行参数，并将它们连接成一个字符串
+	// fullcommand 是一个包含参数的字符串切片
 	fullcommand := ctx.Args().Slice()
+	// 将字符串切片中的元素连接成一个字符串，fullcommand 是一个包含命令行参数的字符串切片，" " 是连接各个参数时使用的分隔符
 	full := strings.Join(fullcommand, " ")
+
+	// 返回完整的命令行参数作为结果，以及 nil 表示没有错误
 	return full, nil
 }
 
@@ -78,8 +90,11 @@ func PathExist(path string) (bool, error) {
 	return false, err
 }
 
+// 定义了一个名为 CheckNormalError 的函数，用于检查并处理普通的错误
 func CheckNormalError(err error) {
+	// 如果 err 不为 nil，表示发生了错误
 	if err != nil {
+		// 使用 log.Fatalln 打印错误信息并终止程序
 		log.Fatalln(err)
 	}
 }
