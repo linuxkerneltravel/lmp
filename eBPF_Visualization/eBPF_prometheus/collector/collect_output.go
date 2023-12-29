@@ -199,8 +199,8 @@ func CheckFileType(filePath string) (specificcommand string) {
 	cmdSlice = append(cmdSlice, "stdbuf")
 	// 将 "-oL" 添加到命令切片，这是为了调整输出缓冲方式
 	cmdSlice = append(cmdSlice, "-oL")
-//	// 将文件路径转换为小写
-//	lowercaseFilename := strings.ToLower(filePath)
+	// 将文件路径转换为小写
+	lowercaseFilename := strings.ToLower(filePath)
 	// 如果文件路径以 ".py" 结尾
 	if strings.HasSuffix(lowercaseFilename, ".py") {
 		// 打印日志，表示尝试运行一个 Python 程序
