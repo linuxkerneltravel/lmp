@@ -28,6 +28,7 @@ jobs:
           tar -zxvf fuse-3.16.2.tar.gz
           mv fuse-3.16.2.tar.gz libfuse
           cd libfuse
+          cp ./fusedemo.c ./example/
           make
           cd ./example/
           mkdir ./yourdir
