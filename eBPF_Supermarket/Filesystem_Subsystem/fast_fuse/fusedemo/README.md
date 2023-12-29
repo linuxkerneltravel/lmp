@@ -10,6 +10,13 @@ mv fuse-3.16.2.tar.gz libfuse
 cd libfuse
 ```
 
+## 将fusedemo.c和Makefile文件复制到相应目录下：
+
+```
+cp /fusedemo.c文件路径 ./example/
+cp /Makefile文件路径 ./
+```
+
 ## 编译libfuse库并设置相应配置：
 
 （该阶段的步骤都存放在了Makefile文件中，也可以直接使用"make"命令代替下列命令）
