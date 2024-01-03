@@ -112,7 +112,7 @@ BPF program used for monitoring KVM event
   sudo modprobe kvm && sudo modprobe kvm-intel 
   ```
 
-- **下载Cirros镜像**
+- **下载CirrOs镜像**
 
   > CirrOS 是一个专门设计用于在云环境中运行的轻量级 Linux 发行版，特别适用于测试和虚拟机环境,[cirros官网](https://download.cirros-cloud.net/)。
 
