@@ -90,4 +90,47 @@ static int trace_direct_page_fault(struct kvm_vcpu *vcpu,
     }
     return 0;
 }
+
+static int trace_kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
+                                    u64 error_code, pid_t vm_pid) {
+    CHECK_PID(vm_pid) {
+        if (error_code & PFERR_RSVD_MASK) {
+            u64 ts = bpf_ktime_get_ns();
+            u64 addr = cr2_or_gpa;
+            bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
+        }
+    }
+    return 0;
+}
+
+static int trace_handle_mmio_page_fault(struct kvm_vcpu *vcpu, u64 addr,
+                                        bool direct, void *rb) {
+    u64 *ts;
+    ts = bpf_map_lookup_elem(&pf_delay, &addr);
+    if (ts) {
+        u32 *count;
+        u32 new_count = 1;
+        u64 delay = bpf_ktime_get_ns() - *ts;
+        bpf_map_delete_elem(&pf_delay, &addr);
+        struct page_fault_event *e;
+        RESERVE_RINGBUF_ENTRY(rb, e);
+        count = bpf_map_lookup_elem(&pf_count, &addr);
+        if (count) {
+            (*count)++;
+            e->count = *count;
+            bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
+        } else {
+            e->count = 1;
+            bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
+        }
+        e->delay = delay;
+        e->addr = addr;
+        e->error_code = PFERR_RSVD_MASK;
+        e->process.pid = bpf_get_current_pid_tgid() >> 32;
+        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+        e->time = *ts;
+        bpf_ringbuf_submit(e, 0);
+    }
+    return 0;
+}
 #endif /* __KVM_MMU_H */

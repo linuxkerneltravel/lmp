@@ -44,6 +44,6 @@ jobs:
           sudo ./kvm_watcher -e -t 10 -s
           sudo ./kvm_watcher -n -t 10 
           sudo ./kvm_watcher -d -t 10 
-          sudo ./kvm_watcher -f -t 10
+          sudo ./kvm_watcher -f -m -t 10
           make clean
 
