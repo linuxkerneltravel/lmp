@@ -178,7 +178,7 @@ static int print_resource(struct bpf_map *map)
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
 		if(prev_image != RESOURCE_IMAGE){
-			printf("RESOURCE------------------------------------------------------------\n");
+//			printf("RESOURCE------------------------------------------------------------\n");
 			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}

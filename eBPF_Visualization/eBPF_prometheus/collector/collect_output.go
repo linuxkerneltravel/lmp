@@ -168,15 +168,15 @@ type BPF_name struct {
 
 // 定义了一个名为 simpleCollect 的函数，用于执行简单的收集操作
 func simpleCollect(ctx *cli.Context) error {
-	// 调用 CollectCheck 函数，检查并获取要收集的文件路径及其他参数信息
-	filePath, err := checker.CollectCheck(ctx)
+	// 调用 CollectCheck 函数，检查并获取完整的命令行参数
+	full, err := checker.CollectCheck(ctx)
 	if err != nil {
 		// 如果出现错误，直接返回错误
 		return err
 	}
 
-	// 使用 strings.Fields 将文件路径拆分成字段，并取第一个字段作为路径
-	path := strings.Fields(filePath)[0]
+	// 使用 strings.Fields 将完整的命令行参数拆分成字段，并取第一个字段作为路径
+	path := strings.Fields(full)[0]
 
 	// 使用 strings.Split 将路径按 "/" 分割成切片
 	pathlist := strings.Split(path, "/")
@@ -185,11 +185,11 @@ func simpleCollect(ctx *cli.Context) error {
 	n := BPF_name{Name: strings.ReplaceAll(pathlist[len(pathlist)-1], ".py", "")}
 
 	// 调用 BPF_name 结构体的 Run 方法执行收集操作
-	return n.Run(filePath)
+	return n.Run(full)
 }
 
 // 定义了一个名为 CheckFileType 的函数，用于检查文件类型并返回相应的命令字符串
-func CheckFileType(filePath string) (specificcommand string) {
+func CheckFileType(full string) (specificcommand string) {
 	// 创建一个字符串切片，用于构建命令
 	cmdSlice := make([]string, 0)
 	// 将 "sudo" 添加到命令切片
@@ -199,18 +199,20 @@ func CheckFileType(filePath string) (specificcommand string) {
 	cmdSlice = append(cmdSlice, "stdbuf")
 	// 将 "-oL" 添加到命令切片，这是为了调整输出缓冲方式
 	cmdSlice = append(cmdSlice, "-oL")
+	// 使用 strings.Fields 将完整的命令行参数拆分成字段，并取第一个字段作为路径
+	path := strings.Fields(full)[0]
 	// 将文件路径转换为小写
-	lowercaseFilename := strings.ToLower(filePath)
+	lowercaseFilename := strings.ToLower(path)
 	// 如果文件路径以 ".py" 结尾
 	if strings.HasSuffix(lowercaseFilename, ".py") {
 		// 打印日志，表示尝试运行一个 Python 程序
-		log.Println("Try to run a python program.")
+		log.Println("Try to run a BCC program.")
 		// 将 "python3" 添加到命令切片
 		cmdSlice = append(cmdSlice, "python3")
 		// 将 "-u" 添加到命令切片，表示无缓冲输出
 		cmdSlice = append(cmdSlice, "-u")
-		// 将文件路径添加到命令切片
-		cmdSlice = append(cmdSlice, filePath)
+		// 将输入的命令添加到命令切片
+		cmdSlice = append(cmdSlice, full)
 		// 使用空格连接命令切片，形成完整的命令字符串
 		cmdStr := strings.Join(cmdSlice, " ")
 		// 返回构建好的命令字符串
@@ -218,11 +220,11 @@ func CheckFileType(filePath string) (specificcommand string) {
 	} else {
 		// 如果不是以 ".py" 结尾
 		// 打印日志，表示尝试运行一个 eBPF 程序
-		log.Println("Try to run a eBPF program.")
+		log.Println("Try to run a libbpf program.")
 		// 将 "-u" 添加到命令切片，表示无缓冲输出
-		cmdSlice = append(cmdSlice, "-u")
+		// cmdSlice = append(cmdSlice, "-u")
 		// 将文件路径添加到命令切片
-		cmdSlice = append(cmdSlice, filePath)
+		cmdSlice = append(cmdSlice, full)
 		// 使用空格连接命令切片，形成完整的命令字符串
 		cmdStr := strings.Join(cmdSlice, " ")
 		// 返回构建好的命令字符串
@@ -231,9 +233,9 @@ func CheckFileType(filePath string) (specificcommand string) {
 }
 
 // 定义了一个名为 Run 的方法，属于 BPF_name 结构体
-func (b *BPF_name) Run(filePath string) error {
+func (b *BPF_name) Run(full string) error {
 	// 检查文件类型，获取相应的命令字符串
-	cmdStr := CheckFileType(filePath)
+	cmdStr := CheckFileType(full)
 	// 创建一个执行外部命令的 Command 对象
 	// -c 表示后面的参数是一个命令字符串，而不是一个可执行文件
 	cmd := exec.Command("sh", "-c", cmdStr)
@@ -364,7 +366,7 @@ func redirectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{})
 				
 				// 创建一个新的空 map，其键是字符串类型，值是空接口类型 interface{}。这种设置允许 map 中的值可以是任何类型
 				one_map := make(map[string]interface{})
-				// 向 one_map 中添加一个键值对，其中键是字符串 value，值是 nil。这里看起来是为了构建一个只包含一个键值对的 map
+				// 向 one_map 中添加一个键值对，其中键是字符串 value，值是 nil
 				one_map[value] = nil
 				// 将新创建的 one_map 添加到切片 maps 中。这样，maps 就成为一个包含了多个这样的 map 的切片
 				maps = append(maps, one_map)
@@ -378,12 +380,12 @@ func redirectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{})
 			// 声明了一个新的字符串切片 special_parms，用于存储处理后的字段。这个切片将用于存储由原始字段组成的新的字段切片，以保证字段数量与标题数量一致
 			var special_parms []string
 			
-			// 检查字段数量是否与标题数量一致（不是理解）
+			// 检查字段数量是否与标题数量一致
 			if len(parms) != len(titles) {
 				// log.Printf("title number: %d, content number:%d", len(titles), len(parms))
 				// 声明一个字符串变量 COMM，用于存储合并后的字段值
 				var COMM string
-				// 遍历一行文本中的字段
+				// 遍历一行文本中的字段(这个遍历过程没看太懂)
 				for i, value := range parms {
 					// 检查字段是否在命令字段之前或者之后
 					if i < commandindex-1 && i >= len(parms)-commandindex {
