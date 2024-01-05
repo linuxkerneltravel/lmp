@@ -134,7 +134,7 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
 
   - 在下方处进行如图所示的配置，点击Run queries即可以可视化的方式监控CPU字段的数据：
 
-    <div align='center'><img src="./images/cpu.png"></div>
+    <div align='center'><img src="./images/CPU.png"></div>
 
     <div align='center'><img src="./images/display.png"></div>
 
