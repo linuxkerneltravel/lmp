@@ -22,6 +22,7 @@
 #include <bpf/bpf_tracing.h>
 #include "../include/kvm_exits.h"
 #include "../include/kvm_vcpu.h"
+#include "../include/kvm_mmu.h"
 #include "../include/kvm_watcher.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -35,30 +36,49 @@ struct {
 
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx) {
-    trace_kvm_vcpu_wakeup(ctx, &rb, vm_pid);
-    return 0;
+    return trace_kvm_vcpu_wakeup(ctx, &rb, vm_pid);
 }
 
 SEC("tp/kvm/kvm_halt_poll_ns")
 int tp_kvm_halt_poll_ns(struct halt_poll_ns *ctx) {
-    trace_kvm_halt_poll_ns(ctx, &rb, vm_pid);
-    return 0;
+    return trace_kvm_halt_poll_ns(ctx, &rb, vm_pid);
 }
 
 SEC("tp/kvm/kvm_exit")
 int tp_exit(struct exit *ctx) {
-    trace_kvm_exit(ctx, vm_pid);
-    return 0;
+    return trace_kvm_exit(ctx, vm_pid);
 }
 
 SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
-    trace_kvm_entry(&rb);
-    return 0;
+    return trace_kvm_entry(&rb);
 }
+
 SEC("kprobe/mark_page_dirty_in_slot")
 int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
                const struct kvm_memory_slot *memslot, gfn_t gfn) {
-    trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, vm_pid);
-    return 0;
+    return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, vm_pid);
+}
+
+SEC("tp/kvm/kvm_page_fault")
+int tp_page_fault(struct trace_event_raw_kvm_page_fault *ctx) {
+    return trace_page_fault(ctx, vm_pid);
+}
+
+SEC("fexit/direct_page_fault")
+int BPF_PROG(fexit_direct_page_fault, struct kvm_vcpu *vcpu,
+             struct kvm_page_fault *fault) {
+    return trace_direct_page_fault(vcpu, fault, &rb);
+}
+
+SEC("fentry/kvm_mmu_page_fault")
+int BPF_PROG(fentry_kvm_mmu_page_fault, struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
+             u64 error_code) {
+    return trace_kvm_mmu_page_fault(vcpu, cr2_or_gpa, error_code, vm_pid);
+}
+
+SEC("fexit/handle_mmio_page_fault")
+int BPF_PROG(fexit_handle_mmio_page_fault, struct kvm_vcpu *vcpu, u64 addr,
+             bool direct) {
+    return trace_handle_mmio_page_fault(vcpu, addr, direct, &rb);
 }

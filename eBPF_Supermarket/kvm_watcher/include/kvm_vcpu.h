@@ -78,6 +78,7 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
         e->grow = ctx->grow;
         e->old = ctx->old;
         e->new = ctx->new;
+        e->vcpu_id = ctx->vcpu_id;
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
         bpf_ringbuf_submit(e, 0);
     }
@@ -89,8 +90,12 @@ static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
                                          gfn_t gfn, void *rb, pid_t vm_pid) {
     CHECK_PID(vm_pid) {
         u32 flags;
+        struct kvm_memory_slot *slot;
+        bpf_probe_read_kernel(&slot, sizeof(memslot), &memslot);
         bpf_probe_read_kernel(&flags, sizeof(memslot->flags), &memslot->flags);
-        if (flags & KVM_MEM_LOG_DIRTY_PAGES) {  // 检查memslot是否启用了脏页追踪
+        if (slot &&
+            (flags &
+             KVM_MEM_LOG_DIRTY_PAGES)) {  // 检查memslot是否启用了脏页追踪
             gfn_t gfnum = gfn;
             u32 *count = bpf_map_lookup_elem(&count_dirty_map, &gfnum);
             if (count) {

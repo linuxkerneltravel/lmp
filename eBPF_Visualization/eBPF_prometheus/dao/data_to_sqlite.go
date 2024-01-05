@@ -27,9 +27,13 @@ import (
 	"strconv"
 )
 
+// 定义一个名为 Sqlobj 的结构体类型，用于封装数据库相关的信息
 type Sqlobj struct {
+	// Tablename 字段存储数据库表的名称。
 	Tablename string
+	// db 字段是一个指向 gorm.DB 类型的指针，用于处理与数据库交互的对象。
 	db        *gorm.DB
+	// Data 字段是一个 map，存储与数据库相关的信息。
 	Data      map[string]interface{}
 }
 
