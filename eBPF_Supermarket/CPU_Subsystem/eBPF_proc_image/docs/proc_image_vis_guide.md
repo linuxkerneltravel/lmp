@@ -58,7 +58,7 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
 
 ## 五、进程画像的可视化
 
-**首先安装docker**，安装方式参考：https://docs.docker.com/desktop/install/ubuntu/#install-docker-desktop，在安装过程中会碰到一下问题：
+**首先安装docker**，安装方式参考：https://docs.docker.com/desktop/install/ubuntu/#install-docker-desktop ，在安装过程中会碰到一下问题：
 
 - 执行指令 `sudo apt-get install ./docker-desktop-4.26.1-amd64.deb` 时会遇到报错：
 
@@ -108,21 +108,21 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
   ./data-visual collect /home/zhang/lmp/eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image -r -p 16279
   ```
 
-- 个人喜欢在主机上进行可视化设置，这样方便快捷，所以在主机上打开网址http://192.168.109.150:8090/metrics（其中192.168.109.150是虚拟机网络接口的IPv4地址），可以看到暴露在http网页中的数据：
+- 个人喜欢在主机上进行可视化设置，这样方便快捷，所以在主机上打开网址http://192.168.109.150:8090/metrics （其中192.168.109.150是虚拟机网络接口的IPv4地址），可以看到暴露在http网页中的数据：
 
   <div align='center'><img src="./images/metrics.png"></div>
 
-- 在主机上访问http://192.168.109.150:9090/可对prometheus-server进行管理，进入Status-Targets,即可看到metrics的状态：
+- 在主机上访问http://192.168.109.150:9090/ 可对prometheus-server进行管理，进入Status-Targets,即可看到metrics的状态：
 
   <div align='center'><img src="./images/targets.png"></div>
 
-- 在主机上访问http://192.168.109.150:3000/即可进入grafana服务，使用初始密码登录（user:admin pswd: admin）进入管理界面：
+- 在主机上访问http://192.168.109.150:3000/ 即可进入grafana服务，使用初始密码登录（user:admin pswd: admin）进入管理界面：
 
   - 点击【Home-Connection-Add new connection】，选择Prometheus，建立与Prometheus服务器的连接：
 
     <div align='center'><img src="./images/http.png"></div>
 
-    这个172.17.0.1表示docker0网桥的 IPv4 地址。在 Docker 中，通常会将docker0的第一个 IP 地址分配给Docker主机自身。因此，172.17.0.1是 Docker主机上Docker守护进程的 IP 地址，所以在Grafana数据源这块设置成http://172.17.0.1:9090，然后点击下面的【Save & test】按钮
+    这个172.17.0.1表示docker0网桥的 IPv4 地址。在 Docker 中，通常会将docker0的第一个 IP 地址分配给Docker主机自身。因此，172.17.0.1是 Docker主机上Docker守护进程的 IP 地址，所以在Grafana数据源这块设置成http://172.17.0.1:9090 ，然后点击下面的【Save & test】按钮
 
   - 进入可视化配置界面：
 
