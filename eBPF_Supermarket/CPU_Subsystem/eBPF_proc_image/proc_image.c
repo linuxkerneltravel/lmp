@@ -185,7 +185,7 @@ static int print_resource(struct bpf_map *map)
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
 		if(prev_image != RESOURCE_IMAGE){
-//			printf("RESOURCE------------------------------------------------------------\n");
+			printf("RESOURCE------------------------------------------------------------\n");
 			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
@@ -465,9 +465,6 @@ int main(int argc, char **argv)
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
 		return err;
-
-	env.ignore_pid = getpid();
-	printf("pid=%d\n",env.ignore_pid);
 	
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	/* 设置libbpf错误和调试信息回调 */
