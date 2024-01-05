@@ -94,7 +94,7 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
 
   最后问题成功解决，成功安装Docker Desktop
 
-**进程画像的可视化以进程资源使用情况的可视化为例进行讲解：**
+**进程画像的可视化以进程资源使用情况中的CPU利用率的可视化为例进行讲解：**
 
 - 进入lmp/eBPF_Visualization/eBPF_prometheus目录
 
