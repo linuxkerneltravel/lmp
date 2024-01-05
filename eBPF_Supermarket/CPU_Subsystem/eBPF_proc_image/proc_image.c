@@ -40,8 +40,10 @@ static volatile bool exiting = false;
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 static struct env {
     int pid;
+	int ignore_pid;
     int cpu_id;
     int time;
+	bool enable_myproc;
 	bool enable_output;
 	bool create_thread;
 	bool exit_thread;
@@ -56,6 +58,7 @@ static struct env {
     .pid = -1,
     .cpu_id = -1,
     .time = 0,
+	.enable_myproc = false,
 	.enable_output = false,
 	.create_thread = false,
 	.exit_thread = false,
@@ -87,7 +90,8 @@ static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
     { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
-	{ "all", 'a', NULL, 0, "Start all functions" },
+	{ "myproc", 'm', NULL, 0, "Trace the process of the tool itself (not tracked by default)" },
+	{ "all", 'a', NULL, 0, "Start all functions(but not track tool progress)" },
     { "resource", 'r', NULL, 0, "Collects resource usage information about processes" },
 	{ "syscall", 's', NULL, 0, "Collects syscall sequence information about processes" },
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
@@ -123,6 +127,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 't':
 				env.time = strtol(arg, NULL, 10);
 				if(env.time) alarm(env.time);
+				break;
+		case 'm':
+				env.enable_myproc = true;
 				break;
 		case 'a':
 				env.enable_resource = true;
@@ -459,6 +466,9 @@ int main(int argc, char **argv)
 	if (err)
 		return err;
 
+	env.ignore_pid = getpid();
+	printf("pid=%d\n",env.ignore_pid);
+	
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
@@ -474,6 +484,7 @@ int main(int argc, char **argv)
 
 		resource_skel->rodata->target_pid = env.pid;
 		resource_skel->rodata->target_cpu_id = env.cpu_id;
+		if(!env.enable_myproc)	resource_skel->rodata->ignore_pid = env.ignore_pid;
 
 		err = resource_image_bpf__load(resource_skel);
 		if (err) {
@@ -497,6 +508,7 @@ int main(int argc, char **argv)
 		}
 
 		syscall_skel->rodata->target_pid = env.pid;
+		if(!env.enable_myproc)	syscall_skel->rodata->ignore_pid = env.ignore_pid;
 
 		err = syscall_image_bpf__load(syscall_skel);
 		if (err) {
@@ -526,6 +538,8 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to open BPF lock skeleton\n");
 			return 1;
 		}
+
+		if(!env.enable_myproc)	lock_skel->rodata->ignore_pid = env.ignore_pid;
 
 		err = lock_image_bpf__load(lock_skel);
 		if (err) {
@@ -558,6 +572,7 @@ int main(int argc, char **argv)
 		}
 
 		keytime_skel->rodata->target_pid = env.pid;
+		if(!env.enable_myproc)	keytime_skel->rodata->ignore_pid = env.ignore_pid;
 
 		err = keytime_image_bpf__load(keytime_skel);
 		if (err) {
