@@ -25,7 +25,7 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const volatile pid_t target_pid = -1;
-const volatile pid_t ignore_pid = -1;
+const volatile pid_t ignore_tgid = -1;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -44,8 +44,9 @@ SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct trace_event_raw_sys_enter *args)
 {
     pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(pid!=ignore_pid && (target_pid==-1 || pid==target_pid)){
+    if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
         struct syscall_seq * syscall_seq;
 
         syscall_seq = bpf_map_lookup_elem(&proc_syscall, &pid);
@@ -72,11 +73,13 @@ SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next)
 {
 	pid_t next_pid = BPF_CORE_READ(next,pid);
+    int next_tgid = BPF_CORE_READ(next,tgid);
 	pid_t prev_pid = BPF_CORE_READ(prev,pid);
+    int prev_tgid = BPF_CORE_READ(prev,tgid);
     u64 current_time = bpf_ktime_get_ns();
 
 	// 输出prev进程的syscall_seq事件
-    if(prev_pid!=ignore_pid && (target_pid==-1 || prev_pid==target_pid)){
+    if(prev_tgid!=ignore_tgid && (target_pid==-1 || prev_pid==target_pid)){
         struct syscall_seq * prev_syscall_seq;
 
         prev_syscall_seq = bpf_map_lookup_elem(&proc_syscall, &prev_pid);
@@ -99,7 +102,7 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
     }
 
     // 记录next进程的开始时间
-    if(next_pid!=ignore_pid && (target_pid==-1 || next_pid==target_pid)){
+    if(next_tgid!=ignore_tgid && (target_pid==-1 || next_pid==target_pid)){
         struct syscall_seq next_syscall_seq = {};
 
         next_syscall_seq.pid = next_pid;

@@ -25,7 +25,7 @@
 
 const volatile pid_t target_pid = -1;
 const volatile int target_cpu_id = -1;
-const volatile pid_t ignore_pid = -1;
+const volatile pid_t ignore_tgid = -1;
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -49,11 +49,13 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 	struct task_struct *prev = (struct task_struct *)PT_REGS_PARM1(ctx);
 	pid_t prev_pid = BPF_CORE_READ(prev,pid);
 	int prev_cpu = bpf_get_smp_processor_id();
+	int prev_tgid = BPF_CORE_READ(prev,tgid);
 	struct task_struct *next = (struct task_struct *)bpf_get_current_task();
 	pid_t next_pid = BPF_CORE_READ(next,pid);
 	int next_cpu = prev_cpu;
+	int next_tgid = BPF_CORE_READ(next,tgid);
 	
-	if(prev_pid!=ignore_pid && (target_pid==-1 || (target_pid!=0 && prev_pid==target_pid) || 
+	if(prev_tgid!=ignore_tgid && (target_pid==-1 || (target_pid!=0 && prev_pid==target_pid) || 
 	   (target_pid==0 && prev_pid==target_pid && prev_cpu==target_cpu_id))){
 		struct proc_id prev_pd = {0};
 		prev_pd.pid = prev_pid;
@@ -124,7 +126,7 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 		}
 	}
 
-	if(next_pid!=ignore_pid && (target_pid==-1 || (target_pid!=0 && next_pid==target_pid) || 
+	if(next_tgid!=ignore_tgid && (target_pid==-1 || (target_pid!=0 && next_pid==target_pid) || 
 	   (target_pid==0 && next_pid==target_pid && next_cpu==target_cpu_id))){
 		struct proc_id next_pd = {0};
 		struct start_rsc next_start={0};

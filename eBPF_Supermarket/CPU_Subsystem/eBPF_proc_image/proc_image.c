@@ -40,7 +40,7 @@ static volatile bool exiting = false;
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 static struct env {
     int pid;
-	int ignore_pid;
+	int ignore_tgid;
     int cpu_id;
     int time;
 	bool enable_myproc;
@@ -466,6 +466,8 @@ int main(int argc, char **argv)
 	if (err)
 		return err;
 	
+	env.ignore_tgid = getpid();
+
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
@@ -481,7 +483,7 @@ int main(int argc, char **argv)
 
 		resource_skel->rodata->target_pid = env.pid;
 		resource_skel->rodata->target_cpu_id = env.cpu_id;
-		if(!env.enable_myproc)	resource_skel->rodata->ignore_pid = env.ignore_pid;
+		if(!env.enable_myproc)	resource_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = resource_image_bpf__load(resource_skel);
 		if (err) {
@@ -505,7 +507,7 @@ int main(int argc, char **argv)
 		}
 
 		syscall_skel->rodata->target_pid = env.pid;
-		if(!env.enable_myproc)	syscall_skel->rodata->ignore_pid = env.ignore_pid;
+		if(!env.enable_myproc)	syscall_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = syscall_image_bpf__load(syscall_skel);
 		if (err) {
@@ -536,7 +538,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if(!env.enable_myproc)	lock_skel->rodata->ignore_pid = env.ignore_pid;
+		if(!env.enable_myproc)	lock_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = lock_image_bpf__load(lock_skel);
 		if (err) {
@@ -569,7 +571,7 @@ int main(int argc, char **argv)
 		}
 
 		keytime_skel->rodata->target_pid = env.pid;
-		if(!env.enable_myproc)	keytime_skel->rodata->ignore_pid = env.ignore_pid;
+		if(!env.enable_myproc)	keytime_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = keytime_image_bpf__load(keytime_skel);
 		if (err) {

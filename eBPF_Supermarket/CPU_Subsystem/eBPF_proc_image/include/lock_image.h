@@ -16,11 +16,12 @@
 //
 // Variable definitions and help functions for lock in the process
 
-static int record_lock_enter(pid_t ignore_pid,int lock_status,int flag,void *__lock,void *lock_rb,void *proc_lock)
+static int record_lock_enter(pid_t ignore_tgid,int lock_status,int flag,void *__lock,void *lock_rb,void *proc_lock)
 {
     pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(pid!=ignore_pid){
+    if(tgid!=ignore_tgid){
         u64 lock_ptr = (u64)__lock;
         struct proc_flag proc_flag = {};
         
@@ -45,11 +46,12 @@ static int record_lock_enter(pid_t ignore_pid,int lock_status,int flag,void *__l
     return 0;
 }
 
-static int record_lock_exit(pid_t ignore_pid,int lock_status,int flag,int ret,void *lock_rb,void *proc_lock,void *locktype)
+static int record_lock_exit(pid_t ignore_tgid,int lock_status,int flag,int ret,void *lock_rb,void *proc_lock,void *locktype)
 {
     pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(pid!=ignore_pid){
+    if(tgid!=ignore_tgid){
         u64 *lock_ptr;
         u64 temp_lock_ptr;
         struct proc_flag proc_flag = {};
@@ -90,11 +92,12 @@ static int record_lock_exit(pid_t ignore_pid,int lock_status,int flag,int ret,vo
     return 0;
 }
 
-static int record_unlock_enter(pid_t ignore_pid,int flag,void *__lock,void *proc_unlock)
+static int record_unlock_enter(pid_t ignore_tgid,int flag,void *__lock,void *proc_unlock)
 {
     pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(pid!=ignore_pid){
+    if(tgid!=ignore_tgid){
         u64 lock_ptr = (u64)__lock;
         struct proc_flag proc_flag = {};
 
@@ -107,11 +110,12 @@ static int record_unlock_enter(pid_t ignore_pid,int flag,void *__lock,void *proc
     return 0;
 }
 
-static int record_unlock_exit(pid_t ignore_pid,int lock_status,int flag,void *lock_rb,void *proc_unlock,void *locktype)
+static int record_unlock_exit(pid_t ignore_tgid,int lock_status,int flag,void *lock_rb,void *proc_unlock,void *locktype)
 {
     pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(pid!=ignore_pid){
+    if(tgid!=ignore_tgid){
         u64 *lock_ptr;
         u64 temp_lock_ptr;
         struct proc_flag proc_flag = {};
