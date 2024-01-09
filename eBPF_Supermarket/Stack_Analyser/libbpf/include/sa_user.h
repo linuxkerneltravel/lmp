@@ -28,6 +28,10 @@
 
 #include "sa_common.h"
 
+struct diy_header {
+	char name[16];
+	uint64_t len;
+};
 
 /// @brief 栈处理工具当前支持的采集模式
 typedef enum {
@@ -36,7 +40,16 @@ typedef enum {
     MOD_MEM,     // 内存模式
     MOD_IO,      // io模式
     MOD_RA,      // 预读取分析模式
+	MOD_NUM		// 该枚举类值的总数
 } StackCollectMode;
+
+char StackCollectModeName[MOD_NUM][16] = {
+	"on_cpu",
+	"off_cpu",
+	"memory",
+	"io",
+	"readahead"
+};
 
 typedef enum {
     NO_OUTPUT,
@@ -109,6 +122,13 @@ typedef enum {
         fprintf(stderr, __VA_ARGS__);                \
         fprintf(stderr, " [%s]\n", strerror(errno)); \
         return -1;                                   \
+    }
+
+#define CHECK_ERR_VALUE(cond, val, ...)                         \
+    if (cond) {                                      \
+        fprintf(stderr, __VA_ARGS__);                \
+        fprintf(stderr, " [%s]\n", strerror(errno)); \
+        return val;                                   \
     }
 
 #include <stdlib.h>

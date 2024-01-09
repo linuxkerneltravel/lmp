@@ -36,6 +36,7 @@ extern "C" {
 #include <bpf/libbpf.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <arpa/inet.h>
 
 #include "sa_user.h"
 #include "bpf/on_cpu_count.skel.h"
@@ -202,15 +203,17 @@ public:
 	/// @brief 将表中的栈数据保存为火焰图
 	/// @param  无
 	/// @return 表未成功打开则返回负数
-	int format(void)
+	std::ostringstream *format(void)
 	{
-		CHECK_ERR(value_fd < 0, "count map open failure");
-		CHECK_ERR(trace_fd < 0, "trace map open failure");
-		CHECK_ERR(comm_fd < 0, "comm map open failure");
-		std::filebuf DataFileBuf;
-		const std::string DataFileName = name + "_stack_data.log";
-		CHECK_ERR(DataFileBuf.open(DataFileName, std::ios::app) == nullptr, "data file open failed"); 
-		std::ostream DataText(&DataFileBuf);
+		CHECK_ERR_VALUE(value_fd < 0, nullptr, "count map open failure");
+		CHECK_ERR_VALUE(trace_fd < 0, nullptr, "trace map open failure");
+		CHECK_ERR_VALUE(comm_fd < 0, nullptr, "comm map open failure");
+		// std::filebuf DataFileBuf;
+		// const std::string DataFileName = name + "_stack_data.log";
+		// CHECK_ERR(DataFileBuf.open(DataFileName, std::ios::app) == nullptr, "data file open failed"); 
+		// std::ostream DataText(&DataFileBuf);
+		auto DataTextP = new std::ostringstream();
+		auto &DataText = *DataTextP;
 		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
 			{
 				char cmd[COMM_LEN];
@@ -273,7 +276,7 @@ public:
 			bpf_map_lookup_elem(value_fd, &id, data_buf);
 			DataText << ' ' + std::to_string(data_value()) << '\n';
 		}
-		return 0;
+		return DataTextP;
 	}
 };
 
@@ -514,7 +517,8 @@ namespace MainConfig {
 	display_t d_mode = display_t::NO_OUTPUT;	// 设置显示模式
 	std::string command = "";
 	int32_t target_pid = -1;
-}
+	std::string server_address = "127.0.0.1:12345";
+};
 
 std::vector<StackCollector*> StackCollectorList;
 void endCollect(void) {
@@ -535,12 +539,13 @@ uint64_t optbuff;
 int main(int argc, char *argv[]) {
 	auto MainOption = (
 		(
-			((clipp::option("-p", "--pid") & clipp::value("pid of sampled process", MainConfig::target_pid)) % "set pid of process to monitor") |
-			((clipp::option("-c", "--command") & clipp::value("to be sampled command to run", MainConfig::command)) % "set command for monitoring the whole life")
+			((clipp::option("-p", "--pid") & clipp::value("pid of sampled process, default -1 for all", MainConfig::target_pid)) % "set pid of process to monitor") |
+			((clipp::option("-c", "--command") & clipp::value("to be sampled command to run, default none", MainConfig::command)) % "set command for monitoring the whole life")
 		),
-		(clipp::option("-d", "--delay") & clipp::value("delay time to output", MainConfig::delay)) % "set the interval to output",
-		clipp::option("-l", "--realtime-list").set(MainConfig::d_mode, LIST_OUTPUT) % "output in console (default none)",
-		clipp::option("-t", "--timeout") & clipp::value("run time", MainConfig::run_time) % "set the total simpling time"
+		(clipp::option("-d", "--delay") & clipp::value("delay time(seconds) to output, default 5", MainConfig::delay)) % "set the interval to output",
+		clipp::option("-l", "--realtime-list").set(MainConfig::d_mode, LIST_OUTPUT) % "output in console, default false",
+		clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time) % "set the total simpling time",
+		clipp::option("-s", "--server") & clipp::value("server address, default 127.0.0.1:12345", MainConfig::server_address) % "set the server address"
 	);
 
 	auto SubOption = (
@@ -659,21 +664,75 @@ int main(int argc, char *argv[]) {
 	}
 
 	printf("display mode: %d\n", MainConfig::d_mode);
-	
+
+		// 创建 socket
+	bool ToRemote = true;
+	int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if (clientSocket == -1) {
+		std::cerr << "Error creating socket" << std::endl;
+		// return -1;
+		ToRemote = false;
+	} else {
+		// 服务器地址信息
+		sockaddr_in serverAddress;
+		serverAddress.sin_family = AF_INET;
+		auto ColonPos = MainConfig::server_address.find(':');
+		if(ColonPos < 0) {
+			std::cerr << "server address err" << std::endl;
+			return 0;
+		}
+		auto IPAddr = MainConfig::server_address.substr(0, ColonPos);
+		auto PortAddr = MainConfig::server_address.substr(ColonPos + 1);
+		serverAddress.sin_port = htons(std::stoi(PortAddr));
+		inet_pton(AF_INET, IPAddr.c_str(), &serverAddress.sin_addr);
+		// 连接到服务器
+		if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
+			std::cerr << "Error connecting to server" << std::endl;
+			close(clientSocket);
+			// return -1;
+			ToRemote = false;
+		}
+	}
+
+
 	for(; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay) {
-		sleep(MainConfig::delay);
+		sleep(MainConfig::delay);  // 模拟实时性
 		time_t timep;
 		::time(&timep);
 		printf("%s", ctime(&timep));
+
 		for(auto Item : StackCollectorList) {
 			Item->detach();
-			if(MainConfig::d_mode == display_t::LIST_OUTPUT) {
-				Item->print_list();
+			// if(MainConfig::d_mode == display_t::LIST_OUTPUT) {
+			// 	Item->print_list();
+			// }
+			auto StreamData = Item->format();
+			if(!StreamData) {
+				continue;
 			}
-			Item->format();
+			auto dataToSend = StreamData->str();
+			if(ToRemote) {
+				// 发送数据到服务器
+				struct diy_header AHeader = {
+					.len = dataToSend.size()
+				};
+				strcpy(AHeader.name, Item->name.c_str());
+				send(clientSocket, &AHeader, sizeof(AHeader), 0);
+				send(clientSocket, dataToSend.c_str(), AHeader.len, 0);
+			} else {
+				Item->print_list();
+				std::ofstream fout;
+				fout.open(Item->name + "_stack_data.txt", std::ios::out | std::ios::app);
+				fout << dataToSend;
+			}
+			delete StreamData;
 			Item->check_clear_count();
+
 			Item->attach();
 		}
+
 	}
+	// 关闭连接
+	close(clientSocket);
 	atexit(endCollect);
 }
