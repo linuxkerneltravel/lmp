@@ -78,12 +78,22 @@ private:
 		if (value_fd < 0) {
 			return NULL;
 		}
-		std::vector<CountItem> *D = new std::vector<CountItem>();
-		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
-			bpf_map_lookup_elem(value_fd, &id, data_buf);
-			CountItem d(id.pid, id.ksid, id.usid, data_value());
+		auto keys = new psid[MAX_ENTRIES];
+		auto vals = new char[MAX_ENTRIES*count_size];
+		uint32_t count = MAX_ENTRIES;
+		psid next_key;
+		int err = bpf_map_lookup_and_delete_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
+		if(err == EFAULT) {
+			return NULL;
+		}
+
+		auto D = new std::vector<CountItem>();
+		for(int i = 0; i < count; i++) {
+			CountItem d(keys[i].pid, keys[i].ksid, keys[i].usid, data_value(vals + count_size*i));
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
 		}
+		delete[] keys;
+		delete[] vals;
 		return D;
 	};
 
@@ -92,15 +102,15 @@ protected:
 	int tgid_fd = -1;  // pid-tgid表的文件描述符
 	int comm_fd = -1;  // pid-进程名表的文件描述符
 	int trace_fd = -1; // 栈id-栈轨迹表的文件描述符
-
-	void *data_buf = NULL;		// 用于存储单个指标值的缓冲区
 	
+	size_t count_size = sizeof(uint32_t);
+
 	bool showDelta = true;
 
 	/// @brief 将缓冲区的数据解析为特定值
 	/// @param  无
 	/// @return 解析出的值
-	virtual uint64_t data_value(void) { return *(uint64_t *)data_buf; };
+	virtual uint64_t data_value(void *data) { return *(uint32_t *)data; };
 
 	/// @brief 为特定值添加注解
 	/// @param f 特定值
@@ -128,11 +138,6 @@ public:
 
 	StackCollector() {
 		self_pid = getpid();
-		data_buf = new uint64_t(0);
-	};
-
-	virtual ~StackCollector() {
-		delete (uint64_t *)data_buf;
 	};
 
 	/// @brief 负责ebpf程序的加载、参数设置和打开操作
@@ -191,13 +196,93 @@ public:
 
 	/// @brief 打印count列表
 	/// @param  无
-	void print_list(void)
-	{
-		auto D = sortedCountList();
-		for (auto id : *D) {
-			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\t%s\n", id.pid, id.usid, id.ksid, data_str(id.val).c_str());
+	void print_list(void) {
+		std::map<int32_t, uint64_t*> traces;
+		printf("\ncount list:\n"); {
+			auto D = sortedCountList();
+			if(!D) return;
+			printf("pid\tusid\tksid\t%s\n", data_str(1).c_str());
+			for (auto id : *D) {
+				printf("%-6d\t%-6d\t%-6d\t%ld\n", id.pid, id.usid, id.ksid, id.val);
+				if(id.usid > 0 && traces.find(id.usid) == traces.end()) {
+					traces[id.usid] = new uint64_t[MAX_STACKS];
+					bpf_map_lookup_elem(trace_fd, &id.usid, traces[id.usid]);
+				}
+				if(id.ksid > 0 && traces.find(id.ksid) == traces.end()) {
+					traces[id.ksid] = new uint64_t[MAX_STACKS];
+					bpf_map_lookup_elem(trace_fd, &id.ksid, traces[id.ksid]);
+				}
+			}
+			delete D;
 		}
-		delete D;
+		printf("\ntrace list:\n"); {
+			// auto keys = new int32_t[MAX_ENTRIES];
+			// auto vals = new uint64_t[MAX_ENTRIES][MAX_STACKS];
+			// uint32_t count = 10;
+			// int32_t next_key;
+			// int err = bpf_map_lookup_and_delete_batch(trace_fd, NULL, &next_key, keys, vals, &count, NULL); // sid有重复且很多，trace为0
+			// if(err == EFAULT) {
+			// 	return;
+			// }
+			printf("sid\ttrace\n");
+			// for(int i = 0; i < count; i++) {
+			// 	if(keys[i] <= 0) {
+			// 		continue; 
+			// 	}
+			//	printf("%d\t[", keys[i]);
+			// 	for(int j = 0; j < MAX_STACKS; j++) {
+			// 		printf("0x%lx, ", vals[i][j]);
+			// 	}
+			// 	printf("\b]\n");
+			// }
+			// delete[] keys;
+			// delete[] vals;
+			for(auto i : traces) {
+				printf("%d\t[", i.first);
+				for(int j = 0; j < MAX_STACKS && i.second[j]; j++) {
+					printf(" 0x%lx,", i.second[j]);
+				}
+				printf("\b]\n");
+			}
+		}
+		printf("\ntgid list:\n"); {
+			if(tgid_fd < 0) {
+				return;
+			}
+			auto keys = new uint32_t[MAX_ENTRIES];
+			auto vals = new uint32_t[MAX_ENTRIES];
+			uint32_t count = MAX_ENTRIES;
+			uint32_t next_key;
+			int err = bpf_map_lookup_batch(tgid_fd, NULL, &next_key, keys, vals, &count, NULL);
+			if(err == EFAULT) {
+				return;
+			}
+			printf("pid\ttgid\n");
+			for(int i = 0; i < count; i++) {
+				printf("%d\t%d\n", keys[i], vals[i]);
+			}
+			delete[] keys;
+			delete[] vals;
+		}
+		printf("\ncommand list:\n"); {
+			if(comm_fd < 0) {
+				return;
+			}
+			auto keys = new uint32_t[MAX_ENTRIES];
+			auto vals = new char[MAX_ENTRIES][16];
+			uint32_t count = MAX_ENTRIES;
+			uint32_t next_key;
+			int err = bpf_map_lookup_batch(comm_fd, NULL, &next_key, keys, vals, &count, NULL);
+			if(err == EFAULT) {
+				return;
+			}
+			printf("pid\tcommand\n");
+			for(int i = 0; i < count; i++) {
+				printf("%d\t%s\n", keys[i], vals[i]);
+			}
+			delete[] keys;
+			delete[] vals;
+		}
 	}
 
 	/// @brief 将表中的栈数据保存为火焰图
@@ -252,7 +337,7 @@ public:
 			} else {
 				DataText << "[MISSING USER STACK];";
 			}
-			DataText << "---------;";
+			// DataText << "---------;";
 			if (id.ksid >= 0) {
 				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
 				uint64_t *p = ip + MAX_STACKS - 1;
@@ -273,8 +358,9 @@ public:
 			} else {
 				DataText << "[MISSING KERNEL STACK];";
 			}
-			bpf_map_lookup_elem(value_fd, &id, data_buf);
-			DataText << ' ' + std::to_string(data_value()) << '\n';
+			char data[count_size];
+			bpf_map_lookup_elem(value_fd, &id, &data);
+			DataText << ' ' + std::to_string(data_value(&data)) << '\n';
 		}
 		return DataTextP;
 	}
@@ -445,8 +531,8 @@ protected:
 		return IOScale[DataType] + ":" + std::to_string(f);
 	};
 
-	uint64_t data_value() override {
-		io_tuple *p = (io_tuple *)data_buf;
+	uint64_t data_value(void *data) override {
+		io_tuple *p = (io_tuple *)data;
 		switch (DataType) {
 		case AVE:
 			return p->size / p->count;
@@ -463,14 +549,8 @@ public:
 	io_mod DataType = io_mod::COUNT;
 
 	IOStackCollector() {
-		delete (uint64_t *)data_buf;
-		data_buf = new io_tuple{0};
+		count_size = sizeof(io_tuple);
 		name = "io";
-	};
-
-
-	~IOStackCollector() override {
-		delete (io_tuple *)data_buf;
 	};
 
 	defaultLoad;
@@ -488,8 +568,8 @@ protected:
 		return "rest_pages:" + std::to_string(f); 
 	};
 
-	uint64_t data_value() override {
-		ra_tuple *p = (ra_tuple *)data_buf;
+	uint64_t data_value(void *data) override {
+		ra_tuple *p = (ra_tuple *)data;
 		return p->expect - p->truth;
 	};
 
@@ -500,15 +580,10 @@ public:
 	defaultUnload;
 
 	ReadaheadStackCollector() {
-		delete (uint64_t *)data_buf;
-		data_buf = new ra_tuple{0};
 		name = "readahead";
+		count_size = sizeof(ra_tuple);
 		showDelta = false;
 	};
-
-	~ReadaheadStackCollector() override {
-		delete (ra_tuple *)data_buf;
-	}
 };
 
 namespace MainConfig {
