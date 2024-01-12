@@ -18,6 +18,10 @@
 - **vCPU相关指标分析：**
   - 记录有关vCPU的性能指标，包括唤醒时的时间戳，halt持续时间，vCPU id等相关信息。
   - 实时监控vCPU的halt-polling时间的变化信息，包括vCPU的线程tid，变化类型，变化前后的halt-polling时间等信息。
+- **kvm中中断注入时相关信息：**
+  - PIC:实时记录PIC芯片类型，中断引脚编号，中断触发方式，是否可屏蔽，处理延时，是否发生合并等信息。
+  - IOAPIC:
+  - MSI:
 
 ## 三、使用方法
 
@@ -52,6 +56,7 @@ BPF program used for monitoring KVM event
   -d, --mark_page_dirty      Monitor virtual machine dirty page information.
   -e, --vm_exit              Monitoring the event of vm exit.
   -f, --kvmmmu_page_fault    Monitoring the data of kvmmmu page fault.
+  -i, --kvm_irq              Monitor the interrupt information in KVM VM.
   -m, --mmio                 Monitoring the data of mmio page fault..(The -f option must be specified.)
   -n, --halt_poll_ns         Monitoring the variation in vCPU halt-polling time.
   -p, --vm_pid=PID           Specify the virtual machine pid to monitor.
@@ -69,6 +74,8 @@ BPF program used for monitoring KVM event
 
 `-f`：记录kvmmmu缺页信息
 
+`-i`：记录kvm中断设置相关信息
+
 `-m`：记录mmio缺页信息（需要和`-f`一同使用）
 
 `-d`：记录kvm脏页信息
@@ -77,7 +84,7 @@ BPF program used for monitoring KVM event
 
 `-w`：记录vcpu唤醒时的相关信息
 
-`-p`：指定kvm虚拟机进程pid（必须为虚拟机进程，否则会报错）
+`-p`：指定kvm虚拟机进程pid
 
 `-t`：监控时间
 
@@ -87,6 +94,7 @@ BPF program used for monitoring KVM event
 ├── include
 │   ├── kvm_exits.h           //vm exit事件相关的内核bpf程序
 │   ├── kvm_mmu.h             //kvmmmu相关的内核bpf程序
+│   ├── kvm_irq.h             //中断注入相关内核bpf程序
 │   ├── kvm_vcpu.h            //vcpu相关内核bpf程序
 │   └── kvm_watcher.h         //项目公用头文件
 ├── Makefile                  //编译脚本
@@ -131,10 +139,7 @@ BPF program used for monitoring KVM event
 
   ```
   make
-  sudo ./kvm_watcher -w -t 10
-  sudo ./kvm_watcher -e -t 10 -s
-  sudo ./kvm_watcher -n -t 10 
-  sudo ./kvm_watcher -d -t 10 
+  sudo ./kvm_watcher [options]
   make clean
   ```
 
