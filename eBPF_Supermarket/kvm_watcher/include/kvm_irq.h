@@ -14,7 +14,7 @@
 //
 // author: nanshuaibo811@163.com
 //
-// Kernel space BPF program used for monitoring data for KVM IRQ.
+// Kernel space BPF program used for monitoring data for KVM IRQ event.
 #ifndef __KVM_IRQ_H
 #define __KVM_IRQ_H
 
