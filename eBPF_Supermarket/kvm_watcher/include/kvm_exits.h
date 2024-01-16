@@ -54,29 +54,27 @@ struct exit {
 int total = 0;
 
 static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
+    CHECK_PID(vm_pid);
     u64 id, ts;
     id = bpf_get_current_pid_tgid();
     pid_t tid = (u32)id;
-    pid_t pid = id >> 32;
-    if (vm_pid < 0 || pid == vm_pid) {
-        ts = bpf_ktime_get_ns();
-        u32 reason;
-        reason = (u32)ctx->exit_reason;
-        struct reason_info reas = {};
-        reas.reason = reason;
-        reas.time = ts;
-        u32 *count;
-        count = bpf_map_lookup_elem(&counts, &reason);
-        if (count) {
-            (*count)++;
-            reas.count = *count;
-        } else {
-            u32 new_count = 1;
-            reas.count = new_count;
-            bpf_map_update_elem(&counts, &reason, &new_count, BPF_ANY);
-        }
-        bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
+    ts = bpf_ktime_get_ns();
+    u32 reason;
+    reason = (u32)ctx->exit_reason;
+    struct reason_info reas = {};
+    reas.reason = reason;
+    reas.time = ts;
+    u32 *count;
+    count = bpf_map_lookup_elem(&counts, &reason);
+    if (count) {
+        (*count)++;
+        reas.count = *count;
+    } else {
+        u32 new_count = 1;
+        reas.count = new_count;
+        bpf_map_update_elem(&counts, &reason, &new_count, BPF_ANY);
     }
+    bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
     return 0;
 }
 

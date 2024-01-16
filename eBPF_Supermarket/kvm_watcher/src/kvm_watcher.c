@@ -330,7 +330,7 @@ static const struct argp_option opts[] = {
      "Monitor virtual machine dirty page information."},
     {"kvmmmu_page_fault", 'f', NULL, 0,
      "Monitoring the data of kvmmmu page fault."},
-    {"kvm_pic", 'i', NULL, 0, "Monitor the interrupt information in KVM VM."},
+    {"kvm_irq", 'i', NULL, 0, "Monitor the interrupt information in KVM VM."},
     {"stat", 's', NULL, 0,
      "Display statistical data.(The -e option must be specified.)"},
     {"mmio", 'm', NULL, 0,
@@ -448,20 +448,6 @@ static int determineEventType(struct env *env) {
     return 0;
 }
 
-const char *get_irqchip(unsigned char chip) {
-    if (chip >= KVM_NR_IRQCHIPS) {
-        return "Invalid";
-    } else if (chip == KVM_IRQCHIP_PIC_MASTER) {
-        return "master";
-    } else if (chip == KVM_IRQCHIP_PIC_SLAVE) {
-        return "slave";
-    } else if (chip == KVM_IRQCHIP_IOAPIC) {
-        return "ioapic";
-    } else {
-        return "Unknown";
-    }
-}
-
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct common_event *e = data;
     switch (env.event_type) {
@@ -552,15 +538,38 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
         case PIC: {
             // 使用 e->pic_data 访问 PAGE_FAULT 特有成员
-            printf(
-                "%-18llu %-15s %-10d %-10llu %-10s %-10u %-10s %-10s %-10d "
-                "%-10s\n",
-                e->time, e->process.comm, e->process.pid, e->pic_data.delay,
-                get_irqchip(e->pic_data.chip), e->pic_data.pin,
-                (e->pic_data.elcr & (1 << e->pic_data.pin)) ? "level" : "edge",
-                (e->pic_data.imr & (1 << e->pic_data.pin)) ? "masked" : "-",
-                e->pic_data.irq_source_id,
-                e->pic_data.ret == 0 ? "coalesced" : "-");
+            if (e->pic_data.ioapic) {
+                const char *ioapic_delivery_modes[] = {
+                    "Fixed", "LowPrio", "SMI",  "Res3",
+                    "NMI",   "INIT",    "SIPI", "ExtINT"};
+                printf(
+                    "%-18llu %-15s %-10d %-10llu %-6s/%-3u %-10d %-3x/%-6u "
+                    "%-5s | %-8s | %-5s | %-6s | "
+                    "%s\n",
+                    e->time, e->process.comm, e->process.pid, e->pic_data.delay,
+                    "ioapic", e->pic_data.pin, e->pic_data.irq_source_id,
+                    (unsigned char)(e->pic_data.ioapic_bits >> 56),
+                    (unsigned char)e->pic_data.ioapic_bits,
+                    ioapic_delivery_modes[e->pic_data.ioapic_bits >> 8 & 0x7],
+                    (e->pic_data.ioapic_bits & (1 << 11)) ? "logical"
+                                                          : "physical",
+                    (e->pic_data.ioapic_bits & (1 << 15)) ? "level" : "edge",
+                    (e->pic_data.ioapic_bits & (1 << 16)) ? "masked" : "-",
+                    e->pic_data.ret == 0 ? "coalesced" : "-");
+            } else {
+                printf(
+                    "%-18llu %-15s %-10d %-10llu %-10s/%-3u %-10d %-3s/%-6s "
+                    "%-5s | %-8s | %-5s | %-6s | "
+                    "%s\n",
+                    e->time, e->process.comm, e->process.pid, e->pic_data.delay,
+                    e->pic_data.chip ? "PIC slave" : "PIC master",
+                    e->pic_data.pin, e->pic_data.irq_source_id, "-", "-", "-",
+                    "-",
+                    (e->pic_data.elcr & (1 << e->pic_data.pin)) ? "level"
+                                                                : "edge",
+                    (e->pic_data.imr & (1 << e->pic_data.pin)) ? "masked" : "-",
+                    e->pic_data.ret == 0 ? "coalesced" : "-");
+            }
         }
         default:
             // 处理未知事件类型
@@ -600,10 +609,9 @@ static int print_event_head(struct env *env) {
                    "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
             break;
         case PIC:
-            printf(
-                "%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",
-                "TIMESTAMP", "COMM", "PID", "DELAY", "CHIP", "PIN", "TRIG_MODE",
-                "MASK", "SOURCE_ID", "COALESCE");
+            printf("%-18s %-15s %-10s %-10s %-14s %-10s %-10s %-10s\n",
+                   "TIMESTAMP", "COMM", "PID", "DELAY", "CHIP/PIN", "SOURCE_ID",
+                   "DST/VEC", "OTHERS");
         default:
             // Handle default case or display an error message
             break;
@@ -636,6 +644,8 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_pic ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_kvm_pic_set_irq,
                               env.execute_pic ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_ioapic_set_irq, false);
+    bpf_program__set_autoload(skel->progs.fexit_kvm_ioapic_set_irq, false);
 }
 
 int main(int argc, char **argv) {

@@ -23,7 +23,7 @@
 #include "../include/kvm_exits.h"
 #include "../include/kvm_vcpu.h"
 #include "../include/kvm_mmu.h"
-#include "../include/kvm_pic.h"
+#include "../include/kvm_irq.h"
 #include "../include/kvm_watcher.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -68,7 +68,7 @@ int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
 }
 
 SEC("tp/kvm/kvm_page_fault")
-int tp_page_fault(struct trace_event_raw_kvm_page_fault *ctx) {
+int tp_page_fault(struct page_fault *ctx) {
     return trace_page_fault(ctx, vm_pid);
 }
 
@@ -93,12 +93,24 @@ int BPF_PROG(fexit_handle_mmio_page_fault, struct kvm_vcpu *vcpu, u64 addr,
 SEC("fentry/kvm_pic_set_irq")
 int BPF_PROG(fentry_kvm_pic_set_irq, struct kvm_pic *s, int irq,
              int irq_source_id, int level) {
-    return trace_in_kvm_pic_set_irq(s, irq, irq_source_id, level, vm_pid);
+    return entry_kvm_pic_set_irq(irq, irq_source_id, vm_pid);
 }
 
 SEC("fexit/kvm_pic_set_irq")
 int BPF_PROG(fexit_kvm_pic_set_irq, struct kvm_pic *s, int irq,
-             int irq_source_id, int level, int retval) {
-    return trace_out_kvm_pic_set_irq(s, irq, irq_source_id, level, retval, &rb,
-                                     e);
+             int irq_source_id, int level, int ret) {
+    return exit_kvm_pic_set_irq(s, irq, irq_source_id, level, ret, &rb, e);
+}
+
+SEC("fentry/kvm_ioapic_set_irq")
+int BPF_PROG(fentry_kvm_ioapic_set_irq, struct kvm_ioapic *ioapic, int irq,
+             int irq_source_id, int level, bool line_status) {
+    return entry_kvm_ioapic_set_irq(irq, irq_source_id, vm_pid);
+}
+
+SEC("fexit/ioapic_set_irq")
+int BPF_PROG(fexit_kvm_ioapic_set_irq, struct kvm_ioapic *ioapic, int irq,
+             int irq_level, bool line_status, int ret) {
+    return exit_kvm_ioapic_set_irq(ioapic, irq, irq_level, line_status, ret,
+                                   &rb, e);
 }

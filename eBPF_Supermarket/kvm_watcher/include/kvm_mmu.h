@@ -39,13 +39,20 @@ struct {
     __type(value, u32);
 } pf_count SEC(".maps");
 
-static int trace_page_fault(struct trace_event_raw_kvm_page_fault *ctx,
-                            pid_t vm_pid) {
-    CHECK_PID(vm_pid) {
-        u64 ts = bpf_ktime_get_ns();
-        u64 addr = ctx->fault_address;
-        bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
-    }
+struct page_fault {
+    struct trace_entry ent;
+    unsigned int vcpu_id;
+    long unsigned int guest_rip;
+    u64 fault_address;
+    u64 error_code;
+    char __data[0];
+};
+
+static int trace_page_fault(struct page_fault *ctx, pid_t vm_pid) {
+    CHECK_PID(vm_pid);
+    u64 ts = bpf_ktime_get_ns();
+    u64 addr = ctx->fault_address;
+    bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
     return 0;
 }
 
@@ -93,12 +100,11 @@ static int trace_direct_page_fault(struct kvm_vcpu *vcpu,
 
 static int trace_kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
                                     u64 error_code, pid_t vm_pid) {
-    CHECK_PID(vm_pid) {
-        if (error_code & PFERR_RSVD_MASK) {
-            u64 ts = bpf_ktime_get_ns();
-            u64 addr = cr2_or_gpa;
-            bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
-        }
+    CHECK_PID(vm_pid);
+    if (error_code & PFERR_RSVD_MASK) {
+        u64 ts = bpf_ktime_get_ns();
+        u64 addr = cr2_or_gpa;
+        bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
     }
     return 0;
 }

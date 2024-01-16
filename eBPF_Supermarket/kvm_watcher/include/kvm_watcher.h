@@ -40,6 +40,7 @@
 #define KVM_NR_IRQCHIPS 3
 
 #define PIC_NUM_PINS 16
+#define IOAPIC_NUM_PINS 24
 
 #define PFERR_RSVD_MASK (1UL << 3)  // mmio
 
@@ -75,7 +76,9 @@
 
 #define CHECK_PID(vm_pid)                            \
     unsigned pid = bpf_get_current_pid_tgid() >> 32; \
-    if ((vm_pid) < 0 || pid == (vm_pid))
+    if ((vm_pid) > 0 && pid != (vm_pid)) {           \
+        return 0;                                    \
+    }
 
 struct ExitReason {
     int number;
@@ -101,7 +104,7 @@ enum EventType {
     HALT_POLL,
     MARK_PAGE_DIRTY,
     PAGE_FAULT,
-    PIC
+    PIC,
 } event_type;
 
 struct common_event {
@@ -158,10 +161,15 @@ struct common_event {
             unsigned long long delay;
             int ret;
             unsigned char chip;
-            unsigned char pin;
+            unsigned pin;
             unsigned char elcr;
             unsigned char imr;
             int irq_source_id;
+            /*ioapic*/
+            bool ioapic;
+            unsigned long long ioapic_bits;
+            unsigned int irq_nr;
+
             // PIC 特有成员
         } pic_data;
     };
