@@ -31,5 +31,5 @@ jobs:
         run: |
           cd eBPF_Supermarket/Memory_Subsystem/applications/mem_watcher/
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
-          make mem_watcher
-          sudo timeout 20 ./mem_watcher -p
+          make all
+          sudo timeout 20 ./mem_watcher
