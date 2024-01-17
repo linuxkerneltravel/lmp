@@ -80,7 +80,7 @@ static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
     return 0;
 }
 
-static int trace_kvm_entry(void *rb) {
+static int trace_kvm_entry(void *rb, struct common_event *e) {
     struct reason_info *reas;
     pid_t pid, tid;
     u64 id, ts, *start_ts, duration_ns = 0;
@@ -90,25 +90,22 @@ static int trace_kvm_entry(void *rb) {
     reas = bpf_map_lookup_elem(&times, &tid);
     if (reas) {
         u32 reason;
-        struct exit_event *e;
         int count = 0;
         duration_ns = bpf_ktime_get_ns() - reas->time;
         bpf_map_delete_elem(&times, &tid);
         reason = reas->reason;
         count = reas->count;
         RESERVE_RINGBUF_ENTRY(rb, e);
-        e->reason_number = reason;
+        e->exit_data.reason_number = reason;
         e->process.pid = pid;
-        e->duration_ns = duration_ns;
-        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
         e->process.tid = tid;
-        e->total = ++total;
-        e->count = count;
+        e->exit_data.duration_ns = duration_ns;
+        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+        e->exit_data.total = ++total;
+        e->exit_data.count = count;
         e->time = reas->time;
         bpf_ringbuf_submit(e, 0);
-        return 0;
-    } else {
-        return 0;
     }
+    return 0;
 }
 #endif /* __KVM_EXITS_H */

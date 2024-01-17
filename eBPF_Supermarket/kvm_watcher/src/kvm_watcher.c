@@ -172,8 +172,9 @@ void freeExitInfoList(Node *head) {
 
 void printExitInfo(Node *head) {
     Node *current = head;
+    CLEAR_SCREEN();
     printf(
-        "\n-----------------------------------------------------------------"
+        "-----------------------------------------------------------------"
         "----------\n");
     printf("%-21s %-18s %-8s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID",
            "COUNT", "AVG_DURATION(ns)");
@@ -196,7 +197,7 @@ int doesVmProcessExist(pid_t pid) {
             if (proc_name[size - 1] == '\n') {
                 proc_name[size - 1] = '\0';  // Remove newline character
             }
-            if (strstr(proc_name, "qemu-system-x86_64") != NULL) {
+            if (strstr(proc_name, "qemu-system") != NULL) {
                 fclose(file);
                 return 1;  // VmProcess name contains the target string
             } else {
@@ -297,8 +298,10 @@ static struct env {
     bool execute_mark_page_dirty;
     bool execute_page_fault;
     bool mmio_page_fault;
+    bool execute_pic;
     int monitoring_time;
     pid_t vm_pid;
+    enum EventType event_type;
 } env = {
     .execute_vcpu_wakeup = false,
     .execute_exit = false,
@@ -306,9 +309,11 @@ static struct env {
     .execute_halt_poll_ns = false,
     .execute_mark_page_dirty = false,
     .execute_page_fault = false,
+    .execute_pic = false,
     .mmio_page_fault = false,
     .monitoring_time = 0,
     .vm_pid = -1,
+    .event_type = NONE_TYPE,
 };
 
 const char *argp_program_version = "kvm_watcher 1.0";
@@ -319,19 +324,20 @@ int option_selected = 0;  // 功能标志变量,确保激活子功能
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
     {"vm_exit", 'e', NULL, 0, "Monitoring the event of vm exit."},
-    {"vcpu_halt_poll_ns", 'n', NULL, 0,
-     "Monitoring the variation in vCPU polling time."},
+    {"halt_poll_ns", 'n', NULL, 0,
+     "Monitoring the variation in vCPU halt-polling time."},
     {"mark_page_dirty", 'd', NULL, 0,
      "Monitor virtual machine dirty page information."},
     {"kvmmmu_page_fault", 'f', NULL, 0,
      "Monitoring the data of kvmmmu page fault."},
+    {"kvm_pic", 'i', NULL, 0, "Monitor the interrupt information in KVM VM."},
     {"stat", 's', NULL, 0,
      "Display statistical data.(The -e option must be specified.)"},
     {"mmio", 'm', NULL, 0,
      "Monitoring the data of mmio page fault..(The -f option must be "
      "specified.)"},
     {"vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor."},
-    {"monitoring_time", 't', "SEC", 0, "Time for monitoring event."},
+    {"monitoring_time", 't', "SEC", 0, "Time for monitoring."},
     {},
 };
 
@@ -354,6 +360,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             break;
         case 'f':
             SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_page_fault);
+            break;
+        case 'i':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_pic);
             break;
         case 's':
             if (env.execute_exit) {
@@ -416,69 +425,217 @@ static void sig_handler(int sig) {
     exiting = true;
 }
 
-static int handle_event(void *ctx, void *data, size_t data_sz) {
-    if (env.execute_vcpu_wakeup) {
-        const struct vcpu_wakeup_event *e = data;
-        printf("%-18llu %-20llu %-15s %-6d/%-8d %-10s\n", e->hlt_time,
-               e->dur_hlt_ns, e->process.comm, e->process.pid, e->process.tid,
-               e->waited ? "wait" : "poll");
-    } else if (env.execute_exit) {
-        char info_buffer[256];
-        const struct exit_event *e = data;
-        printf("%-18llu %-2d/%-18s %-18s %-6u/%-8u %-8d %-13llu \n", e->time,
-               e->reason_number, getExitReasonName(e->reason_number),
-               e->process.comm, e->process.pid, e->process.tid, e->count,
-               e->duration_ns);
-        if (env.ShowStats) {
-            snprintf(info_buffer, sizeof(info_buffer), "%-18s %-8u %-8d",
-                     e->process.comm, e->process.pid, e->count);
-            addExitInfo(&exitInfoBuffer, e->reason_number, info_buffer,
-                        e->duration_ns, e->count);
-        }
-    } else if (env.execute_halt_poll_ns) {
-        const struct halt_poll_ns_event *e = data;
-        printf("%-18llu %-15s %-6d/%-8d %-10s %-7d %-7d --> %d \n", e->time,
-               e->process.comm, e->process.pid, e->process.tid,
-               e->grow ? "grow" : "shrink", e->vcpu_id, e->old, e->new);
-    } else if (env.execute_mark_page_dirty) {
-        const struct mark_page_dirty_in_slot_event *e = data;
-        printf("%-18llu %-15s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
-               e->time, e->process.comm, e->process.pid, e->process.tid, e->gfn,
-               e->rel_gfn, e->npages, e->userspace_addr, e->slot_id);
-    } else if (env.execute_page_fault) {
-        const struct page_fault_event *e = data;
-        printf("%-18llu %-15s %-10u %-12llx %-6u %-10llu ", e->time,
-               e->process.comm, e->process.pid, e->addr, e->count, e->delay);
-        if (e->error_code & (1ULL << PFERR_RSVD_BIT)) {
-            printf("%-20s %-17s %-10s", "-", "-", "-");
-        } else {
-            printf("%-20llx %-17llx %-10d", e->hva, e->pfn, e->memslot_id);
-        }
-        if (e->error_code & (1ULL << PFERR_PRESENT_BIT)) {
-            printf(" Present");
-        }
-        if (e->error_code & (1ULL << PFERR_WRITE_BIT)) {
-            printf(" Write");
-        }
-        if (e->error_code & (1ULL << PFERR_USER_BIT)) {
-            printf(" User");
-        }
-        if (e->error_code & (1ULL << PFERR_RSVD_BIT)) {
-            printf(" Reserved(MMIO)");
-            /*IOAPIC 的mmio基址 #define IOAPIC_DEFAULT_BASE_ADDRESS 0xfec00000*/
-        }
-        if (e->error_code & (1ULL << PFERR_FETCH_BIT)) {
-            printf(" Exec");
-        }
-        if (e->error_code & (1ULL << PFERR_PK_BIT)) {
-            printf(" Protection-Key");
-        }
-        if (e->error_code & (1ULL << PFERR_SGX_BIT)) {
-            printf(" SGX");
-        }
-        printf("\n");
+// 根据 env 设置 EventType
+static int determineEventType(struct env *env) {
+    if (!env) {
+        return 1;
+    }
+    if (env->execute_vcpu_wakeup) {
+        env->event_type = VCPU_WAKEUP;
+    } else if (env->execute_exit) {
+        env->event_type = EXIT;
+    } else if (env->execute_halt_poll_ns) {
+        env->event_type = HALT_POLL;
+    } else if (env->execute_mark_page_dirty) {
+        env->event_type = MARK_PAGE_DIRTY;
+    } else if (env->execute_page_fault) {
+        env->event_type = PAGE_FAULT;
+    } else if (env->execute_pic) {
+        env->event_type = PIC;
+    } else {
+        env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
     return 0;
+}
+
+const char *get_irqchip(unsigned char chip) {
+    if (chip >= KVM_NR_IRQCHIPS) {
+        return "Invalid";
+    } else if (chip == KVM_IRQCHIP_PIC_MASTER) {
+        return "master";
+    } else if (chip == KVM_IRQCHIP_PIC_SLAVE) {
+        return "slave";
+    } else if (chip == KVM_IRQCHIP_IOAPIC) {
+        return "ioapic";
+    } else {
+        return "Unknown";
+    }
+}
+
+static int handle_event(void *ctx, void *data, size_t data_sz) {
+    struct common_event *e = data;
+    switch (env.event_type) {
+        case VCPU_WAKEUP: {
+            // 使用 e->vcpu_wakeup_data 访问 VCPU_WAKEUP 特有成员
+            printf("%-18llu %-20llu %-15s %-6d/%-8d %-10d %-10s %-10s\n",
+                   e->time, NS_TO_US(e->vcpu_wakeup_data.dur_hlt_ns),
+                   e->process.comm, e->process.pid, e->process.tid,
+                   e->vcpu_wakeup_data.vcpu_id,
+                   e->vcpu_wakeup_data.waited ? "wait" : "poll",
+                   e->vcpu_wakeup_data.valid ? "valid" : "invalid");
+            break;
+        }
+        case EXIT: {
+            char info_buffer[256];
+            // 使用 e->exit_data 访问 EXIT 特有成员
+            printf("%-18llu %-2d/%-18s %-18s %-6u/%-8u %-8d %-13llu \n",
+                   e->time, e->exit_data.reason_number,
+                   getExitReasonName(e->exit_data.reason_number),
+                   e->process.comm, e->process.pid, e->process.tid,
+                   e->exit_data.count, e->exit_data.duration_ns);
+
+            if (env.ShowStats) {
+                snprintf(info_buffer, sizeof(info_buffer), "%-18s %-8u %-8d",
+                         e->process.comm, e->process.pid, e->exit_data.count);
+                addExitInfo(&exitInfoBuffer, e->exit_data.reason_number,
+                            info_buffer, e->exit_data.duration_ns,
+                            e->exit_data.count);
+            }
+            break;
+        }
+        case HALT_POLL: {
+            // 使用 e->halt_poll_data 访问 HALT_POLL 特有成员
+            printf("%-18llu %-15s %-6d/%-8d %-10s %-7d %-7d --> %d \n", e->time,
+                   e->process.comm, e->process.pid, e->process.tid,
+                   e->halt_poll_data.grow ? "grow" : "shrink",
+                   e->halt_poll_data.vcpu_id, e->halt_poll_data.old,
+                   e->halt_poll_data.new);
+            break;
+        }
+        case MARK_PAGE_DIRTY: {
+            // 使用 e->mark_page_dirty_data 访问 MARK_PAGE_DIRTY 特有成员
+            printf(
+                "%-18llu %-15s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
+                e->time, e->process.comm, e->process.pid, e->process.tid,
+                e->mark_page_dirty_data.gfn, e->mark_page_dirty_data.rel_gfn,
+                e->mark_page_dirty_data.npages,
+                e->mark_page_dirty_data.userspace_addr,
+                e->mark_page_dirty_data.slot_id);
+            break;
+        }
+        case PAGE_FAULT: {
+            // 使用 e->page_fault_data 访问 PAGE_FAULT 特有成员
+            printf("%-18llu %-15s %-10u %-12llx %-6u %-10llu ", e->time,
+                   e->process.comm, e->process.pid, e->page_fault_data.addr,
+                   e->page_fault_data.count, e->page_fault_data.delay);
+            if (e->page_fault_data.error_code & (1ULL << PFERR_RSVD_BIT)) {
+                printf("%-20s %-17s %-10s", "-", "-", "-");
+            } else {
+                printf("%-20llx %-17llx %-10d", e->page_fault_data.hva,
+                       e->page_fault_data.pfn, e->page_fault_data.memslot_id);
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_PRESENT_BIT)) {
+                printf(" Present");
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_WRITE_BIT)) {
+                printf(" Write");
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_USER_BIT)) {
+                printf(" User");
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_RSVD_BIT)) {
+                printf(" Reserved(MMIO)");
+                /*IOAPIC 的mmio基址 #define IOAPIC_DEFAULT_BASE_ADDRESS
+                 * 0xfec00000*/
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_FETCH_BIT)) {
+                printf(" Exec");
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_PK_BIT)) {
+                printf(" Protection-Key");
+            }
+            if (e->page_fault_data.error_code & (1ULL << PFERR_SGX_BIT)) {
+                printf(" SGX");
+            }
+            printf("\n");
+            break;
+        }
+        case PIC: {
+            // 使用 e->pic_data 访问 PAGE_FAULT 特有成员
+            printf(
+                "%-18llu %-15s %-10d %-10llu %-10s %-10u %-10s %-10s %-10d "
+                "%-10s\n",
+                e->time, e->process.comm, e->process.pid, e->pic_data.delay,
+                get_irqchip(e->pic_data.chip), e->pic_data.pin,
+                (e->pic_data.elcr & (1 << e->pic_data.pin)) ? "level" : "edge",
+                (e->pic_data.imr & (1 << e->pic_data.pin)) ? "masked" : "-",
+                e->pic_data.irq_source_id,
+                e->pic_data.ret == 0 ? "coalesced" : "-");
+        }
+        default:
+            // 处理未知事件类型
+            break;
+    }
+
+    return 0;
+}
+
+static int print_event_head(struct env *env) {
+    if (!env->event_type) {
+        // 处理无效参数，可以选择抛出错误或返回
+        return 1;
+    }
+    switch (env->event_type) {
+        case VCPU_WAKEUP:
+            printf("%-18s %-20s %-15s %-15s %-10s %-10s %-10s\n", "TIME(ns)",
+                   "DUR_HALT(us)", "COMM", "PID/TID", "VCPU_ID", "WAIT/POLL",
+                   "VAILD?");
+            break;
+        case EXIT:
+            printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME(ns)",
+                   "EXIT_REASON", "COMM", "PID/TID", "COUNT", "DURATION(ns)");
+            break;
+        case HALT_POLL:
+            printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ns)",
+                   "COMM", "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
+            break;
+        case MARK_PAGE_DIRTY:
+            printf("%-18s %-15s %-15s %-10s %-10s %-10s %-10s %-10s\n",
+                   "TIME(ns)", "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
+                   "USERSPACE_ADDR", "SLOT_ID");
+            break;
+        case PAGE_FAULT:
+            printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
+                   "TIMESTAMP", "COMM", "PID", "ADDRESS", "COUNT", "DELAY",
+                   "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
+            break;
+        case PIC:
+            printf(
+                "%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",
+                "TIMESTAMP", "COMM", "PID", "DELAY", "CHIP", "PIN", "TRIG_MODE",
+                "MASK", "SOURCE_ID", "COALESCE");
+        default:
+            // Handle default case or display an error message
+            break;
+    }
+    return 0;
+}
+
+static void set_disable_load(struct kvm_watcher_bpf *skel) {
+    bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
+                              env.execute_vcpu_wakeup ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
+                              env.execute_vcpu_wakeup ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_exit,
+                              env.execute_exit ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_entry,
+                              env.execute_exit ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
+                              env.execute_halt_poll_ns ? true : false);
+    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,
+                              env.execute_mark_page_dirty ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_page_fault,
+                              env.execute_page_fault ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_direct_page_fault,
+                              env.execute_page_fault ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_mmu_page_fault,
+                              env.mmio_page_fault ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_handle_mmio_page_fault,
+                              env.mmio_page_fault ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_pic_set_irq,
+                              env.execute_pic ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_kvm_pic_set_irq,
+                              env.execute_pic ? true : false);
 }
 
 int main(int argc, char **argv) {
@@ -509,24 +666,8 @@ int main(int argc, char **argv) {
     skel->rodata->vm_pid = env.vm_pid;
 
     /* Disable or load kernel hook functions */
-    bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
-                              env.execute_vcpu_wakeup ? true : false);
-    bpf_program__set_autoload(skel->progs.tp_exit,
-                              env.execute_exit ? true : false);
-    bpf_program__set_autoload(skel->progs.tp_entry,
-                              env.execute_exit ? true : false);
-    bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
-                              env.execute_halt_poll_ns ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,
-                              env.execute_mark_page_dirty ? true : false);
-    bpf_program__set_autoload(skel->progs.tp_page_fault,
-                              env.execute_page_fault ? true : false);
-    bpf_program__set_autoload(skel->progs.fexit_direct_page_fault,
-                              env.execute_page_fault ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_mmu_page_fault,
-                              env.mmio_page_fault ? true : false);
-    bpf_program__set_autoload(skel->progs.fexit_handle_mmio_page_fault,
-                              env.mmio_page_fault ? true : false);
+    set_disable_load(skel);
+
     /* Load & verify BPF programs */
     err = kvm_watcher_bpf__load(skel);
     if (err) {
@@ -548,27 +689,27 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
     }
-    /* Process events */
-    if (env.execute_vcpu_wakeup) {
-        printf("%-18s %-20s %-15s %-15s %-10s\n", "HLT_TIME(ns)",
-               "DURATIONS_TIME(ns)", "COMM", "PID/TID", "WAIT/POLL");
-    } else if (env.execute_exit) {
-        printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME", "EXIT_REASON",
-               "COMM", "PID/TID", "COUNT", "DURATION(ns)");
-    } else if (env.execute_halt_poll_ns) {
-        printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ns)", "COMM",
-               "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
-    } else if (env.execute_mark_page_dirty) {
-        printf("%-18s %-15s %-15s %-10s %-11s %-10s %-10s %-10s\n", "TIME(ns)",
-               "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES", "USERSPACE_ADDR",
-               "SLOT_ID");
-    } else if (env.execute_page_fault) {
-        printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
-               "TIMESTAMP", "COMM", "PID", "ADDRESS", "COUNT", "DELAY", "HVA",
-               "PFN", "MEM_SLOTID", "ERROR_TYPE");
+
+    // 根据 env 设置 EventType
+    err = determineEventType(&env);
+    if (err) {
+        fprintf(stderr, "Invalid env parm\n");
+        goto cleanup;
+    }
+
+    // 清屏
+    if (option_selected) {
+        CLEAR_SCREEN();
+    }
+
+    /*打印信息头*/
+    err = print_event_head(&env);
+    if (err) {
+        fprintf(stderr, "Please specify an option using %s.\n", OPTIONS_LIST);
+        goto cleanup;
     }
     while (!exiting) {
-        err = ring_buffer__poll(rb, 10 /* timeout, ms */);
+        err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;
