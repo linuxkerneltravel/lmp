@@ -43,7 +43,7 @@ std::string GetLocalDateTime(void) {
 	auto t = time(NULL);
 	auto localTm = localtime(&t);
 	char buff[32];
-	strftime(buff, 32, "%Y%m%d-%H:%M:%S", localTm);
+	strftime(buff, 32, "%Y%m%d_%H_%M_%S", localTm);
 	return std::string(buff);
 }
 
@@ -83,7 +83,12 @@ private:
 		auto vals = new char[MAX_ENTRIES*count_size];
 		uint32_t count = MAX_ENTRIES;
 		psid next_key;
-		int err = bpf_map_lookup_and_delete_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
+		int err;
+		if(showDelta) {
+			err = bpf_map_lookup_and_delete_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
+		} else {
+			err = bpf_map_lookup_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
+		}
 		if(err == EFAULT) {
 			return NULL;
 		}
@@ -116,7 +121,7 @@ protected:
 	/// @brief 为特定值添加注解
 	/// @param f 特定值
 	/// @return 字符串
-	virtual std::string data_str(uint64_t f) { return "value:" + std::to_string(f); };
+	virtual std::string data_str(uint64_t f) = 0;
 
 	#define declareEBPF(eBPFName) \
 	struct eBPFName *skel = NULL;
@@ -292,6 +297,7 @@ public:
 			delete[] keys;
 			delete[] vals;
 		}
+		oss << "OK\n";
 		return oss.str();
 	}
 
@@ -317,7 +323,7 @@ public:
 		CHECK_ERR_EXIT(num_cpus <= 0, "Fail to get the number of processors");
 	};
 
-	std::string data_str(uint64_t f) override { return "counts:" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { return std::to_string(f) + "Count:" + std::to_string(freq) + "HZ:5s"; };
 
 	int load(void) override {
 		FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
@@ -387,7 +393,7 @@ class OffCPUStackCollector : public StackCollector{
 private:
 	declareEBPF(off_cpu_count_bpf);
 protected:
-	std::string data_str(uint64_t f) override { return "time(ms):" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { return std::to_string(f) + "ms:5s"; };
 	defaultLoad;
 	defaultAttach;
 	defaultDetach;
@@ -401,7 +407,7 @@ private:
 	declareEBPF(mem_count_bpf);
 
 protected:
-	std::string data_str(uint64_t f) override { return "size(Byte):" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { return std::to_string(f) + "LeakByte"; };
 
 public:
 	char *object = (char *)"libc.so.6";
@@ -458,8 +464,8 @@ private:
 	declareEBPF(io_count_bpf);
 protected:
 	std::string data_str(uint64_t f) override {
-		const std::string IOScale[] = {"counts", "size(B)", "aver(B/1)"};
-		return IOScale[DataType] + ":" + std::to_string(f);
+		const std::string IOScale[] = {"Count", "Byte", "Byte:Count"};
+		return std::to_string(f) + IOScale[DataType] + ":5s";
 	};
 
 	uint64_t data_value(void *data) override {
@@ -496,7 +502,7 @@ private:
 	declareEBPF(pre_count_bpf);
 protected:
 	std::string data_str(uint64_t f) override {
-		return "rest_pages:" + std::to_string(f); 
+		return std::to_string(f) + "UnusedPage"; 
 	};
 
 	uint64_t data_value(void *data) override {
