@@ -20,7 +20,6 @@
 #include <vector>
 #include <sstream>
 #include <iostream>
-#include <iomanip>
 
 #include "symbol.h"
 #include "clipp.h"
@@ -38,6 +37,14 @@ extern "C" {
 #include "bpf/mem_count.skel.h"
 #include "bpf/io_count.skel.h"
 #include "bpf/pre_count.skel.h"
+}
+
+std::string GetLocalDateTime(void) {
+	auto t = time(NULL);
+	auto localTm = localtime(&t);
+	char buff[32];
+	strftime(buff, 32, "%Y%m%d-%H:%M:%S", localTm);
+	return std::string(buff);
 }
 
 // 模板用来统一调用多个类有同样但未被抽象的接口
@@ -82,7 +89,7 @@ private:
 		}
 
 		auto D = new std::vector<CountItem>();
-		for(int i = 0; i < count; i++) {
+		for(uint32_t i = 0; i < count; i++) {
 			CountItem d(keys[i].pid, keys[i].ksid, keys[i].usid, data_value(vals + count_size*i));
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
 		}
@@ -180,13 +187,11 @@ public:
 
 	operator std::string() {
 		std::ostringstream oss;
-		oss << "time: "; {
-			time_t timep;
-			::time(&timep);
-			oss << ctime(&timep);
+		oss << "time:"; {
+			oss << GetLocalDateTime() << '\n';
 		}
 		std::map<int32_t, std::vector<std::string>> traces;
-		oss << "count list:\n"; {
+		oss << "counts:\n"; {
 			auto D = sortedCountList();
 			if(!D) return oss.str();
 			oss << "pid\tusid\tksid\t" << data_str(1).c_str() << '\n';
@@ -239,17 +244,17 @@ public:
 			}
 			delete D;
 		}
-		oss << "trace list:\n"; {
+		oss << "traces:\n"; {
 			oss << "sid\ttrace\n";
 			for(auto i : traces) {
-				oss << i.first << "\t[";
+				oss << i.first << "\t";
 				for(auto s : i.second) {
-					oss << ' ' << s << ',';
+					oss << s << ',';
 				}
-				oss << "\b]\n";
+				oss << "\b \n";
 			}
 		}
-		oss << "tgid list:\n"; {
+		oss << "groups:\n"; {
 			if(tgid_fd < 0) {
 				return oss.str();
 			}
@@ -262,13 +267,13 @@ public:
 				return oss.str();
 			}
 			oss << "pid\ttgid\n";
-			for(int i = 0; i < count; i++) {
+			for(uint32_t i = 0; i < count; i++) {
 				oss << keys[i] << '\t' << vals[i] << '\n';
 			}
 			delete[] keys;
 			delete[] vals;
 		}
-		oss << "command list:\n"; {
+		oss << "commands:\n"; {
 			if(comm_fd < 0) {
 				return oss.str();
 			}
@@ -281,7 +286,7 @@ public:
 				return oss.str();
 			}
 			oss << "pid\tcommand\n";
-			for(int i = 0; i < count; i++) {
+			for(uint32_t i = 0; i < count; i++) {
 				oss << keys[i] << '\t' << vals[i] << '\n';
 			}
 			delete[] keys;
