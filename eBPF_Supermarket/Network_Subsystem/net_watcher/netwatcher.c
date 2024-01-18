@@ -139,9 +139,6 @@ static int print_conns(struct netwatcher_bpf *skel) {
         char s_ip_port_str[INET6_ADDRSTRLEN + 6];
         char d_ip_port_str[INET6_ADDRSTRLEN + 6];
 
-        if (http_info) {
-            printf("%u,%u,%llu\n", d.rcv_wnd, d.snd_cwnd, d.duration);
-        }
         if (d.family == AF_INET) {
             sprintf(s_ip_port_str, "%s:%d",
                     inet_ntop(AF_INET, &d.saddr, s_str, sizeof(s_str)),
@@ -221,7 +218,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         }
         fprintf(file,
                 "error{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                "reason=\"%s\"} 0\n",
+                "reason=\"%s\"} \n",
                 pack_info->sock, pack_info->seq, pack_info->ack, reason);
         fclose(file);
     } else {
@@ -255,18 +252,15 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
                 pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
                 http_data, pack_info->rx);
         } else {
-            printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
-                   pack_info->sock, pack_info->seq, pack_info->ack,
-                   pack_info->mac_time, pack_info->ip_time,
-                   pack_info->tran_time, pack_info->rx, http_data);
-            fprintf(
-                file,
-                "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                "mac_time=\"%llu\",ip_time=\"%llu\",tran_time=\"%llu\",http_"
-                "info=\"%s\",rx=\"%d\"} \n",
-                pack_info->sock, pack_info->seq, pack_info->ack,
-                pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
-                http_data, pack_info->rx);
+            printf("%-22p %-10u %-10u %-10d %-10d %-10d %-5d %s\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack, 0, 0, 0,
+                   pack_info->rx, http_data);
+            fprintf(file,
+                    "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
+                    "mac_time=\"%d\",ip_time=\"%d\",tran_time=\"%d\",http_"
+                    "info=\"%s\",rx=\"%d\"} \n",
+                    pack_info->sock, pack_info->seq, pack_info->ack, 0, 0, 0,
+                    http_data, pack_info->rx);
         }
         fclose(file);
     }
