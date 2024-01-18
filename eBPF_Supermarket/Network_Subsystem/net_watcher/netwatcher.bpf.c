@@ -352,9 +352,10 @@ int BPF_KRETPROBE(inet_csk_accept_exit, // 接受tcp连接
         conn.is_server = 1;
 
     FILTER_DPORT     // 过滤目标端口
-        FILTER_SPORT // 过滤源端口
 
-            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+    FILTER_SPORT // 过滤源端口
+    
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         // 更新/插入conns_info中的键值对
         int err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
@@ -404,9 +405,10 @@ int BPF_KRETPROBE(tcp_v4_connect_exit, int ret) {
         conn.is_server = 0; // 主动连接
 
     FILTER_DPORT     // 过滤目标端口
-        FILTER_SPORT // 过滤源端口
 
-            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+    FILTER_SPORT // 过滤源端口
+
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
@@ -445,9 +447,10 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
         conn.is_server = 0; // 主动连接
 
     FILTER_DPORT     // 过滤目标端口
-        FILTER_SPORT // 过滤源端口
 
-            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+    FILTER_SPORT // 过滤源端口
+
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
