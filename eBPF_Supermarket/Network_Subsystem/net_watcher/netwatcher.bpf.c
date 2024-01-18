@@ -29,7 +29,7 @@ struct ktime_info {                // us time stamp info发送数据包
     unsigned long long qdisc_time; // tx包离开mac层时间戳
     unsigned long long mac_time;   // tx、rx包到达mac层时间戳
     unsigned long long ip_time;    // tx、rx包到达ip层时间戳
-    // unsigned long long tcp_time;         // tx、rx包到达tcp层时间戳
+    // unsigned long long tcp_time;      // tx、rx包到达tcp层时间戳
     unsigned long long tran_time;        // tx、rx包到达传输层时间戳
     unsigned long long app_time;         // rx包离开tcp层时间戳
     void *sk;                            // 此包所属 socket套接字

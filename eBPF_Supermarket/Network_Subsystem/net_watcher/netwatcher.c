@@ -139,6 +139,9 @@ static int print_conns(struct netwatcher_bpf *skel) {
         char s_ip_port_str[INET6_ADDRSTRLEN + 6];
         char d_ip_port_str[INET6_ADDRSTRLEN + 6];
 
+        if (http_info) {
+            printf("%u,%u,%llu\n", d.rcv_wnd, d.snd_cwnd, d.duration);
+        }
         if (d.family == AF_INET) {
             sprintf(s_ip_port_str, "%s:%d",
                     inet_ntop(AF_INET, &d.saddr, s_str, sizeof(s_str)),
