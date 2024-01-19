@@ -5,14 +5,14 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/netwatcher/**'
-      - '.github/workflows/network_monitor.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/net_watcher/**'
+      - '.github/workflows/net_watcher.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/netwatcher/**'
-      - '.github/workflows/network_monitor.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/net_watcher/**'
+      - '.github/workflows/net_watcher.yml'
 
 permissions:
   contents: write
