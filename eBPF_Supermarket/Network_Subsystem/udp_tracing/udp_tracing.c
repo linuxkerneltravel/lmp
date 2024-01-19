@@ -24,7 +24,7 @@ const char argp_program_doc[] = "Trace time delay in network subsystem \n";
 static const struct argp_option opts[] = {
 	{ "verbose", 'v', NULL, 0, "Verbose debug output" },
 	{ "sport", 's', "SPORT", 0, "trace this source port only" },
-    { "dport", 'd', "DPORT", 0, "trace this destination port only" },
+        { "dport", 'd', "DPORT", 0, "trace this destination port only" },
 	{ "count", 'c', "COUNT", 0, "count of outputs"},
 	{ "local", 'l', "LOCAL", 0, "show local connections"},
 
@@ -44,14 +44,14 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         case 's':
             sport = strtoul(arg,&end,10);
             break;
-		case 'c':
-			count = strtoul(arg,&end,10);
-			break;
-		case 'l':
-			local = strtoul(arg,&end,10);
-			break;
+	case 'c':
+	    count = strtoul(arg,&end,10);
+	    break;
+	case 'l':
+	    local = strtoul(arg,&end,10);
+	    break;
         default:
-		    return ARGP_ERR_UNKNOWN;
+	    return ARGP_ERR_UNKNOWN;
     }
     return 0;
 }
@@ -78,17 +78,16 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
     const struct cwnd_data *d = data;
-	char d_str[INET_ADDRSTRLEN];
-	char s_str[INET_ADDRSTRLEN];
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN];
     int pid=d->pid;
-	int send=d->send;
-	int recv=d->recv;
+    int send=d->send;
+    int recv=d->recv;
     unsigned int saddr=d->saddr;
     unsigned int daddr=d->daddr;
     unsigned int sport=d->sport;
-	unsigned int dport=d->dport;
-	unsigned int total=d->total;
-	if("")
+    unsigned int dport=d->dport;
+    unsigned int total=d->total;
     printf("%-10d %-15s %-10d %-10d %-22s %-22s %-10d %-10d %-22d\n",pid,d->comm,send,recv,inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),sport,dport,total);
     return 0;
 }
