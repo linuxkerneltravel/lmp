@@ -18,24 +18,6 @@ struct {
 	__type(value, struct udp_tracing);
 } udp_flow_map SEC(".maps");
 
-
-
-/*
-//存储进程id与端口号关系
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 10800);
-	__type(key,int);
-	__type(value, struct udp_tracing);
-} port_map SEC(".maps");
-//存储进程id与流量关系
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 10800);
-	__type(key,int);
-	__type(value, int);
-} port_flow_map SEC(".maps");
-*/
 struct udp_tracing{
      unsigned int dport;
      unsigned int sport;
@@ -52,7 +34,6 @@ const volatile int filter_sport = 0;
 SEC("kprobe/udp_sendmsg")
 int trace_sys_send(struct pt_regs *ctx)
 {
-   
     unsigned int pid=bpf_get_current_pid_tgid();;//获取当前进程pid
     u64 tmp =PT_REGS_PARM3_CORE(ctx);//
     //struct sock *sock = (struct sock *)PT_REGS_PARM1_CORE(ctx);
@@ -67,24 +48,18 @@ int trace_sys_send(struct pt_regs *ctx)
         bpf_map_update_elem(&udp_flow_map,&pid,&val,BPF_ANY);
     }
     return 0;
-
-
 }
 
 SEC("kprobe/udp_recvmsg")
 int trace_sys_recv(struct pt_regs *ctx)
 {
     unsigned int pid=bpf_get_current_pid_tgid();
-   
       //查找pid关联的值
     struct udp_tracing *st=bpf_map_lookup_elem(&udp_flow_map,&pid);
     if(!st)
     {
         return 0;
-    }
-
-   
-    
+    } 
     struct sock *sock = (struct sock *)PT_REGS_PARM1_CORE(ctx);
     st->daddr = BPF_CORE_READ(sock, __sk_common.skc_daddr);
     st->saddr = BPF_CORE_READ(sock, __sk_common.skc_rcv_saddr);
@@ -98,8 +73,7 @@ SEC("kretprobe/udp_recvmsg")
 int trace_sys_recv_ret(struct pt_regs *ctx)
 {
     unsigned int total;
-    unsigned int pid=bpf_get_current_pid_tgid();
-   
+    unsigned int pid=bpf_get_current_pid_tgid(); 
       //查找pid关联的值
     struct udp_tracing *st=bpf_map_lookup_elem(&udp_flow_map,&pid);
     if(!st)
@@ -108,27 +82,14 @@ int trace_sys_recv_ret(struct pt_regs *ctx)
     }
     u64 tmp=PT_REGS_RC(ctx);
     if(tmp>0)
-    {
-      
-       // if(st)//存在
-      //  {
-            st->recv+=tmp;     
-     //   }
-        //else{
-        //   struct udp_tracing val = {.send = tmp, .recv = 0};
-        //    //bpf_map_update_elem函数将以key为键、recv为值的元素插入到udp_flow_map中,进行更新
-        //    bpf_map_update_elem(&udp_flow_map,&pid,&val,BPF_ANY);
-     //   }
-      //  return 0;
-
+    { 
+        st->recv+=tmp;     
     }
-    else{
-       
+    else{ 
            struct udp_tracing val = {.send = tmp, .recv = 0};
             //bpf_map_update_elem函数将以key为键、recv为值的元素插入到udp_flow_map中,进行更新
             bpf_map_update_elem(&udp_flow_map,&pid,&val,BPF_ANY);
     }
-   
     struct sock *sock = (struct sock *)PT_REGS_PARM1_CORE(ctx);
     struct cwnd_data *data;
     data = bpf_ringbuf_reserve(&rb, sizeof(*data), 0);
