@@ -1,1 +1,50 @@
+name: net_manager
 
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/net_manager/**'
+      - '.github/workflows/net_manager.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/net_manager/**'
+      - '.github/workflows/net_manager.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies and Init Env
+        run: |
+          sudo apt update
+          sudo apt install clang llvm libelf-dev libpcap-dev build-essential linux-headers-$(uname -r) linux-tools-common linux-tools-generic libc6-dev-i386 libxdp-dev xdp-tools
+          git submodule update --init --recursive
+
+      - name: Configure
+        run: ./configure
+          
+      - name: Build and Run
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/net_manager/
+          make
+          # run
+          sudo timeout -s SIGINT 5 ./netwatcher || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -a || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -e || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -i || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -r || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -t || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -u || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+        timeout-minutes: 5
