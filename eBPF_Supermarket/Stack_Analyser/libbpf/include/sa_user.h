@@ -29,8 +29,9 @@
 #include "sa_common.h"
 
 struct diy_header {
-	char name[16];
 	uint64_t len;
+	char name[32];
+	int magic;
 };
 
 /// @brief 栈处理工具当前支持的采集模式
