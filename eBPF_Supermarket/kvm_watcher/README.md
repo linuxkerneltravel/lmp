@@ -108,7 +108,11 @@ BPF program used for monitoring KVM event
 ## 五、测试
 
 可以按照如下流程测试程序输出：
-
+- **查看本地是否支持虚拟化**
+  ```
+  grep -Eoc '(vmx|svm)' /proc/cpuinfo
+  若大于0，则支持
+  ```
 - **安装依赖**
 
   ```
@@ -134,7 +138,11 @@ BPF program used for monitoring KVM event
   ```
   sudo qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -drive file=cirros-0.5.1-x86_64-disk.img,format=qcow2 -boot c -nographic 
   ```
-
+- **也可以使用virt-manager图形化工具来创建并启动虚拟机**
+  ```
+  sudo apt install qemu qemu-kvm libvirt-daemon-system libvirt-clients virt-manager virtinst bridge-utils
+  接下来就可以使用virt-manager图形化工具来设置虚拟机了
+  ```
 - **编译&&运行程序**
 
   ```
