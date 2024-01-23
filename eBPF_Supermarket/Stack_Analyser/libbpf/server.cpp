@@ -20,49 +20,58 @@ void clientHandler(int clientSocket) {
         // 接收客户端数据
         bytes = recv(clientSocket, &AHeader, sizeof(AHeader), 0);
         if (bytes <= 0) {
-            std::cerr << "连接关闭或出现错误" << std::endl;
+            std::cerr << "Client " << clientSocket << " closed or err" << std::endl;
             break;
         }
-        for(ModSelector = 0; ModSelector < MOD_NUM; ModSelector++) {
-            if(!strcmp(AHeader.name, StackCollectModeName[ModSelector])) {
-                if(!fds[ModSelector]) {
-                    *filename = 0;
-                    strcat(filename, AHeader.name);
-                    strcat(filename, "_stack_data.log");
-                    fds[ModSelector] = open(filename, O_CREAT | O_APPEND | O_WRONLY, 0666);
-                }
-                break;
-            }
-        }
-        if(ModSelector >= MOD_NUM) {
+        if(AHeader.magic) {
             continue;
         }
+        // for(ModSelector = 0; ModSelector < MOD_NUM; ModSelector++) {
+        //     if(!strcmp(AHeader.name, StackCollectModeName[ModSelector])) {
+        //         if(!fds[ModSelector]) {
+        //             *filename = 0;
+        //             strcat(filename, AHeader.name);
+        //             strcat(filename, "_stack_data.log");
+        //             fds[ModSelector] = open(filename, O_CREAT | O_APPEND | O_WRONLY, 0666);
+        //         }
+        //         break;
+        //     }
+        // }
+        // if(ModSelector >= MOD_NUM) {
+        //     continue;
+        // }
+        std::string filename = AHeader.name;
+        filename += std::to_string(clientSocket);
+        auto fd = open(filename.c_str(),  O_CREAT | O_APPEND | O_WRONLY, 0666);
+        printf("Recv %ld Byte from Client %d\n", AHeader.len, clientSocket);
         char *data = (char *)malloc(AHeader.len);
         if(!data) {
-            std::cout << "allocate err" << std::endl;
-            continue;
+            std::cout << "Allocate err" << std::endl;
+            break;
         }
         bytes = recv(clientSocket, data, AHeader.len, 0);
         if (bytes <= 0) {
-            std::cerr << "连接关闭或出现错误" << std::endl;
+            std::cerr << "Client " << clientSocket << " closed or err" << std::endl;
             break;
         }
-        bytes = write(fds[ModSelector], data, AHeader.len);
+        bytes = write(fd, data, AHeader.len);
         free(data);
         if(bytes <= 0) {
-            std::cerr << "write err" << std::endl;
+            std::cerr << "Client " << clientSocket << " Write err" << std::endl;
             continue;
         }
-        std::cout << filename << std::endl;
+        std::cout << "Saved in " << filename << std::endl;
+        close(fd);
         // std::cout << "接收到的数据: " << data << std::endl;
     }
 
     // 关闭连接
-    for(ModSelector = 0; ModSelector < MOD_NUM; ModSelector++) {
-        if(fds[ModSelector] > 0) {
-            close(fds[ModSelector]);
-        }
-    }
+    // for(ModSelector = 0; ModSelector < MOD_NUM; ModSelector++) {
+    //     if(fds[ModSelector] > 0) {
+    //         close(fds[ModSelector]);
+    //     }
+    // }
+    printf("Client %d exiting\n", clientSocket);
     close(clientSocket);
 }
 
@@ -98,7 +107,7 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
-    std::cout << "等待客户端连接..." << std::endl;
+    std::cout << "Waiting for connection..." << std::endl;
 
     std::vector<std::thread> clientThreads;
 
@@ -111,7 +120,7 @@ int main(int argc, char const *argv[]) {
             return -1;
         }
 
-        std::cout << "客户端连接成功" << std::endl;
+        std::cout << "Client " << clientSocket << " connected successfully" << std::endl;
 
         // 创建新线程处理客户端连接
         std::thread clientThread(clientHandler, clientSocket);
