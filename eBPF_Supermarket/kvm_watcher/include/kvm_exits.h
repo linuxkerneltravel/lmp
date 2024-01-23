@@ -24,7 +24,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-
+//定义哈希结构，存储时间信息
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 8192);
@@ -38,7 +38,7 @@ struct {
     __type(key, u32);
     __type(value, u32);
 } counts SEC(".maps");
-
+//记录退出的信息
 struct exit {
     u64 pad;
     unsigned int exit_reason;
@@ -52,7 +52,7 @@ struct exit {
 };
 
 int total = 0;
-
+//记录vm_exit的原因以及时间
 static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
     CHECK_PID(vm_pid);
     u64 id, ts;
@@ -77,7 +77,7 @@ static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
     bpf_map_update_elem(&times, &tid, &reas, BPF_ANY);
     return 0;
 }
-
+//通过kvm_exit所记录的信息，来计算出整个处理的时间
 static int trace_kvm_entry(void *rb, struct common_event *e) {
     struct reason_info *reas;
     pid_t pid, tid;
