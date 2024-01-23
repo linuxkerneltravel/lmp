@@ -5,14 +5,14 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/netwatcher/**'
-      - '.github/workflows/network_monitor.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/net_watcher/**'
+      - '.github/workflows/net_watcher.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/netwatcher/**'
-      - '.github/workflows/network_monitor.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/net_watcher/**'
+      - '.github/workflows/net_watcher.yml'
 
 permissions:
   contents: write
@@ -40,4 +40,5 @@ jobs:
           sudo timeout -s SIGINT 5 ./netwatcher -i || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
           sudo timeout -s SIGINT 5 ./netwatcher -r || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
           sudo timeout -s SIGINT 5 ./netwatcher -t || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -u || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
         timeout-minutes: 5
