@@ -12,8 +12,6 @@
 void clientHandler(int clientSocket) {
     diy_header AHeader;
     int bytes;
-    int fds[MOD_NUM] = {0};
-    int ModSelector;
     char filename[32];
     char *data = NULL;
     while (true) {
@@ -26,20 +24,6 @@ void clientHandler(int clientSocket) {
         if(AHeader.magic) {
             continue;
         }
-        // for(ModSelector = 0; ModSelector < MOD_NUM; ModSelector++) {
-        //     if(!strcmp(AHeader.name, StackCollectModeName[ModSelector])) {
-        //         if(!fds[ModSelector]) {
-        //             *filename = 0;
-        //             strcat(filename, AHeader.name);
-        //             strcat(filename, "_stack_data.log");
-        //             fds[ModSelector] = open(filename, O_CREAT | O_APPEND | O_WRONLY, 0666);
-        //         }
-        //         break;
-        //     }
-        // }
-        // if(ModSelector >= MOD_NUM) {
-        //     continue;
-        // }
         std::string filename = AHeader.name;
         filename += std::to_string(clientSocket);
         auto fd = open(filename.c_str(),  O_CREAT | O_APPEND | O_WRONLY, 0666);
@@ -65,12 +49,6 @@ void clientHandler(int clientSocket) {
         // std::cout << "接收到的数据: " << data << std::endl;
     }
 
-    // 关闭连接
-    // for(ModSelector = 0; ModSelector < MOD_NUM; ModSelector++) {
-    //     if(fds[ModSelector] > 0) {
-    //         close(fds[ModSelector]);
-    //     }
-    // }
     printf("Client %d exiting\n", clientSocket);
     close(clientSocket);
 }
