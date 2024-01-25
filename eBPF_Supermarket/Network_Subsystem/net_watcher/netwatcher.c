@@ -353,10 +353,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-    /*if (!udp_info) {
-        printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-               "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
-    }*/
     if (udp_info) {
         printf(" %-15s %-15s %-10s %-10s %-10s \n", "saddr", "daddr", "sprot",
                "dprot", "udp_time");
@@ -365,12 +361,6 @@ int main(int argc, char **argv) {
                "sprot", "dprot", "send", "recv", "total");
 
     }
-    /* else if(http_info)
-     {
-         print_conns(skel);
-         sleep(1);
-
-     }*/
     else {
         printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
                "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
