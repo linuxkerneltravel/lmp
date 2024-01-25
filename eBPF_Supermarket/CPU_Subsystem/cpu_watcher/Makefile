@@ -42,7 +42,7 @@ INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(L
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = cpu_watcher
+APPS = cpu_watcher sar cs_delay
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
