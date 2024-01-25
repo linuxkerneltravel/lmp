@@ -36,6 +36,7 @@ jobs:
       - name: Run QEMU to start VM
         run: |
           sudo qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -drive file=cirros-0.5.1-x86_64-disk.img,format=qcow2 -boot c -nographic &
+          sleep 5
       - name: Run kvm_watcher
         run: |
           cd eBPF_Supermarket/kvm_watcher/
