@@ -63,38 +63,39 @@ static int trace_direct_page_fault(struct kvm_vcpu *vcpu,
     bpf_probe_read_kernel(&addr, sizeof(u64), &fault->addr);
     u64 *ts;
     ts = bpf_map_lookup_elem(&pf_delay, &addr);
-    if (ts) {
-        u32 *count;
-        u32 new_count = 1;
-        u32 error_code;
-        u64 hva, pfn;
-        bpf_probe_read_kernel(&error_code, sizeof(u32), &fault->error_code);
-        bpf_probe_read_kernel(&hva, sizeof(u64), &fault->hva);
-        bpf_probe_read_kernel(&pfn, sizeof(u64), &fault->pfn);
-        short memslot_id = BPF_CORE_READ(fault, slot, id);
-        u64 delay = bpf_ktime_get_ns() - *ts;
-        bpf_map_delete_elem(&pf_delay, &addr);
-        RESERVE_RINGBUF_ENTRY(rb, e);
-        count = bpf_map_lookup_elem(&pf_count, &addr);
-        if (count) {
-            (*count)++;
-            e->page_fault_data.count = *count;
-            bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
-        } else {
-            e->page_fault_data.count = 1;
-            bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
-        }
-        e->page_fault_data.delay = delay;
-        e->page_fault_data.addr = addr;
-        e->page_fault_data.error_code = error_code;
-        e->page_fault_data.hva = hva;
-        e->page_fault_data.pfn = pfn;
-        e->page_fault_data.memslot_id = memslot_id;
-        e->process.pid = bpf_get_current_pid_tgid() >> 32;
-        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-        e->time = *ts;
-        bpf_ringbuf_submit(e, 0);
+    if (!ts) {
+        return 0;
     }
+    u32 *count;
+    u32 new_count = 1;
+    u32 error_code;
+    u64 hva, pfn;
+    bpf_probe_read_kernel(&error_code, sizeof(u32), &fault->error_code);
+    bpf_probe_read_kernel(&hva, sizeof(u64), &fault->hva);
+    bpf_probe_read_kernel(&pfn, sizeof(u64), &fault->pfn);
+    short memslot_id = BPF_CORE_READ(fault, slot, id);
+    u64 delay = bpf_ktime_get_ns() - *ts;
+    bpf_map_delete_elem(&pf_delay, &addr);
+    RESERVE_RINGBUF_ENTRY(rb, e);
+    count = bpf_map_lookup_elem(&pf_count, &addr);
+    if (count) {
+        (*count)++;
+        e->page_fault_data.count = *count;
+        bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
+    } else {
+        e->page_fault_data.count = 1;
+        bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
+    }
+    e->page_fault_data.delay = delay;
+    e->page_fault_data.addr = addr;
+    e->page_fault_data.error_code = error_code;
+    e->page_fault_data.hva = hva;
+    e->page_fault_data.pfn = pfn;
+    e->page_fault_data.memslot_id = memslot_id;
+    e->process.pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+    e->time = *ts;
+    bpf_ringbuf_submit(e, 0);
     return 0;
 }
 
@@ -114,30 +115,30 @@ static int trace_handle_mmio_page_fault(struct kvm_vcpu *vcpu, u64 addr,
                                         struct common_event *e) {
     u64 *ts;
     ts = bpf_map_lookup_elem(&pf_delay, &addr);
-    if (ts) {
-        u32 *count;
-        u32 new_count = 1;
-        u64 delay = bpf_ktime_get_ns() - *ts;
-        bpf_map_delete_elem(&pf_delay, &addr);
-        RESERVE_RINGBUF_ENTRY(rb, e);
-        count = bpf_map_lookup_elem(&pf_count, &addr);
-        if (count) {
-            (*count)++;
-            e->page_fault_data.count = *count;
-            bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
-        } else {
-            e->page_fault_data.count = 1;
-            bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
-        }
-        e->page_fault_data.delay = delay;
-        e->page_fault_data.addr = addr;
-        e->page_fault_data.error_code = PFERR_RSVD_MASK;
-        e->process.pid = bpf_get_current_pid_tgid() >> 32;
-        bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-        e->time = *ts;
-        bpf_ringbuf_submit(e, 0);
+    if (!ts) {
         return 0;
     }
+    u32 *count;
+    u32 new_count = 1;
+    u64 delay = bpf_ktime_get_ns() - *ts;
+    bpf_map_delete_elem(&pf_delay, &addr);
+    RESERVE_RINGBUF_ENTRY(rb, e);
+    count = bpf_map_lookup_elem(&pf_count, &addr);
+    if (count) {
+        (*count)++;
+        e->page_fault_data.count = *count;
+        bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
+    } else {
+        e->page_fault_data.count = 1;
+        bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
+    }
+    e->page_fault_data.delay = delay;
+    e->page_fault_data.addr = addr;
+    e->page_fault_data.error_code = PFERR_RSVD_MASK;
+    e->process.pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+    e->time = *ts;
+    bpf_ringbuf_submit(e, 0);
     return 0;
 }
 #endif /* __KVM_MMU_H */
