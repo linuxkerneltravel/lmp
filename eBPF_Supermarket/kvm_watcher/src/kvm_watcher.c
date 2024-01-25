@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include "../include/kvm_watcher.h"
 #include "kvm_watcher.skel.h"
-
+//定义具体的退出原因
 struct ExitReason exitReasons[] = {{0, "EXCEPTION_NMI"},
                                    {1, "EXTERNAL_INTERRUPT"},
                                    {2, "TRIPLE_FAULT"},
@@ -169,7 +169,7 @@ void freeExitInfoList(Node *head) {
         free(temp);
     }
 }
-
+//打印退出的信息
 void printExitInfo(Node *head) {
     Node *current = head;
     CLEAR_SCREEN();
@@ -185,7 +185,7 @@ void printExitInfo(Node *head) {
         current = current->next;
     }
 }
-
+//检查具有给定 PID 的进程是否存在
 int doesVmProcessExist(pid_t pid) {
     char proc_name[256];
     snprintf(proc_name, sizeof(proc_name), "/proc/%d/cmdline", pid);
@@ -197,6 +197,7 @@ int doesVmProcessExist(pid_t pid) {
             if (proc_name[size - 1] == '\n') {
                 proc_name[size - 1] = '\0';  // Remove newline character
             }
+            //查看是否进程文件中是否出现"qemu-system"字符串
             if (strstr(proc_name, "qemu-system") != NULL) {
                 fclose(file);
                 return 1;  // VmProcess name contains the target string
@@ -223,7 +224,7 @@ struct KeyValPair {
 int compare(const void *a, const void *b) {
     return ((struct KeyValPair *)b)->value - ((struct KeyValPair *)a)->value;
 }
-
+//保存脏页信息到./temp/dirty_temp文件中
 int save_count_dirtypagemap_to_file(struct bpf_map *map) {
     const char *directory = "./temp";
     const char *filename = "./temp/dirty_temp";
@@ -289,7 +290,7 @@ int save_count_dirtypagemap_to_file(struct bpf_map *map) {
     free(pairs);
     return 0;
 }
-
+//定义env结构体，用来存储程序中的事件信息
 static struct env {
     bool execute_vcpu_wakeup;
     bool execute_exit;
@@ -320,7 +321,7 @@ const char *argp_program_version = "kvm_watcher 1.0";
 const char *argp_program_bug_address = "<nanshuaibo811@163.com>";
 const char argp_program_doc[] = "BPF program used for monitoring KVM event\n";
 int option_selected = 0;  // 功能标志变量,确保激活子功能
-
+//具体解释命令行参数
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
     {"vm_exit", 'e', NULL, 0, "Monitoring the event of vm exit."},
@@ -340,7 +341,7 @@ static const struct argp_option opts[] = {
     {"monitoring_time", 't', "SEC", 0, "Time for monitoring."},
     {},
 };
-
+//解析命令行参数
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
         case 'w':
@@ -407,7 +408,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     }
     return 0;
 }
-
+//定义解析参数的处理函数
 static const struct argp argp = {
     .options = opts,
     .parser = parse_arg,
@@ -420,7 +421,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
 }
 
 static volatile bool exiting = false;
-
+//设置信号来控制是否打印信息
 static void sig_handler(int sig) {
     exiting = true;
 }
@@ -447,7 +448,7 @@ static int determineEventType(struct env *env) {
     }
     return 0;
 }
-
+//获取中断控制器的类型
 const char *get_irqchip(unsigned char chip) {
     if (chip >= KVM_NR_IRQCHIPS) {
         return "Invalid";
@@ -461,7 +462,7 @@ const char *get_irqchip(unsigned char chip) {
         return "Unknown";
     }
 }
-
+/*环形缓冲区的处理函数，用来打印ringbuff中的数据（最后展示的数据行）*/
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct common_event *e = data;
     switch (env.event_type) {
@@ -569,7 +570,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 
     return 0;
 }
-
+/*通过env->event_type属性来选择需要打印的信息表头*/
 static int print_event_head(struct env *env) {
     if (!env->event_type) {
         // 处理无效参数，可以选择抛出错误或返回
@@ -610,7 +611,7 @@ static int print_event_head(struct env *env) {
     }
     return 0;
 }
-
+/*通过env结构体的属性真值来判断是否加载某个挂载函数*/
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
@@ -639,16 +640,19 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
 }
 
 int main(int argc, char **argv) {
+    //定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
     struct kvm_watcher_bpf *skel;
     int err;
 
     /* Parse command line arguments */
+    /*解析命令行参数*/
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
     if (err)
         return err;
 
     /* Set up libbpf errors and debug info callback */
+    /*设置libbpf的错误和调试信息回调*/
     libbpf_set_print(libbpf_print_fn);
 
     /* Cleaner handling of Ctrl-C */
@@ -666,9 +670,11 @@ int main(int argc, char **argv) {
     skel->rodata->vm_pid = env.vm_pid;
 
     /* Disable or load kernel hook functions */
+    /* 禁用或加载内核挂钩函数 */
     set_disable_load(skel);
 
     /* Load & verify BPF programs */
+    /* 加载并验证BPF程序 */
     err = kvm_watcher_bpf__load(skel);
     if (err) {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
@@ -676,6 +682,7 @@ int main(int argc, char **argv) {
     }
 
     /* Attach tracepoint handler */
+    /* 附加跟踪点处理程序 */
     err = kvm_watcher_bpf__attach(skel);
     if (err) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
@@ -683,6 +690,7 @@ int main(int argc, char **argv) {
     }
 
     /* Set up ring buffer polling */
+    /* 设置环形缓冲区轮询 */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
     if (!rb) {
         err = -1;

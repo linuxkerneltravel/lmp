@@ -31,31 +31,33 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 const volatile pid_t vm_pid = -1;
 static struct common_event *e;
 
+//定义环形缓冲区maps
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
+//获取vcpu的id
 SEC("fentry/kvm_vcpu_halt")
 int BPF_PROG(fentry_kvm_vcpu_halt, struct kvm_vcpu *vcpu) {
     return trace_kvm_vcpu_halt(vcpu, vm_pid);
 }
-
+//追踪vcpu运行信息
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx) {
     return trace_kvm_vcpu_wakeup(ctx, &rb, e, vm_pid);
 }
-
+//记录vcpu的halt_poll（暂停轮询）时间变化
 SEC("tp/kvm/kvm_halt_poll_ns")
 int tp_kvm_halt_poll_ns(struct halt_poll_ns *ctx) {
     return trace_kvm_halt_poll_ns(ctx, &rb, e, vm_pid);
 }
-
+//记录vm_exit的时间
 SEC("tp/kvm/kvm_exit")
 int tp_exit(struct exit *ctx) {
     return trace_kvm_exit(ctx, vm_pid);
 }
-
+//记录vm_entry和vm_exit的时间差
 SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
     return trace_kvm_entry(&rb, e);
