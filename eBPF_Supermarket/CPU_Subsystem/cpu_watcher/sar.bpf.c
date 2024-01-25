@@ -36,7 +36,7 @@ BPF_ARRAY(kt_LastTime,u32,u64,1);
 // 储存cpu运行用户线程的时间
 BPF_ARRAY(ut_LastTime,u32,u64,1);
 // 统计fork数
-SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
@@ -74,7 +74,7 @@ int trace_sched_switch2(struct cswch_args *info) {
 	return 0;
 }
 
-SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
