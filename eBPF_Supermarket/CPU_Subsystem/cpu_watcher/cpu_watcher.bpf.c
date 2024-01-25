@@ -29,117 +29,43 @@ const volatile long long unsigned int forks_addr = 0;
 #define PF_IDLE			0x00000002	/* I am an IDLE thread */
 #define PF_KTHREAD		0x00200000	/* I am a kernel thread */
 
-/*----------------------------------------------*/
-/*          cs_delay相关maps                    */
-/*----------------------------------------------*/
-struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__uint(max_entries, 1);
-	__type(key, int);
-	__type(value, u64);
-} start SEC(".maps");//记录时间戳；
 
 /*----------------------------------------------*/
-/*         sar相关maps                          */
+/*         cs_delay相关maps                          */
 /*----------------------------------------------*/
-// 计数表格，第0项为所统计fork数，第1项为进程切换数,
-struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);//基于数组的映射
-	__uint(max_entries, 3);//countMap 可以存储最多 3 对键值对
-	__type(key, int);
-	__type(value, u64);
-} countMap SEC(".maps");
-
-// 记录开始的时间
-struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__uint(max_entries, 4096);
-	__type(key, pid_t);
-	__type(value, u64);
-} procStartTime SEC(".maps");//记录时间戳；
-
-//环形缓冲区；
+BPF_ARRAY(start,int,u64,1);
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
-
-
-// 储存运行队列rq的全局变量
-struct {
-__uint(type, BPF_MAP_TYPE_ARRAY);
-__uint(max_entries, 1);
-__type(key, u32);
-__type(value, struct rq);
-} rq_map SEC(".maps");
-
-
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-	__uint(max_entries, 1);
-	__type(key, u32);
-	__type(value, int);
-} runqlen SEC(".maps");//多CPU数组
-
-struct {
-    __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-    __uint(max_entries, 4096);
-    __type(key, u32);
-    __type(value, u64);
-} softirqCpuEnterTime SEC(".maps");//记录软中断开始时间
-
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, 1);
-    __type(key, u32);
-    __type(value, u64);
-} softirqLastTime SEC(".maps");//软中断结束时间
-
+/*----------------------------------------------*/
+/*         sar相关maps                          */
+/*----------------------------------------------*/
+// 计数表格，第0项为所统计fork数，第1项为进程切换数
+BPF_ARRAY(countMap,int,u64,3);
 // 记录开始的时间
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-	__uint(max_entries, 8192);//该哈希表可容纳8192个条目
-	__type(key, u32);
-	__type(value, u64);
-} irq_cpu_enter_start SEC(".maps");//irq_start是一个哈希类型的 eBPF map，用于存储开始执行时的时间戳。
-
+BPF_ARRAY(procStartTime,pid_t,u64,4096);
+// 储存运行队列rq的全局变量
+BPF_ARRAY(rq_map,u32,struct rq,1);
+//存储运行队列长度
+BPF_PERCPU_ARRAY(runqlen,u32,int,1);
+//记录软中断开始时间
+BPF_HASH(softirqCpuEnterTime,u32,u64,4096);
+//记录软中断结束时间
+BPF_HASH(softirqLastTime,u32,u64,1);
+// 记录开始的时间
+BPF_HASH(irq_cpu_enter_start,u32,u64,8192);
 //记录上次中断时间
-struct {
-__uint(type, BPF_MAP_TYPE_ARRAY);
-__uint(max_entries, 1);
-__type(key, u32);
-__type(value, u64);
-} irq_Last_time SEC(".maps");
-
+BPF_ARRAY(irq_Last_time,u32,u64,1);
 // 储存cpu进入空闲的起始时间
-struct {
-__uint(type, BPF_MAP_TYPE_ARRAY);
-__uint(max_entries, 128);
-__type(key, u32);
-__type(value, u64);
-} idleStart SEC(".maps");
-
+BPF_ARRAY(idleStart,u32,u64,128);
 // 储存cpu进入空闲的持续时间
-struct {
-__uint(type, BPF_MAP_TYPE_ARRAY);
-__uint(max_entries, 1);
-__type(key, u32);
-__type(value, u64);
-} idleLastTime SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, 1);
-    __type(key, u32);
-    __type(value, u64);
-} kt_LastTime SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, 1);
-    __type(key, u32);
-    __type(value, u64);
-} ut_LastTime SEC(".maps");
+BPF_ARRAY(idleLastTime,u32,u64,1);
+// 储存cpu运行内核线程的时间
+BPF_ARRAY(kt_LastTime,u32,u64,1);
+// 储存cpu运行用户线程的时间
+BPF_ARRAY(ut_LastTime,u32,u64,1);
+// 统计fork数
 
 /*----------------------------------------------*/
 /*          cs_delay跟踪函数                    */
@@ -186,7 +112,7 @@ int BPF_KRETPROBE(schedule_exit)
 /*           sar跟踪函数                         */
 /*----------------------------------------------*/
 // 统计fork数
-SEC("kprobe/finish_task_switch.isra.0")
+SEC("kprobe/finish_task_switch")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
@@ -243,7 +169,7 @@ int trace_sched_switch2(struct cswch_args *info) {
 	return 0;
 }
 
-SEC("kprobe/finish_task_switch.isra.0")
+SEC("kprobe/finish_task_switch")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
