@@ -38,7 +38,8 @@ static char packets_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0,
+           udp_traffic = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
@@ -51,6 +52,8 @@ static const struct argp_option opts[] = {
     {"http", 'i', 0, 0, "set to trace http info"},
     {"sport", 's', "SPORT", 0, "trace this source port only"},
     {"dport", 'd', "DPORT", 0, "trace this destination port only"},
+    {"udp", 'u', 0, 0, "trace the udp message"},
+    {"udp_traffic", 'c', 0, 0, "trace the udp traffic"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -79,6 +82,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'd':
         dport = strtoul(arg, &end, 10);
+        break;
+    case 'u':
+        udp_info = 1;
+        break;
+    case 'c':
+        udp_traffic = 1;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -134,10 +143,6 @@ static int print_conns(struct netwatcher_bpf *skel) {
 
         char s_ip_port_str[INET6_ADDRSTRLEN + 6];
         char d_ip_port_str[INET6_ADDRSTRLEN + 6];
-        
-        if(http_info){
-                printf("%u,%u,%llu\n",d.rcv_wnd, d.snd_cwnd,d.duration);
-        }
 
         if (d.family == AF_INET) {
             sprintf(s_ip_port_str, "%s:%d",
@@ -199,7 +204,8 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
-
+    if (udp_info || udp_traffic)
+        return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->err) {
         FILE *file = fopen(err_file_path, "a");
@@ -217,13 +223,15 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         }
         fprintf(file,
                 "error{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                "reason=\"%s\"} 0\n",
+                "reason=\"%s\"} \n",
                 pack_info->sock, pack_info->seq, pack_info->ack, reason);
         fclose(file);
     } else {
         FILE *file = fopen(packets_file_path, "a");
         char http_data[256];
+
         if (strstr((char *)pack_info->data, "HTTP/1")) {
+
             for (int i = 0; i < sizeof(pack_info->data); ++i) {
                 if (pack_info->data[i] == '\r') {
                     http_data[i] = '\0';
@@ -232,43 +240,66 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
                 http_data[i] = pack_info->data[i];
             }
         } else {
+
             sprintf(http_data, "-");
         }
-        if(http_info == 0){
-            if (layer_time) {
-                 printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
+        if (layer_time) {
+            printf("%-22p %-10u %-10u %-10llu %-10llu %-10llu %-5d %s\n",
                    pack_info->sock, pack_info->seq, pack_info->ack,
-                   pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
+                   pack_info->mac_time, pack_info->ip_time,
+                   pack_info->tran_time, pack_info->rx, http_data);
+            fprintf(
+                file,
+                "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
+                "mac_time=\"%llu\",ip_time=\"%llu\",tran_time=\"%llu\",http_"
+                "info=\"%s\",rx=\"%d\"} \n",
+                pack_info->sock, pack_info->seq, pack_info->ack,
+                pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
+                http_data, pack_info->rx);
+        } else {
+            printf("%-22p %-10u %-10u %-10d %-10d %-10d %-5d %s\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack, 0, 0, 0,
                    pack_info->rx, http_data);
-                 fprintf(file,
+            fprintf(file,
                     "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                    "mac_time=\"%llu\",ip_time=\"%llu\",tran_time=\"%llu\",http_"
+                    "mac_time=\"%d\",ip_time=\"%d\",tran_time=\"%d\",http_"
                     "info=\"%s\",rx=\"%d\"} \n",
-                    pack_info->sock, pack_info->seq, pack_info->ack,
-                    pack_info->mac_time, pack_info->ip_time,
-                    pack_info->tran_time, http_data, pack_info->rx);
-            } 
-            if(http_info|| retrans_info||extra_conn_info){
-                  printf("%-22p %-10u %-10u %-5d %s\n",
-                   pack_info->sock, pack_info->seq, pack_info->ack,
-                   pack_info->rx, http_data);
-                  fprintf(file,
-                    "packet{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                    "info=\"%s\",rx=\"%d\"} \n",
-                    pack_info->sock, pack_info->seq, pack_info->ack, http_data,
-                    pack_info->rx);
-            }
-
+                    pack_info->sock, pack_info->seq, pack_info->ack, 0, 0, 0,
+                    http_data, pack_info->rx);
         }
         fclose(file);
     }
     return 0;
 }
+static int print_udp(void *ctx, void *packet_info, size_t size) {
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN];
+    const struct udp_message *pack_info = packet_info;
+    unsigned int saddr = pack_info->saddr;
+    unsigned int daddr = pack_info->daddr;
+    int send = pack_info->send;
+    int recv = pack_info->recv;
+    unsigned int total = pack_info->total;
+    if (daddr) {
+        if (udp_info && pack_info->tran_time) {
+            printf("%-15s %-15s %-10u %-10u %-10llu \n",
+                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                   pack_info->sport, pack_info->dport, pack_info->tran_time);
 
+        } else if (udp_traffic) {
+            printf("%-15s %-15s %-10u %-10u %-10d %-10d %-10d\n",
+                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                   pack_info->sport, pack_info->dport, send, recv, total);
+        }
+    }
+    return 0;
+}
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
-        *(last_slash+1) = '\0';
+        *(last_slash + 1) = '\0';
     }
     strcpy(connects_file_path, argv[0]);
     strcpy(err_file_path, argv[0]);
@@ -277,6 +308,7 @@ int main(int argc, char **argv) {
     strcat(err_file_path, "data/err.log");
     strcat(packets_file_path, "data/packets.log");
     struct ring_buffer *rb = NULL;
+    struct ring_buffer *udp_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -306,6 +338,8 @@ int main(int argc, char **argv) {
     skel->rodata->layer_time = layer_time;
     skel->rodata->http_info = http_info;
     skel->rodata->retrans_info = retrans_info;
+    skel->rodata->udp_info = udp_info;
+    skel->rodata->udp_traffic = udp_traffic;
 
     err = netwatcher_bpf__load(skel);
     if (err) {
@@ -319,28 +353,42 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-
-    if(layer_time) {
+    /*if (!udp_info) {
         printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-           "ACK", "MAC_TIME", "IP_TIME", "tran_time", "RX", "HTTP");
+               "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
+    }*/
+    if (udp_info) {
+        printf(" %-15s %-15s %-10s %-10s %-10s \n", "saddr", "daddr", "sprot",
+               "dprot", "udp_time");
+    } else if (udp_traffic) {
+        printf(" %-15s %-15s %-10s %-10s %-10s %-10s %-10s\n", "saddr", "daddr",
+               "sprot", "dprot", "send", "recv", "total");
 
     }
-    
-    if(http_info|| retrans_info||extra_conn_info) {
+    /* else if(http_info)
+     {
+         print_conns(skel);
+         sleep(1);
 
-        printf("%-22s %-10s %-10s %-5s \n", "SOCK", "SEQ",
-           "ACK", "RX");
+     }*/
+    else {
+        printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
+               "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
     }
-    
+    udp_rb =
+        ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
+    if (!udp_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
-        }
-    
-
+    }
     FILE *err_file = fopen(err_file_path, "w+");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
@@ -353,17 +401,13 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(packet_file);
-    
+
     /* Process events */
     while (!exiting) {
-      
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
-
-        if(http_info) {
-            print_conns(skel);
-            sleep(1);
-        }
-
+        err = ring_buffer__poll(udp_rb, 100 /* timeout, ms */);
+        print_conns(skel);
+        sleep(1);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;
