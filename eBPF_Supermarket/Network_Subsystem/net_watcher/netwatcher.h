@@ -86,16 +86,12 @@ struct pack_t {
 };
 
 struct udp_message {
-<<<<<<< HEAD
     int pid;
-=======
->>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
     unsigned int saddr;
     unsigned int daddr;
     unsigned short sport;
     unsigned short dport;
     unsigned long long tran_time;
-<<<<<<< HEAD
     unsigned long long send;
     unsigned long long recv;
     unsigned int total;
@@ -103,7 +99,3 @@ struct udp_message {
 
 };
 #endif /* __NETWATCHER_H */
-=======
-};
-#endif /* __NETWATCHER_H */
->>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
