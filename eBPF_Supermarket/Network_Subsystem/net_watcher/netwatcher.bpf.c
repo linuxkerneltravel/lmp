@@ -46,6 +46,7 @@ struct packet_tuple {
     unsigned int seq;           // seq报文序号
     unsigned int ack;           // ack确认号
     unsigned int tran_flag;     // 1:tcp 2:udp
+<<<<<<< HEAD
 };
 struct udp_tracing {
     unsigned int dport;
@@ -54,6 +55,8 @@ struct udp_tracing {
     unsigned int daddr;
     unsigned long long send;
     unsigned long long recv;
+=======
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
 };
 
 // 操作BPF映射的一个辅助函数
@@ -122,8 +125,12 @@ struct {
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
+<<<<<<< HEAD
                    layer_time = 0, http_info = 0, retrans_info = 0,
                    udp_info = 0, udp_traffic = 0;
+=======
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info;
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
 
 /* help macro */
 
@@ -367,12 +374,21 @@ int BPF_KRETPROBE(inet_csk_accept_exit, // 接受tcp连接
     CONN_INIT // 初始化conn_t结构中基本信息
         conn.is_server = 1;
 
+<<<<<<< HEAD
     FILTER_DPORT // 过滤目标端口
 
         FILTER_SPORT // 过滤源端口
 
             CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
+=======
+    FILTER_DPORT     // 过滤目标端口
+
+    FILTER_SPORT // 过滤源端口
+    
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
         // 更新/插入conns_info中的键值对
         int err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     if (err) { // 更新错误
@@ -420,11 +436,19 @@ int BPF_KRETPROBE(tcp_v4_connect_exit, int ret) {
     CONN_INIT               // 初始化conn_t结构中基本信息
         conn.is_server = 0; // 主动连接
 
+<<<<<<< HEAD
     FILTER_DPORT // 过滤目标端口
 
         FILTER_SPORT // 过滤源端口
 
             CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+=======
+    FILTER_DPORT     // 过滤目标端口
+
+    FILTER_SPORT // 过滤源端口
+
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
@@ -462,11 +486,19 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
     CONN_INIT               // 初始化conn_t结构中基本信息
         conn.is_server = 0; // 主动连接
 
+<<<<<<< HEAD
     FILTER_DPORT // 过滤目标端口
 
         FILTER_SPORT // 过滤源端口
 
             CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+=======
+    FILTER_DPORT     // 过滤目标端口
+
+    FILTER_SPORT // 过滤源端口
+
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
@@ -1079,9 +1111,15 @@ int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb) {
 */
 SEC("kprobe/__dev_queue_xmit")
 int BPF_KPROBE(__dev_queue_xmit, struct sk_buff *skb) {
+<<<<<<< HEAD
     /* if (!layer_time) {
          return 0;
      }*/
+=======
+    if (!layer_time) {
+        return 0;
+    }
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
     // 从skb中读取以太网头部
     const struct ethhdr *eth = (struct ethhdr *)BPF_CORE_READ(skb, data);
     u16 protocol = BPF_CORE_READ(
@@ -1246,6 +1284,10 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     return 0;
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e
 SEC("kprobe/__udp_enqueue_schedule_skb")
 int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
                struct sk_buff *skb) {
@@ -1283,6 +1325,7 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
     bpf_ringbuf_submit(message, 0);
     return 0;
 }
+<<<<<<< HEAD
 
 // kprobe 挂载 udp_sendmsg 函数
 SEC("kprobe/udp_sendmsg")
@@ -1371,3 +1414,5 @@ int trace_sys_recv_ret(struct pt_regs *ctx) {
     bpf_ringbuf_submit(data, 0);
     return 0;
 }
+=======
+>>>>>>> 00908ad12044b548bb192576ce0bbdaeaebfd28e

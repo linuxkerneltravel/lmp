@@ -20,23 +20,16 @@
 #include <vector>
 #include <sstream>
 #include <iostream>
-#include <iomanip>
-#include <fstream>
 
-#include "rapidjson/document.h"
-#include "rapidjson/filewritestream.h"
-#include "rapidjson/writer.h"
 #include "symbol.h"
 #include "clipp.h"
 
 extern "C" {
 #include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <arpa/inet.h>
 
 #include "sa_user.h"
 #include "bpf/on_cpu_count.skel.h"
@@ -44,6 +37,14 @@ extern "C" {
 #include "bpf/mem_count.skel.h"
 #include "bpf/io_count.skel.h"
 #include "bpf/pre_count.skel.h"
+}
+
+std::string GetLocalDateTime(void) {
+	auto t = time(NULL);
+	auto localTm = localtime(&t);
+	char buff[32];
+	strftime(buff, 32, "%Y%m%d_%H_%M_%S", localTm);
+	return std::string(buff);
 }
 
 // 模板用来统一调用多个类有同样但未被抽象的接口
@@ -78,12 +79,27 @@ private:
 		if (value_fd < 0) {
 			return NULL;
 		}
-		std::vector<CountItem> *D = new std::vector<CountItem>();
-		for (psid prev = {0}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
-			bpf_map_lookup_elem(value_fd, &id, data_buf);
-			CountItem d(id.pid, id.ksid, id.usid, data_value());
+		auto keys = new psid[MAX_ENTRIES];
+		auto vals = new char[MAX_ENTRIES*count_size];
+		uint32_t count = MAX_ENTRIES;
+		psid next_key;
+		int err;
+		if(showDelta) {
+			err = bpf_map_lookup_and_delete_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
+		} else {
+			err = bpf_map_lookup_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
+		}
+		if(err == EFAULT) {
+			return NULL;
+		}
+
+		auto D = new std::vector<CountItem>();
+		for(uint32_t i = 0; i < count; i++) {
+			CountItem d(keys[i].pid, keys[i].ksid, keys[i].usid, data_value(vals + count_size*i));
 			D->insert(std::lower_bound(D->begin(), D->end(), d), d);
 		}
+		delete[] keys;
+		delete[] vals;
 		return D;
 	};
 
@@ -92,20 +108,20 @@ protected:
 	int tgid_fd = -1;  // pid-tgid表的文件描述符
 	int comm_fd = -1;  // pid-进程名表的文件描述符
 	int trace_fd = -1; // 栈id-栈轨迹表的文件描述符
-
-	void *data_buf = NULL;		// 用于存储单个指标值的缓冲区
 	
+	size_t count_size = sizeof(uint32_t);
+
 	bool showDelta = true;
 
 	/// @brief 将缓冲区的数据解析为特定值
 	/// @param  无
 	/// @return 解析出的值
-	virtual uint64_t data_value(void) { return *(uint64_t *)data_buf; };
+	virtual uint64_t data_value(void *data) { return *(uint32_t *)data; };
 
 	/// @brief 为特定值添加注解
 	/// @param f 特定值
 	/// @return 字符串
-	virtual std::string data_str(uint64_t f) { return "value:" + std::to_string(f); };
+	virtual std::string data_str(uint64_t f) = 0;
 
 	#define declareEBPF(eBPFName) \
 	struct eBPFName *skel = NULL;
@@ -128,11 +144,6 @@ public:
 
 	StackCollector() {
 		self_pid = getpid();
-		data_buf = new uint64_t(0);
-	};
-
-	virtual ~StackCollector() {
-		delete (uint64_t *)data_buf;
 	};
 
 	/// @brief 负责ebpf程序的加载、参数设置和打开操作
@@ -179,105 +190,117 @@ public:
 		skel = NULL;			\
 	};
 
-	/// @brief 清除count map的数据
-	/// @param  无
-	void check_clear_count(void) {
-		if(!showDelta) return;
-		uint c = MAX_ENTRIES;
-		for (psid prev = {0}, id; c && !bpf_map_get_next_key(value_fd, &prev, &id); c--, prev = id) {
-			bpf_map_delete_elem(value_fd, &id);
+	operator std::string() {
+		std::ostringstream oss;
+		oss << "time:"; {
+			oss << GetLocalDateTime() << '\n';
 		}
-	}
-
-	/// @brief 打印count列表
-	/// @param  无
-	void print_list(void)
-	{
-		auto D = sortedCountList();
-		for (auto id : *D) {
-			printf("pid:%-6d\tusid:%-6d\tksid:%-6d\t%s\n", id.pid, id.usid, id.ksid, data_str(id.val).c_str());
-		}
-		delete D;
-	}
-
-	/// @brief 将表中的栈数据保存为火焰图
-	/// @param  无
-	/// @return 表未成功打开则返回负数
-	std::ostringstream *format(void)
-	{
-		CHECK_ERR_VALUE(value_fd < 0, nullptr, "count map open failure");
-		CHECK_ERR_VALUE(trace_fd < 0, nullptr, "trace map open failure");
-		CHECK_ERR_VALUE(comm_fd < 0, nullptr, "comm map open failure");
-		// std::filebuf DataFileBuf;
-		// const std::string DataFileName = name + "_stack_data.log";
-		// CHECK_ERR(DataFileBuf.open(DataFileName, std::ios::app) == nullptr, "data file open failed"); 
-		// std::ostream DataText(&DataFileBuf);
-		auto DataTextP = new std::ostringstream();
-		auto &DataText = *DataTextP;
-		for (psid prev = {}, id; !bpf_map_get_next_key(value_fd, &prev, &id); prev = id) {
-			{
-				char cmd[COMM_LEN];
-				bpf_map_lookup_elem(comm_fd, &id.pid, cmd);
-				DataText << std::string(cmd) << ':' << std::to_string(id.pid) << ';';
-			}
-			symbol sym;
-			uint64_t ip[MAX_STACKS];
-			if (id.usid >= 0) {
-				bpf_map_lookup_elem(trace_fd, &id.usid, ip);
-				std::string *s = 0, symbol;
-				elf_file file;
-				uint64_t *p = ip + MAX_STACKS -1;
-				for(; !*p; p--);
-				for (; p >= ip; p--) {
-					uint64_t &addr = *p;
-					sym.reset(addr);
-					if (g_symbol_parser.find_symbol_in_cache(id.pid, addr, symbol)) {
-						s = &symbol;
-						DataText << *s << ';';
-					} else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-								g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid)) {
-						std::stringstream ss("");
-						ss << "+0x" << std::hex << (addr - sym.ip);
-						sym.name += ss.str();
-						DataText << sym.name << ';';
-						g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
-					} else {
-						std::stringstream ss("");
-						ss << "0x" << std::hex << addr;
-						auto addr_str = ss.str();
-						DataText << addr_str << ';';
-						g_symbol_parser.putin_symbol_cache(id.pid, addr, addr_str);
+		std::map<int32_t, std::vector<std::string>> traces;
+		oss << "counts:\n"; {
+			auto D = sortedCountList();
+			if(!D) return oss.str();
+			oss << "pid\tusid\tksid\t" << data_str(1).c_str() << '\n';
+			uint64_t trace[MAX_STACKS], *p;
+			for (auto id : *D) {
+				oss << id.pid << '\t' << id.usid << '\t' << id.ksid << '\t' << id.val << '\n';
+				if(id.usid > 0 && traces.find(id.usid) == traces.end()) {
+					bpf_map_lookup_elem(trace_fd, &id.usid, trace);
+					for(p = trace + MAX_STACKS - 1; !*p; p--);
+					for (; p >= trace; p--) {
+						uint64_t &addr = *p;
+						symbol sym;
+						sym.reset(addr);
+						elf_file file;
+						std::string symbol;
+						if (g_symbol_parser.find_symbol_in_cache(id.pid, addr, symbol));
+						else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
+									g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid)) {
+							std::stringstream ss("");
+							ss << "+0x" << std::hex << (addr - sym.ip);
+							sym.name += ss.str();
+							symbol = sym.name;
+							g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
+						} else {
+							std::stringstream ss("");
+							ss << "0x" << std::hex << addr;
+							symbol = ss.str();
+							g_symbol_parser.putin_symbol_cache(id.pid, addr, symbol);
+						}
+						traces[id.usid].push_back(symbol);
 					}
 				}
-			} else {
-				DataText << "[MISSING USER STACK];";
-			}
-			DataText << "---------;";
-			if (id.ksid >= 0) {
-				bpf_map_lookup_elem(trace_fd, &id.ksid, ip);
-				uint64_t *p = ip + MAX_STACKS - 1;
-				for(; !*p; p--);
-				for (; p >= ip; p--) {
-					uint64_t &addr = *p;
-					sym.reset(addr);
-					if (g_symbol_parser.find_kernel_symbol(sym)) {
-						DataText << sym.name << ';';
-					} else {
-						std::stringstream ss("");
-						ss << "0x" << std::hex << addr;
-						auto addr_str = ss.str();
-						DataText << addr_str << ';';
-						g_symbol_parser.putin_symbol_cache(pid, addr, addr_str);
+				if(id.ksid > 0 && traces.find(id.ksid) == traces.end()) {
+					bpf_map_lookup_elem(trace_fd, &id.ksid, trace);
+					for(p = trace + MAX_STACKS - 1; !*p; p--);
+					for (; p >= trace; p--) {
+						uint64_t &addr = *p;
+						symbol sym;
+						sym.reset(addr);
+						if (g_symbol_parser.find_kernel_symbol(sym)); 
+						else {
+							std::stringstream ss("");
+							ss << "0x" << std::hex << addr;
+							sym.name = ss.str();
+							g_symbol_parser.putin_symbol_cache(pid, addr, sym.name);
+						}
+						traces[id.ksid].push_back(sym.name);
 					}
 				}
-			} else {
-				DataText << "[MISSING KERNEL STACK];";
 			}
-			bpf_map_lookup_elem(value_fd, &id, data_buf);
-			DataText << ' ' + std::to_string(data_value()) << '\n';
+			delete D;
 		}
-		return DataTextP;
+		oss << "traces:\n"; {
+			oss << "sid\ttrace\n";
+			for(auto i : traces) {
+				oss << i.first << "\t";
+				for(auto s : i.second) {
+					oss << s << ',';
+				}
+				oss << "\b \n";
+			}
+		}
+		oss << "groups:\n"; {
+			if(tgid_fd < 0) {
+				return oss.str();
+			}
+			auto keys = new uint32_t[MAX_ENTRIES];
+			auto vals = new uint32_t[MAX_ENTRIES];
+			uint32_t count = MAX_ENTRIES;
+			uint32_t next_key;
+			int err = bpf_map_lookup_batch(tgid_fd, NULL, &next_key, keys, vals, &count, NULL);
+			if(err == EFAULT) {
+				return oss.str();
+			}
+			oss << "pid\ttgid\n";
+			for(uint32_t i = 0; i < count; i++) {
+				oss << keys[i] << '\t' << vals[i] << '\n';
+			}
+			delete[] keys;
+			delete[] vals;
+		}
+		oss << "commands:\n"; {
+			if(comm_fd < 0) {
+				return oss.str();
+			}
+			auto keys = new uint32_t[MAX_ENTRIES];
+			auto vals = new char[MAX_ENTRIES][16];
+			uint32_t count = MAX_ENTRIES;
+			uint32_t next_key;
+			int err = bpf_map_lookup_batch(comm_fd, NULL, &next_key, keys, vals, &count, NULL);
+			if(err == EFAULT) {
+				return oss.str();
+			}
+			oss << "pid\tcommand\n";
+			for(uint32_t i = 0; i < count; i++) {
+				oss << keys[i] << '\t' << vals[i] << '\n';
+			}
+			delete[] keys;
+			delete[] vals;
+		}
+		oss << "OK\n";
+		return oss.str();
 	}
+
 };
 
 class OnCPUStackCollector : public StackCollector {
@@ -300,7 +323,7 @@ public:
 		CHECK_ERR_EXIT(num_cpus <= 0, "Fail to get the number of processors");
 	};
 
-	std::string data_str(uint64_t f) override { return "counts:" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { return std::to_string(f) + "Count:" + std::to_string(freq) + "HZ:5s"; };
 
 	int load(void) override {
 		FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
@@ -370,7 +393,7 @@ class OffCPUStackCollector : public StackCollector{
 private:
 	declareEBPF(off_cpu_count_bpf);
 protected:
-	std::string data_str(uint64_t f) override { return "time(ms):" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { return std::to_string(f) + "ms:5s"; };
 	defaultLoad;
 	defaultAttach;
 	defaultDetach;
@@ -384,7 +407,7 @@ private:
 	declareEBPF(mem_count_bpf);
 
 protected:
-	std::string data_str(uint64_t f) override { return "size(Byte):" + std::to_string(f); };
+	std::string data_str(uint64_t f) override { return std::to_string(f) + "LeakByte"; };
 
 public:
 	char *object = (char *)"libc.so.6";
@@ -441,12 +464,12 @@ private:
 	declareEBPF(io_count_bpf);
 protected:
 	std::string data_str(uint64_t f) override {
-		const std::string IOScale[] = {"counts", "size(B)", "aver(B/1)"};
-		return IOScale[DataType] + ":" + std::to_string(f);
+		const std::string IOScale[] = {"Count", "Byte", "Byte:Count"};
+		return std::to_string(f) + IOScale[DataType] + ":5s";
 	};
 
-	uint64_t data_value() override {
-		io_tuple *p = (io_tuple *)data_buf;
+	uint64_t data_value(void *data) override {
+		io_tuple *p = (io_tuple *)data;
 		switch (DataType) {
 		case AVE:
 			return p->size / p->count;
@@ -463,14 +486,8 @@ public:
 	io_mod DataType = io_mod::COUNT;
 
 	IOStackCollector() {
-		delete (uint64_t *)data_buf;
-		data_buf = new io_tuple{0};
+		count_size = sizeof(io_tuple);
 		name = "io";
-	};
-
-
-	~IOStackCollector() override {
-		delete (io_tuple *)data_buf;
 	};
 
 	defaultLoad;
@@ -485,11 +502,11 @@ private:
 	declareEBPF(pre_count_bpf);
 protected:
 	std::string data_str(uint64_t f) override {
-		return "rest_pages:" + std::to_string(f); 
+		return std::to_string(f) + "UnusedPage"; 
 	};
 
-	uint64_t data_value() override {
-		ra_tuple *p = (ra_tuple *)data_buf;
+	uint64_t data_value(void *data) override {
+		ra_tuple *p = (ra_tuple *)data;
 		return p->expect - p->truth;
 	};
 
@@ -500,15 +517,10 @@ public:
 	defaultUnload;
 
 	ReadaheadStackCollector() {
-		delete (uint64_t *)data_buf;
-		data_buf = new ra_tuple{0};
 		name = "readahead";
+		count_size = sizeof(ra_tuple);
 		showDelta = false;
 	};
-
-	~ReadaheadStackCollector() override {
-		delete (ra_tuple *)data_buf;
-	}
 };
 
 namespace MainConfig {
@@ -517,7 +529,6 @@ namespace MainConfig {
 	display_t d_mode = display_t::NO_OUTPUT;	// 设置显示模式
 	std::string command = "";
 	int32_t target_pid = -1;
-	std::string server_address = "127.0.0.1:12345";
 };
 
 std::vector<StackCollector*> StackCollectorList;
@@ -525,7 +536,7 @@ void endCollect(void) {
 	signal(SIGINT, SIG_IGN);
 	for(auto Item : StackCollectorList) {
 		if(MainConfig::run_time > 0) {
-			Item->format();
+			std::cout << std::string(*Item) << std::endl;
 		}
 		Item->detach();
 		Item->unload();
@@ -544,8 +555,7 @@ int main(int argc, char *argv[]) {
 		),
 		(clipp::option("-d", "--delay") & clipp::value("delay time(seconds) to output, default 5", MainConfig::delay)) % "set the interval to output",
 		clipp::option("-l", "--realtime-list").set(MainConfig::d_mode, LIST_OUTPUT) % "output in console, default false",
-		clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time) % "set the total simpling time",
-		clipp::option("-s", "--server") & clipp::value("server address, default 127.0.0.1:12345", MainConfig::server_address) % "set the server address"
+		clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time) % "set the total simpling time"
 	);
 
 	auto SubOption = (
@@ -654,7 +664,7 @@ int main(int argc, char *argv[]) {
 	err:
 		fprintf(stderr, "%s eBPF prog err\n", (*Item)->name.c_str());
 		(*Item)->detach();
-		(*Item)->unload(); // segment fault
+		(*Item)->unload();
 		Item = StackCollectorList.erase(Item);
 	}
 
@@ -663,76 +673,16 @@ int main(int argc, char *argv[]) {
 		write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
 	}
 
-	printf("display mode: %d\n", MainConfig::d_mode);
-
-		// 创建 socket
-	bool ToRemote = true;
-	int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-	if (clientSocket == -1) {
-		std::cerr << "Error creating socket" << std::endl;
-		// return -1;
-		ToRemote = false;
-	} else {
-		// 服务器地址信息
-		sockaddr_in serverAddress;
-		serverAddress.sin_family = AF_INET;
-		auto ColonPos = MainConfig::server_address.find(':');
-		if(ColonPos < 0) {
-			std::cerr << "server address err" << std::endl;
-			return 0;
-		}
-		auto IPAddr = MainConfig::server_address.substr(0, ColonPos);
-		auto PortAddr = MainConfig::server_address.substr(ColonPos + 1);
-		serverAddress.sin_port = htons(std::stoi(PortAddr));
-		inet_pton(AF_INET, IPAddr.c_str(), &serverAddress.sin_addr);
-		// 连接到服务器
-		if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
-			std::cerr << "Error connecting to server" << std::endl;
-			close(clientSocket);
-			// return -1;
-			ToRemote = false;
-		}
-	}
-
+	// printf("display mode: %d\n", MainConfig::d_mode);
 
 	for(; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay) {
-		sleep(MainConfig::delay);  // 模拟实时性
-		time_t timep;
-		::time(&timep);
-		printf("%s", ctime(&timep));
-
+		sleep(MainConfig::delay); 
 		for(auto Item : StackCollectorList) {
 			Item->detach();
-			// if(MainConfig::d_mode == display_t::LIST_OUTPUT) {
-			// 	Item->print_list();
-			// }
-			auto StreamData = Item->format();
-			if(!StreamData) {
-				continue;
-			}
-			auto dataToSend = StreamData->str();
-			if(ToRemote) {
-				// 发送数据到服务器
-				struct diy_header AHeader = {
-					.len = dataToSend.size()
-				};
-				strcpy(AHeader.name, Item->name.c_str());
-				send(clientSocket, &AHeader, sizeof(AHeader), 0);
-				send(clientSocket, dataToSend.c_str(), AHeader.len, 0);
-			} else {
-				Item->print_list();
-				std::ofstream fout;
-				fout.open(Item->name + "_stack_data.txt", std::ios::out | std::ios::app);
-				fout << dataToSend;
-			}
-			delete StreamData;
-			Item->check_clear_count();
-
+			std::cout << std::string(*Item) << std::endl;
 			Item->attach();
 		}
-
 	}
-	// 关闭连接
-	close(clientSocket);
+	
 	atexit(endCollect);
 }

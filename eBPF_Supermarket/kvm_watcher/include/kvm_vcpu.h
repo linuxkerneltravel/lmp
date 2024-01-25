@@ -53,7 +53,7 @@ struct {
     __type(key, u32);
     __type(value, u32);
 } vcpu_tid SEC(".maps");
-
+//记录vcpu_halt的id信息
 static int trace_kvm_vcpu_halt(struct kvm_vcpu *vcpu, pid_t vm_pid) {
     CHECK_PID(vm_pid) {
         u32 tid = bpf_get_current_pid_tgid();
@@ -63,7 +63,7 @@ static int trace_kvm_vcpu_halt(struct kvm_vcpu *vcpu, pid_t vm_pid) {
     }
     return 0;
 }
-
+//使用kvm_vcpu_halt记录的数据，来获取vcpu的启动信息
 static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx, void *rb,
                                  struct common_event *e, pid_t vm_pid) {
     CHECK_PID(vm_pid) {
