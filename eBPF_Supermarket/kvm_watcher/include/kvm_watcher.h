@@ -21,10 +21,19 @@
 
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
-#define NS_TO_US(ns) ((ns) / 1000ULL)
-#define OUTPUT_INTERVAL(seconds) sleep(seconds)
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -i, or -e"
+#define NS_TO_US_FACTOR 1000.0
+#define NS_TO_MS_FACTOR 1000000.0
+
+#define NS_TO_US_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_US_FACTOR)
+#define NS_TO_MS_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_MS_FACTOR)
+
+#define MICROSECONDS_IN_SECOND 1000000
+#define OUTPUT_INTERVAL_SECONDS 0.5
+
+#define OUTPUT_INTERVAL(us) usleep((unsigned int)(us * MICROSECONDS_IN_SECOND))
+
+#define OPTIONS_LIST "-w, -p, -d, -f, -c, or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -34,10 +43,9 @@
 #define PFERR_PK_BIT 5
 #define PFERR_SGX_BIT 15
 
-#define KVM_IRQCHIP_PIC_MASTER 0
-#define KVM_IRQCHIP_PIC_SLAVE 1
-#define KVM_IRQCHIP_IOAPIC 2
-#define KVM_NR_IRQCHIPS 3
+#define KVM_IRQCHIP_PIC 0
+#define KVM_IRQCHIP_IOAPIC 1
+#define KVM_MSI 2
 
 #define PIC_NUM_PINS 16
 #define IOAPIC_NUM_PINS 24
@@ -48,7 +56,7 @@
     do {                                                                \
         fprintf(stderr, "Please specify exactly one option from %s.\n", \
                 OPTIONS_LIST);                                          \
-        argp_usage(state);                                              \
+        argp_state_help(state, stdout, ARGP_HELP_STD_HELP);             \
     } while (0)
 
 #define SET_OPTION_AND_CHECK_USAGE(option, value) \
@@ -104,7 +112,7 @@ enum EventType {
     HALT_POLL,
     MARK_PAGE_DIRTY,
     PAGE_FAULT,
-    PIC,
+    IRQCHIP,
 } event_type;
 
 struct common_event {
@@ -160,18 +168,20 @@ struct common_event {
         struct {
             unsigned long long delay;
             int ret;
+            int irqchip_type;
+            /*pic*/
             unsigned char chip;
             unsigned pin;
             unsigned char elcr;
             unsigned char imr;
-            int irq_source_id;
             /*ioapic*/
-            bool ioapic;
             unsigned long long ioapic_bits;
             unsigned int irq_nr;
-
-            // PIC 特有成员
-        } pic_data;
+            /*msi*/
+            unsigned long long address;
+            unsigned long long data;
+            // IRQCHIP 特有成员
+        } irqchip_data;
     };
 };
 
