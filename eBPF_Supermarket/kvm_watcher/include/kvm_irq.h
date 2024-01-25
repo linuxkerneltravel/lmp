@@ -29,96 +29,119 @@ struct {
     __uint(max_entries, 8192);
     __type(key, u32);
     __type(value, u64);
-} irq_delay SEC(".maps");
+} irq_set_delay SEC(".maps");
 
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 8192);
-    __type(key, u32);
-    __type(value, u32);
-} source_id SEC(".maps");
-
-static int entry_kvm_pic_set_irq(int irq, int irq_source_id, pid_t vm_pid) {
+static int entry_kvm_pic_set_irq(int irq, pid_t vm_pid) {
     CHECK_PID(vm_pid);
     if (irq < 0 || irq >= PIC_NUM_PINS) {
         return 0;
     }
     u64 ts = bpf_ktime_get_ns();
     u32 irq_type = irq >> 3;
-    bpf_map_update_elem(&irq_delay, &irq_type, &ts, BPF_ANY);
+    bpf_map_update_elem(&irq_set_delay, &irq_type, &ts, BPF_ANY);
     return 0;
 }
 
-static int exit_kvm_pic_set_irq(struct kvm_pic *s, int irq, int irq_source_id,
-                                int level, int ret, void *rb,
+static int exit_kvm_pic_set_irq(struct kvm_pic *s, int irq, int ret, void *rb,
                                 struct common_event *e) {
     u64 *ts;
     u32 irq_type = irq >> 3;
-    ts = bpf_map_lookup_elem(&irq_delay, &irq_type);
+    ts = bpf_map_lookup_elem(&irq_set_delay, &irq_type);
     if (!ts) {
         return 0;
     }
     u64 time = bpf_ktime_get_ns();
     u64 delay = time - *ts;
-    bpf_map_delete_elem(&irq_delay, &irq_type);
+    bpf_map_delete_elem(&irq_set_delay, &irq_type);
     RESERVE_RINGBUF_ENTRY(rb, e);
-    bpf_probe_read_kernel(&e->pic_data.ret, sizeof(int), &ret);
+    bpf_probe_read_kernel(&e->irqchip_data.ret, sizeof(int), &ret);
     e->time = *ts;
-    e->pic_data.delay = delay;
+    e->irqchip_data.delay = delay;
+    e->irqchip_data.irqchip_type = KVM_IRQCHIP_PIC;
     e->process.pid = bpf_get_current_pid_tgid() >> 32;
-    e->pic_data.chip = irq_type;
-    e->pic_data.pin = irq & 7;
-    e->pic_data.ioapic = false;
-    bpf_probe_read_kernel(&e->pic_data.elcr, sizeof(u8),
+    e->irqchip_data.chip = irq_type;
+    e->irqchip_data.pin = irq & 7;
+    bpf_probe_read_kernel(&e->irqchip_data.elcr, sizeof(u8),
                           &s->pics[irq_type].elcr);
-    bpf_probe_read_kernel(&e->pic_data.imr, sizeof(u8), &s->pics[irq_type].imr);
-    bpf_probe_read_kernel(&e->pic_data.irq_source_id, sizeof(int),
-                          &irq_source_id);
+    bpf_probe_read_kernel(&e->irqchip_data.imr, sizeof(u8),
+                          &s->pics[irq_type].imr);
     bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
 
-static int entry_kvm_ioapic_set_irq(int irq, int irq_source_id, pid_t vm_pid) {
+static int entry_kvm_ioapic_set_irq(int irq, pid_t vm_pid) {
     CHECK_PID(vm_pid);
     if (irq < 0 || irq >= IOAPIC_NUM_PINS) {
         return 0;
     }
     u64 ts = bpf_ktime_get_ns();
-    u32 irq_nr, irq_s_id;
+    u32 irq_nr;
     bpf_probe_read_kernel(&irq_nr, sizeof(u32), &irq);
-    bpf_probe_read_kernel(&irq_s_id, sizeof(u32), &irq_source_id);
-    bpf_map_update_elem(&irq_delay, &irq_nr, &ts, BPF_ANY);
-    bpf_map_update_elem(&source_id, &irq_nr, &irq_s_id, BPF_ANY);
+    bpf_map_update_elem(&irq_set_delay, &irq_nr, &ts, BPF_ANY);
     return 0;
 }
 
-static int exit_kvm_ioapic_set_irq(struct kvm_ioapic *ioapic, int irq,
-                                   int irq_level, bool line_status, int ret,
+static int exit_kvm_ioapic_set_irq(struct kvm_ioapic *ioapic, int irq, int ret,
                                    void *rb, struct common_event *e) {
     u64 *ts;
-    u32 *irq_s_id;
     u32 irq_nr;
     bpf_probe_read_kernel(&irq_nr, sizeof(int), &irq);
-    ts = bpf_map_lookup_elem(&irq_delay, &irq_nr);
-    irq_s_id = bpf_map_lookup_elem(&source_id, &irq_nr);
-    bpf_map_delete_elem(&source_id, &irq_nr);
-    if (!ts || !irq_s_id) {
+    ts = bpf_map_lookup_elem(&irq_set_delay, &irq_nr);
+    if (!ts) {
         return 0;
     }
     u64 time = bpf_ktime_get_ns();
     u64 delay = time - *ts;
-    bpf_map_delete_elem(&irq_delay, &irq_nr);
+    bpf_map_delete_elem(&irq_set_delay, &irq_nr);
     RESERVE_RINGBUF_ENTRY(rb, e);
     union kvm_ioapic_redirect_entry entry;
     bpf_probe_read_kernel(&entry, sizeof(union kvm_ioapic_redirect_entry),
                           &ioapic->redirtbl[irq_nr]);
-    bpf_probe_read_kernel(&e->pic_data.ioapic_bits, sizeof(u64), &entry.bits);
-    bpf_probe_read_kernel(&e->pic_data.delay, sizeof(u64), &delay);
-    bpf_probe_read_kernel(&e->pic_data.ret, sizeof(u64), &ret);
-    e->pic_data.irq_source_id = *irq_s_id;
-    e->pic_data.ioapic = true;
-    e->pic_data.pin = irq_nr;
+    bpf_probe_read_kernel(&e->irqchip_data.ioapic_bits, sizeof(u64),
+                          &entry.bits);
+    bpf_probe_read_kernel(&e->irqchip_data.delay, sizeof(u64), &delay);
+    bpf_probe_read_kernel(&e->irqchip_data.ret, sizeof(u64), &ret);
+    e->irqchip_data.irqchip_type = KVM_IRQCHIP_IOAPIC;
+    e->irqchip_data.pin = irq_nr;
+    e->time = *ts;
+    e->process.pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+static int entry_kvm_set_msi_irq(struct kvm *kvm, pid_t vm_pid) {
+    CHECK_PID(vm_pid);
+    pid_t tid = (u32)bpf_get_current_pid_tgid();
+    u64 ts = bpf_ktime_get_ns();
+    bpf_map_update_elem(&irq_set_delay, &tid, &ts, BPF_ANY);
+    return 0;
+}
+
+static int exit_kvm_set_msi_irq(
+    struct kvm *kvm, struct kvm_kernel_irq_routing_entry *routing_entry,
+    void *rb, struct common_event *e) {
+    struct msi_msg msg = {.address_lo = routing_entry->msi.address_lo,
+                          .address_hi = routing_entry->msi.address_hi,
+                          .data = routing_entry->msi.data};
+    pid_t tid = (u32)bpf_get_current_pid_tgid();
+    u64 *ts = bpf_map_lookup_elem(&irq_set_delay, &tid);
+    if (!ts) {
+        return 0;
+    }
+    bool x2apic_format;
+    bpf_probe_read_kernel(&x2apic_format, sizeof(bool),
+                          &kvm->arch.x2apic_format);
+    u64 time = bpf_ktime_get_ns();
+    u64 delay = time - *ts;
+    bpf_map_delete_elem(&irq_set_delay, &tid);
+    RESERVE_RINGBUF_ENTRY(rb, e);
+    e->irqchip_data.delay = delay;
+    e->irqchip_data.irqchip_type = KVM_MSI;
+    e->irqchip_data.address =
+        msg.address_lo | (x2apic_format ? (u64)msg.address_hi << 32 : 0);
+    e->irqchip_data.data = msg.data;
     e->time = *ts;
     e->process.pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
