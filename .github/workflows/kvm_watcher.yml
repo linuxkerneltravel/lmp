@@ -40,11 +40,11 @@ jobs:
         run: |
           cd eBPF_Supermarket/kvm_watcher/
           make
-          sudo ./kvm_watcher -w -t 10
-          sudo ./kvm_watcher -e -t 10 -s
-          sudo ./kvm_watcher -n -t 10 
-          sudo ./kvm_watcher -d -t 10 
-          sudo ./kvm_watcher -f -m -t 10
-          sudo ./kvm_watcher -i -t 10
+          sudo ./kvm_watcher -w -t 2
+          sudo ./kvm_watcher -e -t 2 -s
+          sudo ./kvm_watcher -n -t 2 
+          sudo ./kvm_watcher -d -t 2
+          sudo ./kvm_watcher -f -m -t 2
+          sudo ./kvm_watcher -c -t 2
           make clean
 
