@@ -102,6 +102,8 @@ int sys_exit(struct trace_event_raw_sys_exit *args)
             bpf_map_update_elem(&proc_syscall, &pid, syscall_seq, BPF_ANY);
         }else{
             syscall_seq->sum_delay += this_delay;
+            if(this_delay > syscall_seq->max_delay)
+                syscall_seq->max_delay = this_delay;
 
             struct syscall_seq* e;
             e = bpf_ringbuf_reserve(&syscall_rb, sizeof(*e), 0);
