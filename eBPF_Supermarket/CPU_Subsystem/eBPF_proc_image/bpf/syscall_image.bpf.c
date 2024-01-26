@@ -64,7 +64,7 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
             syscall_seq->enter_time = current_time;
 
             if(syscall_seq->count <= MAX_SYSCALL_COUNT-1 && syscall_seq->count >= 0 && 
-                syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+MAX_SYSCALL_COUNT){
+                syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+(MAX_SYSCALL_COUNT-1)){
                     syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
                     syscall_seq->count ++;
             }
