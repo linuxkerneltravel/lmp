@@ -132,3 +132,7 @@ $(TARGETS): %: $(OUTPUT)/%.o $(patsubst %,$(OUTPUT)/%.o,$(SYMBOL)) $(LIBBPF_OBJ)
 
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
+
+CS_Arch_Components:
+	g++ ./exporter.cpp -o ./exporter
+	g++ ./server.cpp -o ./server
