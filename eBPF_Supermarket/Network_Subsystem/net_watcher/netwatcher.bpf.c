@@ -1226,9 +1226,7 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
     struct iphdr *ip = skb_to_iphdr(skb);
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
-
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-    
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
