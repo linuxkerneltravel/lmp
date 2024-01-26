@@ -91,5 +91,7 @@ struct udp_message {
     unsigned short sport;
     unsigned short dport;
     unsigned long long tran_time;
+    int rx; 
+    int len;
 };
 #endif /* __NETWATCHER_H */

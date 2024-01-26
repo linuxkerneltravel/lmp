@@ -35,6 +35,7 @@ static volatile bool exiting = false;
 static char connects_file_path[1024];
 static char err_file_path[1024];
 static char packets_file_path[1024];
+static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
@@ -269,16 +270,33 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
 static int print_udp(void *ctx, void *packet_info, size_t size) {
     if (!udp_info)
         return 0;
+    FILE *file = fopen(udp_file_path, "a+");//追加
+     if (file == NULL) {
+        fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
+        return 0;
+    }
     char d_str[INET_ADDRSTRLEN];
     char s_str[INET_ADDRSTRLEN];
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    printf("%-20s %-20s %-20u %-20u %-24llu\n",
+    if(udp_info)
+    {
+    printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d\n",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
-           pack_info->dport, pack_info->tran_time);
-
+           pack_info->dport, pack_info->tran_time,pack_info->rx,pack_info->len);
+    fprintf(
+            file,
+            "packet{saddr=\"%s\",daddr=\"%s\",sport=\"%u\","
+            "dport=\"%u\",udp_time=\"%llu\",rx=\"%d\",len=\"%d\"} \n",
+            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
+            pack_info->dport, pack_info->tran_time,pack_info->rx,pack_info->len);
+    //fseek(file, 0, SEEK_END); //指针移动到文件头部
+    }
+    
+    fclose(file);
     return 0;
 }
 int main(int argc, char **argv) {
@@ -289,9 +307,11 @@ int main(int argc, char **argv) {
     strcpy(connects_file_path, argv[0]);
     strcpy(err_file_path, argv[0]);
     strcpy(packets_file_path, argv[0]);
+    strcpy(udp_file_path, argv[0]);
     strcat(connects_file_path, "data/connects.log");
     strcat(err_file_path, "data/err.log");
     strcat(packets_file_path, "data/packets.log");
+    strcat(udp_file_path,"data/udp.log");
     struct ring_buffer *rb = NULL;
     struct ring_buffer *udp_rb = NULL;
     struct netwatcher_bpf *skel;
@@ -342,11 +362,10 @@ int main(int argc, char **argv) {
                "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
     }
     if (udp_info) {
-        printf("%-20s %-20s %-20s %-20s %-24s\n", "saddr", "daddr", "sprot",
-               "dprot", "udp_time");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr", "sprot",
+               "dprot", "udp_time","rx","len");
     }
-    udp_rb =
-        ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
+    udp_rb =ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
     if (!udp_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
@@ -371,6 +390,12 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(packet_file);
+    FILE *udp_file = fopen(udp_file_path, "w+");
+    if (udp_file == NULL) {
+        fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
+        return 0;
+    }
+    fclose(udp_file);
 
     /* Process events */
     while (!exiting) {
