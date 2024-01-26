@@ -86,16 +86,12 @@ struct pack_t {
 };
 
 struct udp_message {
-    int pid;
     unsigned int saddr;
     unsigned int daddr;
     unsigned short sport;
     unsigned short dport;
     unsigned long long tran_time;
-    unsigned long long send;
-    unsigned long long recv;
-    unsigned int total;
-    char comm[20];
-
+    int rx; 
+    int len;
 };
 #endif /* __NETWATCHER_H */

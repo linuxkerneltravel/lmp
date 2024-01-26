@@ -46,14 +46,7 @@ struct packet_tuple {
     unsigned int seq;           // seq报文序号
     unsigned int ack;           // ack确认号
     unsigned int tran_flag;     // 1:tcp 2:udp
-};
-struct udp_tracing {
-    unsigned int dport;
-    unsigned int sport;
-    unsigned int saddr;
-    unsigned int daddr;
-    unsigned long long send;
-    unsigned long long recv;
+    unsigned int len;
 };
 
 // 操作BPF映射的一个辅助函数
@@ -111,19 +104,11 @@ struct {
     __type(key, u64);
     __type(value, struct sock *);
 } sock_stores SEC(".maps");
-// udp流量
-struct {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, 10800);
-    __type(key, int);
-    __type(value, struct udp_tracing);
-} udp_flow_map SEC(".maps");
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0,
-                   udp_info = 0, udp_traffic = 0;
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info;
 
 /* help macro */
 
@@ -367,11 +352,11 @@ int BPF_KRETPROBE(inet_csk_accept_exit, // 接受tcp连接
     CONN_INIT // 初始化conn_t结构中基本信息
         conn.is_server = 1;
 
-    FILTER_DPORT // 过滤目标端口
+    FILTER_DPORT     // 过滤目标端口
 
-        FILTER_SPORT // 过滤源端口
-
-            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+    FILTER_SPORT // 过滤源端口
+    
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         // 更新/插入conns_info中的键值对
         int err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
@@ -420,11 +405,11 @@ int BPF_KRETPROBE(tcp_v4_connect_exit, int ret) {
     CONN_INIT               // 初始化conn_t结构中基本信息
         conn.is_server = 0; // 主动连接
 
-    FILTER_DPORT // 过滤目标端口
+    FILTER_DPORT     // 过滤目标端口
 
-        FILTER_SPORT // 过滤源端口
+    FILTER_SPORT // 过滤源端口
 
-            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
@@ -462,11 +447,11 @@ int BPF_KRETPROBE(tcp_v6_connect_exit, int ret) {
     CONN_INIT               // 初始化conn_t结构中基本信息
         conn.is_server = 0; // 主动连接
 
-    FILTER_DPORT // 过滤目标端口
+    FILTER_DPORT     // 过滤目标端口
 
-        FILTER_SPORT // 过滤源端口
+    FILTER_SPORT // 过滤源端口
 
-            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
@@ -912,10 +897,12 @@ int BPF_KRETPROBE(__skb_checksum_complete_exit, int ret) {
  */
 SEC("kprobe/tcp_sendmsg") // 跟踪tcp发送包信息
 int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
+
     struct conn_t *conn = bpf_map_lookup_elem(&conns_info, &sk);
     if (conn == NULL) {
         return 0;
     }
+
     u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
     struct ktime_info *tinfo, zero = {0}; // 存储时间
     struct packet_tuple pkt_tuple = {0};  // 存储数据包信息
@@ -979,10 +966,7 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
     CONN_ADD_EXTRA_INFO
 
     // TX HTTP info
-    if (!udp_info) {
-        return 0;
-    }
-    if (http_info) {
+    if (http_info&&udp_info) {
         unsigned char *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
@@ -1036,7 +1020,7 @@ tcp)获取ip段的数据 out only ipv6
 */
 SEC("kprobe/inet6_csk_xmit")
 int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb) {
-    if (!udp_info) {
+    if (!layer_time) {
         return 0;
     }
     u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
@@ -1079,9 +1063,9 @@ int BPF_KPROBE(inet6_csk_xmit, struct sock *sk, struct sk_buff *skb) {
 */
 SEC("kprobe/__dev_queue_xmit")
 int BPF_KPROBE(__dev_queue_xmit, struct sk_buff *skb) {
-    /* if (!layer_time) {
-         return 0;
-     }*/
+    if (!layer_time) {
+        return 0;
+    }
     // 从skb中读取以太网头部
     const struct ethhdr *eth = (struct ethhdr *)BPF_CORE_READ(skb, data);
     u16 protocol = BPF_CORE_READ(
@@ -1236,7 +1220,7 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
     struct packet_tuple pkt_tuple = {0};
 
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-
+    
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
@@ -1246,9 +1230,12 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     return 0;
 }
+
 SEC("kprobe/__udp_enqueue_schedule_skb")
 int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
                struct sk_buff *skb) {
+    if (!udp_info)
+        return 0;
     if (skb == NULL) // 判断是否为空
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
@@ -1260,7 +1247,13 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
     pkt_tuple.dport = BPF_CORE_READ(sk, __sk_common.skc_num);
     pkt_tuple.sport = __bpf_ntohs(dport);
     pkt_tuple.tran_flag = 2;
-
+    int total=0;
+    int len=__bpf_ntohs(BPF_CORE_READ(udp,len));//网络字节序转换成主机字节序
+    if(total)
+    { 
+        total+=len;
+    }
+    pkt_tuple.len=total;
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -1279,95 +1272,8 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
     message->daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
     message->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
     message->dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
-
+    message->rx=0;//收包
+    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
     bpf_ringbuf_submit(message, 0);
-    return 0;
-}
-
-// kprobe 挂载 udp_sendmsg 函数
-SEC("kprobe/udp_sendmsg")
-int trace_sys_send(struct pt_regs *ctx) {
-    int time;
-    unsigned int pid = bpf_get_current_pid_tgid();
-    ;                                  // 获取当前进程pid
-    u64 tmp = PT_REGS_PARM3_CORE(ctx); // 获取发送数据的大小
-    // struct sock *sock = (struct sock *)PT_REGS_PARM1_CORE(ctx);
-    struct udp_tracing *st = bpf_map_lookup_elem(
-        &udp_flow_map,
-        &pid); // 使用bpf_map_lookup_elem函数查找udp_flow_map中以pid为键的元素
-    if (st && tmp > 0) // 如果找到对应的元素
-    {
-        st->send += tmp; // 累加
-    } else {
-        struct udp_tracing val = {.send = tmp, .recv = 0};
-        // bpf_map_update_elem函数将以key为键、recv为值的元素插入到udp_flow_map中,进行更新
-        bpf_map_update_elem(&udp_flow_map, &pid, &val, BPF_ANY);
-    }
-    struct packet_tuple pkt_tuple = {0};
-    struct ktime_info *tinfo;
-    struct udp_message *message;
-    struct udp_message *udp_message =
-        bpf_map_lookup_elem(&timestamps, &pkt_tuple);
-    ;
-    message = bpf_ringbuf_reserve(&udp_rb, sizeof(*message), 0);
-    if (!message) {
-        return 0;
-    }
-    message->tran_time = bpf_ktime_get_ns() / 1000 - tinfo->tran_time;
-
-    bpf_ringbuf_submit(message, 0);
-    return 0;
-}
-
-SEC("kprobe/udp_recvmsg")
-int trace_sys_recv(struct pt_regs *ctx) {
-    unsigned int pid = bpf_get_current_pid_tgid();
-    struct udp_tracing *st = bpf_map_lookup_elem(&udp_flow_map, &pid);
-    if (!st) {
-        return 0;
-    }
-    struct sock *sock = (struct sock *)PT_REGS_PARM1_CORE(ctx);
-    st->daddr = BPF_CORE_READ(sock, __sk_common.skc_daddr);
-    st->saddr = BPF_CORE_READ(sock, __sk_common.skc_rcv_saddr);
-    st->sport = BPF_CORE_READ(sock, __sk_common.skc_num);
-    st->dport = BPF_CORE_READ(sock, __sk_common.skc_dport);
-    bpf_map_update_elem(&udp_flow_map, &pid, st, BPF_ANY);
-    bpf_printk("%d", st->daddr);
-    return 0;
-}
-
-SEC("kretprobe/udp_recvmsg")
-int trace_sys_recv_ret(struct pt_regs *ctx) {
-    struct packet_tuple pkt_tuple = {0};
-    pkt_tuple.tran_flag = 2;
-    unsigned int total;
-    unsigned int pid = bpf_get_current_pid_tgid();
-    // 查找pid关联的值
-    struct udp_tracing *st = bpf_map_lookup_elem(&udp_flow_map, &pid);
-    if (!st) {
-        return 0;
-    }
-    u64 tmp = PT_REGS_RC(ctx);
-    if (tmp > 0) {
-        st->recv += tmp;
-    } else {
-        struct udp_tracing val = {.send = tmp, .recv = 0};
-        // bpf_map_update_elem函数将以key为键、recv为值的元素插入到udp_flow_map中,进行更新
-        bpf_map_update_elem(&udp_flow_map, &pid, &val, BPF_ANY);
-    }
-    struct sock *sock = (struct sock *)PT_REGS_PARM1_CORE(ctx);
-    struct udp_message *data;
-    data = bpf_ringbuf_reserve(&udp_rb, sizeof(*data), 0);
-    if (!data)
-        return 0;
-    bpf_get_current_comm(&(data->comm), sizeof(data->comm));
-    data->saddr = st->saddr;
-    data->daddr = st->daddr;
-    data->sport = st->sport;
-    data->dport = st->dport;
-    data->send = st->send;
-    data->recv = st->recv;
-    data->total = st->send + st->recv;
-    bpf_ringbuf_submit(data, 0);
     return 0;
 }
