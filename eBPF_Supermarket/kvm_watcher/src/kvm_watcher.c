@@ -769,7 +769,7 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
-        OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
+        //OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
