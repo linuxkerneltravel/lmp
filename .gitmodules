@@ -61,3 +61,9 @@
 [submodule "eBPF_Supermarket/Memory_Subsystem/libbpf"]
 	path = eBPF_Supermarket/Memory_Subsystem/libbpf
 	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Network_Subsystem/net_manager/lib/libbpf"]
+	path = eBPF_Supermarket/Network_Subsystem/net_manager/lib/libbpf
+	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Network_Subsystem/net_manager/lib/xdp-tools"]
+	path = eBPF_Supermarket/Network_Subsystem/net_manager/lib/xdp-tools
+	url = https://github.com/xdp-project/xdp-tools.git
