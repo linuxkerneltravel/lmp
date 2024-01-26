@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 		
 	}
 	
-/* 卸载BPF程序*/
+/* 卸载BPF程序的过程*/
 cleanup:
 	ring_buffer__free(rb);
 	open_bpf__destroy(skel);

@@ -44,7 +44,6 @@ int BPF_KPROBE(do_sys_openat2)
         //bpf_get_current_comm(&fs.comm, sizeof(fs.comm));
     	
     	//update map
-    	//fdtmp.update(&id, &fs);	//bcc璇彞 
     	bpf_map_update_elem(&fdtmp, &pid, &fs, BPF_ANY);
 	
 	//从环形缓冲区（ring buffer）中分配一块内存来存储一个名为 struct fs_t 类型的数据，并将该内存块的指针赋值给指针变量 e
@@ -61,7 +60,9 @@ int BPF_KPROBE(do_sys_openat2)
 		e->comm[0] = 0;
 	
 	// 成功地将其提交到用户空间进行后期处理
+
 	bpf_ringbuf_submit(e, 0);
 
     	return 0;
 }
+
