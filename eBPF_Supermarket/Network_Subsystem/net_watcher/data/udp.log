@@ -1,0 +1,12 @@
+packet{saddr="127.0.0.1",daddr="127.0.0.53",sport="35914",dport="53",udp_time="5",rx="1",len="35"} 
+packet{saddr="192.168.239.132",daddr="192.168.239.2",sport="60514",dport="53",udp_time="4",rx="1",len="35"} 
+packet{saddr="192.168.239.2",daddr="192.168.239.132",sport="53",dport="60514",udp_time="4",rx="0",len="325"} 
+packet{saddr="127.0.0.53",daddr="0.0.0.0",sport="53",dport="0",udp_time="2",rx="1",len="325"} 
+packet{saddr="127.0.0.53",daddr="127.0.0.1",sport="53",dport="35914",udp_time="1",rx="0",len="325"} 
+packet{saddr="127.0.0.1",daddr="127.0.0.53",sport="58917",dport="53",udp_time="2",rx="1",len="35"} 
+packet{saddr="192.168.239.132",daddr="192.168.239.2",sport="33839",dport="53",udp_time="1",rx="1",len="35"} 
+packet{saddr="192.168.239.2",daddr="192.168.239.132",sport="53",dport="33839",udp_time="3",rx="0",len="78"} 
+packet{saddr="127.0.0.53",daddr="0.0.0.0",sport="53",dport="0",udp_time="2",rx="1",len="78"} 
+packet{saddr="127.0.0.53",daddr="127.0.0.1",sport="53",dport="58917",udp_time="1",rx="0",len="78"} 
+packet{saddr="192.168.239.132",daddr="192.168.239.2",sport="60635",dport="53",udp_time="2",rx="1",len="55"} 
+packet{saddr="192.168.239.2",daddr="192.168.239.132",sport="53",dport="60635",udp_time="4",rx="0",len="367"} 
