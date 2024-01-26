@@ -74,10 +74,10 @@ int main(int argc, char *argv[]) {
             std::vector<std::string> v;
             b_scanf(<=, " %d\t", &k);
             b_scanf(<=, "%s", buf);
-            char *p = strtok(buf, ",");
+            char *p = strtok(buf, ";");
             while(p) {
                 v.push_back(std::string(p));
-                p = strtok(NULL, ",");
+                p = strtok(NULL, ";");
             }
             traces[k] = v;
         }
