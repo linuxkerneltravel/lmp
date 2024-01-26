@@ -972,9 +972,9 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
     CONN_INFO_TRANSFER
 
     CONN_ADD_EXTRA_INFO
-
+    
     // TX HTTP info
-    if (http_info&&!udp_info) {
+    if (http_info) {
         unsigned char *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
