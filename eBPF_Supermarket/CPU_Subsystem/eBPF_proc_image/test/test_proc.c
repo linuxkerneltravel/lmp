@@ -241,7 +241,7 @@ int main(int argc, char **argv){
    if(env.syscall_test){
       printf("SYSCALL_TEST----------------------------------------------\n");
 
-      // 系统调用序列逻辑
+      // 系统调用序列逻辑(参考 UnixBench 中的 syscall 测试)
       printf("系统调用序列逻辑:\n");
       printf("每调用一次 SYS_getpid 系统调用睡眠 1 s,循环 10 次\n");
       int count = 10;
