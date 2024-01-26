@@ -1247,13 +1247,13 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
     pkt_tuple.dport = BPF_CORE_READ(sk, __sk_common.skc_num);
     pkt_tuple.sport = __bpf_ntohs(dport);
     pkt_tuple.tran_flag = 2;
-    int total=0;
+   /* int total=0;
     int len=__bpf_ntohs(BPF_CORE_READ(udp,len));//网络字节序转换成主机字节序
     if(total)
     { 
         total+=len;
     }
-    pkt_tuple.len=total;
+    pkt_tuple.len=total;*/
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
