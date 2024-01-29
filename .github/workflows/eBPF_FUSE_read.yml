@@ -30,7 +30,7 @@ jobs:
           cd libfuse
           cp ../fusedemo.c ./example/
           cp ../Makefile ./
-          make
+          bash make.sh
           cd ./example/
           mkdir ./yourdir
           ./fusedemo ./yourdir
