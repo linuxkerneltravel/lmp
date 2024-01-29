@@ -3,7 +3,7 @@
 ## 安装相关依赖并获取libfuse库：
 
 ```
-sudo apt-get install fuse libfuse-dev meson ninja wget
+sudo apt-get install fuse libfuse-dev meson wget
 git clone https://github.com/libfuse/libfuse/releases/tag/fuse-3.16.2/fuse-3.16.2.tar.gz
 tar -zxvf fuse-3.16.2.tar.gz
 mv fuse-3.16.2.tar.gz libfuse
