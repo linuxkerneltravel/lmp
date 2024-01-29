@@ -38,21 +38,13 @@ VMLINUX := ../vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC)
+INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC) -I./
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = cpu_watcher
+APPS =cs_delay sar cpu_watcher 
 
-CARGO ?= $(shell which cargo)
-ifeq ($(strip $(CARGO)),)
-BZS_APPS :=
-else
-BZS_APPS := profile
-APPS += $(BZS_APPS)
-# Required by libblazesym
-ALL_LDFLAGS += -lrt -ldl -lpthread -lm
-endif
+
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
