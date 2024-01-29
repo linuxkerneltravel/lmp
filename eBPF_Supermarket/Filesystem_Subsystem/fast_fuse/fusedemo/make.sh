@@ -1,4 +1,3 @@
-mkdir ./build
 cd ./build
 meson ..
 meson configure -D disable-mtab=true
