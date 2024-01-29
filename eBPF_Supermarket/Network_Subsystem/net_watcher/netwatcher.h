@@ -72,18 +72,24 @@ struct conn_t {
 #define MAX_PACKET 1000
 #define MAX_HTTP_HEADER 256
 
-
 struct pack_t {
     int err;                     // no err(0) invalid seq(1) invalid checksum(2)
     unsigned long long mac_time; // mac layer 处理时间(us)
     unsigned long long ip_time;  // ip layer 处理时间(us)
-    //unsigned long long tcp_time; // tcp layer 处理时间(us)
-    unsigned long long tran_time; // tcp layer 处理时间(us)
-    unsigned int seq;            // the seq num of packet
-    unsigned int ack;            // the ack num of packet
+    // unsigned long long tcp_time; // tcp layer 处理时间(us)
+    unsigned long long tran_time;        // tcp layer 处理时间(us)
+    unsigned int seq;                    // the seq num of packet
+    unsigned int ack;                    // the ack num of packet
     unsigned char data[MAX_HTTP_HEADER]; // 用户层数据
     const void *sock;                    // 此包tcp连接的 socket 指针
     int rx;                              // rx packet(1) or tx packet(0)
 };
 
+struct udp_message {
+    unsigned int saddr;
+    unsigned int daddr;
+    unsigned short sport;
+    unsigned short dport;
+    unsigned long long tran_time;
+};
 #endif /* __NETWATCHER_H */

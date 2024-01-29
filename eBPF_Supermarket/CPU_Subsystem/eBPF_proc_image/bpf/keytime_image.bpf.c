@@ -28,6 +28,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 const volatile int max_args = DEFAULT_MAXARGS;
 
 const volatile pid_t target_pid = -1;
+const volatile pid_t ignore_tgid = -1;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -52,7 +53,9 @@ SEC("tracepoint/syscalls/sys_enter_execve")
 int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx)
 {
     int pid = bpf_get_current_pid_tgid();
-    if(target_pid==-1 || pid==target_pid){
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
         struct keytime_event* event;
         event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
         if(!event)
@@ -125,7 +128,9 @@ SEC("tracepoint/syscalls/sys_exit_execve")
 int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit* ctx)
 {
     int pid = bpf_get_current_pid_tgid();
-    if(target_pid==-1 || pid==target_pid){
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+
+    if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
         struct keytime_event* event;
         event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
         if(!event)
@@ -148,9 +153,10 @@ SEC("uretprobe/fork")
 int BPF_KRETPROBE(fork_exit,int ret)
 {
     pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
     
     // 判断是否为父进程触发
-    if(ret!=0 && (pid==target_pid || target_pid==-1)){
+    if(tgid!=ignore_tgid && (ret!=0 && (pid==target_pid || target_pid==-1))){
         pid_t child_pid = ret;
         child_create(4,child_pid,pid,&child,&keytime_rb);
     }
@@ -164,8 +170,9 @@ int BPF_KRETPROBE(vfork_exit,int ret)
 {
 	struct task_struct *current = (struct task_struct *)bpf_get_current_task();
     pid_t ppid = BPF_CORE_READ(current,real_parent,pid);
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(ppid==target_pid || target_pid==-1){
+    if(tgid!=ignore_tgid && (ppid==target_pid || target_pid==-1)){
         pid_t child_pid = BPF_CORE_READ(current,pid);
         child_create(6,child_pid,ppid,&child,&keytime_rb);
     }
@@ -177,10 +184,13 @@ SEC("uprobe/pthread_create")
 int BPF_KPROBE(pthread_create_enter)
 {
     int current = bpf_get_current_pid_tgid();
-    bool pthread_create_flag = true;
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    bpf_map_update_elem(&pthread_create_enable, &current, &pthread_create_flag, BPF_ANY);
-
+    if(tgid!=ignore_tgid){
+        bool pthread_create_flag = true;
+        bpf_map_update_elem(&pthread_create_enable, &current, &pthread_create_flag, BPF_ANY);
+    }
+    
 	return 0;
 }
 
@@ -188,7 +198,11 @@ SEC("uretprobe/pthread_create")
 int BPF_KRETPROBE(pthread_create_exit,int ret)
 {
     int current = bpf_get_current_pid_tgid();
-    bpf_map_delete_elem(&pthread_create_enable, &current);
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(tgid!=ignore_tgid){
+        bpf_map_delete_elem(&pthread_create_enable, &current);
+    }
 
 	return 0;
 }
@@ -198,9 +212,9 @@ SEC("tracepoint/syscalls/sys_exit_clone3")
 int tracepoint__syscalls__sys_exit_clone3(struct trace_event_raw_sys_exit* ctx)
 {
     pid_t current = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(current==target_pid || current==-1)
-    {
+    if(tgid!=ignore_tgid && (current==target_pid || current==-1)){
         // 判断是否是pthread_create函数触发的clone3系统调用
         bool *pthread_create_flag;
         pthread_create_flag = bpf_map_lookup_elem(&pthread_create_enable, &current);
@@ -220,23 +234,27 @@ SEC("tracepoint/syscalls/sys_enter_exit_group")
 int tracepoint__syscalls__sys_enter_exit_group(struct trace_event_raw_sys_enter* ctx)
 {
     int pid = bpf_get_current_pid_tgid();
-    if(target_pid==-1 || pid==target_pid){
-        struct keytime_event* event;
-        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
-        if(!event)
-            return 0;
-        
-        event->type = 3;
-        event->pid = pid;
-        event->enable_char_info = false;
-        event->info_count = 1;
-        event->info[0] = ctx->args[0];
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-        bpf_ringbuf_submit(event, 0);
+    if(tgid!=ignore_tgid){
+        if(target_pid==-1 || pid==target_pid){
+            struct keytime_event* event;
+            event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+            if(!event)
+                return 0;
+            
+            event->type = 3;
+            event->pid = pid;
+            event->enable_char_info = false;
+            event->info_count = 1;
+            event->info[0] = ctx->args[0];
+
+            bpf_ringbuf_submit(event, 0);
+        }
+
+        // 记录 fork 和 vfork 子进程的退出时间，并输出到 ringbuf 中
+        child_exit(&child,&keytime_rb);
     }
-
-    // 记录 fork 和 vfork 子进程的退出时间，并输出到 ringbuf 中
-    child_exit(&child,&keytime_rb);
 
     return 0;
 }
@@ -245,23 +263,27 @@ SEC("tracepoint/syscalls/sys_enter_exit")
 int tracepoint__syscalls__sys_enter_exit(struct trace_event_raw_sys_enter* ctx)
 {
     int pid = bpf_get_current_pid_tgid();
-    if(target_pid==-1 || pid==target_pid){
-        struct keytime_event* event;
-        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
-        if(!event)
-            return 0;
-        
-        event->type = 3;
-        event->pid = pid;
-        event->enable_char_info = false;
-        event->info_count = 1;
-        event->info[0] = ctx->args[0];
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-        bpf_ringbuf_submit(event, 0);
+    if(tgid!=ignore_tgid){
+        if(target_pid==-1 || pid==target_pid){
+            struct keytime_event* event;
+            event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+            if(!event)
+                return 0;
+            
+            event->type = 3;
+            event->pid = pid;
+            event->enable_char_info = false;
+            event->info_count = 1;
+            event->info[0] = ctx->args[0];
+
+            bpf_ringbuf_submit(event, 0);
+        }
+
+        // 记录 pthread_create 新线程的退出时间，并输出
+        child_exit(&child,&keytime_rb);
     }
-
-    // 记录 pthread_create 新线程的退出时间，并输出
-    child_exit(&child,&keytime_rb);
 
     return 0;
 }

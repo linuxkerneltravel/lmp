@@ -171,7 +171,7 @@ static bool load_kernel_symbol_list(std::vector<std::string> &sym_list)
         }
         len = strlen(buf);
         if (buf[len-1] == '\n') {
-            buf[len-1] = ' ';
+            buf[len-1] = '\0';
         }
         sym_list.push_back(buf);
     }
@@ -202,12 +202,13 @@ static bool get_next_kernel_symbol(
     size_t start, end;
     sscanf(cursor->c_str(), "%p %*c %*s\n", (void **)&start);
     sym.name = cursor->c_str() + 19;
-    rtrim(sym.name);
-#if 0
-    if (sym.name[sym.name.size()-1] == '\n') {
-        sym.name[sym.name.size()-1] = '\0';
-    }
-#endif
+    // rtrim(sym.name);
+// #if 0
+    // if (sym.name[sym.name.size()-1] == ' ') {
+    //     // sym.name[sym.name.size()-1] = '\0';
+    //     sym.name.pop_back();
+    // }
+// #endif
     cursor++;
     if (cursor != sym_list.end()) {
         sscanf(cursor->c_str(), "%p %*c %*s\n", (void **)&end);
