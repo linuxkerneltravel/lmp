@@ -1,6 +1,5 @@
-rm -rf ./build/
-mkdir ./build
-cd ./build
+mkdir -p ./build/
+cd ./build/
 meson ../
 meson configure -D disable-mtab=true
 ninja
