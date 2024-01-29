@@ -13,13 +13,13 @@ cd libfuse
 ## 将fusedemo.c和Makefile文件复制到相应目录下：
 
 ```
-cp /fusedemo.c文件路径 ./example/
-cp /Makefile文件路径 ./
+cp /path/to/fusedemo.c ./example/
+cp /path/to/make.sh ./
 ```
 
 ## 编译libfuse库并设置相应配置：
 
-（该阶段的步骤都存放在了Makefile文件中，也可以直接使用"make"命令代替下列命令）
+（该阶段的步骤都存放在了make.sh文件中，也可以直接使用"bash make.sh"命令代替下列命令）
 
 ```
 mkdir build
