@@ -25,7 +25,7 @@ jobs:
           cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/fusedemo/
           sudo apt update
           sudo apt install fuse libfuse-dev meson wget git
-          git clone https://github.com/libfuse/libfuse/releases/tag/fuse-3.16.2/fuse-3.16.2.tar.gz
+          wget https://github.com/libfuse/libfuse/releases/tag/fuse-3.16.2/fuse-3.16.2.tar.gz
           mkdir libfuse
           tar -zxvf fuse-3.16.2.tar.gz -C ./libfuse/
           cd libfuse
