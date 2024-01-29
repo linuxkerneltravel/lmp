@@ -1,21 +1,21 @@
-name: eBPF_FUSE_read
+name: fast_fuse
 
 on:
   push:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/eBPF_FUSE/Filesystem_Subsystem/fast_fuse/**'
-      - '.github/workflows/ebpf_FUSE_read.yml'
+      - 'eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/**'
+      - '.github/workflows/fast_fuse.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/eBPF_FUSE/Filesystem_Subsystem/fast_fuse/**'
+      - 'eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/**'
       - '.github/workflows/ebpf_FUSE_read.yml'
   
 jobs:
-  FUSE_read-build-and-test:
+  fast_fuse-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
