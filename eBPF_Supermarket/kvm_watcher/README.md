@@ -25,11 +25,13 @@
 
 ## 三、使用方法
 
-> 测试环境：
+> 环境：
 >
 > Kernel: Linux6.2  
 >
 > OS: Ubuntu 23.04
+>
+> QEMU emulator version 7.2.0
 
 **安装依赖：**
 
@@ -49,6 +51,7 @@ make clean
 **参数介绍：**
 
 `kvm_watcher`通过一系列命令参数来控制其具体行为：
+
 ```
 Usage: kvm_watcher [OPTION...]
 BPF program used for monitoring KVM event
@@ -56,7 +59,7 @@ BPF program used for monitoring KVM event
   -d, --mark_page_dirty      Monitor virtual machine dirty page information.
   -e, --vm_exit              Monitoring the event of vm exit.
   -f, --kvmmmu_page_fault    Monitoring the data of kvmmmu page fault.
-  -i, --kvm_irq              Monitor the interrupt information in KVM VM.
+  -c, --kvm_irq              Monitor the interrupt information in KVM VM.
   -m, --mmio                 Monitoring the data of mmio page fault..(The -f option must be specified.)
   -n, --halt_poll_ns         Monitoring the variation in vCPU halt-polling time.
   -p, --vm_pid=PID           Specify the virtual machine pid to monitor.
@@ -68,13 +71,15 @@ BPF program used for monitoring KVM event
   -V, --version              Print program version
 ```
 
+`-h`：输出帮助信息
+
 `-e`：记录vm exit事件信息
 
 `-s`：输出最后的vm exit事件统计信息(需要和`-e`一同使用)
 
 `-f`：记录kvmmmu缺页信息
 
-`-i`：记录kvm中断设置相关信息
+`-c：记录kvm中断芯片设置相关信息
 
 `-m`：记录mmio缺页信息（需要和`-f`一同使用）
 
@@ -94,7 +99,7 @@ BPF program used for monitoring KVM event
 ├── include
 │   ├── kvm_exits.h           //vm exit事件相关的内核bpf程序
 │   ├── kvm_mmu.h             //kvmmmu相关的内核bpf程序
-│   ├── kvm_irq.h             //中断注入相关内核bpf程序
+│   ├── kvm_irq.h             //kvm中断相关内核bpf程序
 │   ├── kvm_vcpu.h            //vcpu相关内核bpf程序
 │   └── kvm_watcher.h         //项目公用头文件
 ├── Makefile                  //编译脚本
@@ -107,49 +112,27 @@ BPF program used for monitoring KVM event
 
 ## 五、测试
 
-可以按照如下流程测试程序输出：
-- **查看本地是否支持虚拟化**
-  ```
-  grep -Eoc '(vmx|svm)' /proc/cpuinfo
-  若大于0，则支持
-  ```
-- **安装依赖**
+Makefile 提供了测试命令来进行测试。即使您没有设置过 KVM 虚拟化环境，也可以使用 Makefile 来测试程序的功能。
+
+程序测试流程如下：
+
+```mermaid
+graph TD;
+    A[查看 CPU 是否支持虚拟化] --> B[安装依赖];
+    B --> C[加载 KVM 模块];
+    C --> D[下载 CirrOs 镜像];
+    D --> E[使用 QEMU 启动虚拟机];
+    E --> F[编译并运行程序];
+    F --> G[结束虚拟机进程];
+
+```
+
+- **使用方法**
+
+  要运行测试，请执行以下命令：
 
   ```
-  sudo apt install clang libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$(uname -r) linux-cloud-tools-$(uname -r)
+  make test
   ```
 
-- **加载KVM模块**
-
-  ```
-  sudo modprobe kvm && sudo modprobe kvm-intel 
-  ```
-
-- **下载CirrOs镜像**
-
-  > CirrOS 是一个专门设计用于在云环境中运行的轻量级 Linux 发行版，特别适用于测试和虚拟机环境,[cirros官网](https://download.cirros-cloud.net/)。
-
-  ```
-  wget http://download.cirros-cloud.net/0.5.1/cirros-0.5.1-x86_64-disk.img //Download Cirros image
-  ```
-
-- **使用QEMU启动虚拟机**
-
-  ```
-  sudo qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -drive file=cirros-0.5.1-x86_64-disk.img,format=qcow2 -boot c -nographic 
-  ```
-- **也可以使用virt-manager图形化工具来创建并启动虚拟机**
-  ```
-  sudo apt install qemu qemu-kvm libvirt-daemon-system libvirt-clients virt-manager virtinst bridge-utils
-  接下来就可以使用virt-manager图形化工具来设置虚拟机了
-  ```
-- **编译&&运行程序**
-
-  ```
-  make
-  sudo ./kvm_watcher [options]
-  make clean
-  ```
-
-  
-
+  这将自动执行上述测试流程，并在结束后提供测试结果。
