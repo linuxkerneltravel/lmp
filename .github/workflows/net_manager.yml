@@ -34,17 +34,15 @@ jobs:
 
       - name: Configure
         run: ./configure
-          
+        
+      - name: make
+        run: make
+       
       - name: Build and Run
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/net_manager/
-          make
+          cd eBPF_Supermarket/Network_Subsystem/net_manager/xacl_core/
           # run
-          sudo timeout -s SIGINT 5 ./netwatcher || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo timeout -s SIGINT 5 ./netwatcher -a || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo timeout -s SIGINT 5 ./netwatcher -e || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo timeout -s SIGINT 5 ./netwatcher -i || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo timeout -s SIGINT 5 ./netwatcher -r || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo timeout -s SIGINT 5 ./netwatcher -t || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo timeout -s SIGINT 5 ./netwatcher -u || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-        timeout-minutes: 5
+          sudo ./xdp_loader -d docker0 --progname xdp_redirect_func -S
+          sudo ./xacladm load docker0 ./conf.d/mac_load.conf
+          sudo ./xdp_stats -d docker0
+         
