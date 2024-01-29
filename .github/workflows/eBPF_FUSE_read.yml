@@ -29,7 +29,7 @@ jobs:
           mv fuse-3.16.2.tar.gz libfuse
           cd libfuse
           cp ../fusedemo.c ./example/
-          cp ../Makefile ./
+          cp ../make.sh ./
           bash make.sh
           cd ./example/
           mkdir ./yourdir
@@ -38,7 +38,7 @@ jobs:
 
       - name: Run frida
         run: |
-            pip install frida-tools
-            cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/frida
-            sudo sysctl kernel.yama.ptrace_scope=0
-            python cat.py
+          pip install frida-tools
+          cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/frida
+          sudo sysctl kernel.yama.ptrace_scope=0
+          python cat.py
