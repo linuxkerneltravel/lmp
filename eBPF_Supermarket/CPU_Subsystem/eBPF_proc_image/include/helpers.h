@@ -62,6 +62,11 @@
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
+typedef long long unsigned int u64;
+typedef unsigned int u32;
+
+#define NR_syscalls 500
+
 #define RESOURCE_IMAGE 1
 #define SYSCALL_IMAGE 2
 #define LOCK_IMAGE 3

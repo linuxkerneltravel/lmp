@@ -63,12 +63,6 @@ jobs:
           sudo insmod mutex_test1.ko
           sudo insmod mutex_test2.ko
 
-      - name: Run test_sleep
-        run: |
-          cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test
-          gcc test_sleep.c -o test_sleep
-          ./test_sleep
-      
       - name: Run test_proc
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test

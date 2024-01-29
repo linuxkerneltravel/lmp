@@ -19,7 +19,7 @@
 #ifndef __PROC_IMAGE_H
 #define __PROC_IMAGE_H
 
-#define MAX_SYSCALL_COUNT 116
+#define MAX_SYSCALL_COUNT 50
 #define ARGSIZE  128
 #define TOTAL_MAX_ARGS 60
 #define DEFAULT_MAXARGS 20
@@ -50,9 +50,10 @@ struct total_rsc{
 //syscall_image
 struct syscall_seq{
 	int pid;
-	long long unsigned int oncpu_time;
-	long long unsigned int offcpu_time;
-	int count;		// 若count值超过MAX_SYSCALL_COUNT，则record_syscall数组最后一个元素的值用-1表示以作说明
+	long long unsigned int enter_time;
+	long long unsigned int sum_delay;
+	long long unsigned int max_delay;
+	int count;
 	int record_syscall[MAX_SYSCALL_COUNT];
 };
 
