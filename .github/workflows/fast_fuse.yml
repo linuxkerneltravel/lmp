@@ -34,7 +34,7 @@ jobs:
           rm ./example/meson.build
           cp ../meson.build ./example/
           bash make.sh
-          cd ./example/
+          cd ./build/example/
           mkdir ./yourdir
           ./fusedemo ./yourdir
           df -T ./yourdir
