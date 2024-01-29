@@ -31,6 +31,8 @@ jobs:
           cd libfuse
           cp ../fusedemo.c ./example/
           cp ../make.sh ./
+          rm ./example/meson.build
+          cp ../meson.build ./example/
           bash make.sh
           cd ./example/
           mkdir ./yourdir
