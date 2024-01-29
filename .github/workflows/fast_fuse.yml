@@ -26,8 +26,8 @@ jobs:
           sudo apt update
           sudo apt install fuse libfuse-dev meson wget git
           wget https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
-          mkdir libfuse
-          tar -zxvf fuse-3.16.2.tar.gz -C ./libfuse/
+          tar -zxvf fuse-3.16.2.tar.gz
+          mv fuse-3.16.2 libfuse
           cd libfuse
           cp ../fusedemo.c ./example/
           cp ../make.sh ./
