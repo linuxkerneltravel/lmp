@@ -30,7 +30,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install clang llvm libelf-dev libpcap-dev build-essential linux-headers-$(uname -r) linux-tools-common linux-tools-generic libc6-dev-i386 libxdp-dev xdp-tools
-          git submodule update --init --recursive
+          sudo git submodule update --init --recursive
 
       - name: Configure
         run: ./configure
