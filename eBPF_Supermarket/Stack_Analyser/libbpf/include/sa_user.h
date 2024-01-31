@@ -28,6 +28,11 @@
 
 #include "sa_common.h"
 
+struct Scale {
+	const char *Type, *Unit;
+	int64_t Period;
+};
+
 struct diy_header
 {
 	uint64_t len;
