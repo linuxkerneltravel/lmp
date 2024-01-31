@@ -25,7 +25,6 @@ jobs:
         run: |
           git submodule update --init --recursive
           sudo apt install clang libelf1 libelf-dev zlib1g-dev
-          sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
         
       - name: Run app with native lib
         run: |
