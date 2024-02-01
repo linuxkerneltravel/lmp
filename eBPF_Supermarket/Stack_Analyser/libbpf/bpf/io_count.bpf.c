@@ -21,35 +21,30 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "stack_analyzer.h"
+#include "sa_ebpf.h"
+#include "task.h"
 
-BPF_HASH(psid_count, psid, u64);
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(pid_comm, u32, comm);
+DeclareCommonMaps(io_tuple);
+DeclareCommonVar();
+int apid = 0; 
 
 const char LICENSE[] SEC("license") = "GPL";
 
-int apid;
-bool u, k, cot;
-__u64 min, max;
-
 static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
-    u64 td = bpf_get_current_pid_tgid();
-    u32 pid = td >> 32;
-
-    if ((apid >= 0 && pid != apid) || !pid)
+    struct task_struct* curr = (struct task_struct*)bpf_get_current_task(); //利用bpf_get_current_task()获得当前的进程tsk
+    ignoreKthread(curr);
+    u32 pid = get_task_ns_pid(curr);                                        //利用帮助函数获得当前进程的pid
+    if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
-
-    u64 len = (u64)BPF_CORE_READ(ctx, args[3]);
-    if (len < min || len > max)
+    u64 len = BPF_CORE_READ(ctx, args[2]);                                  //从当前ctx中读取64位的值，并保存在len中
+    bpf_printk("%llu", len);
+    if (len <= min || len > max)
         return 0;
-
-    u32 tgid = td;
-    bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);
-    comm *p = bpf_map_lookup_elem(&pid_comm, &pid);
-    if (!p)
+    u32 tgid = get_task_ns_tgid(curr);                                      //利用帮助函数获取进程的tgid
+    bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);                   //将pid_tgid表中的pid选项更新为tgid,若没有该表项，则创建
+    comm *p = bpf_map_lookup_elem(&pid_comm, &pid);                         //p指向pid_comm哈希表中的pid表项对应的value
+    if (!p)                                                                 //如果p不为空，获取当前进程名保存至name中，如果pid_comm当中不存在pid name项，则更新
     {
         comm name;
         bpf_get_current_comm(&name, COMM_LEN);
@@ -57,41 +52,42 @@ static int do_stack(struct trace_event_raw_sys_enter *ctx)
     }
     psid apsid = {
         .pid = pid,
-        .usid = u ? USER_STACK : -1,
-        .ksid = k ? KERNEL_STACK : -1,
+        .usid = u ? USER_STACK : -1,                                        //u存在，则USER_STACK
+        .ksid = k ? KERNEL_STACK : -1,                                      //K存在，则KERNEL_STACK
     };
 
     // record time delta
-    u64 *count = bpf_map_lookup_elem(&psid_count, &apsid);
-    if (cot)
-    {
-        if (count)
-            (*count)++;
-        else
-        {
-            u64 one = 1;
-            bpf_map_update_elem(&psid_count, &apsid, &one, BPF_NOEXIST);
-        }
-    }
-    else
-    {
-        if (count)
-            (*count) += len;
-        else
-            bpf_map_update_elem(&psid_count, &apsid, &len, BPF_NOEXIST);
+    io_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid);                 //count指向psid_count表当中的apsid表项，即size
+                         
+    if(!d) {
+        io_tuple nd = {.count = 1, .size = len};
+        bpf_map_update_elem(&psid_count, &apsid, &nd, BPF_NOEXIST);
+    } else {
+        d->count++;
+        d->size += len;
     }
     return 0;
 }
 
 #define io_sec_tp(name)                         \
-    SEC("tracepoint/syscalls/sys_enter_" #name) \
+    SEC("tp/syscalls/sys_enter_" #name) \
     int prog_t_##name(struct trace_event_raw_sys_enter *ctx) { return do_stack(ctx); }
-
-// tracepoint:syscalls:sys_exit_select
-// tracepoint:syscalls:sys_enter_poll
-// tracepoint:syscalls:sys_enter_epoll_wait
 
 io_sec_tp(write);
 io_sec_tp(read);
 io_sec_tp(recvfrom);
 io_sec_tp(sendto);
+
+// tracepoint:syscalls:sys_exit_select
+// tracepoint:syscalls:sys_enter_poll
+// tracepoint:syscalls:sys_enter_epoll_wait
+
+
+// 1. 设置挂载点
+// tracepoint/syscalls/sys_enter_write 读操作
+// tracepoint/syscalls/sys_enter_read 写操作
+// tracepoint/syscalls/sys_enter_recvfrom 接收数据
+// tracepoint/syscalls/sys_enter_sendto 发送数据
+
+//2. 执行程序 int prog_t_##name(struct trace_event_raw_sys_enter *ctx) { return do_stack(ctx); }
+//最终调用上面的do_stack函数

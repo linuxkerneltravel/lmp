@@ -1,91 +1,206 @@
-# 运行方法
-
 ### 安装依赖
 
 ```shell
-sudo apt update
-sudo apt install clang libelf1 libelf-dev zlib1g-dev
-sudo apt install libbpf-dev
-sudo apt install linux-tools-5.19.0-46-generic	
-sudo apt install linux-cloud-tools-5.19.0-46-generic
-sudo apt install libc6-dev-i386
-sudo cp FlameGraph/* /usr/bin/
+$ git submodule update --init --recursive
+$ apt install clang libelf1 libelf-dev zlib1g-dev
 ```
+
+### 版本要求
+
+Linux 5.15以上
+g++-10以上
+clang-12以上
 
 ### 工具编译
 
+客户端编译：
+
 ```shell
-cd libbpf
-sudo make
+$ make
 ```
 
-### 运行
+服务器端编译：
 
 ```shell
+$ g++ server.cpp -o server
+```
+
+### 命令使用方法
+
+客户端：
+
+```shell
+$ ./stack_analyzer -h
 SYNOPSIS
-    ./stack_analyzer on-cpu [-F <sampling frequency>] [-f] ([-p <pid of sampled process>] | [-c
-        <to be sampled command to run>]) [-U] [-K] [-m <max threshold of sampled
-        process>] [-n <min threshold of sampled process>] [-d <delay time to
-        output>] [-r|-l] [<simpling time>] [-v]
-
-    ./stack_analyzer off-cpu [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
-        [-v]
-
-    ./stack_analyzer mem [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
-        [-v]
-
-    ./stack_analyzer io [-C] [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
-        [-v]
-
-    ./stack_analyzer ra [-f] ([-p <pid of sampled process>] | [-c <to be sampled command to
-        run>]) [-U] [-K] [-m <max threshold of sampled process>] [-n <min threshold
-        of sampled process>] [-d <delay time to output>] [-r|-l] [<simpling time>]
-        [-v]
+        ./stack_analyzer ([-p <pid of sampled process, default -1 for all>] | [-c <to be sampled
+                         command to run, default none>]) [-d <delay time(seconds) to output, default
+                         5>] [-l] [-t <run time, default nearly infinite>] [-s <server address,
+                         default 127.0.0.1:12345>] [-v] [on-cpu [-F <sampling frequency>] [-U] [-K]
+                         [-m <max threshold of sampled value>] [-n <min threshold of sampled
+                         value>]] [off-cpu [-U] [-K] [-m <max threshold of sampled value>] [-n <min
+                         threshold of sampled value>]] [mem [-U] [-K] [-m <max threshold of sampled
+                         value>] [-n <min threshold of sampled value>]] [io [--mod [count|ave|size]]
+                         [-U] [-K] [-m <max threshold of sampled value>] [-n <min threshold of
+                         sampled value>]] [ra [-U] [-K] [-m <max threshold of sampled value>] [-n
+                         <min threshold of sampled value>]]
 
 OPTIONS
-    on-cpu      sample the call stacks of on-cpu processes
-    <sampling frequency>
-    	sampling at a set frequency
+        statistic call trace relate with some metrics
+            -p, --pid <pid of sampled process, default -1 for all>
+                    set pid of process to monitor
 
-    off-cpu     sample the call stacks of off-cpu processes
-    mem         sample the memory usage of call stacks
-    io          sample the IO data volume of call stacks
-    -C, --in-count
-    	sample the IO data in count instead of in size
+            -c, --command <to be sampled command to run, default none>
+                    set command for monitoring the whole life
 
-    ra          sample the readahead hit rate of call stacks
-    -f, --flame-graph
-    	save in flame.svg instead of stack_count.json
+            -d, --delay <delay time(seconds) to output, default 5>
+                    set the interval to output
 
-    display mode (default none)
-        -r, --realtime-draw
-            draw flame graph realtimely
+            -l, --realtime-list
+                    output in console, default false
 
-        -l, --realtime-list
-        	output in console
+            <run time, default nearly infinite>
+                    set the total simpling time
 
-    -v, --version
-    	show version
+            <server address, default 127.0.0.1:12345>
+                    set the server address
+
+            -v, --version
+                    show version
+
+            on-cpu  sample the call stacks of on-cpu processes
+            <sampling frequency>
+                    sampling at a set frequency
+
+            -U, --user-stack-only
+                    only sample user stacks
+
+            -K, --kernel-stack-only
+                    only sample kernel stacks
+
+            -m, --max-value <max threshold of sampled value>
+                    set the max threshold of sampled value
+
+            -n, --min-value <min threshold of sampled value>
+                    set the min threshold of sampled value
+
+            off-cpu sample the call stacks of off-cpu processes
+            -U, --user-stack-only
+                    only sample user stacks
+
+            -K, --kernel-stack-only
+                    only sample kernel stacks
+
+            -m, --max-value <max threshold of sampled value>
+                    set the max threshold of sampled value
+
+            -n, --min-value <min threshold of sampled value>
+                    set the min threshold of sampled value
+
+            mem     sample the memory usage of call stacks
+            -U, --user-stack-only
+                    only sample user stacks
+
+            -K, --kernel-stack-only
+                    only sample kernel stacks
+
+            -m, --max-value <max threshold of sampled value>
+                    set the max threshold of sampled value
+
+            -n, --min-value <min threshold of sampled value>
+                    set the min threshold of sampled value
+
+            io      sample the IO data volume of call stacks
+            --mod [count|ave|size]
+                    set the statistic mod
+
+            -U, --user-stack-only
+                    only sample user stacks
+
+            -K, --kernel-stack-only
+                    only sample kernel stacks
+
+            -m, --max-value <max threshold of sampled value>
+                    set the max threshold of sampled value
+
+            -n, --min-value <min threshold of sampled value>
+                    set the min threshold of sampled value
+
+            ra      sample the readahead hit rate of call stacks
+            -U, --user-stack-only
+                    only sample user stacks
+
+            -K, --kernel-stack-only
+                    only sample kernel stacks
+
+            -m, --max-value <max threshold of sampled value>
+                    set the max threshold of sampled value
+
+            -n, --min-value <min threshold of sampled value>
+                    set the min threshold of sampled value
 ```
 
-# 运行效果
+服务器端：
 
-展示工具的输出格式及说明
+```shell
+$ ./server [port for listening, default 12345]
+```
 
-### 实时输出测试结果
+### 运行效果
 
-#### 升序列表形式
+开启服务器端，然后开启客户端，以on-cpu子功能为例：
 
-使用 `-l` 选项开启。
+服务器端：
+
+```shell
+$ ./server 
+等待客户端连接...
+客户端连接成功
+on_cpu_stack_data.log
+on_cpu_stack_data.log
+on_cpu_stack_data.log
+on_cpu_stack_data.log
+连接关闭或出现错误
+客户端连接成功
+on_cpu_stack_data.log
+on_cpu_stack_data.log
+连接关闭或出现错误
+^C
+$ 
+```
+
+客户端：
+
 ```shell
 $ sudo ./stack_analyzer on-cpu
-Thu Sep 28 16:57:47 2023
+display mode: 0
+Thu Jan  4 19:45:03 2024
+Thu Jan  4 19:45:09 2024
+Thu Jan  4 19:45:14 2024
+Thu Jan  4 19:45:19 2024
+^C
+$ sudo ./stack_analyzer on-cpu
+display mode: 0
+Thu Jan  4 19:45:45 2024
+Thu Jan  4 19:45:51 2024
+^C
+$ 
+```
+
+保存的数据如下所示：
+
+```log
+cpptools:3394;sqlite3BtreeTableMoveto+0x7f677fa00000;---------;[MISSING KERNEL STACK]; 2
+```
+
+第一个分号前是命令名以及pid，之后是用户栈及内核栈，由“---------”分隔，末尾是调用栈对应的指标值，on-cpu子功能中表示5s内的定频采样数。
+
+若客户端没有探测到服务端，则客户端会将数据存储在本地，并输出列表：
+
+```shell
+$ sudo ./stack_analyzer on-cpu
+display mode: 0
+Error connecting to server
+Thu Jan  4 20:45:45 2024
 pid:24647       usid:56144      ksid:65341      value:1.00
 pid:23844       usid:-14        ksid:127594     value:1.00
 pid:14297       usid:84638      ksid:47805      value:1.00
@@ -95,60 +210,9 @@ pid:9577        usid:21537      ksid:-14        value:1.00
 pid:9581        usid:34778      ksid:-14        value:1.00
 pid:9582        usid:3180       ksid:-14        value:1.00
 pid:24650       usid:71768      ksid:-14        value:1.00
-Thu Sep 28 16:57:52 2023
+Thu Jan  4 20:45:51 2024
 pid:24647       usid:56144      ksid:65341      value:1.00
 pid:23844       usid:-14        ksid:127594     value:1.00
 pid:24671       usid:22828      ksid:70105      value:1.00
 pid:14297       usid:84638      ksid:47805      value:1.00
-pid:24658       usid:96121      ksid:-14        value:1.00
-pid:9577        usid:16299      ksid:-14        value:1.00
-pid:24641       usid:8523       ksid:-14        value:1.00
-pid:14297       usid:24434      ksid:-14        value:1.00
-pid:24672       usid:-14        ksid:75569      value:1.00
-pid:9577        usid:21537      ksid:-14        value:1.00
-pid:9581        usid:34778      ksid:-14        value:1.00
-pid:24669       usid:23725      ksid:-14        value:1.00
-pid:9580        usid:60903      ksid:-14        value:1.00
-pid:9582        usid:3180       ksid:-14        value:1.00
-pid:24650       usid:71768      ksid:-14        value:1.00
-pid:24641       usid:8523       ksid:65355      value:3.00
 ```
-
-代码示为采集on-cpu栈数据的实时输出，由时间戳分割，第一列为pid，第二三列为用户栈id和内核栈id，可以在程序结束后在json文件中找到其对应的栈；第四列为栈的数量，各子功能计数单位略有不同，on-cpu、io次数计数单位为次，off-cpu计数单位为0.1ms，数据量计数单位为字节，页面计数单位为页。
-
-#### 火焰图形式
-
-使用 `-r` 选项可使实时绘制火焰图替代列表形式，更容易直观地观察调用栈的变化情况。火焰图统一存储到 `flame.svg` 文件中，可以为此文件启用一个网络服务，便于实时地从浏览器中查看，例如：
-
-```shell
-python -m http.server 8000
-echo please open http://localhost:8000/flame.svg
-```
-
-### json文件结果
-
-```json
-{
-    "12532": {
-        "12532": {
-            "stacks": {
-                "91718,-1": {
-                    "count": 3482309,
-                    "trace": [
-                        "MISSING KERNEL STACK",
-                        "stress_malloc_loop"
-                    ]
-                }
-            },
-            "name": "stress-ng-mallo"
-        }
-    }
-}
-```
-
-以上代码为保存的json文件片段展开后的内容，是一个跟踪stress-ng-malloc采集到的内存栈信息，其内核栈标注为"MISSING KERNEL STACK"，表示内核栈没有被采集。
-
-## 火焰图文件结果
-
-<center><img src="../assets/stack.svg" alt="stack.svg" style="zoom:90%;" /></center>
-

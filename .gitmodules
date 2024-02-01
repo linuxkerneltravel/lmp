@@ -46,3 +46,18 @@
 [submodule "eBPF_Supermarket/CPU_Subsystem/libbpf"]
 	path = eBPF_Supermarket/CPU_Subsystem/libbpf
 	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap"]
+	path = eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap
+	url = https://github.com/libbpf/libbpf-bootstrap.git
+[submodule "eBPF_Supermarket/Stack_Analyser/speedscope"]
+	path = eBPF_Supermarket/Stack_Analyser/speedscope
+	url = https://github.com/jlfwong/speedscope
+[submodule "eBPF_Supermarket/Memory_Subsystem/blazesym"]
+	path = eBPF_Supermarket/Memory_Subsystem/blazesym
+	url = https://github.com/libbpf/blazesym.git
+[submodule "eBPF_Supermarket/Memory_Subsystem/bpftool"]
+	path = eBPF_Supermarket/Memory_Subsystem/bpftool
+	url = https://github.com/libbpf/bpftool.git
+[submodule "eBPF_Supermarket/Memory_Subsystem/libbpf"]
+	path = eBPF_Supermarket/Memory_Subsystem/libbpf
+	url = https://github.com/libbpf/libbpf.git

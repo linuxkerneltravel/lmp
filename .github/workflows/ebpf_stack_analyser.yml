@@ -21,22 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install native lib dependencies
         run: |
-          sudo apt update
+          git submodule update --init --recursive
           sudo apt install clang libelf1 libelf-dev zlib1g-dev
-          sudo apt install libbpf-dev
-          sudo apt install linux-tools-5.19.0-46-generic	
-          sudo apt install linux-cloud-tools-5.19.0-46-generic
-          sudo apt install libc6-dev-i386
           sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
-
-      - name: Run 
+        
+      - name: Run app with native lib
         run: |
           cd eBPF_Supermarket/Stack_Analyser/libbpf
-          sudo make
-          sudo ./stack_analyzer on-cpu 10
-          sudo ./stack_analyzer mem 10 -l
+          make
+          sudo ./stack_analyzer on-cpu off-cpu mem io ra -t 5
+
 
   bcc-project-build-and-test:
     runs-on: ubuntu-22.04

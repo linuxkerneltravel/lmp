@@ -49,12 +49,12 @@ jobs:
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/tools
           make keytime_image
           sudo ./keytime_image -t 1
-
+      
       - name: Run proc_image
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image
           make proc_image
-          sudo ./proc_image -t 1
+          sudo ./proc_image -a -p 1 -t 1
 
       - name: Run mutex_test
         run: |
@@ -63,12 +63,6 @@ jobs:
           sudo insmod mutex_test1.ko
           sudo insmod mutex_test2.ko
 
-      - name: Run test_sleep
-        run: |
-          cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test
-          gcc test_sleep.c -o test_sleep
-          ./test_sleep
-      
       - name: Run test_proc
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test
