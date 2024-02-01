@@ -31,9 +31,9 @@
 #define MICROSECONDS_IN_SECOND 1000000
 #define OUTPUT_INTERVAL_SECONDS 0.5
 
-#define OUTPUT_INTERVAL(us) usleep((unsigned int)(us * MICROSECONDS_IN_SECOND))
+#define OUTPUT_INTERVAL(us) usleep((__u32)(us * MICROSECONDS_IN_SECOND))
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -c, or -e"
+#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -83,25 +83,33 @@
     } while (0)
 
 #define CHECK_PID(vm_pid)                            \
-    unsigned pid = bpf_get_current_pid_tgid() >> 32; \
+    __u32 pid = bpf_get_current_pid_tgid() >> 32; \
     if ((vm_pid) > 0 && pid != (vm_pid)) {           \
         return 0;                                    \
     }
 
 struct ExitReason {
-    int number;
+    __u32 number;
     const char *name;
 };
 
 struct reason_info {
-    unsigned long long time;
-    unsigned long reason;
-    int count;
+    __u64 time;
+    __u64 reason;
+    __u32 count;
+};
+
+struct dirty_page_info {
+    __u64 gfn;
+    __u64 rel_gfn;
+    __u16 slot_id;
+    __u16 pad;
+    __u32 pid;
 };
 
 struct process {
-    unsigned pid;
-    unsigned tid;
+    __u32 pid;
+    __u32 tid;
     char comm[TASK_COMM_LEN];
 };
 
@@ -113,75 +121,85 @@ enum EventType {
     MARK_PAGE_DIRTY,
     PAGE_FAULT,
     IRQCHIP,
+    IRQ_INJECT,
 } event_type;
 
 struct common_event {
     struct process process;
-    unsigned long long time;
+    __u64 time;
 
     // 成员特定于每个事件类型的数据
     union {
         struct {
-            unsigned long long dur_hlt_ns;
+            __u64 dur_hlt_ns;
             bool waited;
-            unsigned vcpu_id;
+            __u32 vcpu_id;
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
 
         struct {
-            unsigned reason_number;
-            unsigned long long duration_ns;
-            int count;
-            int total;
+            __u32 reason_number;
+            __u64 duration_ns;
+            __u32 count;
+            __u32 total;
             // EXIT 特有成员
         } exit_data;
 
         struct {
             bool grow;
-            unsigned int new;
-            unsigned int old;
-            unsigned vcpu_id;
+            __u32 new;
+            __u32 old;
+            __u32 vcpu_id;
             // HALT_POLL 特有成员
         } halt_poll_data;
 
         struct {
-            unsigned long npages;
-            unsigned long userspace_addr;
-            unsigned long long rel_gfn;
-            unsigned long long gfn;
-            short slot_id;
+            __u64 npages;
+            __u64 userspace_addr;
+            __u64 rel_gfn;
+            __u64 gfn;
+            __u16 slot_id;
             // MARK_PAGE_DIRTY 特有成员
         } mark_page_dirty_data;
 
         struct {
-            unsigned long long delay;
-            unsigned long long error_code;
-            unsigned long long addr;
-            unsigned long long pfn;
-            unsigned long long hva;
-            unsigned count;
-            short memslot_id;
+            __u64 delay;
+            __u64 error_code;
+            __u64 addr;
+            __u64 pfn;
+            __u64 hva;
+            __u32 count;
+            __u16 memslot_id;
             // PAGE_FAULT 特有成员
         } page_fault_data;
 
         struct {
-            unsigned long long delay;
-            int ret;
-            int irqchip_type;
+            __u64 delay;
+            __u32 ret;
+            __u32 irqchip_type;
             /*pic*/
-            unsigned char chip;
-            unsigned pin;
-            unsigned char elcr;
-            unsigned char imr;
+            __u16 chip;
+            __u32 pin;
+            __u16 elcr;
+            __u16 imr;
             /*ioapic*/
-            unsigned long long ioapic_bits;
-            unsigned int irq_nr;
+            __u64 ioapic_bits;
+            __u32 irq_nr;
             /*msi*/
-            unsigned long long address;
-            unsigned long long data;
+            __u64 address;
+            __u64 data;
             // IRQCHIP 特有成员
         } irqchip_data;
+
+        struct {
+            __u64 delay;
+            bool soft;
+            __u32 irq_nr;
+            __u32 vcpu_id;
+            __u64 injections;
+            // IRQ_INJECT 特有成员
+        } irq_inject_data;
     };
 };
 
