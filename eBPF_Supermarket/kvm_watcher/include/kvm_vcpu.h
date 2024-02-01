@@ -42,8 +42,8 @@ struct halt_poll_ns {
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 8192);
-    __type(key, u64);
+    __uint(max_entries, 128 * 1024);
+    __type(key, struct dirty_page_info);
     __type(value, u32);
 } count_dirty_map SEC(".maps");
 
@@ -114,14 +114,6 @@ static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
     bpf_probe_read_kernel(&flags, sizeof(memslot->flags), &memslot->flags);
     if (slot &&
         (flags & KVM_MEM_LOG_DIRTY_PAGES)) {  // 检查memslot是否启用了脏页追踪
-        gfn_t gfnum = gfn;
-        u32 *count = bpf_map_lookup_elem(&count_dirty_map, &gfnum);
-        if (count) {
-            *count += 1;
-        } else {
-            u32 init_count = 1;
-            bpf_map_update_elem(&count_dirty_map, &gfnum, &init_count, BPF_ANY);
-        }
         u32 tid = bpf_get_current_pid_tgid();
         unsigned long base_gfn;
         RESERVE_RINGBUF_ENTRY(rb, e);
@@ -140,9 +132,28 @@ static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
                               &memslot->userspace_addr);
         bpf_probe_read_kernel(&e->mark_page_dirty_data.slot_id,
                               sizeof(memslot->id), &memslot->id);
+        short int s_id;                      
+        bpf_probe_read_kernel(&s_id,
+                              sizeof(memslot->id), &memslot->id);                      
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+        struct dirty_page_info dirty_page_info = {.gfn = gfn,
+                                                  .slot_id = s_id,
+                                                  .rel_gfn = gfn - base_gfn,
+                                                  .pid = pid};
+        u32 *count;
+        count = bpf_map_lookup_elem(&count_dirty_map, &dirty_page_info);
+        if (count) {
+            *count += 1;
+            bpf_map_update_elem(&count_dirty_map, &dirty_page_info, count,
+                                BPF_ANY);
+        } else {
+            u32 init_count = 1;
+            bpf_map_update_elem(&count_dirty_map, &dirty_page_info, &init_count,
+                                BPF_ANY);
+        }
         bpf_ringbuf_submit(e, 0);
     }
+        
     return 0;
 }
 #endif /* __KVM_VCPU_H */
