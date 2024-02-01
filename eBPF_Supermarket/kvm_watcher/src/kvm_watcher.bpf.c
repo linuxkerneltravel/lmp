@@ -129,3 +129,13 @@ int BPF_PROG(fexit_kvm_set_msi_irq, struct kvm *kvm,
              struct kvm_lapic_irq *irq) {
     return exit_kvm_set_msi_irq(kvm, routing_entry, &rb, e);
 }
+
+SEC("fentry/vmx_inject_irq")
+int BPF_PROG(fentry_vmx_inject_irq, struct kvm_vcpu *vcpu,bool reinjected) {
+    return entry_vmx_inject_irq(vcpu, vm_pid);
+}
+
+SEC("fexit/vmx_inject_irq")
+int BPF_PROG(fexit_vmx_inject_irq, struct kvm_vcpu *vcpu,bool reinjected) {
+    return exit_vmx_inject_irq(vcpu,&rb, e);
+}
