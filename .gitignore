@@ -52,5 +52,11 @@ tags
 
 nohup.out
 
-#Virtual machine image file
+# Virtual machine image file
 eBPF_Supermarket/kvm_watcher/*.img
+
+eBPF_Supermarket/kvm_watcher/**/*.o
+eBPF_Supermarket/kvm_watcher/**/*.skel.h
+eBPF_Supermarket/kvm_watcher/**/vmlinux.h
+eBPF_Supermarket/kvm_watcher/kvm_watcher
+eBPF_Supermarket/kvm_watcher/**/temp*
