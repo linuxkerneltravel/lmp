@@ -20,7 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Test program execution
         run: |
+          cd eBPF_Supermarket/kvm_watcher/
           make test
 
