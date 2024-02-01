@@ -30,7 +30,7 @@ endef
 
 # 判断是否已安装 qemu-system-x86_64
 ifeq (,$(shell which qemu-system-x86_64))
-	INSTALL_QEMU = sudo apt update && sudo apt install qemu-system-x86_64
+	INSTALL_QEMU = sudo apt update && sudo apt install qemu-kvm
 endif
 
 bpf: $(APP) 
