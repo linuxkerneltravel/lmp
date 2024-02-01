@@ -131,5 +131,3 @@ struct idleStruct {
         __uint(value_size, sizeof(type2)); \
         __uint(max_entries, MAX_ENTRIES);  \
     } name SEC(".maps")
-
-
