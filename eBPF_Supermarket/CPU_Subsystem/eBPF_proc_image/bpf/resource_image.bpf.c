@@ -16,29 +16,29 @@
 //
 // eBPF kernel-mode code that collects process resource usage
 
-#include "vmlinux.h"
+#include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
 #include <linux/version.h>
 #include "proc_image.h"
 
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
 const volatile pid_t target_pid = -1;
 const volatile int target_cpu_id = -1;
 const volatile pid_t ignore_tgid = -1;
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 7000);
+	__uint(max_entries, 10240);
 	__type(key, struct proc_id);
 	__type(value, struct start_rsc);
 } start SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 7000);
+	__uint(max_entries, 10240);
 	__type(key, struct proc_id);
 	__type(value, struct total_rsc);
 } total SEC(".maps");
@@ -57,7 +57,7 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 	
 	if(prev_tgid!=ignore_tgid && (target_pid==-1 || (target_pid!=0 && prev_pid==target_pid) || 
 	   (target_pid==0 && prev_pid==target_pid && prev_cpu==target_cpu_id))){
-		struct proc_id prev_pd = {0};
+		struct proc_id prev_pd = {};
 		prev_pd.pid = prev_pid;
 		if(prev_pid == 0)	prev_pd.cpu_id = prev_cpu;
 		
@@ -68,7 +68,7 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 			}
 			
 			if(bpf_map_lookup_elem(&total,&prev_pd) == NULL){
-				struct total_rsc prev_total = {0};
+				struct total_rsc prev_total = {};
 				long unsigned int memused;
 				
 // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
@@ -128,8 +128,8 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 
 	if(next_tgid!=ignore_tgid && (target_pid==-1 || (target_pid!=0 && next_pid==target_pid) || 
 	   (target_pid==0 && next_pid==target_pid && next_cpu==target_cpu_id))){
-		struct proc_id next_pd = {0};
-		struct start_rsc next_start={0};
+		struct proc_id next_pd = {};
+		struct start_rsc next_start={};
 
 		next_pd.pid = next_pid;
 		if(next_pid == 0)	next_pd.cpu_id = next_cpu;

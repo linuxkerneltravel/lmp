@@ -33,6 +33,7 @@
 #include "syscall_image.skel.h"
 #include "lock_image.skel.h"
 #include "keytime_image.skel.h"
+#include "schedule_image.skel.h"
 #include "helpers.h"
 
 static int prev_image = 0;
@@ -44,7 +45,8 @@ static struct env {
     int cpu_id;
     int time;
 	bool enable_myproc;
-	bool enable_output;
+	bool output_resourse;
+	bool output_schedule;
 	bool create_thread;
 	bool exit_thread;
     bool enable_resource;
@@ -61,12 +63,14 @@ static struct env {
 	bool quote;
 	int max_args;
 	bool enable_keytime;
+	bool enable_schedule;
 } env = {
     .pid = -1,
     .cpu_id = -1,
     .time = 0,
 	.enable_myproc = false,
-	.enable_output = false,
+	.output_resourse = false,
+	.output_schedule = false,
 	.create_thread = false,
 	.exit_thread = false,
     .enable_resource = false,
@@ -83,6 +87,7 @@ static struct env {
 	.quote = false,
 	.max_args = DEFAULT_MAXARGS,
 	.enable_keytime = false,
+	.enable_schedule = false,
 };
 
 static struct timespec prevtime;
@@ -113,6 +118,7 @@ static const struct argp_option opts[] = {
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
 	{ "quote", 'q', NULL, 0, "Add quotemarks (\") around arguments" },
 	{ "keytime", 'k', NULL, 0, "Collects keytime information about processes" },
+	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
@@ -154,6 +160,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.enable_syscall = true;
 				env.enable_lock = true;
 				env.enable_keytime = true;
+				env.enable_schedule = true;
 				break;
         case 'r':
                 env.enable_resource = true;
@@ -175,6 +182,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				break;
 		case 'k':
 				env.enable_keytime = true;
+				break;
+		case 'S':
+				env.enable_schedule = true;
 				break;
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -255,7 +265,44 @@ delete_elem:
 
 	// 获取当前高精度时间
     clock_gettime(CLOCK_REALTIME, &prevtime);
-	env.enable_output = false;
+	env.output_resourse = false;
+
+	return 0;
+}
+
+static int print_schedule(struct bpf_map *map)
+{
+	struct proc_id lookup_key = {-1}, next_key;
+	int err, fd = bpf_map__fd(map);
+	struct schedule_event event;
+	time_t now = time(NULL);
+	struct tm *localTime = localtime(&now);
+    int hour = localTime->tm_hour;
+    int min = localTime->tm_min;
+    int sec = localTime->tm_sec;
+	u64 avg_delay;
+
+	while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+		if(prev_image != SCHEDULE_IMAGE){
+			printf("SCHEDULE-------------------------------------------------------------------------------------------------\n");
+			printf("%-8s  %-6s  %-4s  %-13s  %-13s  %-13s\n","TIME","PID","PRIO","AVG_DELAY(ns)","MAX_DELAY(ns)","MIN_DELAY(ns)");
+			prev_image = SCHEDULE_IMAGE;
+		}
+
+		err = bpf_map_lookup_elem(fd, &next_key, &event);
+		if (err < 0) {
+			fprintf(stderr, "failed to lookup infos: %d\n", err);
+			return -1;
+		}
+
+		avg_delay = event.sum_delay/event.count;
+		printf("%02d:%02d:%02d  %-6d  %-4d  %-13lld  %-13lld  %-13lld\n",
+				hour,min,sec,event.pid,event.prio,avg_delay,event.max_delay,event.min_delay);
+		
+		lookup_key = next_key;
+	}
+
+	env.output_schedule = false;
 
 	return 0;
 }
@@ -500,7 +547,8 @@ static int keytime_attach(struct keytime_image_bpf *skel)
 void *enable_function(void *arg) {
     env.create_thread = true;
     sleep(1);
-    env.enable_output = true;
+    if(env.enable_resource)	env.output_resourse = true;
+	if(env.enable_schedule)	env.output_schedule = true;
     env.create_thread = false;
     env.exit_thread = true;
 
@@ -521,6 +569,7 @@ int main(int argc, char **argv)
 	struct ring_buffer *lock_rb = NULL;
 	struct keytime_image_bpf *keytime_skel = NULL;
 	struct ring_buffer *keytime_rb = NULL;
+	struct schedule_image_bpf *schedule_skel = NULL;
 	pthread_t thread_enable;
 	int err;
 	static const struct argp argp = {
@@ -563,7 +612,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF resource skeleton\n");
 			goto cleanup;
 		}
-
 	}
 
 	if(env.enable_syscall){
@@ -664,26 +712,52 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if(env.enable_schedule){
+		schedule_skel = schedule_image_bpf__open();
+		if(!schedule_skel) {
+			fprintf(stderr, "Failed to open BPF schedule skeleton\n");
+			return 1;
+		}
+
+		schedule_skel->rodata->target_pid = env.pid;
+		schedule_skel->rodata->target_cpu_id = env.cpu_id;
+		if(!env.enable_myproc)	schedule_skel->rodata->ignore_tgid = env.ignore_tgid;
+
+		err = schedule_image_bpf__load(schedule_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF schedule skeleton\n");
+			goto cleanup;
+		}
+
+		err = schedule_image_bpf__attach(schedule_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF schedule skeleton\n");
+			goto cleanup;
+		}
+	}
+
 	/* 处理事件 */
 	while (!exiting) {
-		// 等待新线程结束，回收资源
-        if(env.exit_thread){
-            env.exit_thread = false;
-            if (pthread_join(thread_enable, NULL) != 0) {
-                perror("pthread_join");
-                exit(EXIT_FAILURE);
-            }
-        }
+		if(env.enable_resource || env.enable_schedule){
+			// 等待新线程结束，回收资源
+			if(env.exit_thread){
+				env.exit_thread = false;
+				if (pthread_join(thread_enable, NULL) != 0) {
+					perror("pthread_join");
+					exit(EXIT_FAILURE);
+				}
+			}
 
-		// 创建新线程，设置 env.enable_output
-        if(!env.create_thread){
-            if (pthread_create(&thread_enable, NULL, enable_function, NULL) != 0) {
-                perror("pthread_create");
-                exit(EXIT_FAILURE);
-            }
-        }
+			// 创建新线程，设置 output
+			if(!env.create_thread){
+				if (pthread_create(&thread_enable, NULL, enable_function, NULL) != 0) {
+					perror("pthread_create");
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
 
-		if(env.enable_resource && env.enable_output){
+		if(env.enable_resource && env.output_resourse){
 			err = print_resource(resource_skel->maps.total);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
@@ -733,6 +807,18 @@ int main(int argc, char **argv)
 				break;
 			}
 		}
+
+		if(env.enable_schedule && env.output_schedule){
+			err = print_schedule(schedule_skel->maps.proc_schedule);
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				break;
+			}
+		}
 	}
 
 /* 卸载BPF程序 */
@@ -744,6 +830,7 @@ cleanup:
 	lock_image_bpf__destroy(lock_skel);
 	ring_buffer__free(keytime_rb);
 	keytime_image_bpf__destroy(keytime_skel);
+	schedule_image_bpf__destroy(schedule_skel);
 
 	return err < 0 ? -err : 0;
 }
