@@ -30,12 +30,19 @@ import (
 	"sync"
 )
 
+// 定义一个名为 MyMetrics 的结构体类型。
 type MyMetrics struct {
+	// BPFName 字段存储与此度量相关的 BPF 的名称。
 	BPFName   string
+	// mu 字段是一个互斥锁，用于在多协程之间同步对结构体字段的访问。
 	mu        sync.Mutex
+	// Maps 字段是一个 map，存储与此度量相关的信息。
 	Maps      map[string]interface{}
+	// Maplist 字段是一个切片，存储与此度量相关的信息的列表。
 	Maplist   []map[string]interface{}
+	// Sqlobj 字段是一个指向 dao.Sqlobj 类型的指针，用于处理与数据库相关的信息。
 	Sqlobj    *dao.Sqlobj
+	// Sqlinited 字段表示与此度量相关的数据库是否已初始化。
 	Sqlinited bool
 }
 

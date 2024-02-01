@@ -21,35 +21,31 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "stack_analyzer.h"
+#include "sa_ebpf.h"
 #include "task.h"
 
-BPF_HASH(psid_count, psid, u32);                                    //记录了进程的运行总时间
-BPF_HASH(start, u32, u64);                                          //记录进程运行的起始时间
-BPF_STACK_TRACE(stack_trace);
-BPF_HASH(pid_tgid, u32, u32);
-BPF_HASH(pid_comm, u32, comm);
-
-const char LICENSE[] SEC("license") = "GPL";
+DeclareCommonMaps(u32);
+DeclareCommonVar();
 
 int apid = 0;
-bool u = false, k = false;
-__u64 min = 0, max = 0;
+BPF_HASH(start, u32, u64);                                                  //记录进程运行的起始时间
+
+const char LICENSE[] SEC("license") = "GPL";
 
 SEC("kprobe/finish_task_switch.isra.0")                                     //动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     // u32 pid = BPF_CORE_READ(curr, pid);
     u32 pid = get_task_ns_pid(curr);                                        //利用帮助函数获取当前进程tsk的pid
-
-    if ((apid >= 0 && pid == apid) || (apid < 0 && pid))
+    ignoreKthread(curr);
+    if ((apid >= 0 && pid == apid) || (apid < 0 && pid && pid != self_pid))
     {
-        // record next start time
+        // record curr block time
         u64 ts = bpf_ktime_get_ns();                                        //ts=当前的时间戳（ns）
         bpf_map_update_elem(&start, &pid, &ts, BPF_NOEXIST);                //如果start表中不存在pid对应的时间，则就创建pid-->ts
     }
     
-    // calculate time delta
+    // calculate time delta, next ready to run
     struct task_struct *next = (struct task_struct *)bpf_get_current_task();//next指向当前的结构体
     // pid = BPF_CORE_READ(next, pid);
     pid = get_task_ns_pid(next);                                            //利用帮助函数获取next指向的tsk的pid

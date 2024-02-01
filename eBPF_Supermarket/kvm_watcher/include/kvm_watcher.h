@@ -22,10 +22,41 @@
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
 
-#define PRINT_USAGE_ERR()                                              \
-    do {                                                               \
-        fprintf(stderr, "Use either the -w, -p, -d, or -e option.\n"); \
-        argp_usage(state);                                             \
+#define NS_TO_US_FACTOR 1000.0
+#define NS_TO_MS_FACTOR 1000000.0
+
+#define NS_TO_US_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_US_FACTOR)
+#define NS_TO_MS_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_MS_FACTOR)
+
+#define MICROSECONDS_IN_SECOND 1000000
+#define OUTPUT_INTERVAL_SECONDS 0.5
+
+#define OUTPUT_INTERVAL(us) usleep((unsigned int)(us * MICROSECONDS_IN_SECOND))
+
+#define OPTIONS_LIST "-w, -p, -d, -f, -c, or -e"
+
+#define PFERR_PRESENT_BIT 0
+#define PFERR_WRITE_BIT 1
+#define PFERR_USER_BIT 2
+#define PFERR_RSVD_BIT 3
+#define PFERR_FETCH_BIT 4
+#define PFERR_PK_BIT 5
+#define PFERR_SGX_BIT 15
+
+#define KVM_IRQCHIP_PIC 0
+#define KVM_IRQCHIP_IOAPIC 1
+#define KVM_MSI 2
+
+#define PIC_NUM_PINS 16
+#define IOAPIC_NUM_PINS 24
+
+#define PFERR_RSVD_MASK (1UL << 3)  // mmio
+
+#define PRINT_USAGE_ERR()                                               \
+    do {                                                                \
+        fprintf(stderr, "Please specify exactly one option from %s.\n", \
+                OPTIONS_LIST);                                          \
+        argp_state_help(state, stdout, ARGP_HELP_STD_HELP);             \
     } while (0)
 
 #define SET_OPTION_AND_CHECK_USAGE(option, value) \
@@ -38,6 +69,11 @@
         }                                         \
     } while (0)
 
+// 定义清屏宏
+#define CLEAR_SCREEN() printf("\033[2J\033[H")
+
+#define RING_BUFFER_TIMEOUT_MS 100
+
 #define RESERVE_RINGBUF_ENTRY(rb, e)                             \
     do {                                                         \
         typeof(e) _tmp = bpf_ringbuf_reserve(rb, sizeof(*e), 0); \
@@ -48,27 +84,9 @@
 
 #define CHECK_PID(vm_pid)                            \
     unsigned pid = bpf_get_current_pid_tgid() >> 32; \
-    if ((vm_pid) < 0 || pid == (vm_pid))
-
-struct process {
-    unsigned pid;
-    unsigned tid;
-    char comm[TASK_COMM_LEN];
-};
-struct vcpu_wakeup_event {
-    struct process process;
-    unsigned long long dur_hlt_ns;
-    bool waited;
-    unsigned long long hlt_time;
-};
-
-struct exit_event {
-    struct process process;
-    unsigned reason_number;
-    unsigned long long duration_ns;
-    int count;
-    int total;
-};
+    if ((vm_pid) > 0 && pid != (vm_pid)) {           \
+        return 0;                                    \
+    }
 
 struct ExitReason {
     int number;
@@ -81,21 +99,90 @@ struct reason_info {
     int count;
 };
 
-struct halt_poll_ns_event {
-    struct process process;
-    bool grow;
-    unsigned int new;
-    unsigned int old;
-    unsigned long long time;
+struct process {
+    unsigned pid;
+    unsigned tid;
+    char comm[TASK_COMM_LEN];
 };
 
-struct mark_page_dirty_in_slot_event {
+enum EventType {
+    NONE_TYPE,
+    VCPU_WAKEUP,
+    EXIT,
+    HALT_POLL,
+    MARK_PAGE_DIRTY,
+    PAGE_FAULT,
+    IRQCHIP,
+} event_type;
+
+struct common_event {
     struct process process;
     unsigned long long time;
-    unsigned long npages;
-    unsigned long userspace_addr;
-    unsigned long long rel_gfn;
-    unsigned long long gfn;
-    short slot_id;
+
+    // 成员特定于每个事件类型的数据
+    union {
+        struct {
+            unsigned long long dur_hlt_ns;
+            bool waited;
+            unsigned vcpu_id;
+            bool valid;
+            // VCPU_WAKEUP 特有成员
+        } vcpu_wakeup_data;
+
+        struct {
+            unsigned reason_number;
+            unsigned long long duration_ns;
+            int count;
+            int total;
+            // EXIT 特有成员
+        } exit_data;
+
+        struct {
+            bool grow;
+            unsigned int new;
+            unsigned int old;
+            unsigned vcpu_id;
+            // HALT_POLL 特有成员
+        } halt_poll_data;
+
+        struct {
+            unsigned long npages;
+            unsigned long userspace_addr;
+            unsigned long long rel_gfn;
+            unsigned long long gfn;
+            short slot_id;
+            // MARK_PAGE_DIRTY 特有成员
+        } mark_page_dirty_data;
+
+        struct {
+            unsigned long long delay;
+            unsigned long long error_code;
+            unsigned long long addr;
+            unsigned long long pfn;
+            unsigned long long hva;
+            unsigned count;
+            short memslot_id;
+            // PAGE_FAULT 特有成员
+        } page_fault_data;
+
+        struct {
+            unsigned long long delay;
+            int ret;
+            int irqchip_type;
+            /*pic*/
+            unsigned char chip;
+            unsigned pin;
+            unsigned char elcr;
+            unsigned char imr;
+            /*ioapic*/
+            unsigned long long ioapic_bits;
+            unsigned int irq_nr;
+            /*msi*/
+            unsigned long long address;
+            unsigned long long data;
+            // IRQCHIP 特有成员
+        } irqchip_data;
+    };
 };
+
 #endif /* __KVM_WATCHER_H */

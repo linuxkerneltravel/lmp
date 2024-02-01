@@ -15,6 +15,8 @@
 // author: zhangziheng0525@163.com
 //
 // eBPF map for libbpf sar
+#include <asm/types.h>
+#include <linux/version.h>
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
@@ -27,7 +29,7 @@ typedef unsigned int u32;
 struct event {
 	long unsigned int t1;
 	long unsigned int t2;
-	long unsigned int delay;
+	long unsigned int delay;   
 };
 #endif /* __CS_DELAY_H */
 
@@ -66,10 +68,66 @@ struct __irq_info {
 /*----------------------------------------------*/
 struct idleStruct {
 	u64 pad;
-	int state;
-	u32 cpu_id;
+	unsigned int state;
+	unsigned int cpu_id;
 };
 
 
+/*----------------------------------------------*/
+/*          一些maps结构体的宏定义                */
+/*----------------------------------------------*/
+/// @brief 创建一个指定名字和键值类型的ebpf数组
+/// @param name 新散列表的名字
+/// @param type1 键的类型
+/// @param type2 值的类型
+/// @param MAX_ENTRIES map容量
+#define BPF_ARRAY(name, type1,type2,MAX_ENTRIES )       \
+	struct									\ 
+	{										\
+		__uint(type, BPF_MAP_TYPE_ARRAY);	\
+		__uint(key_size, sizeof(type1));	\
+		__uint(value_size, sizeof(type2));	\
+		__uint(max_entries, MAX_ENTRIES);	\
+	} name SEC(".maps")
 
+/// @brief 创建一个指定名字和键值类型的ebpf散列表
+/// @param name 新散列表的名字
+/// @param type1 键的类型
+/// @param type2 值的类型
+/// @param MAX_ENTRIES 哈希map容量
+#define BPF_HASH(name, type1,type2,MAX_ENTRIES )       \
+    struct                                 \
+    {                                      \
+        __uint(type, BPF_MAP_TYPE_HASH);   \
+        __uint(key_size, sizeof(type1));   \
+        __uint(value_size, sizeof(type2)); \
+        __uint(max_entries, MAX_ENTRIES);  \
+    } name SEC(".maps")
 
+/// @brief 创建一个指定名字和键值类型的ebpf每CPU数组
+/// @param name 新散列表的名字
+/// @param type1 键的类型
+/// @param type2 值的类型
+/// @param MAX_ENTRIES map容量
+#define BPF_PERCPU_ARRAY(name, type1,type2,MAX_ENTRIES )       \
+    struct                                 \
+    {                                      \
+        __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);   \
+        __uint(key_size, sizeof(type1));   \
+        __uint(value_size, sizeof(type2)); \
+        __uint(max_entries, MAX_ENTRIES);  \
+    } name SEC(".maps")
+
+/// @brief 创建一个指定名字和键值类型的ebpf每CPU散列表
+/// @param name 新散列表的名字
+/// @param type1 键的类型
+/// @param type2 值的类型
+/// @param MAX_ENTRIES map容量
+#define BPF_PERCPU_HASH(name, type1,type2,MAX_ENTRIES )       \
+    struct                                 \
+    {                                      \
+        __uint(type, BPF_MAP_TYPE_PERCPU_HASH);   \
+        __uint(key_size, sizeof(type1));   \
+        __uint(value_size, sizeof(type2)); \
+        __uint(max_entries, MAX_ENTRIES);  \
+    } name SEC(".maps")
