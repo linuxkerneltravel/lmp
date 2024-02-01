@@ -465,10 +465,9 @@ static int determineEventType(struct env *env) {
         env->event_type = PAGE_FAULT;
     } else if (env->execute_irqchip) {
         env->event_type = IRQCHIP;
-    } else if (env->execute_irq_inject)
-    {
-       env->event_type = IRQ_INJECT;
-    }else {
+    } else if (env->execute_irq_inject) {
+        env->event_type = IRQ_INJECT;
+    } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
     return 0;
@@ -632,15 +631,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
                 default:
                     break;
             }
-            case IRQ_INJECT: {
-                printf(
-                    "%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
-                    timestamp_ms, e->process.comm, e->process.pid,
-                    e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
-                    e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
-                    e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
-                break;
-            }
+            break;
+        }
+        case IRQ_INJECT: {
+            printf("%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
+                   timestamp_ms, e->process.comm, e->process.pid,
+                   e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
+                   e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
+                   e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            break;
         }
         default:
             // 处理未知事件类型
@@ -807,7 +806,7 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
-        //OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
+        // OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {

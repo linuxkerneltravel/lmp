@@ -183,11 +183,13 @@ static int exit_vmx_inject_irq(struct kvm_vcpu *vcpu, void *rb,
     e->time = *ts;
     e->process.pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-    e->irq_inject_data.delay=delay;
-    e->irq_inject_data.irq_nr=irq_nr;
-    e->irq_inject_data.soft=soft;
-    bpf_probe_read_kernel(&e->irq_inject_data.vcpu_id,sizeof(u32),&vcpu->vcpu_id);
-    bpf_probe_read_kernel(&e->irq_inject_data.injections,sizeof(u64),&vcpu->stat.irq_injections);
+    e->irq_inject_data.delay = delay;
+    e->irq_inject_data.irq_nr = irq_nr;
+    e->irq_inject_data.soft = soft;
+    bpf_probe_read_kernel(&e->irq_inject_data.vcpu_id, sizeof(u32),
+                          &vcpu->vcpu_id);
+    bpf_probe_read_kernel(&e->irq_inject_data.injections, sizeof(u64),
+                          &vcpu->stat.irq_injections);
     bpf_ringbuf_submit(e, 0);
     return 0;
 }

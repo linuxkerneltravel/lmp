@@ -132,14 +132,11 @@ static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
                               &memslot->userspace_addr);
         bpf_probe_read_kernel(&e->mark_page_dirty_data.slot_id,
                               sizeof(memslot->id), &memslot->id);
-        short int s_id;                      
-        bpf_probe_read_kernel(&s_id,
-                              sizeof(memslot->id), &memslot->id);                      
+        short int s_id;
+        bpf_probe_read_kernel(&s_id, sizeof(memslot->id), &memslot->id);
         bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-        struct dirty_page_info dirty_page_info = {.gfn = gfn,
-                                                  .slot_id = s_id,
-                                                  .rel_gfn = gfn - base_gfn,
-                                                  .pid = pid};
+        struct dirty_page_info dirty_page_info = {
+            .gfn = gfn, .slot_id = s_id, .rel_gfn = gfn - base_gfn, .pid = pid};
         u32 *count;
         count = bpf_map_lookup_elem(&count_dirty_map, &dirty_page_info);
         if (count) {
@@ -153,7 +150,7 @@ static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
         }
         bpf_ringbuf_submit(e, 0);
     }
-        
+
     return 0;
 }
 #endif /* __KVM_VCPU_H */

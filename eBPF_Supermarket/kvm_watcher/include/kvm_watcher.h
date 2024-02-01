@@ -82,10 +82,10 @@
         e = _tmp;                                                \
     } while (0)
 
-#define CHECK_PID(vm_pid)                            \
+#define CHECK_PID(vm_pid)                         \
     __u32 pid = bpf_get_current_pid_tgid() >> 32; \
-    if ((vm_pid) > 0 && pid != (vm_pid)) {           \
-        return 0;                                    \
+    if ((vm_pid) > 0 && pid != (vm_pid)) {        \
+        return 0;                                 \
     }
 
 struct ExitReason {
