@@ -69,6 +69,7 @@ static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
     if (count) {
         (*count)++;
         reas.count = *count;
+        bpf_map_update_elem(&counts, &reason, count, BPF_ANY);
     } else {
         u32 new_count = 1;
         reas.count = new_count;
