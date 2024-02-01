@@ -25,11 +25,12 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const volatile pid_t target_pid = -1;
+const volatile int syscalls = 0;
 const volatile pid_t ignore_tgid = -1;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 10);                    // 可根据自己的CPU核心数进行设置，这里设置为10
+	__uint(max_entries, 10240);
 	__type(key, pid_t);
 	__type(value,struct syscall_seq);
 } proc_syscall SEC(".maps");
@@ -39,7 +40,6 @@ struct {
 	__uint(max_entries,256 * 10240);
 } syscall_rb SEC(".maps");
 
-// 记录进程的系统调用序列
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct trace_event_raw_sys_enter *args)
 {
@@ -47,68 +47,79 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
     if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
+        u64 current_time = bpf_ktime_get_ns();
         struct syscall_seq * syscall_seq;
 
         syscall_seq = bpf_map_lookup_elem(&proc_syscall, &pid);
         if(!syscall_seq){
-            return 0;
-        }
+            struct syscall_seq syscall_seq = {};
 
-        if(syscall_seq->count < MAX_SYSCALL_COUNT-1 && syscall_seq->count >= 0 && 
-            syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+MAX_SYSCALL_COUNT){
-                syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
-                syscall_seq->count ++;
-        }else if(syscall_seq->count == MAX_SYSCALL_COUNT-1){
-            syscall_seq->record_syscall[syscall_seq->count] = -1;
-            syscall_seq->count = MAX_SYSCALL_COUNT;
+            syscall_seq.pid = pid;
+            syscall_seq.enter_time = current_time;
+            syscall_seq.count = 1;
+            syscall_seq.record_syscall[0] = (int)args->id;
+            
+            bpf_map_update_elem(&proc_syscall, &pid, &syscall_seq, BPF_ANY);
+        }else if(syscall_seq->count < syscalls){
+            syscall_seq->enter_time = current_time;
+
+            if(syscall_seq->count <= MAX_SYSCALL_COUNT-1 && syscall_seq->count > 0 && 
+                syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+(MAX_SYSCALL_COUNT-1)){
+                    syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
+                    syscall_seq->count ++;
+            }
+
+            bpf_map_update_elem(&proc_syscall, &pid, syscall_seq, BPF_ANY);
         }
     }
 
     return 0;
 }
 
-
-// 以进程on_cpu为单位输出系统调用序列
-SEC("tp_btf/sched_switch")
-int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next)
+SEC("tracepoint/raw_syscalls/sys_exit")
+int sys_exit(struct trace_event_raw_sys_exit *args)
 {
-	pid_t next_pid = BPF_CORE_READ(next,pid);
-    int next_tgid = BPF_CORE_READ(next,tgid);
-	pid_t prev_pid = BPF_CORE_READ(prev,pid);
-    int prev_tgid = BPF_CORE_READ(prev,tgid);
-    u64 current_time = bpf_ktime_get_ns();
+    pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
 
-	// 输出prev进程的syscall_seq事件
-    if(prev_tgid!=ignore_tgid && (target_pid==-1 || prev_pid==target_pid)){
-        struct syscall_seq * prev_syscall_seq;
+    if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
+        u64 current_time = bpf_ktime_get_ns();
+        long long unsigned int this_delay;
+        struct syscall_seq * syscall_seq;
 
-        prev_syscall_seq = bpf_map_lookup_elem(&proc_syscall, &prev_pid);
-        if(prev_syscall_seq){
+        syscall_seq = bpf_map_lookup_elem(&proc_syscall, &pid);
+        if(!syscall_seq){
+            return 0;
+        }
+        
+        this_delay = current_time-syscall_seq->enter_time;
+
+        if(syscall_seq->count < syscalls){
+            syscall_seq->sum_delay += this_delay;
+            if(this_delay > syscall_seq->max_delay)
+                syscall_seq->max_delay = this_delay;
+
+            bpf_map_update_elem(&proc_syscall, &pid, syscall_seq, BPF_ANY);
+        }else{
+            syscall_seq->sum_delay += this_delay;
+            if(this_delay > syscall_seq->max_delay)
+                syscall_seq->max_delay = this_delay;
+
             struct syscall_seq* e;
             e = bpf_ringbuf_reserve(&syscall_rb, sizeof(*e), 0);
             if(!e)
                 return 0;
             
-            e->pid = prev_syscall_seq->pid;
-            e->oncpu_time = prev_syscall_seq->oncpu_time;
-            e->offcpu_time = current_time;
-            e->count = prev_syscall_seq->count;
-            for(int i=0; i<=prev_syscall_seq->count && i<=MAX_SYSCALL_COUNT-1; i++)
-                e->record_syscall[i] = prev_syscall_seq->record_syscall[i];
-
+            e->pid = syscall_seq->pid;
+            e->sum_delay = syscall_seq->sum_delay;
+            e->max_delay = syscall_seq->max_delay;
+            e->count = syscall_seq->count;
+            for(int i=0; i<=syscall_seq->count-1 && i<=MAX_SYSCALL_COUNT-1; i++)
+                e->record_syscall[i] = syscall_seq->record_syscall[i];
+            
             bpf_ringbuf_submit(e, 0);
-            bpf_map_delete_elem(&proc_syscall, &prev_pid);
+            bpf_map_delete_elem(&proc_syscall, &pid);
         }
-    }
-
-    // 记录next进程的开始时间
-    if(next_tgid!=ignore_tgid && (target_pid==-1 || next_pid==target_pid)){
-        struct syscall_seq next_syscall_seq = {};
-
-        next_syscall_seq.pid = next_pid;
-        next_syscall_seq.oncpu_time = current_time;
-
-        bpf_map_update_elem(&proc_syscall, &next_pid, &next_syscall_seq, BPF_ANY);
     }
 
     return 0;

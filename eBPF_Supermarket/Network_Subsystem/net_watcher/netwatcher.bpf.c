@@ -46,6 +46,7 @@ struct packet_tuple {
     unsigned int seq;           // seq报文序号
     unsigned int ack;           // ack确认号
     unsigned int tran_flag;     // 1:tcp 2:udp
+    unsigned int len;
 };
 
 // 操作BPF映射的一个辅助函数
@@ -103,6 +104,14 @@ struct {
     __type(key, u64);
     __type(value, struct sock *);
 } sock_stores SEC(".maps");
+
+// 存储每个pid所对应的udp包
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, MAX_CONN *MAX_PACKET);
+    __type(key, int);
+    __type(value, struct packet_tuple);
+} pid_UDP SEC(".maps");
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
@@ -1217,9 +1226,7 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
     struct iphdr *ip = skb_to_iphdr(skb);
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
-
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
@@ -1233,6 +1240,8 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
 SEC("kprobe/__udp_enqueue_schedule_skb")
 int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
                struct sk_buff *skb) {
+    if (!udp_info)
+        return 0;
     if (skb == NULL) // 判断是否为空
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
@@ -1244,7 +1253,6 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
     pkt_tuple.dport = BPF_CORE_READ(sk, __sk_common.skc_num);
     pkt_tuple.sport = __bpf_ntohs(dport);
     pkt_tuple.tran_flag = 2;
-
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -1259,11 +1267,80 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
         return 0;
     }
     message->tran_time = bpf_ktime_get_ns() / 1000 - tinfo->tran_time;
-    message->saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
-    message->daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
-    message->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    message->dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
+    message->saddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+    message->daddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+    message->sport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
+    message->dport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    message->rx=0;//收包
+    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
+    bpf_ringbuf_submit(message, 0);
+    return 0;
+}
+SEC("kprobe/udp_send_skb")
+int BPF_KPROBE(udp_send_skb, struct sk_buff *skb,struct flowi4 *fl4) {
+     if (!udp_info)
+        return 0;
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    
+    struct udphdr *udp = skb_to_udphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_udp_pkt_tuple(&pkt_tuple, ip, udp);
 
+    struct sock *sk = BPF_CORE_READ(skb, sk);
+
+    u16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
+    pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+    pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+    pkt_tuple.dport = __bpf_ntohs(dport);
+    pkt_tuple.sport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    pkt_tuple.tran_flag = UDP;
+    struct ktime_info *tinfo, zero = {0};
+    tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
+                                                            &pkt_tuple, &zero);
+    if (tinfo == NULL) {
+        return 0;
+    }
+    tinfo->tran_time = bpf_ktime_get_ns() / 1000;
+
+    unsigned int pid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&pid_UDP, &pid, &pkt_tuple, BPF_ANY);
+
+    return 0;
+}
+SEC("kprobe/ip_send_skb")
+int BPF_KPROBE(ip_send_skb, struct net *net,struct sk_buff *skb) {
+     if (!udp_info)
+        return 0;
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    unsigned int pid = bpf_get_current_pid_tgid();
+    struct packet_tuple *pt = bpf_map_lookup_elem(&pid_UDP, &pid);
+    if (!pt) {
+        return 0;
+    }
+
+    struct ktime_info *tinfo, zero = {0};
+    struct udphdr *udp = skb_to_udphdr(skb);
+    tinfo = bpf_map_lookup_elem(&timestamps, pt);
+    if (tinfo == NULL) {
+        return 0;
+    }
+    struct udp_message *message;
+    struct udp_message *udp_message =
+        bpf_map_lookup_elem(&timestamps, pt);
+    message = bpf_ringbuf_reserve(&udp_rb, sizeof(*message), 0);
+    if (!message) {
+        return 0;
+    }
+    message->tran_time = bpf_ktime_get_ns() / 1000 - tinfo->tran_time;
+    message->saddr = pt->saddr;
+    message->daddr = pt->daddr;
+    message->sport = pt->sport;
+    message->dport = pt->dport;
+    message->rx=1;
+    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
     bpf_ringbuf_submit(message, 0);
     return 0;
 }
