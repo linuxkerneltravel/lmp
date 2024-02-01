@@ -51,3 +51,6 @@ tags
 *.iml
 
 nohup.out
+
+#Virtual machine image file
+eBPF_Supermarket/kvm_watcher/*.img
