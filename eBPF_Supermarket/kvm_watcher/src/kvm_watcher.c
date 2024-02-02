@@ -827,7 +827,7 @@ int main(int argc, char **argv) {
             printf("Save count dirty page map to file fail: %d\n", err);
             goto cleanup;
         }else{
-            printf("Save count dirty page map to file success!\n");
+            printf("\nSave count dirty page map to file success!\n");
             goto cleanup;
         }
     }
