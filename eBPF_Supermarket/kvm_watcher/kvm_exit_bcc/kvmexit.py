@@ -19,7 +19,7 @@
 # @KVM_EXIT_REASON: the reason why the vm exits.
 # @COUNT: the counts of the @KVM_EXIT_REASONS.
 #
-# REQUIRES: Linux 6.2 (BPF_PROG_TYPE_TRACEPOINT support)
+# REQUIRES: Linux 4.7+ (BPF_PROG_TYPE_TRACEPOINT support)
 #
 # Copyright (c) 2024 YYS. All rights reserved.
 # Original code © 2024 ByteDance Inc. All rights reserved.
