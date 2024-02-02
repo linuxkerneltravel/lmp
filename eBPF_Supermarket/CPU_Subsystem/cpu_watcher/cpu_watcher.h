@@ -20,7 +20,7 @@
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
-
+#define MAX_CPU_NR	128
 /*----------------------------------------------*/
 /*          cs_delay结构体                     */
 /*----------------------------------------------*/

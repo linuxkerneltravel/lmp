@@ -23,6 +23,8 @@
 #include <bpf/libbpf.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <linux/perf_event.h>
+#include <asm/unistd.h>
 #include "cpu_watcher.h"
 #include "sar.skel.h"
 #include "cs_delay.skel.h"
@@ -34,12 +36,14 @@ static struct env {
 	bool enable_proc;
 	bool SAR;
 	bool CS_DELAY;
+	int freq;
 
 } env = {
 	.time = 0,
 	.enable_proc = false,
 	.SAR = false,
 	.CS_DELAY = false,
+	.freq = 99,
 };
 
 struct cs_delay_bpf *cs_skel;
@@ -51,6 +55,7 @@ u64 sched = 0;
 u64 proc = 0;
 unsigned long ktTime = 0;
 unsigned long utTime = 0;
+u64 tick_user = 0;//初始化sys;
 
 /*设置传参*/
 const char argp_program_doc[] ="cpu wacher is in use ....\n";
@@ -101,6 +106,43 @@ static void sig_handler(int sig)
 {
 	exiting = true;
 }
+
+/*perf_event*/
+static int nr_cpus;
+static int open_and_attach_perf_event(int freq, struct bpf_program *prog,
+				struct bpf_link *links[])
+{
+	struct perf_event_attr attr = {
+		.type = PERF_TYPE_SOFTWARE,
+		.freq = 99,
+		.sample_period = freq,
+		.config = PERF_COUNT_SW_CPU_CLOCK,
+	};
+	int i, fd;
+
+	for (i = 0; i < nr_cpus; i++) {
+		fd = syscall(__NR_perf_event_open, &attr, -1, i, -1, 0);
+		if (fd < 0) {
+			/* Ignore CPU that is offline */
+			if (errno == ENODEV)
+				continue;
+			fprintf(stderr, "failed to init perf sampling: %s\n",
+				strerror(errno));
+			return -1;
+		}
+		links[i] = bpf_program__attach_perf_event(prog, fd);
+		if (libbpf_get_error(links[i])) {
+			fprintf(stderr, "failed to attach perf event on cpu: "
+				"%d\n", i);
+			links[i] = NULL;
+			close(fd);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 
 u64 find_ksym(const char* target_symbol) {
     FILE *file = fopen("/proc/kallsyms", "r");
@@ -220,11 +262,29 @@ static int print_all()
 	}
 	unsigned long dtaUT = utTime -_utTime;
 
+	/*sys*/
+	int key_sys = 0,next_key;
+	int err_sys, fd_sys = bpf_map__fd(sar_skel->maps.tick_user);
+	u64 __tick_user =0 ;// 用于存储从映射中查找到的值
+	__tick_user = tick_user;
+	//tick_user = 0;
+	err_sys = bpf_map_lookup_elem(fd_sys, &key_sys, &tick_user);
+	if (err_sys < 0) {
+		fprintf(stderr, "failed to lookup infos of sys: %d\n", err_sys);
+		return -1;
+	}
+	u64 dtaTickUser = tick_user - __tick_user;
+	u64 dtaUTRaw = dtaTickUser/(99.0000) * 1000000000; 
+	u64 dtaSysc = abs(dtaUT - dtaUTRaw);
+	u64 dtaSys = dtaKT + dtaSysc ;
+
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		printf("%02d:%02d:%02d %8llu %8llu %8llu %8llu  %8llu %10lu %13lu\n",
-				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,dtaKT/1000,dtaUT/1000);
+		printf("%02d:%02d:%02d %8llu %8llu %8llu %10llu  %8llu  %8llu  %8llu %8lu %8lu\n",
+				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
+				__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
+				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
 	}
 	else{
 		env.enable_proc = true;
@@ -318,11 +378,26 @@ int main(int argc, char **argv)
 	if (err)
 		return err;
 	const char* symbol_name = "total_forks";
+	struct bpf_link *links[MAX_CPU_NR] = {};
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	libbpf_set_print(libbpf_print_fn);
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+
+	nr_cpus = libbpf_num_possible_cpus();
+	if (nr_cpus < 0) {
+		fprintf(stderr, "failed to get # of possible cpus: '%s'!\n",
+			strerror(-nr_cpus));
+		return 1;
+	}
+	if (nr_cpus > MAX_CPU_NR) {
+		fprintf(stderr, "the number of cpu cores is too big, please "
+			"increase MAX_CPU_NR's value and recompile");
+		return 1;
+	}
+
+
 	if (env.CS_DELAY)
 	{
 		/* Load and verify BPF application */
@@ -368,6 +443,12 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 			goto sar_cleanup;
 		}
+
+		/*perf_event加载*/
+		err = open_and_attach_perf_event(env.freq, sar_skel->progs.tick_update, links);
+		if (err)
+			goto sar_cleanup;
+
 		err = sar_bpf__attach(sar_skel);
 		if (err)
 		{
@@ -375,8 +456,8 @@ int main(int argc, char **argv)
 			goto sar_cleanup;
 		}
 		//printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
-		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us uthread/ms\n");
-}
+		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms\n");
+	}
 	while (!exiting) {
 		sleep(1);
 		if(env.SAR){
