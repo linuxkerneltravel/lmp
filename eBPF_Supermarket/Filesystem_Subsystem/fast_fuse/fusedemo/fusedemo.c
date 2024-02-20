@@ -270,8 +270,7 @@ struct inode *get_father_inode(char *dirname)
 	struct inode *head = root;
 	char s[FILE_NAME_LEN];
 	/* Initialize index variables and search flag */
-	int i = 1, j, is_find = 0;
-	/* If the directory path length is 1, return the inode structure pointer of the root directory directly */
+	int i = 1	/* If the directory path length is 1, return the inode structure pointer of the root directory directly */
 	if (strlen(dirname) == 1)
 	{
 		return head;
