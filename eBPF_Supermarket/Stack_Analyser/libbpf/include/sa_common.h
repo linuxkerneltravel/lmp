@@ -46,4 +46,10 @@ typedef struct {
     __u64 size;
 } io_tuple;
 
+typedef struct {
+    __u32 tgid;
+    comm name;
+    __u64 count;
+} stack_tuple;
+
 #endif
