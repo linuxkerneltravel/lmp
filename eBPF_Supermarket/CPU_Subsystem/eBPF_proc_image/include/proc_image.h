@@ -26,6 +26,8 @@
 #define FULL_MAX_ARGS_ARR 440
 #define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
 
+#define TASK_RUNNING	0x00000000
+
 // resource_image
 struct proc_id{
 	int pid;
@@ -100,5 +102,17 @@ struct keytime_event{
 	unsigned int info_size;
 	char char_info[FULL_MAX_ARGS_ARR];
 };
+
+// schedule_image
+struct schedule_event{
+	int pid;
+	int prio;
+	int count;
+	long long unsigned int enter_time;
+	long long unsigned int sum_delay;
+	long long unsigned int max_delay;
+	long long unsigned int min_delay;
+};
+
 
 #endif /* __PROCESS_H */
