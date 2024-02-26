@@ -31,6 +31,13 @@ struct {
     __type(value, u64);
 } irq_set_delay SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, u32);
+    __type(value, u64);
+} irq_inject_delay SEC(".maps");
+
 static int entry_kvm_pic_set_irq(int irq, pid_t vm_pid) {
     CHECK_PID(vm_pid);
     if (irq < 0 || irq >= PIC_NUM_PINS) {
@@ -149,4 +156,41 @@ static int exit_kvm_set_msi_irq(
     return 0;
 }
 
+static int entry_vmx_inject_irq(struct kvm_vcpu *vcpu, pid_t vm_pid) {
+    CHECK_PID(vm_pid);
+    u32 irq_nr;
+    bool rei;
+    bpf_probe_read_kernel(&irq_nr, sizeof(u32), &vcpu->arch.interrupt.nr);
+    u64 ts = bpf_ktime_get_ns();
+    bpf_map_update_elem(&irq_inject_delay, &irq_nr, &ts, BPF_ANY);
+    return 0;
+}
+
+static int exit_vmx_inject_irq(struct kvm_vcpu *vcpu, void *rb,
+                               struct common_event *e) {
+    u32 irq_nr;
+    bpf_probe_read_kernel(&irq_nr, sizeof(u32), &vcpu->arch.interrupt.nr);
+    u64 *ts = bpf_map_lookup_elem(&irq_inject_delay, &irq_nr);
+    if (!ts) {
+        return 0;
+    }
+    u64 time = bpf_ktime_get_ns();
+    u64 delay = time - *ts;
+    bpf_map_delete_elem(&irq_inject_delay, &irq_nr);
+    bool soft;
+    bpf_probe_read_kernel(&soft, sizeof(bool), &vcpu->arch.interrupt.soft);
+    RESERVE_RINGBUF_ENTRY(rb, e);
+    e->time = *ts;
+    e->process.pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
+    e->irq_inject_data.delay = delay;
+    e->irq_inject_data.irq_nr = irq_nr;
+    e->irq_inject_data.soft = soft;
+    bpf_probe_read_kernel(&e->irq_inject_data.vcpu_id, sizeof(u32),
+                          &vcpu->vcpu_id);
+    bpf_probe_read_kernel(&e->irq_inject_data.injections, sizeof(u64),
+                          &vcpu->stat.irq_injections);
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
 #endif /* __KVM_IRQ_H */

@@ -39,6 +39,7 @@ extern "C"
 #include "bpf/mem_count.skel.h"
 #include "bpf/io_count.skel.h"
 #include "bpf/pre_count.skel.h"
+#include "bpf/stack_count.skel.h"
 }
 
 std::string demangleCppSym(std::string symbol)
@@ -99,6 +100,7 @@ private:
 		double val;
 		CountItem(int32_t p, int32_t k, int32_t u, double v)
 		{
+
 			pid = p;
 			ksid = k;
 			usid = u;
@@ -182,7 +184,6 @@ public:
 	uint64_t max = __UINT64_MAX__; // 设置采集指标最大值，最小值
 
 	bool clear = false; // 清除已输出的指标积累量
-
 	int self_pid;
 
 	StackCollector()
@@ -655,6 +656,37 @@ public:
 	};
 };
 
+class StackCountStackCollector : public StackCollector
+{
+private:
+	declareEBPF(stack_count_bpf);
+
+protected:
+	std::string data_str(void) override
+	{
+		return "Calling Counts";
+	};
+	double data_value(void *data) override
+	{
+		stack_tuple *p = (stack_tuple *)data;
+		return p->count;
+	};
+
+public:
+	stack_mod DataType = stack_mod::COUNTS;
+
+	StackCountStackCollector()
+	{
+		count_size = sizeof(stack_tuple);
+		name = "stackcount";
+	};
+
+	defaultLoad;
+	defaultAttach;
+	defaultDetach;
+	defaultUnload;
+};
+
 namespace MainConfig
 {
 	int run_time = __INT_MAX__; // 运行时间
@@ -741,6 +773,10 @@ int main(int argc, char *argv[])
 													{ StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
 							   "sample the readahead hit rate of call stacks" &
 						   SubOption;
+	auto StackCountOption = clipp::option("stackcount").call([]
+															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
+								"sample the counts of calling stacks" &
+							SubOption;
 
 	auto cli = (MainOption,
 				clipp::option("-v", "--version").call([]
@@ -750,7 +786,8 @@ int main(int argc, char *argv[])
 				OffCpuOption,
 				MemoryOption,
 				IOOption,
-				ReadaheadOption) %
+				ReadaheadOption,
+				StackCountOption) %
 			   "statistic call trace relate with some metrics";
 
 	if (!clipp::parse(argc, argv, cli))
