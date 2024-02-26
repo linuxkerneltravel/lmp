@@ -650,9 +650,11 @@ public:
 	{
 		count_size = sizeof(ra_tuple);
 		showDelta = false;
-		scale.Type = "UnusedReadaheadPages";
-		scale.Period = 1;
-		scale.Unit = "pages";
+		scale = {
+			.Type = "UnusedReadaheadPages",
+			.Unit = "pages",
+			.Period = 1,
+		};
 	};
 };
 
@@ -661,24 +663,14 @@ class StackCountStackCollector : public StackCollector
 private:
 	declareEBPF(stack_count_bpf);
 
-protected:
-	std::string data_str(void) override
-	{
-		return "Calling Counts";
-	};
-	double data_value(void *data) override
-	{
-		stack_tuple *p = (stack_tuple *)data;
-		return p->count;
-	};
-
 public:
-	stack_mod DataType = stack_mod::COUNTS;
-
 	StackCountStackCollector()
 	{
-		count_size = sizeof(stack_tuple);
-		name = "stackcount";
+		scale = {
+			.Type = "StackCounts",
+			.Unit = "Counts",
+			.Period = 1,
+		};
 	};
 
 	defaultLoad;
@@ -721,7 +713,7 @@ int main(int argc, char *argv[])
 						   ((clipp::option("-p", "--pid") & clipp::value("pid of sampled process, default -1 for all", MainConfig::target_pid)) % "set pid of process to monitor") |
 						   ((clipp::option("-c", "--command") & clipp::value("to be sampled command to run, default none", MainConfig::command)) % "set command for monitoring the whole life")),
 					   (clipp::option("-d", "--delay") & clipp::value("delay time(seconds) to output, default 5", MainConfig::delay)) % "set the interval to output",
-					   clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time) % "set the total simpling time");
+					   (clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time)) % "set the total simpling time");
 
 	auto SubOption = (clipp::option("-U", "--user-stack-only").call([]
 																	{ StackCollectorList.back()->kstack = false; }) %
