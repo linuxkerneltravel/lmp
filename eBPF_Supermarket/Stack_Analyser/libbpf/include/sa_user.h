@@ -41,6 +41,7 @@ typedef enum {
     MOD_MEM,     // 内存模式
     MOD_IO,      // io模式
     MOD_RA,      // 预读取分析模式
+	MOD_STACK,	 //调用栈次数统计模式
 	MOD_NUM		// 该枚举类值的总数
 } StackCollectMode;
 
@@ -49,7 +50,8 @@ char StackCollectModeName[MOD_NUM][16] = {
 	"off_cpu",
 	"memory",
 	"io",
-	"readahead"
+	"readahead",
+	"stackcount",
 };
 
 typedef enum {
@@ -62,6 +64,11 @@ typedef enum {
     SIZE,
     AVE
 } io_mod;
+
+typedef enum {
+    COUNTS,
+    CPU
+} stack_mod;
 
 /// @brief 获取epbf程序中指定表的文件描述符
 /// @param name 表的名字

@@ -71,3 +71,4 @@ typedef unsigned int u32;
 #define SYSCALL_IMAGE 2
 #define LOCK_IMAGE 3
 #define KEYTIME_IMAGE 4
+#define SCHEDULE_IMAGE 5

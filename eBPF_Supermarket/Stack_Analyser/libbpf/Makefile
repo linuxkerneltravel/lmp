@@ -38,7 +38,7 @@ INCLUDES := -I$(OUTPUT) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLIN
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = on_cpu_count off_cpu_count mem_count io_count pre_count
+APPS = on_cpu_count off_cpu_count mem_count io_count pre_count stack_count
 SYMBOL = elf symbol
 TARGETS = stack_analyzer
 

@@ -122,7 +122,7 @@ graph TD;
     B --> C[加载 KVM 模块];
     C --> D[下载 CirrOs 镜像];
     D --> E[使用 QEMU 启动虚拟机];
-    E --> F[编译并运行程序];
+    E --> F[编译运行kvm_watcher];
     F --> G[结束虚拟机进程];
 
 ```
