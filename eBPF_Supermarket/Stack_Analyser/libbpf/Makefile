@@ -77,10 +77,13 @@ $(call allow-override,LD,$(CROSS_COMPILE)ld)
 .PHONY: all
 all: $(TARGETS)
 
+.PHONY: bpf_skel_h
+bpf_skel_h: $(APPS)
+
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS)
+	$(Q)rm -rf $(OUTPUT) $(TARGETS) bpf/*.skel.h
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -132,7 +135,3 @@ $(TARGETS): %: $(OUTPUT)/%.o $(patsubst %,$(OUTPUT)/%.o,$(SYMBOL)) $(LIBBPF_OBJ)
 
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
-
-CS_Arch_Components:
-	g++ ./exporter.cpp -o ./exporter
-	g++ ./server.cpp -o ./server
