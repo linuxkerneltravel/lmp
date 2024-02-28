@@ -191,10 +191,6 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
         if(target_pid!=-1 && ((target_pid!=0 && next_pid==target_pid) || 
 	       (target_pid==0 && next_pid==target_pid && next_cpu==target_cpu_id))){
             target_event = bpf_map_lookup_elem(&target_schedule,&key);
-            //if(!target_event){
-            //    struct schedule_event target_event = {};
-            //    bpf_map_update_elem(&target_schedule,&key,&target_event,BPF_ANY);
-            //}
             bpf_map_update_elem(&target_schedule,&key,schedule_event,BPF_ANY);
         }
         
@@ -235,6 +231,7 @@ int sched_process_exit(void *ctx)
         struct proc_id pd = {};
         struct schedule_event *schedule_event;
         bool * e_add;
+        int key = 0;
 
         pd.pid = pid;
         if(pid == 0)    pd.cpu_id = cpu;
@@ -247,6 +244,16 @@ int sched_process_exit(void *ctx)
         e_add = bpf_map_lookup_elem(&enable_add,&pd);
         if(e_add){
             bpf_map_delete_elem(&enable_add,&pd);
+        }
+
+        // 若目标进程退出，删除 target_schedule map 中的数据
+        if(target_pid!=-1 && ((target_pid!=0 && pid==target_pid) || 
+           (target_pid==0 && pid==target_pid && cpu==target_cpu_id))){
+            schedule_event = bpf_map_lookup_elem(&target_schedule,&key);
+            if(schedule_event){
+                // 将 count 设置成 0 即可实现目标进程退出标志
+                schedule_event->count = 0;
+            }
         }
     }
 

@@ -326,19 +326,22 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 			fprintf(stderr, "failed to lookup infos: %d\n", err);
 			return -1;
 		}
-		target_avg_delay = target_event.sum_delay/target_event.count;
 		
-		err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
-		if (err < 0) {
-			fprintf(stderr, "failed to lookup infos: %d\n", err);
-			return -1;
-		}
-		sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
+		if(target_event.count != 0){	
+			target_avg_delay = target_event.sum_delay/target_event.count;
+			
+			err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
 
-		// 有时可以成功运行，有时会遇到报错：Floating point exception，对此表示不解
-		printf("%02d:%02d:%02d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
-				hour,min,sec,target_event.pid,target_event.prio,target_avg_delay/1000000.0,sys_avg_delay/1000000.0,
-				target_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,target_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+			// 有时可以成功运行，有时会遇到报错：Floating point exception，对此表示不解
+			printf("%02d:%02d:%02d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
+					hour,min,sec,target_event.pid,target_event.prio,target_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					target_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,target_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+		}
 	}
 
 	env.output_schedule = false;
