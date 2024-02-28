@@ -25,6 +25,7 @@
 #include <string.h>
 #include <sys/eventfd.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "sa_common.h"
 
