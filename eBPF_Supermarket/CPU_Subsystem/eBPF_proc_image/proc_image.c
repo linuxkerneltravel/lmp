@@ -41,6 +41,7 @@ static volatile bool exiting = false;
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 static struct env {
     int pid;
+	int tgid;
 	int ignore_tgid;
     int cpu_id;
     int time;
@@ -66,6 +67,7 @@ static struct env {
 	bool enable_schedule;
 } env = {
     .pid = -1,
+	.tgid = -1,
     .cpu_id = -1,
     .time = 0,
 	.enable_myproc = false,
@@ -109,6 +111,7 @@ const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
+	{ "tgid", 'P', "TGID", 0, "Thread group to trace" },
     { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ "myproc", 'm', NULL, 0, "Trace the process of the tool itself (not tracked by default)" },
@@ -118,7 +121,7 @@ static const struct argp_option opts[] = {
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
 	{ "quote", 'q', NULL, 0, "Add quotemarks (\") around arguments" },
 	{ "keytime", 'k', NULL, 0, "Collects keytime information about processes" },
-	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes" },
+	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes (trace tool process)" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
@@ -126,6 +129,7 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
+	long tgid;
 	long cpu_id;
 	long syscalls;
 	switch (key) {
@@ -139,7 +143,17 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				}
 				env.pid = pid;
 				break;
-        case 'c':
+        case 'P':
+				errno = 0;
+				tgid = strtol(arg, NULL, 10);
+				if (errno || tgid < 0) {
+					warn("Invalid TGID: %s\n", arg);
+					// 调用argp_usage函数，用于打印用法信息并退出程序
+					argp_usage(state);
+				}
+				env.tgid = tgid;
+				break;
+		case 'c':
 				cpu_id = strtol(arg, NULL, 10);
 				if(cpu_id < 0){
 					warn("Invalid CPUID: %s\n", arg);
@@ -270,15 +284,16 @@ delete_elem:
 	return 0;
 }
 
-static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,struct bpf_map *sys_map)
+static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,struct bpf_map *tg_map,struct bpf_map *sys_map)
 {
 	struct proc_id lookup_key = {-1}, next_key;
+	int l_key = -1, n_key;
 	int err;
 	int proc_fd = bpf_map__fd(proc_map);
 	int target_fd = bpf_map__fd(target_map);
+	int tg_fd = bpf_map__fd(tg_map);
 	int sys_fd = bpf_map__fd(sys_map);
 	struct schedule_event proc_event;
-	struct schedule_event target_event;
 	struct sum_schedule sys_event;
 	time_t now = time(NULL);
 	struct tm *localTime = localtime(&now);
@@ -292,13 +307,13 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 
 	if(prev_image != SCHEDULE_IMAGE){
 		printf("SCHEDULE-----------------------------------------------------------------------------------------------------------------------\n");
-		printf("%-8s  %-6s  %-4s  %s\n",
-			   "TIME","PID","PRIO",
-			   "| P_AVG_DELAY(ms) S_AVG_DELAY(ms) | P_MAX_DELAY(ms) S_MAX_DELAY(ms) | P_MIN_DELAY(ms) S_MIN_DELAY(ms) |");
+		printf("%-8s  ","TIME");
+		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		printf("%-6s  %-4s  %s\n","PID","PRIO","| P_AVG_DELAY(ms) S_AVG_DELAY(ms) | P_MAX_DELAY(ms) S_MAX_DELAY(ms) | P_MIN_DELAY(ms) S_MIN_DELAY(ms) |");
 		prev_image = SCHEDULE_IMAGE;
 	}
 
-	if(env.pid == -1){
+	if(env.pid==-1 && env.tgid==-1){
 		while (!bpf_map_get_next_key(proc_fd, &lookup_key, &next_key)) {
 			err = bpf_map_lookup_elem(proc_fd, &next_key, &proc_event);
 			if (err < 0) {
@@ -320,15 +335,15 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 			
 			lookup_key = next_key;
 		}
-	}else{
-		err = bpf_map_lookup_elem(target_fd, &key, &target_event);
+	}else if(env.pid!=-1 && env.tgid==-1){
+		err = bpf_map_lookup_elem(target_fd, &key, &proc_event);
 		if (err < 0) {
 			fprintf(stderr, "failed to lookup infos: %d\n", err);
 			return -1;
 		}
-		
-		if(target_event.count != 0){	
-			target_avg_delay = target_event.sum_delay/target_event.count;
+
+		if(proc_event.count != 0){	
+			target_avg_delay = proc_event.sum_delay/proc_event.count;
 			
 			err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
 			if (err < 0) {
@@ -337,10 +352,31 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 			}
 			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
 
-			// 有时可以成功运行，有时会遇到报错：Floating point exception，对此表示不解
 			printf("%02d:%02d:%02d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
-					hour,min,sec,target_event.pid,target_event.prio,target_avg_delay/1000000.0,sys_avg_delay/1000000.0,
-					target_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,target_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+					hour,min,sec,proc_event.pid,proc_event.prio,target_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+		}
+	}else if(env.pid==-1 && env.tgid!=-1){
+		while (!bpf_map_get_next_key(tg_fd, &l_key, &n_key)) {
+			err = bpf_map_lookup_elem(tg_fd, &n_key, &proc_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			proc_avg_delay = proc_event.sum_delay/proc_event.count;
+
+			err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
+
+			printf("%02d:%02d:%02d  %-6d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
+					hour,min,sec,env.tgid,proc_event.pid,proc_event.prio,proc_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+			
+			l_key = n_key;
 		}
 	}
 
@@ -767,8 +803,8 @@ int main(int argc, char **argv)
 		}
 
 		schedule_skel->rodata->target_pid = env.pid;
+		schedule_skel->rodata->target_tgid = env.tgid;
 		schedule_skel->rodata->target_cpu_id = env.cpu_id;
-		if(!env.enable_myproc)	schedule_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = schedule_image_bpf__load(schedule_skel);
 		if (err) {
@@ -857,7 +893,7 @@ int main(int argc, char **argv)
 
 		if(env.enable_schedule && env.output_schedule){
 			err = print_schedule(schedule_skel->maps.proc_schedule,schedule_skel->maps.target_schedule,
-								 schedule_skel->maps.sys_schedule);
+								 schedule_skel->maps.tg_schedule,schedule_skel->maps.sys_schedule);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
 				err = 0;
