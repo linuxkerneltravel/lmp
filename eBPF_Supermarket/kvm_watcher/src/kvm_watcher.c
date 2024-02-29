@@ -29,7 +29,8 @@
 #include <unistd.h>
 #include "../include/kvm_watcher.h"
 #include "kvm_watcher.skel.h"
-// 定义具体的退出原因
+
+// 定义具体的退出原因 arch/x86/include/uapi/asm/vmx.h
 struct ExitReason exitReasons[] = {{0, "EXCEPTION_NMI"},
                                    {1, "EXTERNAL_INTERRUPT"},
                                    {2, "TRIPLE_FAULT"},
@@ -177,7 +178,7 @@ void printExitInfo(Node *head) {
         "-----------------------------------------------------------------"
         "----------\n");
     printf("%-21s %-18s %-8s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID",
-           "COUNT", "AVG_DURATION(ns)");
+           "COUNT", "AVG_DURATION(us)");
     while (current != NULL) {
         printf("%-2d/%-18s %-33s %-13.4f \n", current->data.exit_reason,
                getExitReasonName(current->data.exit_reason), current->data.info,
@@ -214,17 +215,18 @@ int doesVmProcessExist(pid_t pid) {
     return 0;  // VmProcess with the given PID not found
 }
 
-// 结构用于保存键值对
+// 定义键值对结构体
 struct KeyValPair {
-    unsigned long long key;
+    struct dirty_page_info key;
     unsigned int value;
 };
 
-// 比较函数，用于 qsort
+// 比较函数，用于排序
 int compare(const void *a, const void *b) {
-    return ((struct KeyValPair *)b)->value - ((struct KeyValPair *)a)->value;
+    return (((struct KeyValPair *)b)->value - ((struct KeyValPair *)a)->value);
 }
-// 保存脏页信息到./temp/dirty_temp文件中
+
+// 保存脏页信息到文件
 int save_count_dirtypagemap_to_file(struct bpf_map *map) {
     const char *directory = "./temp";
     const char *filename = "./temp/dirty_temp";
@@ -246,7 +248,8 @@ int save_count_dirtypagemap_to_file(struct bpf_map *map) {
     }
 
     int count_dirty_fd = bpf_map__fd(map);
-    unsigned long long lookup_key = -1, next_key;
+    struct dirty_page_info lookup_key = {};
+    struct dirty_page_info next_key = {};
     unsigned int dirty_counts;
 
     // 保存键值对到数组
@@ -276,14 +279,21 @@ int save_count_dirtypagemap_to_file(struct bpf_map *map) {
             free(pairs);
             return -1;
         }
+
+        // 更新 lookup_key
+        lookup_key = next_key;
     }
 
     // 对数组进行排序
     qsort(pairs, size, sizeof(struct KeyValPair), compare);
 
     // 输出到文件
+    fprintf(output, "%-10s %-10s %-10s %-10s %s\n", "PID", "GFN", "REL_GFN",
+            "SLOT_ID", "COUNTS");
     for (size_t i = 0; i < size; i++) {
-        fprintf(output, "%llx             %d\n", pairs[i].key, pairs[i].value);
+        fprintf(output, "%-10d %-10llx %-10llx %-10d %u\n", pairs[i].key.pid,
+                pairs[i].key.gfn, pairs[i].key.rel_gfn, pairs[i].key.slot_id,
+                pairs[i].value);
     }
 
     fclose(output);
@@ -300,6 +310,7 @@ static struct env {
     bool execute_page_fault;
     bool mmio_page_fault;
     bool execute_irqchip;
+    bool execute_irq_inject;
     int monitoring_time;
     pid_t vm_pid;
     enum EventType event_type;
@@ -311,6 +322,7 @@ static struct env {
     .execute_mark_page_dirty = false,
     .execute_page_fault = false,
     .execute_irqchip = false,
+    .execute_irq_inject = false,
     .mmio_page_fault = false,
     .monitoring_time = 0,
     .vm_pid = -1,
@@ -333,6 +345,8 @@ static const struct argp_option opts[] = {
      "Monitoring the data of kvmmmu page fault."},
     {"kvm_irqchip", 'c', NULL, 0,
      "Monitor the irqchip setting information in KVM VM."},
+    {"irq_inject(x86)", 'i', NULL, 0,
+     "Monitor the virq injection information in KVM VM "},
     {"stat", 's', NULL, 0,
      "Display statistical data.(The -e option must be specified.)"},
     {"mmio", 'm', NULL, 0,
@@ -369,6 +383,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             break;
         case 'c':
             SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_irqchip);
+            break;
+        case 'i':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_irq_inject);
             break;
         case 's':
             if (env.execute_exit) {
@@ -448,6 +465,8 @@ static int determineEventType(struct env *env) {
         env->event_type = PAGE_FAULT;
     } else if (env->execute_irqchip) {
         env->event_type = IRQCHIP;
+    } else if (env->execute_irq_inject) {
+        env->event_type = IRQ_INJECT;
     } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
@@ -501,7 +520,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         case MARK_PAGE_DIRTY: {
             // 使用 e->mark_page_dirty_data 访问 MARK_PAGE_DIRTY 特有成员
             printf(
-                "%-18.6f %-15s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
+                "%-18.6f %-15s %-6d/%-8d %-10llx %-10llx %-10llu %-15llx %d \n",
                 timestamp_ms, e->process.comm, e->process.pid, e->process.tid,
                 e->mark_page_dirty_data.gfn, e->mark_page_dirty_data.rel_gfn,
                 e->mark_page_dirty_data.npages,
@@ -612,6 +631,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
                 default:
                     break;
             }
+            break;
+        }
+        case IRQ_INJECT: {
+            printf("%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
+                   timestamp_ms, e->process.comm, e->process.pid,
+                   e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
+                   e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
+                   e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            break;
         }
         default:
             // 处理未知事件类型
@@ -654,6 +682,11 @@ static int print_event_head(struct env *env) {
             printf("%-18s %-15s %-10s %-10s %-14s %-10s %-10s\n", "TIME(ms)",
                    "COMM", "PID", "DELAY", "CHIP/PIN", "DST/VEC", "OTHERS");
             break;
+        case IRQ_INJECT:
+            printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
+                   "TIME(ms)", "COMM", "PID", "DELAY", "IRQ_NR", "VCPU_ID",
+                   "INJECTIONS", "TYPE");
+            break;
         default:
             // Handle default case or display an error message
             break;
@@ -695,6 +728,10 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_irqchip ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_kvm_set_msi_irq,
                               env.execute_irqchip ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_vmx_inject_irq,
+                              env.execute_irq_inject ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_vmx_inject_irq,
+                              env.execute_irq_inject ? true : false);
 }
 
 int main(int argc, char **argv) {
@@ -769,7 +806,7 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
-        //OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
+        // OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
@@ -788,6 +825,9 @@ int main(int argc, char **argv) {
         err = save_count_dirtypagemap_to_file(skel->maps.count_dirty_map);
         if (err < 0) {
             printf("Save count dirty page map to file fail: %d\n", err);
+            goto cleanup;
+        }else{
+            printf("\nSave count dirty page map to file success!\n");
             goto cleanup;
         }
     }
