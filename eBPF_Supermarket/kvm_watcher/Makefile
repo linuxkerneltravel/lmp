@@ -44,11 +44,11 @@ ifeq ($(MAKECMDGOALS),test)
 ifeq ($(shell grep -Eoc '(vmx|svm)' /proc/cpuinfo),0)
 	$(error "The CPU in your device does not support virtualization!")
 endif
+	$(common_rules1)
+	$(common_rules2)
 ifeq ($(wildcard ./cirros-0.5.2-x86_64-disk.img),)
 	wget https://gitee.com/nan-shuaibo/cirros/releases/download/0.5.2/cirros-0.5.2-x86_64-disk.img
 endif
-	$(common_rules1)
-	$(common_rules2)
 	# 安装 qemu
 	$(INSTALL_QEMU)
 	# 启动虚拟机
