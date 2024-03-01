@@ -15,7 +15,7 @@ define common_rules1
 	sudo apt install clang libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r)
 	# 加载KVM模块
 	sudo modprobe kvm  
-	sudo modprobe kvm-intel
+	#sudo modprobe kvm-intel
 	# 生成vmlinux.h文件
 	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
 endef
