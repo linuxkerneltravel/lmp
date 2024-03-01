@@ -33,7 +33,7 @@ extern "C"
 #include <signal.h>
 #include <sys/wait.h>
 
-#include "sa_user.h"
+#include "include/sa_user.h"
 #include "bpf/on_cpu_count.skel.h"
 #include "bpf/off_cpu_count.skel.h"
 #include "bpf/mem_count.skel.h"
@@ -97,7 +97,7 @@ private:
 		double val;
 		CountItem(int32_t p, int32_t k, int32_t u, double v)
 		{
-			
+
 			pid = p;
 			ksid = k;
 			usid = u;
@@ -175,7 +175,7 @@ protected:
 
 public:
 	std::string name; // 标识类名
-	
+
 	int pid = -1; // 用于设置ebpf程序跟踪的pid
 	int cpu = -1; // 用于设置ebpf程序跟踪的cpu
 	int err = 0;  // 用于保存错误代码
@@ -385,7 +385,6 @@ public:
 	}
 };
 
-
 class OnCPUStackCollector : public StackCollector
 {
 private:
@@ -419,7 +418,7 @@ public:
 		fscanf(fp, "%p", &load_a);
 		pclose(fp);
 		StackProgLoadOpen(
-			skel->bss->load_a = load_a ) return 0;
+			skel->bss->load_a = load_a) return 0;
 	};
 
 	int attach(void) override
@@ -462,6 +461,7 @@ public:
 		{
 			for (int cpu = 0; cpu < num_cpus; cpu++)
 			{
+
 				bpf_link__destroy(links[cpu]);
 			}
 			free(links);
@@ -644,7 +644,6 @@ class StackCountStackCollector : public StackCollector
 {
 private:
 	declareEBPF(stack_count_bpf);
-	
 
 protected:
 	std::string data_str(void) override
@@ -659,7 +658,8 @@ protected:
 
 public:
 	stack_mod DataType = stack_mod::COUNTS;
-	
+	std::string pattern = "vfs_write"; // 保存命令行的输入
+
 	StackCountStackCollector()
 	{
 		count_size = sizeof(stack_tuple);
@@ -667,12 +667,17 @@ public:
 	};
 
 	defaultLoad;
-	defaultAttach;
+	int attach(void) override
+	{
+		skel->links.handle =
+			bpf_program__attach_kprobe(skel->progs.handle, false,
+									   pattern.c_str());
+		CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		return 0;
+	};
 	defaultDetach;
 	defaultUnload;
-
 };
-
 
 namespace MainConfig
 {
@@ -681,8 +686,8 @@ namespace MainConfig
 	display_t d_mode = display_t::NO_OUTPUT; // 设置显示模式
 	std::string command = "";
 	int32_t target_pid = -1;
-};
-
+	std::string pattern = "";
+}
 std::vector<StackCollector *> StackCollectorList;
 void endCollect(void)
 {
@@ -764,7 +769,11 @@ int main(int argc, char *argv[])
 						   SubOption;
 	auto StackCountOption = clipp::option("stackcount").call([]
 															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
-								"sample the counts of calling stacks" & SubOption;
+								"sample the counts of calling stacks" &
+							(clipp::option("-S", "--String") & clipp::value("Pattern String", MainConfig::pattern).call([]
+																														{ static_cast<StackCountStackCollector *>(StackCollectorList.back())->pattern = MainConfig::pattern; }) %
+																   "sampling at a set pattern string",
+							 SubOption);
 
 	auto cli = (MainOption,
 				clipp::option("-v", "--version").call([]
