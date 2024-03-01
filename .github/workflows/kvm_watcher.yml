@@ -22,7 +22,6 @@ jobs:
 
       - name: Test program execution
         run: |
-          sudo modprobe kvm && sudo modprobe kvm-intel
           cd eBPF_Supermarket/kvm_watcher/
-          make test
+          make
 
