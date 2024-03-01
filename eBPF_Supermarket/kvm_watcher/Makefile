@@ -13,9 +13,6 @@ OPTIONS = -f -w -n -d -e
 define common_rules1
 	# 安装依赖
 	sudo apt install clang libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r)
-	# 加载KVM模块
-	sudo modprobe kvm  
-	#sudo modprobe kvm-intel
 	# 生成vmlinux.h文件
 	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
 endef
@@ -45,11 +42,13 @@ ifeq ($(MAKECMDGOALS),test)
 ifeq ($(shell grep -Eoc '(vmx|svm)' /proc/cpuinfo),0)
 	$(error "The CPU in your device does not support virtualization!")
 endif
+	# 加载KVM模块
+	sudo modprobe kvm && sudo modprobe kvm-intel
+	$(common_rules1)
+	$(common_rules2)
 ifeq ($(wildcard ./cirros-0.5.2-x86_64-disk.img),)
 	wget https://gitee.com/nan-shuaibo/cirros/releases/download/0.5.2/cirros-0.5.2-x86_64-disk.img
 endif
-	$(common_rules1)
-	$(common_rules2)
 	# 安装 qemu
 	$(INSTALL_QEMU)
 	# 启动虚拟机
