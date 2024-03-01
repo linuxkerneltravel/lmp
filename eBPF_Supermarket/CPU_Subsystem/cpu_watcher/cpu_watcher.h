@@ -21,6 +21,8 @@
 typedef long long unsigned int u64;
 typedef unsigned int u32;
 #define MAX_CPU_NR	128
+#define TASK_COMM_LEN 20
+#define SYSCALL_MIN_TIME 1E7
 /*----------------------------------------------*/
 /*          cs_delay结构体                     */
 /*----------------------------------------------*/
@@ -32,6 +34,17 @@ struct event {
 	long unsigned int delay;   
 };
 #endif /* __CS_DELAY_H */
+
+/*----------------------------------------------*/
+/*          syscall_delay结构体                     */
+/*----------------------------------------------*/
+struct event2 {
+	long unsigned int start_time;
+	long unsigned int exit_time;
+	long unsigned int delay;
+    int pid;
+    char comm[TASK_COMM_LEN];
+};
 
 /*----------------------------------------------*/
 /*          cswch_args结构体                     */

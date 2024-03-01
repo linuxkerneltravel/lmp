@@ -22,12 +22,13 @@
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include <sys/select.h>
-#include <unistd.h>
+#include <unistd.h> 
 #include <linux/perf_event.h>
 #include <asm/unistd.h>
 #include "cpu_watcher.h"
 #include "sar.skel.h"
 #include "cs_delay.skel.h"
+#include "sc_delay.skel.h"
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
@@ -36,26 +37,35 @@ static struct env {
 	bool enable_proc;
 	bool SAR;
 	bool CS_DELAY;
+	bool SYSCALL_DELAY;
 	int freq;
-
 } env = {
 	.time = 0,
 	.enable_proc = false,
 	.SAR = false,
 	.CS_DELAY = false,
+	.SYSCALL_DELAY = false,
 	.freq = 99,
 };
 
 struct cs_delay_bpf *cs_skel;
 struct sar_bpf *sar_skel;
+struct sc_delay_bpf *sc_skel;
+
 u64 softirq = 0;//初始化softirq;
 u64 irqtime = 0;//初始化irq;
-u64 idle = 0;//初始化idle;
+u64 idle = 0;//初始化idle;s
 u64 sched = 0;
 u64 proc = 0;
 unsigned long ktTime = 0;
 unsigned long utTime = 0;
 u64 tick_user = 0;//初始化sys;
+
+int sc_sum_time = 0 ;
+int sc_max_time = 0 ;
+int sc_min_time = SYSCALL_MIN_TIME ;
+int sys_call_count = 0;
+
 
 /*设置传参*/
 const char argp_program_doc[] ="cpu wacher is in use ....\n";
@@ -63,6 +73,7 @@ static const struct argp_option opts[] = {
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{"libbpf_sar", 's',	0,0,"print sar_info (the data of cpu)"},
 	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
+	{"syscall_delay", 'y',	0,0,"print syscall_delay (the data of syscall)"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
@@ -78,6 +89,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 			break;
 		case 'c':
 			env.CS_DELAY = true;
+			break;		
+		case 'y':
+			env.SYSCALL_DELAY = true;
 			break;			
 		case 'h':
 			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -101,6 +115,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 }
 
 static volatile bool exiting=false;
+bool syscall_start_print = false;
 
 static void sig_handler(int sig)
 {
@@ -370,6 +385,29 @@ static void histogram()
 }
 
 
+static void max_print(){
+
+	int sc_average_time = sc_sum_time/sys_call_count;
+	printf("Average_Syscall_Time: %8d ms\n",sc_average_time);
+	printf("MAX_Syscall_Time: %8d ms\n",sc_max_time);
+	printf("MIN_Syscall_Time: %8d ms\n",sc_min_time);
+}
+static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
+{
+
+	const struct event2 *e = data;
+	printf("|COMM:  %-15s |pid: %-8lu  |start_time: %-10lu  |exit_time: %-10lu  |delay: %-8lu|\n",e->comm,e->pid,e->start_time,e->exit_time,e->delay);
+	sc_sum_time += e->delay;
+	if(sc_max_time < e->delay){
+		sc_max_time = e->delay;
+	}
+	else if(sc_min_time > e->delay){
+		sc_min_time = e->delay;
+	}
+	sys_call_count ++;
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
@@ -427,6 +465,34 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto cs_delay_cleanup;
 		}
+	}else if (env.SYSCALL_DELAY){
+		/* Load and verify BPF application */
+		sc_skel = sc_delay_bpf__open();
+		if (!sc_skel)
+		{
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		/* Load & verify BPF programs */
+		err = sc_delay_bpf__load(sc_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto sc_delay_cleanup;
+		}
+		/* Attach tracepoints */
+		err = sc_delay_bpf__attach(sc_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto sc_delay_cleanup;
+		}
+		rb = ring_buffer__new(bpf_map__fd(sc_skel->maps.rb), syscall_delay_print, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto sc_delay_cleanup;		
+		}
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
@@ -459,8 +525,8 @@ int main(int argc, char **argv)
 		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms\n");
 	}
 	while (!exiting) {
-		sleep(1);
 		if(env.SAR){
+			sleep(1);
 			err = print_all();
 			if (err == -EINTR) {
 				err = 0;
@@ -472,6 +538,7 @@ int main(int argc, char **argv)
 			}
 		}
         else if(env.CS_DELAY){
+			sleep(1);
 			err = ring_buffer__poll(rb, 1000 /* timeout, s */);
 			if (err == -EINTR) {
 				err = 0;
@@ -483,8 +550,32 @@ int main(int argc, char **argv)
 			}
 			histogram();
 		}
+		else if(env.SYSCALL_DELAY){
+			err = ring_buffer__poll(rb, 100 /* timeout, ms */);		//ring_buffer__poll(),轮询打开ringbuf缓冲区。如果有事件，handle_event函数会执行	
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+			time_t now = time(NULL);// 获取当前时间
+			struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+			if(!syscall_start_print){
+				syscall_start_print=1;
+			}else{
+				printf("----------------------------------------------------------------------------------------------------------\n");
+				max_print();
+			}
+			printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+			printf("----------------------------------------------------------------------------------------------------------\n");
+			sc_sum_time = 0 , sc_max_time = 0 ,sc_min_time = SYSCALL_MIN_TIME, sys_call_count = 0;
+			sleep(3);			
+		}
 		else {
-			printf("正在开发中, -c打印cs_delay, -s打印libbpf_sar\n");
+			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n");
 			break;
 		}
 	}
@@ -496,5 +587,10 @@ cs_delay_cleanup:
 
 sar_cleanup:
 	sar_bpf__destroy(sar_skel);
+	return err < 0 ? -err : 0;
+
+sc_delay_cleanup:
+	ring_buffer__free(rb);
+	sc_delay_bpf__destroy(sc_skel);
 	return err < 0 ? -err : 0;
 }
