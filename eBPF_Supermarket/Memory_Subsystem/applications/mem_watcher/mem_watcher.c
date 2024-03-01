@@ -40,6 +40,8 @@ static struct env {
 	bool procstat;
 	bool sysstat;
 
+	bool part2;
+
 	long choose_pid;
 	bool rss;
 } env = {
@@ -49,23 +51,29 @@ static struct env {
 	.procstat = false,
 	.sysstat = false,
 	.rss = false,
+	.part2 = false,
 };
 
 const char argp_program_doc[] = "mem_watcher is in use ....\n";
 
 static const struct argp_option opts[] = {
-	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 3},
 	{0, 0, 0, 0, "select function:", 1},
-	{"paf", 'a', 0, 0, "print paf (内存页面状态报告)"},
-	{"pr", 'p', 0, 0, "print pr (页面回收状态报告)"},
-	{"procstat", 'r', 0, 0, "print procstat (进程内存状态报告)"},
-	{"sysstat", 's', 0, 0, "print sysstat (系统内存状态报告)"},
 
-	{0, 0, 0, 0, "additional function:", 2},
+	{"paf", 'a', 0, 0, "print paf (内存页面状态报告)", 2},
+
+	{"pr", 'p', 0, 0, "print pr (页面回收状态报告)", 3},
+
+	{"procstat", 'r', 0, 0, "print procstat (进程内存状态报告)", 4},
+	{0, 0, 0, 0, "procstat additional function:"},
 	{"choose_pid", 'P', "PID", 0, "选择进程号打印"},
-	{"Rss", 'R', NULL, 0, "打印进程页面"},
+	{"Rss", 'R', NULL, 0, "打印进程页面", 5},
 
-	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help", 4},
+	{"sysstat", 's', 0, 0, "print sysstat (系统内存状态报告)", 6},
+	{0, 0, 0, 0, "sysstat additional function:"},
+	{"part2", 'n', NULL, 0, "系统内存状态报告2", 7},
+
+	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 8},
+	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
 
@@ -87,6 +95,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
 		break;
 	case 's':
 		env.sysstat = true;
+		break;
+	case 'n':
+		env.part2 = true;
 		break;
 	case 'h':
 		argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -212,7 +223,6 @@ static int handle_event_procstat(void *ctx, void *data, size_t data_sz) {
 	time(&t);
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-
 	if (env.choose_pid) {
 		if (e->pid == env.choose_pid) {
 			if (env.rss == true)
@@ -249,30 +259,11 @@ static int handle_event_sysstat(void *ctx, void *data, size_t data_sz) {
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
-	printf("+----------+----------+----------+----------+----------+----------+----------+\n");
-	printf("|%-10s|%-10s|%-10s|%-10s|%-10s|%-10s|%-10s|\n",
-		"ACTIVE", "INACTVE", "ANON_ACT", "ANON_INA", "FILE_ACT", "FILE_INA", "UNEVICT");
-	printf("|%-10lu|%-10lu|%-10lu|%-10lu|%-10lu|%-10lu|%-10lu|\n",
-		e->anon_active + e->file_active, e->file_inactive + e->anon_inactive, e->anon_active, e->anon_inactive, e->file_active, e->file_inactive, e->unevictable);
-	printf("+----------+----------+----------+----------+----------+----------+----------+\n");
+	if (env.part2 == true)
+		printf("%-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu\n", e->slab_reclaimable + e->kernel_misc_reclaimable, e->slab_reclaimable + e->slab_unreclaimable, e->slab_reclaimable, e->slab_unreclaimable, e->unstable_nfs, e->writeback_temp, e->anon_thps, e->shmem_thps, e->pmdmapped);
+	else
+		printf("%-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu\n", e->anon_active + e->file_active, e->file_inactive + e->anon_inactive, e->anon_active, e->anon_inactive, e->file_active, e->file_inactive, e->unevictable, e->file_dirty, e->writeback, e->anon_mapped, e->file_mapped, e->shmem);
 
-	printf("|%-10s|%-10s|%-10s|%-10s|%-10s|\n",
-		"DIRTY", "WRITEBK", "ANONMAP", "FILEMAP", "SHMEM");
-	printf("|%-10lu|%-10lu|%-10lu|%-10lu|%-10lu|\n",
-		e->file_dirty, e->writeback, e->anon_mapped, e->file_mapped, e->shmem);
-	printf("+----------+----------+----------+----------+----------+\n");
-
-	printf("|%-10s|%-10s|%-10s|%-10s|%-10s|\n",
-		"RECLM+KMR", "RECLM+URE", "RECLMAB", "UNRECLMA", "UNSTABLE");
-	printf("|%-10lu|%-10lu|%-10lu|%-10lu|%-10lu|\n",
-		e->slab_reclaimable + e->kernel_misc_reclaimable, e->slab_reclaimable + e->slab_unreclaimable, e->slab_reclaimable, e->slab_unreclaimable, e->unstable_nfs);
-	printf("+----------+----------+----------+----------+----------+\n");
-
-	printf("|%-10s|%-10s|%-10s|%-10s|\n",
-		"WRITEBK_T", "ANON_THP", "SHMEM_THP", "PMDMAPP");
-	printf("|%-10lu|%-10lu|%-10lu|%-10lu|\n",
-		e->writeback_temp, e->anon_thps, e->shmem_thps, e->pmdmapped);
-	printf("+----------+----------+----------+----------+\n");
 	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块   */
 	// if (env.time != 0)
 	// {
@@ -450,6 +441,14 @@ int main(int argc, char **argv) {
 			err = -1;
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto sysstat_cleanup;
+		}
+
+		/* Process events */
+		if (env.part2 == true) {
+			printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "KRECLM", "SLAB", "SRECLM", "SUNRECLMA", "UNSTABLE", "WRITEBK_T", "ANONHUGE", "SHMEMHUGE", "PMDMAPP");
+		}
+		else {
+			printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "ACTIVE", "INACTVE", "ANON_ACT", "ANON_INA", "FILE_ACT", "FILE_INA", "UNEVICT", "DIRTY", "WRITEBK", "ANONPAG", "MAP", "SHMEM");
 		}
 	}
 
