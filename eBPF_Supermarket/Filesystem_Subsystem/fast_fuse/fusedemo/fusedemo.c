@@ -740,36 +740,9 @@ static int dhmp_fs_truncate(const char *path, off_t size,
 	return 0;
 }
 
-static int find_inode_in_directory(struct inode *parent, const char *name)
-{
-	struct inode *current = parent->son;
-	while (current != NULL)
-	{
-		if (strcmp(current->filename, name) == 0)
-		{
-			return 1;
-		}
-		current = current->bro;
-	}
-
-	return 0;
-}
-
 static int dhmp_fs_open(const char *path, struct fuse_file_info *fi)
 {
-	fprintf(stderr, "dhmp_fs_open path = %s\n", path);
-	struct inode *father = get_father_inode(path);
-	int flag;
-	if (father == NULL) return -1;
-	if (father->isDirectories == 0) return -1;
-	flag = find_inode_in_directory(father, path);
-	if (flag)
-	{
-		fi->fh = (uint64_t)father;
-		printf("dhmp_fs_open:%s succeed.\n", path);
-		return 0;
-	}
-	else return 1;
+	return 0;
 }
 
 /**
