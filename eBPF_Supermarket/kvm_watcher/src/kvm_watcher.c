@@ -151,89 +151,6 @@ const char *getExitReasonName(int number) {
     return "Unknown";  // 如果找不到对应的退出原因，返回一个默认值
 }
 
-typedef struct {
-    int exit_reason;
-    char info[256];
-    unsigned long long total_dur;
-    unsigned long long avg_dur;
-} ExitInfo;
-
-// 链表节点
-typedef struct Node {
-    ExitInfo data;
-    struct Node *next;
-} Node;
-
-Node *exitInfoBuffer = NULL;
-
-void addExitInfo(Node **head, int exit_reason, const char *info,
-                 unsigned long long dur, int count) {
-    Node *newNode = (Node *)malloc(sizeof(Node));
-    newNode->data.exit_reason = exit_reason;
-    strncpy(newNode->data.info, info, sizeof(newNode->data.info));
-    newNode->next = NULL;
-    newNode->data.total_dur = dur;
-    newNode->data.avg_dur = dur / count;
-
-    // 检查是否已经存在相同 exit reason 的信息
-    Node *current = *head;
-    Node *previous = NULL;
-    while (current != NULL) {
-        if (current->data.exit_reason == exit_reason) {
-            // 更新已存在的信息
-            strncpy(current->data.info, info, sizeof(current->data.info));
-            current->data.total_dur = dur + current->data.total_dur;
-            current->data.avg_dur = current->data.total_dur / count;
-            free(newNode);  // 释放新节点，因为信息已经更新
-            return;
-        }
-        previous = current;
-        current = current->next;
-    }
-    // 没有找到相同的 exit reason，将新节点添加到链表
-    if (previous != NULL) {
-        previous->next = newNode;
-    } else {
-        *head = newNode;
-    }
-}
-
-// 查找指定退出原因的信息
-const char *findExitInfo(Node *head, int exit_reason) {
-    Node *current = head;
-    while (current != NULL) {
-        if (current->data.exit_reason == exit_reason) {
-            return current->data.info;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// 释放链表
-void freeExitInfoList(Node *head) {
-    while (head != NULL) {
-        Node *temp = head;
-        head = head->next;
-        free(temp);
-    }
-}
-// 打印退出的信息
-void printExitInfo(Node *head) {
-    Node *current = head;
-    CLEAR_SCREEN();
-    printf(
-        "-----------------------------------------------------------------"
-        "----------\n");
-    printf("%-21s %-18s %-8s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID",
-           "COUNT", "AVG_DURATION(us)");
-    while (current != NULL) {
-        printf("%-2d/%-18s %-33s %-13.4f \n", current->data.exit_reason,
-               getExitReasonName(current->data.exit_reason), current->data.info,
-               NS_TO_US_WITH_DECIMAL(current->data.avg_dur));
-        current = current->next;
-    }
-}
 // 检查具有给定 PID 的进程是否存在
 int doesVmProcessExist(pid_t pid) {
     char proc_name[256];
@@ -385,8 +302,6 @@ static const struct argp_option opts[] = {
     {"irq_inject(hardware)", 'i', NULL, 0,
      "Monitor the virq injection information in KVM VM "},
     {"hypercall", 'h', NULL, 0, "Monitor the hypercall information in KVM VM "},
-    {"stat", 's', NULL, 0,
-     "Display statistical data.(The -e option must be specified.)"},
     {"mmio", 'm', NULL, 0,
      "Monitoring the data of mmio page fault.(The -f option must be "
      "specified.)"},
@@ -726,9 +641,6 @@ static int print_event_head(struct env *env) {
                    "VAILD?");
             break;
         case EXIT:
-            // printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME(ms)",
-            //        "EXIT_REASON", "COMM", "PID/TID", "COUNT",
-            //        "DURATION(us)");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -926,7 +838,7 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
     return 0;
 }
 
-void print_map_and_check_error(int (*print_func)(struct skel *skel), const char *map_name, int err) {
+void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *), struct kvm_watcher_bpf *skel, const char *map_name, int err) {
     OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);
     print_func(skel);
     if (err < 0) {
@@ -1009,10 +921,10 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
       
         if (env.execute_hypercall) {
-            print_map_and_check_error(print_hc_map, "hypercall", err);
+            print_map_and_check_error(print_hc_map, skel, "hypercall", err);
         }
         if (env.execute_exit) {
-            print_map_and_check_error(print_exit_map, "exit", err);
+            print_map_and_check_error(print_exit_map, skel, "exit", err);
         }
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
@@ -1024,10 +936,7 @@ int main(int argc, char **argv) {
             break;
         }
     }
-    if (env.ShowStats) {
-        printExitInfo(exitInfoBuffer);
-        freeExitInfoList(exitInfoBuffer);
-    } else if (env.execute_mark_page_dirty) {
+    if (env.execute_mark_page_dirty) {
         err = save_count_dirtypagemap_to_file(skel->maps.count_dirty_map);
         if (err < 0) {
             printf("Save count dirty page map to file fail: %d\n", err);
