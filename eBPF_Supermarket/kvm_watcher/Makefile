@@ -7,14 +7,15 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
 APP = src/kvm_watcher
-OPTIONS = -f -w -n -d -c -e
+OPTIONS = -f -w -n -d -e
 
 # 共同规则1
 define common_rules1
 	# 安装依赖
 	sudo apt install clang libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r)
 	# 加载KVM模块
-	sudo modprobe kvm  && modprobe kvm-intel
+	sudo modprobe kvm  
+	#sudo modprobe kvm-intel
 	# 生成vmlinux.h文件
 	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
 endef
