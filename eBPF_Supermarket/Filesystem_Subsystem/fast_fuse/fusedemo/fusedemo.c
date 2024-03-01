@@ -757,6 +757,7 @@ static int find_inode_in_directory(struct inode *parent, const char *name)
 
 static int dhmp_fs_open(const char *path, struct fuse_file_info *fi)
 {
+	fprintf(stderr, "dhmp_fs_open path = %s\n", path);
 	struct inode *father = get_father_inode(path);
 	int flag;
 	if (father == NULL) return -1;
@@ -764,10 +765,11 @@ static int dhmp_fs_open(const char *path, struct fuse_file_info *fi)
 	flag = find_inode_in_directory(father, path);
 	if (flag)
 	{
-		printf("文件存在，可以打开");
-		return 1;
-	}//文件存在
-	else return 0;		//文件不存在
+		fi->fh = (uint64_t)father;
+		printf("dhmp_fs_open:%s succeed.\n", path);
+		return 0;
+	}
+	else return 1;
 }
 
 /**
