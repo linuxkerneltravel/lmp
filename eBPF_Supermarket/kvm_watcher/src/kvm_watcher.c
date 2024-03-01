@@ -646,7 +646,8 @@ static int print_event_head(struct env *env) {
             break;
         case EXIT:
             // printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME(ms)",
-            //        "EXIT_REASON", "COMM", "PID/TID", "COUNT", "DURATION(us)");
+            //        "EXIT_REASON", "COMM", "PID/TID", "COUNT",
+            //        "DURATION(us)");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -737,9 +738,10 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
             first_run = 0;
             printf("\nTIME:%s\n", ts);
             printf("%-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "total_time",
-                   "max_time","min_time", "counts", "reason");
+                   "max_time", "min_time", "counts", "reason");
             printf(
-                "------------ ------------ ------------ ------------ ------------ "
+                "------------ ------------ ------------ ------------ "
+                "------------ "
                 "------------\n");
         }
         // Print the current entry
@@ -751,7 +753,7 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
         printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", next_key.pid,
                NS_TO_MS_WITH_DECIMAL(exit_value.total_time),
                NS_TO_MS_WITH_DECIMAL(exit_value.max_time),
-                NS_TO_MS_WITH_DECIMAL(exit_value.min_time),exit_value.count,
+               NS_TO_MS_WITH_DECIMAL(exit_value.min_time), exit_value.count,
                getExitReasonName(next_key.reason));
 
         // Move to the next key
@@ -841,7 +843,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
-        
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         sleep(3);
         err = print_exit_map(skel);
@@ -863,7 +864,7 @@ int main(int argc, char **argv) {
         if (err < 0) {
             printf("Save count dirty page map to file fail: %d\n", err);
             goto cleanup;
-        }else{
+        } else {
             printf("\nSave count dirty page map to file success!\n");
             goto cleanup;
         }
