@@ -91,7 +91,20 @@
 struct reason_info {
     __u64 time;
     __u64 reason;
+};
+
+struct exit_key {
+    __u64 reason;
+    __u32 pid;
+    __u32 pad;
+};
+
+struct exit_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
     __u32 count;
+    __u32 pad;
 };
 
 struct dirty_page_info {
