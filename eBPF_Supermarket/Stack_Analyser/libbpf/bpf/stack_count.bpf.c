@@ -32,7 +32,7 @@ int apid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
 
-static int handle(struct trace_event_raw_sys_enter *ctx)
+static int handle_func(void *ctx)
 {
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
     ignoreKthread(curr);
@@ -71,9 +71,9 @@ static int handle(struct trace_event_raw_sys_enter *ctx)
     return 0;
 }
 
-#define io_sec_tp(name)                 \
-    SEC("tp/syscalls/sys_enter_" #name) \
-    int prog_t_##name(struct trace_event_raw_sys_enter *ctx) { return handle(ctx); }
-
-io_sec_tp(write);
-io_sec_tp(read);
+SEC("kprobe/dummy_kprobe")
+int BPF_KPROBE(handle)
+{
+    handle_func(ctx);
+    return 0;
+}

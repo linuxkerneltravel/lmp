@@ -466,6 +466,7 @@ public:
 		{
 			for (int cpu = 0; cpu < num_cpus; cpu++)
 			{
+
 				bpf_link__destroy(links[cpu]);
 			}
 			free(links);
@@ -664,6 +665,8 @@ private:
 	declareEBPF(stack_count_bpf);
 
 public:
+	std::string probe = ""; // 保存命令行的输入
+
 	StackCountStackCollector()
 	{
 		scale = {
@@ -673,8 +676,20 @@ public:
 		};
 	};
 
+	void setProbe(std::string probe) {
+		this->probe = probe;
+		scale.Type = (probe+scale.Type).c_str();
+	}
+
 	defaultLoad;
-	defaultAttach;
+	int attach(void) override
+	{
+		skel->links.handle =
+			bpf_program__attach_kprobe(skel->progs.handle, false,
+									   probe.c_str());
+		CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		return 0;
+	};
 	defaultDetach;
 	defaultUnload;
 };
@@ -685,8 +700,7 @@ namespace MainConfig
 	unsigned delay = 5;			// 设置输出间隔
 	std::string command = "";
 	int32_t target_pid = -1;
-};
-
+}
 std::vector<StackCollector *> StackCollectorList;
 void endCollect(void)
 {
@@ -706,7 +720,8 @@ void endCollect(void)
 	}
 }
 
-uint64_t optbuff;
+uint64_t IntTmp;
+std::string StrTmp;
 int main(int argc, char *argv[])
 {
 	auto MainOption = ((
@@ -721,18 +736,18 @@ int main(int argc, char *argv[])
 					  clipp::option("-K", "--kernel-stack-only").call([]
 																	  { StackCollectorList.back()->ustack = false; }) %
 						  "only sample kernel stacks",
-					  (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", optbuff).call([]
-																														 { StackCollectorList.back()->max = optbuff; })) %
+					  (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", IntTmp).call([]
+																														 { StackCollectorList.back()->max = IntTmp; })) %
 						  "set the max threshold of sampled value",
-					  (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", optbuff).call([]
-																														 { StackCollectorList.back()->min = optbuff; })) %
+					  (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", IntTmp).call([]
+																														 { StackCollectorList.back()->min = IntTmp; })) %
 						  "set the min threshold of sampled value");
 
 	auto OnCpuOption = clipp::option("on-cpu").call([]
 													{ StackCollectorList.push_back(new OnCPUStackCollector()); }) %
 						   "sample the call stacks of on-cpu processes" &
-					   (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", optbuff).call([]
-																											  { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(optbuff); }) %
+					   (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", IntTmp).call([]
+																											  { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
 																 "sampling at a set frequency",
 						SubOption);
 
@@ -768,7 +783,10 @@ int main(int argc, char *argv[])
 	auto StackCountOption = clipp::option("stackcount").call([]
 															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
 								"sample the counts of calling stacks" &
-							SubOption;
+							(clipp::option("-S", "--String") & clipp::value("probe String", StrTmp).call([]
+																														{ static_cast<StackCountStackCollector *>(StackCollectorList.back())->setProbe(StrTmp); }) %
+																   "sampling at a set probe string",
+							 SubOption);
 
 	auto cli = (MainOption,
 				clipp::option("-v", "--version").call([]

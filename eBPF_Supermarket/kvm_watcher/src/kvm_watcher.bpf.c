@@ -60,7 +60,7 @@ int tp_exit(struct exit *ctx) {
 // 记录vm_entry和vm_exit的时间差
 SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
-    return trace_kvm_entry(&rb, e);
+    return trace_kvm_entry();
 }
 
 SEC("kprobe/mark_page_dirty_in_slot")
