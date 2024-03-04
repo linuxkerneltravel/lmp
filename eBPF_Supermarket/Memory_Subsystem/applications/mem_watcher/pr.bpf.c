@@ -16,6 +16,13 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256 * 1024);
+	__type(key, unsigned long);
+	__type(value, int);
+} last_val SEC(".maps");
+
+struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
@@ -25,12 +32,24 @@ pid_t user_pid = 0;
 SEC("kprobe/shrink_page_list")
 int BPF_KPROBE(shrink_page_list, struct list_head *page_list, struct pglist_data *pgdat, struct scan_control *sc)
 {
-	struct pr_event *e; 
+	struct pr_event *e;
 	unsigned long y;
 	unsigned int *a;
 	pid_t pid = bpf_get_current_pid_tgid() >> 32;
 	if (pid == user_pid)
 		return 0;
+
+	int val = 1;
+	unsigned long rec = BPF_CORE_READ(sc, nr_reclaimed);
+	int *last_rec;
+	last_rec = bpf_map_lookup_elem(&last_val, &rec);
+	if (!last_rec) {
+		bpf_map_update_elem(&last_val, &rec, &val, BPF_ANY);
+	}
+	else if(*last_rec == val) {
+		return 0;
+	}
+
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;
@@ -42,8 +61,6 @@ int BPF_KPROBE(shrink_page_list, struct list_head *page_list, struct pglist_data
 	e->congested = *(a + 2);//正在块设备上回写的页面，含写入交换空间的页面
 	e->writeback = *(a + 3);//正在回写的页面
 	
-
-
 	bpf_ringbuf_submit(e, 0);
-	return 0;
+	return 0; 
 }
