@@ -39,7 +39,7 @@ static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0, udp_info; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
@@ -53,6 +53,7 @@ static const struct argp_option opts[] = {
     {"sport", 's', "SPORT", 0, "trace this source port only"},
     {"dport", 'd', "DPORT", 0, "trace this destination port only"},
     {"udp", 'u', 0, 0, "trace the udp message"},
+    {"net_filter",'n',0,0,"trace ipv4 packget filter "},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -84,6 +85,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'u':
         udp_info = 1;
+        break;
+    case 'n':
+        net_filter = 1;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -200,7 +204,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
-    if (udp_info)
+    if (udp_info || net_filter)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->err) {
@@ -299,6 +303,25 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     fclose(file);
     return 0;
 }
+static int print_netfilter(void *ctx, void *packet_info, size_t size) {
+    if(!net_filter)
+        return 0;
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN]; 
+    const struct netfilter *pack_info = packet_info;
+    unsigned int saddr = pack_info->saddr;
+    unsigned int daddr = pack_info->daddr;
+    if(net_filter)
+    {
+    printf("%-20s %-20s %-20u %-20u %-20llu %-20llu  %-20llu  %-20llu %-20d\n",
+           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+           pack_info->sport,pack_info->dport,pack_info->local_input_time,pack_info->pre_routing_time,pack_info->local_out_time,
+           pack_info->post_routing_time,pack_info->flag);
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -314,6 +337,7 @@ int main(int argc, char **argv) {
     strcat(udp_file_path,"data/udp.log");
     struct ring_buffer *rb = NULL;
     struct ring_buffer *udp_rb = NULL;
+    struct ring_buffer *netfilter_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -344,6 +368,7 @@ int main(int argc, char **argv) {
     skel->rodata->http_info = http_info;
     skel->rodata->retrans_info = retrans_info;
     skel->rodata->udp_info = udp_info;
+    skel->rodata->net_filter = net_filter;
 
     err = netwatcher_bpf__load(skel);
     if (err) {
@@ -357,16 +382,26 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-    if (!udp_info) {
-        printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-               "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
-    }
     if (udp_info) {
         printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr", "sprot",
                "dprot", "udp_time","rx","len");
     }
+    else if(net_filter)
+    {
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr","dprot", "sprot","local_input","pre_routing","local_out","post_routing","flag");
+    }
+    else{
+          printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
+               "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
+    }
     udp_rb =ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
     if (!udp_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+    netfilter_rb =ring_buffer__new(bpf_map__fd(skel->maps.netfilter_rb), print_netfilter, NULL, NULL);
+    if (!netfilter_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
@@ -401,6 +436,7 @@ int main(int argc, char **argv) {
     while (!exiting) {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(udp_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(netfilter_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */
