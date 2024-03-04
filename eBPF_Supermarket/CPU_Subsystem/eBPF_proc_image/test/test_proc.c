@@ -34,11 +34,13 @@ static struct env {
    bool lock_test;
    bool resource_test;
    bool syscall_test;
+   bool schedule_test;
 } env = {
    .keytime_test = false,
    .lock_test = false,
    .resource_test = false,
    .syscall_test = false,
+   .schedule_test = false,
 };
 
 const char argp_program_doc[] ="To test process_image.\n";
@@ -48,6 +50,7 @@ static const struct argp_option opts[] = {
    { "lock", 'l', NULL, 0, "To test lock_image" },
    { "resource", 'r', NULL, 0, "To test resource_image" },
    { "syscall", 's', NULL, 0, "To test syscall_image" },
+   { "schedule", 'S', NULL, 0, "To test schedule_image" },
    { "all", 'a', NULL, 0, "To test all_image" },
    { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
    {},
@@ -61,6 +64,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.lock_test = true;
 				env.resource_test = true;
 				env.syscall_test = true;
+            env.schedule_test = true;
 				break;
 		case 'k':
 				env.keytime_test = true;
@@ -73,6 +77,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
 		case 's':
 				env.syscall_test = true;
+            break;
+      case 'S':
+            env.schedule_test = true;
             break;
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -98,8 +105,6 @@ int main(int argc, char **argv){
    int pid,stop;
    int err;
    pthread_t tid;
-   char *argvv[] = { "ls", "-l", NULL };
-   char *envp[] = { "PATH=/bin", NULL };
    static const struct argp argp = {
 		.options = opts,
 		.parser = parse_arg,
@@ -175,6 +180,8 @@ int main(int argc, char **argv){
 
       // execve逻辑: 替换当前进程，ARGV和ENVP以NULL指针结束
       // 若出错，返回-1；若成功，不返回
+      char *argvv[] = { "ls", "-l", NULL };
+      char *envp[] = { "PATH=/bin", NULL };
       printf("execve逻辑:\n");
       execve("/bin/ls", argvv, envp);
       perror("execve");
@@ -186,7 +193,7 @@ int main(int argc, char **argv){
       printf("请输入程序退出的error_code值:");
       scanf("%d",&error_code);
       exit(error_code);
-      
+
    }
 
    if(env.lock_test){
@@ -251,6 +258,20 @@ int main(int argc, char **argv){
          sleep(1);
       }
    }
-   
+
+   if(env.schedule_test){
+      printf("SCHEDULE_TEST----------------------------------------------\n");
+
+      // 调度延迟测试逻辑：创建线程执行 sysbench --threads=32 --time=10 cpu run，观察加压前后的变化
+      char *argvv[] = { "/usr/bin/sysbench", "--threads=32", "--time=10", "cpu", "run", NULL };
+      char *envp[] = { "PATH=/bin", NULL };
+      printf("调度延迟测试逻辑：\n");
+      printf("执行指令 sysbench --threads=32 --time=10 cpu run\n");
+      execve("/usr/bin/sysbench", argvv, envp);
+      perror("execve");
+      
+      printf("\n");
+   }
+
    return 0;
 }

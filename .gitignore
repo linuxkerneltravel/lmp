@@ -60,3 +60,7 @@ eBPF_Supermarket/kvm_watcher/**/*.skel.h
 eBPF_Supermarket/kvm_watcher/**/vmlinux.h
 eBPF_Supermarket/kvm_watcher/kvm_watcher
 eBPF_Supermarket/kvm_watcher/**/temp*
+
+# eBPF_proc_image
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/.output/*
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image

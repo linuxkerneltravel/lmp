@@ -29,7 +29,7 @@
 #define NS_TO_MS_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_MS_FACTOR)
 
 #define MICROSECONDS_IN_SECOND 1000000
-#define OUTPUT_INTERVAL_SECONDS 0.5
+#define OUTPUT_INTERVAL_SECONDS 2
 
 #define OUTPUT_INTERVAL(us) usleep((__u32)(us * MICROSECONDS_IN_SECOND))
 
@@ -96,7 +96,20 @@ struct ExitReason {
 struct reason_info {
     __u64 time;
     __u64 reason;
+};
+
+struct exit_key {
+    __u64 reason;
+    __u32 pid;
+    __u32 pad;
+};
+
+struct exit_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
     __u32 count;
+    __u32 pad;
 };
 
 struct dirty_page_info {

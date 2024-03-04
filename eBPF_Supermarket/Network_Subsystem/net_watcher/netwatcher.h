@@ -94,4 +94,17 @@ struct udp_message {
     int rx; 
     int len;
 };
+struct netfilter
+{
+    unsigned int saddr;
+    unsigned int daddr;
+    unsigned short sport;
+    unsigned short dport;
+    unsigned long long local_input_time;
+    unsigned long long pre_routing_time;
+    unsigned long long forward_time;
+    unsigned long long local_out_time;
+    unsigned long long post_routing_time;
+    unsigned int flag;
+};
 #endif /* __NETWATCHER_H */

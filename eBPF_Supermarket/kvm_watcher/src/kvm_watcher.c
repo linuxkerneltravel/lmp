@@ -490,22 +490,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case EXIT: {
-            char info_buffer[256];
-            // 使用 e->exit_data 访问 EXIT 特有成员
-            printf("%-18.6f %-2d/%-18s %-18s %-6u/%-8u %-8d %-13.4f \n",
-                   timestamp_ms, e->exit_data.reason_number,
-                   getExitReasonName(e->exit_data.reason_number),
-                   e->process.comm, e->process.pid, e->process.tid,
-                   e->exit_data.count,
-                   NS_TO_US_WITH_DECIMAL(e->exit_data.duration_ns));
-
-            if (env.ShowStats) {
-                snprintf(info_buffer, sizeof(info_buffer), "%-18s %-8u %-8d",
-                         e->process.comm, e->process.pid, e->exit_data.count);
-                addExitInfo(&exitInfoBuffer, e->exit_data.reason_number,
-                            info_buffer, e->exit_data.duration_ns,
-                            e->exit_data.count);
-            }
             break;
         }
         case HALT_POLL: {
@@ -661,8 +645,9 @@ static int print_event_head(struct env *env) {
                    "VAILD?");
             break;
         case EXIT:
-            printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME(ms)",
-                   "EXIT_REASON", "COMM", "PID/TID", "COUNT", "DURATION(us)");
+            // printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME(ms)",
+            //        "EXIT_REASON", "COMM", "PID/TID", "COUNT",
+            //        "DURATION(us)");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -732,6 +717,58 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_irq_inject ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_vmx_inject_irq,
                               env.execute_irq_inject ? true : false);
+}
+
+int print_exit_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.exit_map);
+    int err;
+    struct exit_key lookup_key = {};
+    struct exit_key next_key = {};
+    struct exit_value exit_value;
+    struct tm *tm;
+    char ts[32];
+    time_t t;
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+    int first_run = 1;
+    // Iterate over the map
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first_run) {
+            first_run = 0;
+            printf("\nTIME:%s\n", ts);
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "total_time",
+                   "max_time", "min_time", "counts", "reason");
+            printf(
+                "------------ ------------ ------------ ------------ "
+                "------------ "
+                "------------\n");
+        }
+        // Print the current entry
+        err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup exit_value: %d\n", err);
+            return -1;
+        }
+        printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", next_key.pid,
+               NS_TO_MS_WITH_DECIMAL(exit_value.total_time),
+               NS_TO_MS_WITH_DECIMAL(exit_value.max_time),
+               NS_TO_MS_WITH_DECIMAL(exit_value.min_time), exit_value.count,
+               getExitReasonName(next_key.reason));
+
+        // Move to the next key
+        lookup_key = next_key;
+    }
+    memset(&lookup_key, 0, sizeof(struct exit_key));
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        err = bpf_map_delete_elem(fd, &next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup counters: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -806,8 +843,9 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
-        // OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);  // 输出间隔
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
+        sleep(3);
+        err = print_exit_map(skel);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;
@@ -826,7 +864,7 @@ int main(int argc, char **argv) {
         if (err < 0) {
             printf("Save count dirty page map to file fail: %d\n", err);
             goto cleanup;
-        }else{
+        } else {
             printf("\nSave count dirty page map to file success!\n");
             goto cleanup;
         }
