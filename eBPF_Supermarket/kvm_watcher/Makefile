@@ -7,6 +7,7 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
 APP = src/kvm_watcher
+
 OPTIONS = -f -w -n -d -e
 
 # 共同规则1
@@ -84,5 +85,4 @@ endif
 clean:
 	cd src && rm -f *.o *.skel.h 
 	sudo rm -rf $(notdir $(APP)) include/vmlinux.h temp*
-
 

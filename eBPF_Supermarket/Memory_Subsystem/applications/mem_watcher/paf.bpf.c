@@ -1,4 +1,3 @@
-
 /* 请一定注意vmlinux.h头文件是依赖于特定架构的，本机编译的时候需要自行生成，
 生成方法：
 1、切换至本代码../../vmlinux/你的架构目录下；
@@ -14,6 +13,14 @@
 #include "paf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256 * 1024);
+	__type(key, int);
+	__type(value, int);
+} last_val SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -32,6 +39,18 @@ int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int a
 	pid_t pid = bpf_get_current_pid_tgid() >> 32;
 	if (pid == user_pid)
 		return 0;
+
+	int val = 1;
+	int flag = (int)gfp_mask;
+	int *last_flag;
+	last_flag = bpf_map_lookup_elem(&last_val, &flag);
+	if (!last_flag) {
+		bpf_map_update_elem(&last_val, &flag, &val, BPF_ANY);
+	}
+	else if(*last_flag == val) {
+		return 0;
+	}
+
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;
