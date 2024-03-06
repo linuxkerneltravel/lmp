@@ -68,20 +68,9 @@ def get_args():
 
 args = get_args()
 
-
-def save_fla(tex):
-    from subprocess import Popen, PIPE
-    p = Popen("flamegraph.pl > stack.svg", shell=True, stdin=PIPE)
-    p.stdin.write(tex.encode())
-    p.stdin.close()
-    p.wait()
-
 if args.report:
     with open(mem_path, "r") as file:
         print(file.read())
-    # if args.flame:
-    #     save_fla(tex)
-    # else:
     from os import remove
     remove(mem_path)
     exit()

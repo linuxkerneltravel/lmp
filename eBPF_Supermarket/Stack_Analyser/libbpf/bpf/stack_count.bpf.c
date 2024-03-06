@@ -1,4 +1,22 @@
-#include "../libbpf-bootstrap/vmlinux/vmlinux.h"
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: GaoYixiang
+//
+// 内核态eBPF的通用的调用栈计数代码
+
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
@@ -6,7 +24,7 @@
 #include "../include/sa_ebpf.h"
 #include "../include/task.h"
 
-DeclareCommonMaps(stack_tuple);
+DeclareCommonMaps(u32);
 DeclareCommonVar();
 
 // 传进来的参数
@@ -16,34 +34,21 @@ const char LICENSE[] SEC("license") = "GPL";
 
 static int handle_func(void *ctx)
 {
-
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
     ignoreKthread(curr);
 
-    stack_tuple key = {};
     u32 pid = get_task_ns_pid(curr); // 利用帮助函数获得当前进程的pid
     if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
 
     u32 tgid = get_task_ns_tgid(curr);                    // 利用帮助函数获取进程的tgid
     bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY); // 将pid_tgid表中的pid选项更新为tgid,若没有该表项，则创建
-    comm *p = bpf_map_lookup_elem(&pid_comm, &pid);       // p指向pid_comm哈希表中的pid表项对应的value
-    if (!p)                                               // 如果p不为空，获取当前进程名保存至name中，如果pid_comm当中不存在pid name项，则更新
+
+    if (!bpf_map_lookup_elem(&pid_comm, &pid))
     {
         comm name;
         bpf_get_current_comm(&name, COMM_LEN);
         bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
-        p = &name;
-    }
-    key.name = *p;
-    u32 *t = bpf_map_lookup_elem(&pid_tgid, &pid);
-    if (!t)
-    {
-        key.tgid = 0xffffffff;
-    }
-    else
-    {
-        key.tgid = *t;
     }
 
     psid apsid = {
@@ -51,17 +56,18 @@ static int handle_func(void *ctx)
         .usid = u ? USER_STACK : -1,
         .ksid = k ? KERNEL_STACK : -1,
     };
-    stack_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid); // d指向psid_count表当中的apsid表项的值
 
-    if (!d)
+    u32 *cnt = bpf_map_lookup_elem(&psid_count, &apsid);
+    if (!cnt)
     {
-        stack_tuple nd = {.count = 1, .name = key.name, .tgid = key.tgid};
-        bpf_map_update_elem(&psid_count, &apsid, &nd, BPF_NOEXIST);
+        u32 ONE = 1;
+        bpf_map_update_elem(&psid_count, &apsid, &ONE, BPF_NOEXIST);
     }
     else
     {
-        d->count++;
+        (*cnt)++;
     }
+
     return 0;
 }
 
