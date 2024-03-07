@@ -33,12 +33,7 @@ jobs:
           cp ../make.sh ./
           rm ./example/meson.build
           cp ../meson.build ./example/
-          mkdir ./build/
-          cd ./build/
-          meson ../
-          meson configure -D disable-mtab=true
-          ninja
-          sudo ninja install
+          bash ./make.sh
           cd ./example/
           mkdir ./yourdir
           ./fusedemo ./yourdir
