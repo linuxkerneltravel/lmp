@@ -39,7 +39,7 @@ jobs:
           meson configure -D disable-mtab=true
           ninja
           sudo ninja install
-          cd ./build/example/
+          cd ./example/
           mkdir ./yourdir
           ./fusedemo ./yourdir
           df -T ./yourdir
