@@ -31,10 +31,11 @@ proc_image 工具的参数信息：
 | -t, --time=TIME-SEC  | 设置程序的最大运行时间（0表示无限），默认一直运行 |
 | -c, --cpuid=CPUID    | 为每CPU进程设置，其他进程不需要设置该参数         |
 | -r, --resource        | 采集进程的资源使用情况，包括CPU利用率、内存利用率、每秒读写字节数（可持续开发）                           |
-| -s, --syscall         | 采集进程在on_CPU时间段内的系统调用序列                    |
+| -s, --syscall         | 采集进程的系统调用序列信息                    |
 | -l, --lock           | 采集进程持有的用户态锁信息，包括用户态互斥锁、用户态读写锁（可持续开发）                      |
 | -q, --quote          | 在参数周围添加引号(")                             |
 | -k, --keytime        | 采集进程关键时间点的相关信息，包括execve、exit、fork、vfork、pthread_create       |
+| -S, --schedule         | 采集进程的调度信息                    |
 | -a, --all     | 启动所有的采集进程数据的功能                      |
 | -h, --help           | 显示帮助信息                                      |
 
@@ -44,10 +45,11 @@ tools文件夹中的eBPF程序是按照进程生命周期中数据的类型分�
 
 | 工具            | 描述                            |
 | --------------- | ------------------------------- |
-| lifecycle_image | 对进程上下CPU进行画像           |
+| resource_image | 对进程的资源使用情况进行画像           |
 | lock_image      | 对进程/线程持有锁的区间进行画像 |
 | keytime_image   | 对进程的关键时间点进行画像      |
-| newlife_image   | 对新创建进程或线程进行画像      |
+| syscall_image   | 对进程的系统调用序列进行画像      |
+| schedule_image   | 对进程的调度信息进行画像      |
 
 ## 五、test_proc 测试程序
 

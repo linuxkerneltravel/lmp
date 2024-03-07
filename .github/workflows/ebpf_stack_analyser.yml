@@ -25,7 +25,6 @@ jobs:
         run: |
           git submodule update --init --recursive
           sudo apt install clang libelf1 libelf-dev zlib1g-dev
-          sudo cp eBPF_Supermarket/Stack_Analyser/FlameGraph/* /usr/bin/
         
       - name: Run app with native lib
         run: |
@@ -56,6 +55,7 @@ jobs:
           python -m pip install --upgrade pip
           sudo python -m pip install pyod
           sudo python -m pip install psutil
+          sudo apt update
           sudo apt-get install -y linux-headers-$(uname -r)
           sudo apt-get install -y python-is-python3
           sudo apt-get install -y bison build-essential cmake flex git libedit-dev libllvm11 llvm-11-dev libclang-11-dev zlib1g-dev libelf-dev libfl-dev python3-distutils

@@ -43,4 +43,6 @@ long elf_find_func_offset(Elf *elf, const char *binary_path, const char *name)
 
 [Re: [PATCH v2\] libbpf: Improve version handling when attaching uprobe - Andrii Nakryiko (kernel.org)](https://lore.kernel.org/lkml/CAEf4BzZTrjjyyOm3ak9JsssPSh6T_ZmGd677a2rt5e5rBLUrpQ@mail.gmail.com/)
 
-目前这个 PATCH 还在讨论中，libbpf官网源码并未修改
+这个 PATCH 还在讨论中，libbpf官网源码并未修改
+
+目前这个问题已经被解决，见pr: https://patchwork.kernel.org/project/netdevbpf/cover/20230904022444.1695820-1-hengqi.chen@gmail.com/

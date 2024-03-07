@@ -29,71 +29,120 @@
 #include <unistd.h>
 #include "../include/kvm_watcher.h"
 #include "kvm_watcher.skel.h"
-//定义具体的退出原因
-struct ExitReason exitReasons[] = {{0, "EXCEPTION_NMI"},
-                                   {1, "EXTERNAL_INTERRUPT"},
-                                   {2, "TRIPLE_FAULT"},
-                                   {3, "INIT_SIGNAL"},
-                                   {4, "SIPI_SIGNAL"},
-                                   {7, "INTERRUPT_WINDOW"},
-                                   {8, "NMI_WINDOW"},
-                                   {9, "TASK_SWITCH"},
-                                   {10, "CPUID"},
-                                   {12, "HLT"},
-                                   {13, "INVD"},
-                                   {14, "INVLPG"},
-                                   {15, "RDPMC"},
-                                   {16, "RDTSC"},
-                                   {18, "VMCALL"},
-                                   {19, "VMCLEAR"},
-                                   {20, "VMLAUNCH"},
-                                   {21, "VMPTRLD"},
-                                   {22, "VMPTRST"},
-                                   {23, "VMREAD"},
-                                   {24, "VMRESUME"},
-                                   {25, "VMWRITE"},
-                                   {26, "VMOFF"},
-                                   {27, "VMON"},
-                                   {28, "CR_ACCESS"},
-                                   {29, "DR_ACCESS"},
-                                   {30, "IO_INSTRUCTION"},
-                                   {31, "MSR_READ"},
-                                   {32, "MSR_WRITE"},
-                                   {33, "INVALID_STATE"},
-                                   {34, "MSR_LOAD_FAIL"},
-                                   {36, "MWAIT_INSTRUCTION"},
-                                   {37, "MONITOR_TRAP_FLAG"},
-                                   {39, "MONITOR_INSTRUCTION"},
-                                   {40, "PAUSE_INSTRUCTION"},
-                                   {41, "MCE_DURING_VMENTRY"},
-                                   {43, "TPR_BELOW_THRESHOLD"},
-                                   {44, "APIC_ACCESS"},
-                                   {45, "EOI_INDUCED"},
-                                   {46, "GDTR_IDTR"},
-                                   {47, "LDTR_TR"},
-                                   {48, "EPT_VIOLATION"},
-                                   {49, "EPT_MISCONFIG"},
-                                   {50, "INVEPT"},
-                                   {51, "RDTSCP"},
-                                   {52, "PREEMPTION_TIMER"},
-                                   {53, "INVVPID"},
-                                   {54, "WBINVD"},
-                                   {55, "XSETBV"},
-                                   {56, "APIC_WRITE"},
-                                   {57, "RDRAND"},
-                                   {58, "INVPCID"},
-                                   {59, "VMFUNC"},
-                                   {60, "ENCLS"},
-                                   {61, "RDSEED"},
-                                   {62, "PML_FULL"},
-                                   {63, "XSAVES"},
-                                   {64, "XRSTORS"},
-                                   {67, "UMWAIT"},
-                                   {68, "TPAUSE"},
-                                   {74, "BUS_LOCK"},
-                                   {75, "NOTIFY"}};
+
+// 创建并打开临时文件
+FILE *create_temp_file(const char *filename) {
+    const char *directory = "./temp";
+    char filepath[256];
+
+    // 构建文件的完整路径
+    snprintf(filepath, sizeof(filepath), "%s/%s", directory, filename);
+
+    // 创建目录，如果不存在
+    if (mkdir(directory, 0777) == -1 && errno != EEXIST) {
+        perror("Failed to create directory");
+        return NULL;
+    }
+
+    // 尝试打开文件
+    FILE *output = fopen(filepath, "w");
+    if (!output) {
+        perror("Failed to open output file");
+        return NULL;
+    }
+
+    return output;
+}
+
+const char *getHypercallName(int number) {
+    struct Hypercall {
+        int number;
+        const char *name;
+    };
+
+    // 定义超级调用 include\uapi\linux\kvm_para.h
+    struct Hypercall hypercalls[] = {
+        {1, "VAPIC_POLL_IRQ"}, {5, "KICK_CPU"},     {9, "CLOCK_PAIRING"},
+        {10, "SEND_IPI"},      {11, "SCHED_YIELD"}, {12, "MAP_GPA_RANGE"}};
+
+    for (int i = 0; i < sizeof(hypercalls) / sizeof(hypercalls[0]); i++) {
+        if (hypercalls[i].number == number) {
+            return hypercalls[i].name;
+        }
+    }
+    return "Unknown";  // 如果找不到对应的超级调用号，返回一个默认值
+}
 
 const char *getExitReasonName(int number) {
+    struct ExitReason {
+        int number;
+        const char *name;
+    };
+
+    // 定义具体的退出原因 arch/x86/include/uapi/asm/vmx.h
+    struct ExitReason exitReasons[] = {{0, "EXCEPTION_NMI"},
+                                       {1, "EXTERNAL_INTERRUPT"},
+                                       {2, "TRIPLE_FAULT"},
+                                       {3, "INIT_SIGNAL"},
+                                       {4, "SIPI_SIGNAL"},
+                                       {7, "INTERRUPT_WINDOW"},
+                                       {8, "NMI_WINDOW"},
+                                       {9, "TASK_SWITCH"},
+                                       {10, "CPUID"},
+                                       {12, "HLT"},
+                                       {13, "INVD"},
+                                       {14, "INVLPG"},
+                                       {15, "RDPMC"},
+                                       {16, "RDTSC"},
+                                       {18, "VMCALL"},
+                                       {19, "VMCLEAR"},
+                                       {20, "VMLAUNCH"},
+                                       {21, "VMPTRLD"},
+                                       {22, "VMPTRST"},
+                                       {23, "VMREAD"},
+                                       {24, "VMRESUME"},
+                                       {25, "VMWRITE"},
+                                       {26, "VMOFF"},
+                                       {27, "VMON"},
+                                       {28, "CR_ACCESS"},
+                                       {29, "DR_ACCESS"},
+                                       {30, "IO_INSTRUCTION"},
+                                       {31, "MSR_READ"},
+                                       {32, "MSR_WRITE"},
+                                       {33, "INVALID_STATE"},
+                                       {34, "MSR_LOAD_FAIL"},
+                                       {36, "MWAIT_INSTRUCTION"},
+                                       {37, "MONITOR_TRAP_FLAG"},
+                                       {39, "MONITOR_INSTRUCTION"},
+                                       {40, "PAUSE_INSTRUCTION"},
+                                       {41, "MCE_DURING_VMENTRY"},
+                                       {43, "TPR_BELOW_THRESHOLD"},
+                                       {44, "APIC_ACCESS"},
+                                       {45, "EOI_INDUCED"},
+                                       {46, "GDTR_IDTR"},
+                                       {47, "LDTR_TR"},
+                                       {48, "EPT_VIOLATION"},
+                                       {49, "EPT_MISCONFIG"},
+                                       {50, "INVEPT"},
+                                       {51, "RDTSCP"},
+                                       {52, "PREEMPTION_TIMER"},
+                                       {53, "INVVPID"},
+                                       {54, "WBINVD"},
+                                       {55, "XSETBV"},
+                                       {56, "APIC_WRITE"},
+                                       {57, "RDRAND"},
+                                       {58, "INVPCID"},
+                                       {59, "VMFUNC"},
+                                       {60, "ENCLS"},
+                                       {61, "RDSEED"},
+                                       {62, "PML_FULL"},
+                                       {63, "XSAVES"},
+                                       {64, "XRSTORS"},
+                                       {67, "UMWAIT"},
+                                       {68, "TPAUSE"},
+                                       {74, "BUS_LOCK"},
+                                       {75, "NOTIFY"}};
+
     for (int i = 0; i < sizeof(exitReasons) / sizeof(exitReasons[0]); i++) {
         if (exitReasons[i].number == number) {
             return exitReasons[i].name;
@@ -102,90 +151,7 @@ const char *getExitReasonName(int number) {
     return "Unknown";  // 如果找不到对应的退出原因，返回一个默认值
 }
 
-typedef struct {
-    int exit_reason;
-    char info[256];
-    unsigned long long total_dur;
-    unsigned long long avg_dur;
-} ExitInfo;
-
-// 链表节点
-typedef struct Node {
-    ExitInfo data;
-    struct Node *next;
-} Node;
-
-Node *exitInfoBuffer = NULL;
-
-void addExitInfo(Node **head, int exit_reason, const char *info,
-                 unsigned long long dur, int count) {
-    Node *newNode = (Node *)malloc(sizeof(Node));
-    newNode->data.exit_reason = exit_reason;
-    strncpy(newNode->data.info, info, sizeof(newNode->data.info));
-    newNode->next = NULL;
-    newNode->data.total_dur = dur;
-    newNode->data.avg_dur = dur / count;
-
-    // 检查是否已经存在相同 exit reason 的信息
-    Node *current = *head;
-    Node *previous = NULL;
-    while (current != NULL) {
-        if (current->data.exit_reason == exit_reason) {
-            // 更新已存在的信息
-            strncpy(current->data.info, info, sizeof(current->data.info));
-            current->data.total_dur = dur + current->data.total_dur;
-            current->data.avg_dur = current->data.total_dur / count;
-            free(newNode);  // 释放新节点，因为信息已经更新
-            return;
-        }
-        previous = current;
-        current = current->next;
-    }
-    // 没有找到相同的 exit reason，将新节点添加到链表
-    if (previous != NULL) {
-        previous->next = newNode;
-    } else {
-        *head = newNode;
-    }
-}
-
-// 查找指定退出原因的信息
-const char *findExitInfo(Node *head, int exit_reason) {
-    Node *current = head;
-    while (current != NULL) {
-        if (current->data.exit_reason == exit_reason) {
-            return current->data.info;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// 释放链表
-void freeExitInfoList(Node *head) {
-    while (head != NULL) {
-        Node *temp = head;
-        head = head->next;
-        free(temp);
-    }
-}
-//打印退出的信息
-void printExitInfo(Node *head) {
-    Node *current = head;
-    CLEAR_SCREEN();
-    printf(
-        "-----------------------------------------------------------------"
-        "----------\n");
-    printf("%-21s %-18s %-8s %-8s %-13s \n", "EXIT_REASON", "COMM", "PID",
-           "COUNT", "AVG_DURATION(ns)");
-    while (current != NULL) {
-        printf("%-2d/%-18s %-33s %-13llu \n", current->data.exit_reason,
-               getExitReasonName(current->data.exit_reason), current->data.info,
-               current->data.avg_dur);
-        current = current->next;
-    }
-}
-//检查具有给定 PID 的进程是否存在
+// 检查具有给定 PID 的进程是否存在
 int doesVmProcessExist(pid_t pid) {
     char proc_name[256];
     snprintf(proc_name, sizeof(proc_name), "/proc/%d/cmdline", pid);
@@ -197,7 +163,7 @@ int doesVmProcessExist(pid_t pid) {
             if (proc_name[size - 1] == '\n') {
                 proc_name[size - 1] = '\0';  // Remove newline character
             }
-            //查看是否进程文件中是否出现"qemu-system"字符串
+            // 查看是否进程文件中是否出现"qemu-system"字符串
             if (strstr(proc_name, "qemu-system") != NULL) {
                 fclose(file);
                 return 1;  // VmProcess name contains the target string
@@ -214,39 +180,28 @@ int doesVmProcessExist(pid_t pid) {
     return 0;  // VmProcess with the given PID not found
 }
 
-// 结构用于保存键值对
+// 定义键值对结构体
 struct KeyValPair {
-    unsigned long long key;
+    struct dirty_page_info key;
     unsigned int value;
 };
 
-// 比较函数，用于 qsort
+// 比较函数，用于排序
 int compare(const void *a, const void *b) {
-    return ((struct KeyValPair *)b)->value - ((struct KeyValPair *)a)->value;
+    return (((struct KeyValPair *)b)->value - ((struct KeyValPair *)a)->value);
 }
-//保存脏页信息到./temp/dirty_temp文件中
+
+// 保存脏页信息到文件
 int save_count_dirtypagemap_to_file(struct bpf_map *map) {
-    const char *directory = "./temp";
-    const char *filename = "./temp/dirty_temp";
-
-    // 创建目录，如果不存在
-    if (mkdir(directory, 0777) == -1) {
-        // 如果目录已经存在，这里的错误是预期的，可以忽略
-        // 否则，打印错误信息并返回
-        if (errno != EEXIST) {
-            perror("Failed to create directory");
-            return -1;
-        }
-    }
-
-    FILE *output = fopen(filename, "w");
+    const char *filename = "dirty_temp";
+    FILE *output = create_temp_file(filename);
     if (!output) {
-        perror("Failed to open output file");
-        return -1;
+        fprintf(stderr, "Failed to create file in directory\n");
+        return 1;
     }
-
     int count_dirty_fd = bpf_map__fd(map);
-    unsigned long long lookup_key = -1, next_key;
+    struct dirty_page_info lookup_key = {};
+    struct dirty_page_info next_key = {};
     unsigned int dirty_counts;
 
     // 保存键值对到数组
@@ -276,21 +231,28 @@ int save_count_dirtypagemap_to_file(struct bpf_map *map) {
             free(pairs);
             return -1;
         }
+
+        // 更新 lookup_key
+        lookup_key = next_key;
     }
 
     // 对数组进行排序
     qsort(pairs, size, sizeof(struct KeyValPair), compare);
 
     // 输出到文件
+    fprintf(output, "%-10s %-10s %-10s %-10s %s\n", "PID", "GFN", "REL_GFN",
+            "SLOT_ID", "COUNTS");
     for (size_t i = 0; i < size; i++) {
-        fprintf(output, "%llx             %d\n", pairs[i].key, pairs[i].value);
+        fprintf(output, "%-10d %-10llx %-10llx %-10d %u\n", pairs[i].key.pid,
+                pairs[i].key.gfn, pairs[i].key.rel_gfn, pairs[i].key.slot_id,
+                pairs[i].value);
     }
 
     fclose(output);
     free(pairs);
     return 0;
 }
-//定义env结构体，用来存储程序中的事件信息
+// 定义env结构体，用来存储程序中的事件信息
 static struct env {
     bool execute_vcpu_wakeup;
     bool execute_exit;
@@ -299,7 +261,9 @@ static struct env {
     bool execute_mark_page_dirty;
     bool execute_page_fault;
     bool mmio_page_fault;
-    bool execute_pic;
+    bool execute_irqchip;
+    bool execute_irq_inject;
+    bool execute_hypercall;
     int monitoring_time;
     pid_t vm_pid;
     enum EventType event_type;
@@ -310,8 +274,10 @@ static struct env {
     .execute_halt_poll_ns = false,
     .execute_mark_page_dirty = false,
     .execute_page_fault = false,
-    .execute_pic = false,
+    .execute_irqchip = false,
+    .execute_irq_inject = false,
     .mmio_page_fault = false,
+    .execute_hypercall = false,
     .monitoring_time = 0,
     .vm_pid = -1,
     .event_type = NONE_TYPE,
@@ -321,7 +287,7 @@ const char *argp_program_version = "kvm_watcher 1.0";
 const char *argp_program_bug_address = "<nanshuaibo811@163.com>";
 const char argp_program_doc[] = "BPF program used for monitoring KVM event\n";
 int option_selected = 0;  // 功能标志变量,确保激活子功能
-//具体解释命令行参数
+// 具体解释命令行参数
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
     {"vm_exit", 'e', NULL, 0, "Monitoring the event of vm exit."},
@@ -331,19 +297,25 @@ static const struct argp_option opts[] = {
      "Monitor virtual machine dirty page information."},
     {"kvmmmu_page_fault", 'f', NULL, 0,
      "Monitoring the data of kvmmmu page fault."},
-    {"kvm_pic", 'i', NULL, 0, "Monitor the interrupt information in KVM VM."},
-    {"stat", 's', NULL, 0,
-     "Display statistical data.(The -e option must be specified.)"},
+    {"kvm_irqchip(software)", 'c', NULL, 0,
+     "Monitor the irqchip setting information in KVM VM."},
+    {"irq_inject(hardware)", 'i', NULL, 0,
+     "Monitor the virq injection information in KVM VM "},
+    {"hypercall", 'h', NULL, 0, "Monitor the hypercall information in KVM VM "},
     {"mmio", 'm', NULL, 0,
-     "Monitoring the data of mmio page fault..(The -f option must be "
+     "Monitoring the data of mmio page fault.(The -f option must be "
      "specified.)"},
     {"vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor."},
     {"monitoring_time", 't', "SEC", 0, "Time for monitoring."},
+    {NULL, 'H', NULL, OPTION_HIDDEN, "Show the full help"},
     {},
 };
-//解析命令行参数
+// 解析命令行参数
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
+        case 'H':
+            argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+            break;
         case 'w':
             SET_OPTION_AND_CHECK_USAGE(option_selected,
                                        env.execute_vcpu_wakeup);
@@ -362,15 +334,21 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         case 'f':
             SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_page_fault);
             break;
+        case 'c':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_irqchip);
+            break;
         case 'i':
-            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_pic);
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_irq_inject);
+            break;
+        case 'h':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_hypercall);
             break;
         case 's':
             if (env.execute_exit) {
                 env.ShowStats = true;
             } else {
                 fprintf(stderr, "The -e option must be specified.\n");
-                argp_usage(state);
+                argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
             }
             break;
         case 'm':
@@ -378,17 +356,17 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
                 env.mmio_page_fault = true;
             } else {
                 fprintf(stderr, "The -f option must be specified.\n");
-                argp_usage(state);
+                argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
             }
             break;
         case 't':
             env.monitoring_time = strtol(arg, NULL, 10);
             if (env.monitoring_time <= 0) {
                 fprintf(stderr, "Invalid duration: %s\n", arg);
-                argp_usage(state);
+                argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
             } else if (!option_selected) {
                 fprintf(stderr, "No monitoring options activated!\n");
-                argp_usage(state);
+                argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
             } else {
                 alarm(env.monitoring_time);
             }
@@ -397,18 +375,18 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             env.vm_pid = strtol(arg, NULL, 10);
             if (env.vm_pid <= 0 || doesVmProcessExist(env.vm_pid) == 0) {
                 fprintf(stderr, "Invalid vm_pid: %s\n", arg);
-                argp_usage(state);
+                argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
             }
             break;
         case ARGP_KEY_ARG:
-            argp_usage(state);
+            argp_state_help(state, stdout, ARGP_HELP_STD_HELP);
             break;
         default:
             return ARGP_ERR_UNKNOWN;
     }
     return 0;
 }
-//定义解析参数的处理函数
+// 定义解析参数的处理函数
 static const struct argp argp = {
     .options = opts,
     .parser = parse_arg,
@@ -421,7 +399,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
 }
 
 static volatile bool exiting = false;
-//设置信号来控制是否打印信息
+// 设置信号来控制是否打印信息
 static void sig_handler(int sig) {
     exiting = true;
 }
@@ -441,35 +419,28 @@ static int determineEventType(struct env *env) {
         env->event_type = MARK_PAGE_DIRTY;
     } else if (env->execute_page_fault) {
         env->event_type = PAGE_FAULT;
-    } else if (env->execute_pic) {
-        env->event_type = PIC;
+    } else if (env->execute_irqchip) {
+        env->event_type = IRQCHIP;
+    } else if (env->execute_irq_inject) {
+        env->event_type = IRQ_INJECT;
+    } else if (env->execute_hypercall) {
+        env->event_type = HYPERCALL;
     } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
     return 0;
 }
-//获取中断控制器的类型
-const char *get_irqchip(unsigned char chip) {
-    if (chip >= KVM_NR_IRQCHIPS) {
-        return "Invalid";
-    } else if (chip == KVM_IRQCHIP_PIC_MASTER) {
-        return "master";
-    } else if (chip == KVM_IRQCHIP_PIC_SLAVE) {
-        return "slave";
-    } else if (chip == KVM_IRQCHIP_IOAPIC) {
-        return "ioapic";
-    } else {
-        return "Unknown";
-    }
-}
+
 /*环形缓冲区的处理函数，用来打印ringbuff中的数据（最后展示的数据行）*/
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct common_event *e = data;
+    double timestamp_ms = NS_TO_MS_WITH_DECIMAL(e->time);
     switch (env.event_type) {
         case VCPU_WAKEUP: {
             // 使用 e->vcpu_wakeup_data 访问 VCPU_WAKEUP 特有成员
-            printf("%-18llu %-20llu %-15s %-6d/%-8d %-10d %-10s %-10s\n",
-                   e->time, NS_TO_US(e->vcpu_wakeup_data.dur_hlt_ns),
+            printf("%-18.6f %-20.6f %-15s %-6d/%-8d %-10d %-10s %-10s\n",
+                   timestamp_ms,
+                   NS_TO_MS_WITH_DECIMAL(e->vcpu_wakeup_data.dur_hlt_ns),
                    e->process.comm, e->process.pid, e->process.tid,
                    e->vcpu_wakeup_data.vcpu_id,
                    e->vcpu_wakeup_data.waited ? "wait" : "poll",
@@ -477,28 +448,13 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case EXIT: {
-            char info_buffer[256];
-            // 使用 e->exit_data 访问 EXIT 特有成员
-            printf("%-18llu %-2d/%-18s %-18s %-6u/%-8u %-8d %-13llu \n",
-                   e->time, e->exit_data.reason_number,
-                   getExitReasonName(e->exit_data.reason_number),
-                   e->process.comm, e->process.pid, e->process.tid,
-                   e->exit_data.count, e->exit_data.duration_ns);
-
-            if (env.ShowStats) {
-                snprintf(info_buffer, sizeof(info_buffer), "%-18s %-8u %-8d",
-                         e->process.comm, e->process.pid, e->exit_data.count);
-                addExitInfo(&exitInfoBuffer, e->exit_data.reason_number,
-                            info_buffer, e->exit_data.duration_ns,
-                            e->exit_data.count);
-            }
             break;
         }
         case HALT_POLL: {
             // 使用 e->halt_poll_data 访问 HALT_POLL 特有成员
-            printf("%-18llu %-15s %-6d/%-8d %-10s %-7d %-7d --> %d \n", e->time,
-                   e->process.comm, e->process.pid, e->process.tid,
-                   e->halt_poll_data.grow ? "grow" : "shrink",
+            printf("%-18.6f %-15s %-6d/%-8d %-10s %-7d %-7d --> %d \n",
+                   timestamp_ms, e->process.comm, e->process.pid,
+                   e->process.tid, e->halt_poll_data.grow ? "grow" : "shrink",
                    e->halt_poll_data.vcpu_id, e->halt_poll_data.old,
                    e->halt_poll_data.new);
             break;
@@ -506,8 +462,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         case MARK_PAGE_DIRTY: {
             // 使用 e->mark_page_dirty_data 访问 MARK_PAGE_DIRTY 特有成员
             printf(
-                "%-18llu %-15s %-6d/%-8d %-10llx %-10llx %-10lu %-15lx %d \n",
-                e->time, e->process.comm, e->process.pid, e->process.tid,
+                "%-18.6f %-15s %-6d/%-8d %-10llx %-10llx %-10llu %-15llx %d \n",
+                timestamp_ms, e->process.comm, e->process.pid, e->process.tid,
                 e->mark_page_dirty_data.gfn, e->mark_page_dirty_data.rel_gfn,
                 e->mark_page_dirty_data.npages,
                 e->mark_page_dirty_data.userspace_addr,
@@ -516,9 +472,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
         case PAGE_FAULT: {
             // 使用 e->page_fault_data 访问 PAGE_FAULT 特有成员
-            printf("%-18llu %-15s %-10u %-12llx %-6u %-10llu ", e->time,
+            printf("%-18.6f %-15s %-10u %-12llx %-6u %-10.4f ", timestamp_ms,
                    e->process.comm, e->process.pid, e->page_fault_data.addr,
-                   e->page_fault_data.count, e->page_fault_data.delay);
+                   e->page_fault_data.count,
+                   NS_TO_US_WITH_DECIMAL(e->page_fault_data.delay));
             if (e->page_fault_data.error_code & (1ULL << PFERR_RSVD_BIT)) {
                 printf("%-20s %-17s %-10s", "-", "-", "-");
             } else {
@@ -551,17 +508,118 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             printf("\n");
             break;
         }
-        case PIC: {
-            // 使用 e->pic_data 访问 PAGE_FAULT 特有成员
-            printf(
-                "%-18llu %-15s %-10d %-10llu %-10s %-10u %-10s %-10s %-10d "
-                "%-10s\n",
-                e->time, e->process.comm, e->process.pid, e->pic_data.delay,
-                get_irqchip(e->pic_data.chip), e->pic_data.pin,
-                (e->pic_data.elcr & (1 << e->pic_data.pin)) ? "level" : "edge",
-                (e->pic_data.imr & (1 << e->pic_data.pin)) ? "masked" : "-",
-                e->pic_data.irq_source_id,
-                e->pic_data.ret == 0 ? "coalesced" : "-");
+        case IRQCHIP: {
+            const char *delivery_modes[] = {"Fixed", "LowPrio", "SMI",
+                                            "Res3",  "NMI",     "INIT",
+                                            "SIPI",  "ExtINT"};
+            // 使用 e->irqchip_data 访问 IRQCHIP 特有成员
+            switch (e->irqchip_data.irqchip_type) {
+                case KVM_IRQCHIP_PIC:
+                    printf(
+                        "%-18.6f %-15s %-10d %-10llu %-10s/%-3u "
+                        "%-3s/%-6s "
+                        "%-7s|%-8s|%-5s|%-6s|"
+                        "%s\n",
+                        timestamp_ms, e->process.comm, e->process.pid,
+                        e->irqchip_data.delay,
+                        e->irqchip_data.chip ? "PIC slave" : "PIC master",
+                        e->irqchip_data.pin, "-", "-", "-", "-",
+                        (e->irqchip_data.elcr & (1 << e->irqchip_data.pin))
+                            ? "level"
+                            : "edge",
+                        (e->irqchip_data.imr & (1 << e->irqchip_data.pin))
+                            ? "masked"
+                            : "-",
+                        e->irqchip_data.ret == 0 ? "coalesced" : "-");
+                    break;
+                case KVM_IRQCHIP_IOAPIC:
+                    printf(
+                        "%-18.6f %-15s %-10d %-10llu %-10s/%-3u "
+                        "%#-3x/%-6u "
+                        "%-7s|%-8s|%-5s|%-6s|"
+                        "%s\n",
+                        timestamp_ms, e->process.comm, e->process.pid,
+                        e->irqchip_data.delay, "IOAPIC", e->irqchip_data.pin,
+                        (unsigned char)(e->irqchip_data.ioapic_bits >> 56),
+                        (unsigned char)e->irqchip_data.ioapic_bits,
+                        delivery_modes[e->irqchip_data.ioapic_bits >> 8 & 0x7],
+                        (e->irqchip_data.ioapic_bits & (1 << 11)) ? "logical"
+                                                                  : "physical",
+                        (e->irqchip_data.ioapic_bits & (1 << 15)) ? "level"
+                                                                  : "edge",
+                        (e->irqchip_data.ioapic_bits & (1 << 16)) ? "masked"
+                                                                  : "-",
+                        e->irqchip_data.ret == 0 ? "coalesced" : "-");
+                    break;
+
+                case KVM_MSI:
+                    printf(
+                        "%-18.6f %-15s %-10d %-10llu %-10s/%-3s "
+                        "%#-3llx/%-6u "
+                        "%-7s|%-8s|%-5s|%-6s|"
+                        "%s\n",
+                        timestamp_ms, e->process.comm, e->process.pid,
+                        e->irqchip_data.delay, "MSI", "-",
+                        (unsigned char)(e->irqchip_data.address >> 12) |
+                            ((e->irqchip_data.address >> 32) & 0xffffff00),
+                        (unsigned char)e->irqchip_data.data,
+                        delivery_modes[e->irqchip_data.data >> 8 & 0x7],
+                        (e->irqchip_data.address & (1 << 2)) ? "logical"
+                                                             : "physical",
+                        (e->irqchip_data.data & (1 << 15)) ? "level" : "edge",
+                        (e->irqchip_data.address & (1 << 3)) ? "rh" : "-", "-");
+                    break;
+
+                default:
+                    break;
+            }
+            break;
+        }
+        case IRQ_INJECT: {
+            printf("%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
+                   timestamp_ms, e->process.comm, e->process.pid,
+                   e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
+                   e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
+                   e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            break;
+        }
+        case HYPERCALL: {
+            const char *filename = "./temp/hc_temp";
+            FILE *output = fopen(filename, "a");
+            if (!output) {
+                perror("Failed to open output file");
+                return -1;
+            }
+            fprintf(output, "%-18.6f %-15s %-10d %-10d %-10s %-11llu",
+                    timestamp_ms, e->process.comm, e->process.pid,
+                    e->hypercall_data.vcpu_id,
+                    getHypercallName(e->hypercall_data.hc_nr),
+                    e->hypercall_data.hypercalls);
+            if (e->hypercall_data.hc_nr == 5) {
+                fprintf(output, "apic_id:%llu\n", e->hypercall_data.a1);
+            } else if (e->hypercall_data.hc_nr == 9) {
+                fprintf(
+                    output, "GPA:%#llx CLOCK_TYPE:%s\n", e->hypercall_data.a0,
+                    e->hypercall_data.a1 == 0 ? "KVM_CLOCK_PAIRING_WALLCLOCK"
+                                              : "");
+            } else if (e->hypercall_data.hc_nr == 10) {
+                fprintf(output,
+                        "ipi_bitmap_low:%#llx,ipi_bitmap_high:%#llx,min(apic_"
+                        "id):%llu,icr:%#llx\n",
+                        e->hypercall_data.a0, e->hypercall_data.a1,
+                        e->hypercall_data.a2, e->hypercall_data.a3);
+            } else if (e->hypercall_data.hc_nr == 11) {
+                fprintf(output, "dest apic_id:%llu\n", e->hypercall_data.a0);
+            } else if (e->hypercall_data.hc_nr == 12) {
+                fprintf(output,
+                        "GPA start:%#llx,PAGE_NR(4KB):%llu,Attributes:%#llx\n",
+                        e->hypercall_data.a0, e->hypercall_data.a1,
+                        e->hypercall_data.a2);
+            } else {
+                fprintf(output, "\n");
+            }
+            fclose(output);
+            break;
         }
         default:
             // 处理未知事件类型
@@ -578,39 +636,55 @@ static int print_event_head(struct env *env) {
     }
     switch (env->event_type) {
         case VCPU_WAKEUP:
-            printf("%-18s %-20s %-15s %-15s %-10s %-10s %-10s\n", "TIME(ns)",
-                   "DUR_HALT(us)", "COMM", "PID/TID", "VCPU_ID", "WAIT/POLL",
+            printf("%-18s %-20s %-15s %-15s %-10s %-10s %-10s\n", "TIME(ms)",
+                   "DUR_HALT(ms)", "COMM", "PID/TID", "VCPU_ID", "WAIT/POLL",
                    "VAILD?");
             break;
         case EXIT:
-            printf("%-18s %-21s %-18s %-15s %-8s %-13s \n", "TIME(ns)",
-                   "EXIT_REASON", "COMM", "PID/TID", "COUNT", "DURATION(ns)");
             break;
         case HALT_POLL:
-            printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ns)",
+            printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
                    "COMM", "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
             break;
         case MARK_PAGE_DIRTY:
             printf("%-18s %-15s %-15s %-10s %-10s %-10s %-10s %-10s\n",
-                   "TIME(ns)", "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
+                   "TIME(ms)", "COMM", "PID/TID", "GFN", "REL_GFN", "NPAGES",
                    "USERSPACE_ADDR", "SLOT_ID");
             break;
         case PAGE_FAULT:
             printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
-                   "TIMESTAMP", "COMM", "PID", "ADDRESS", "COUNT", "DELAY",
+                   "TIME(ms)", "COMM", "PID", "ADDRESS", "COUNT", "DELAY(us)",
                    "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
             break;
-        case PIC:
-            printf(
-                "%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n",
-                "TIMESTAMP", "COMM", "PID", "DELAY", "CHIP", "PIN", "TRIG_MODE",
-                "MASK", "SOURCE_ID", "COALESCE");
+        case IRQCHIP:
+            printf("%-18s %-15s %-10s %-10s %-14s %-10s %-10s\n", "TIME(ms)",
+                   "COMM", "PID", "DELAY", "CHIP/PIN", "DST/VEC", "OTHERS");
+            break;
+        case IRQ_INJECT:
+            printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
+                   "TIME(ms)", "COMM", "PID", "DELAY", "IRQ_NR", "VCPU_ID",
+                   "INJECTIONS", "TYPE");
+            break;
+        case HYPERCALL: {
+            const char *filename = "hc_temp";
+            FILE *output = create_temp_file(filename);
+            if (!output) {
+                fprintf(stderr, "Failed to create file in directory\n");
+                return 1;
+            }
+            fprintf(output, "%-18s %-15s %-10s %-10s %-10s %-10s %-10s\n",
+                    "TIME(ms)", "COMM", "PID", "VCPU_ID", "NAME", "HYPERCALLS",
+                    "ARGS");
+            fclose(output);
+            break;
+        }
         default:
             // Handle default case or display an error message
             break;
     }
     return 0;
 }
+
 /*通过env结构体的属性真值来判断是否加载某个挂载函数*/
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
@@ -634,24 +708,155 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.fexit_handle_mmio_page_fault,
                               env.mmio_page_fault ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_kvm_pic_set_irq,
-                              env.execute_pic ? true : false);
+                              env.execute_irqchip ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_kvm_pic_set_irq,
-                              env.execute_pic ? true : false);
+                              env.execute_irqchip ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_ioapic_set_irq,
+                              env.execute_irqchip ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_kvm_ioapic_set_irq,
+                              env.execute_irqchip ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_set_msi_irq,
+                              env.execute_irqchip ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_kvm_set_msi_irq,
+                              env.execute_irqchip ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_vmx_inject_irq,
+                              env.execute_irq_inject ? true : false);
+    bpf_program__set_autoload(skel->progs.fexit_vmx_inject_irq,
+                              env.execute_irq_inject ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_emulate_hypercall,
+                              env.execute_hypercall ? true : false);
+}
+
+int print_hc_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.hc_map);
+    int count_fd = bpf_map__fd(skel->maps.hc_count);
+    int err;
+    struct hc_key lookup_key = {};
+    struct hc_key next_key = {};
+    struct hc_value hc_value = {};
+    struct tm *tm;
+    char ts[32];
+    time_t t;
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+    int first_run = 1;
+    // Iterate over the map
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first_run) {
+            first_run = 0;
+            printf(
+                "--------------------------------------------------------------"
+                "----------"
+                "\n");
+            printf("TIME:%s\n", ts);
+            printf("%-12s %-12s %-12s %-12s %-12s\n", "PID", "VCPU_ID", "NAME",
+                   "COUNTS", "HYPERCALLS");
+        }
+        // Print the current entry
+        err = bpf_map_lookup_elem(fd, &next_key, &hc_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup hc_value: %d\n", err);
+            return -1;
+        }
+        printf("%-12d %-12d %-12s %-12d %-12lld\n", next_key.pid,
+               next_key.vcpu_id, getHypercallName(next_key.nr), hc_value.counts,
+               hc_value.hypercalls);
+        // // Move to the next key
+        lookup_key = next_key;
+    }
+    memset(&lookup_key, 0, sizeof(struct hc_key));
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        err = bpf_map_delete_elem(fd, &next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup hc_map: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    memset(&lookup_key, 0, sizeof(struct hc_key));
+    while (!bpf_map_get_next_key(count_fd, &lookup_key, &next_key)) {
+        err = bpf_map_delete_elem(count_fd, &next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup hc_count: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    return 0;
+}
+
+int print_exit_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.exit_map);
+    int err;
+    struct exit_key lookup_key = {};
+    struct exit_key next_key = {};
+    struct exit_value exit_value;
+    struct tm *tm;
+    char ts[32];
+    time_t t;
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+    int first_run = 1;
+    // Iterate over the map
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first_run) {
+            first_run = 0;
+            printf("\nTIME:%s\n", ts);
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "total_time",
+                   "max_time", "min_time", "counts", "reason");
+            printf(
+                "------------ ------------ ------------ ------------ "
+                "------------ "
+                "------------\n");
+        }
+        // Print the current entry
+        err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup exit_value: %d\n", err);
+            return -1;
+        }
+        printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", next_key.pid,
+               NS_TO_MS_WITH_DECIMAL(exit_value.total_time),
+               NS_TO_MS_WITH_DECIMAL(exit_value.max_time),
+               NS_TO_MS_WITH_DECIMAL(exit_value.min_time), exit_value.count,
+               getExitReasonName(next_key.reason));
+
+        // Move to the next key
+        lookup_key = next_key;
+    }
+    memset(&lookup_key, 0, sizeof(struct exit_key));
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        err = bpf_map_delete_elem(fd, &next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup counters: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    return 0;
+}
+
+void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *), struct kvm_watcher_bpf *skel, const char *map_name, int err) {
+    OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);
+    print_func(skel);
+    if (err < 0) {
+        printf("Error printing %s map: %d\n", map_name, err);
+    }
 }
 
 int main(int argc, char **argv) {
-    //定义一个环形缓冲区
+    // 定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
     struct kvm_watcher_bpf *skel;
     int err;
 
-    /* Parse command line arguments */
     /*解析命令行参数*/
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
     if (err)
         return err;
 
-    /* Set up libbpf errors and debug info callback */
     /*设置libbpf的错误和调试信息回调*/
     libbpf_set_print(libbpf_print_fn);
 
@@ -669,11 +874,9 @@ int main(int argc, char **argv) {
     /* Parameterize BPF code with parameter */
     skel->rodata->vm_pid = env.vm_pid;
 
-    /* Disable or load kernel hook functions */
     /* 禁用或加载内核挂钩函数 */
     set_disable_load(skel);
 
-    /* Load & verify BPF programs */
     /* 加载并验证BPF程序 */
     err = kvm_watcher_bpf__load(skel);
     if (err) {
@@ -681,7 +884,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    /* Attach tracepoint handler */
     /* 附加跟踪点处理程序 */
     err = kvm_watcher_bpf__attach(skel);
     if (err) {
@@ -689,7 +891,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    /* Set up ring buffer polling */
     /* 设置环形缓冲区轮询 */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
     if (!rb) {
@@ -718,6 +919,13 @@ int main(int argc, char **argv) {
     }
     while (!exiting) {
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
+      
+        if (env.execute_hypercall) {
+            print_map_and_check_error(print_hc_map, skel, "hypercall", err);
+        }
+        if (env.execute_exit) {
+            print_map_and_check_error(print_exit_map, skel, "exit", err);
+        }
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;
@@ -728,13 +936,13 @@ int main(int argc, char **argv) {
             break;
         }
     }
-    if (env.ShowStats) {
-        printExitInfo(exitInfoBuffer);
-        freeExitInfoList(exitInfoBuffer);
-    } else if (env.execute_mark_page_dirty) {
+    if (env.execute_mark_page_dirty) {
         err = save_count_dirtypagemap_to_file(skel->maps.count_dirty_map);
         if (err < 0) {
             printf("Save count dirty page map to file fail: %d\n", err);
+            goto cleanup;
+        } else {
+            printf("\nSave count dirty page map to file success!\n");
             goto cleanup;
         }
     }

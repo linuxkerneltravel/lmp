@@ -7,14 +7,13 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
 APP = src/kvm_watcher
-OPTIONS = -f -w -n -d -i '-e -s'
+
+OPTIONS = -f -w -n -d -e
 
 # 共同规则1
 define common_rules1
 	# 安装依赖
 	sudo apt install clang libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r)
-	# 加载KVM模块
-	sudo modprobe kvm && sudo modprobe kvm-intel
 	# 生成vmlinux.h文件
 	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
 endef
@@ -25,12 +24,12 @@ define common_rules2
 	clang -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -I/usr/include/x86_64-linux-gnu -I. -c $@.bpf.c -o $@.bpf.o
 	bpftool gen skeleton $@.bpf.o > $@.skel.h
 	clang -g -O2 -Wall -I . -c $@.c -o $@.o
-	clang -Wall -O2 -g $@.o -static -lbpf -lelf -lz -o $(notdir $@)
+	clang -Wall -O2 -g $@.o -static -lbpf -lelf -lz -lzstd -o $(notdir $@) # 6.5内核编译需要lzstd库
 endef
 
 # 判断是否已安装 qemu-system-x86_64
 ifeq (,$(shell which qemu-system-x86_64))
-	INSTALL_QEMU = sudo apt update && sudo apt install qemu-system-x86_64
+	INSTALL_QEMU = sudo apt update && sudo apt install qemu-kvm
 endif
 
 bpf: $(APP) 
@@ -44,11 +43,13 @@ ifeq ($(MAKECMDGOALS),test)
 ifeq ($(shell grep -Eoc '(vmx|svm)' /proc/cpuinfo),0)
 	$(error "The CPU in your device does not support virtualization!")
 endif
+	# 加载KVM模块
+	sudo modprobe kvm && sudo modprobe kvm-intel
+	$(common_rules1)
+	$(common_rules2)
 ifeq ($(wildcard ./cirros-0.5.2-x86_64-disk.img),)
 	wget https://gitee.com/nan-shuaibo/cirros/releases/download/0.5.2/cirros-0.5.2-x86_64-disk.img
 endif
-	$(common_rules1)
-	$(common_rules2)
 	# 安装 qemu
 	$(INSTALL_QEMU)
 	# 启动虚拟机
