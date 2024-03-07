@@ -47,6 +47,6 @@ jobs:
       - name: Run frida
         run: |
           pip install frida-tools
-          cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/frida
+          cd eBPF_Supermarket/Filesystem_Subsystem/frida/
           sudo sysctl kernel.yama.ptrace_scope=0
           python cat.py
