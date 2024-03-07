@@ -35,8 +35,11 @@ BPF_ARRAY(idleLastTime,u32,u64,1);
 BPF_ARRAY(kt_LastTime,u32,u64,1);
 // 储存cpu运行用户线程的时间
 BPF_ARRAY(ut_LastTime,u32,u64,1);
+BPF_ARRAY(tick_user,u32,u64,1);
+BPF_ARRAY(symAddr,u32,u64,1);
 // 统计fork数
-SEC("kprobe/finish_task_switch.isra.0")
+//SEC("kprobe/finish_task_switch.isra.0")
+SEC("kprobe/finish_task_switch")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
@@ -74,7 +77,8 @@ int trace_sched_switch2(struct cswch_args *info) {
 	return 0;
 }
 
-SEC("kprobe/finish_task_switch.isra.0")
+SEC("kprobe/finish_task_switch")
+//SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
@@ -93,7 +97,7 @@ int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 		val = bpf_map_lookup_elem(&procStartTime, &pid);
 		if (val) {
 		u32 key = 0;
- 		delta = (time - *val)/1000;
+ 		delta = (time - *val);
  		val = bpf_map_lookup_elem(&ut_LastTime, &key);
 		if (val) *val += delta;
  		else bpf_map_update_elem(&ut_LastTime, &key, &delta, BPF_ANY);
@@ -191,5 +195,53 @@ int trace_cpu_idle(struct idleStruct *pIDLE) {
 		u64 val = time;
 		bpf_map_update_elem(&idleStart,&key,&time,BPF_ANY);
 	}
+	return 0;
+}
+
+static __always_inline int user_mode(struct pt_regs *regs)
+{
+	#ifdef CONFIG_X86_32
+		return ((regs->cs & SEGMENT_RPL_MASK) | (regs->flags & X86_VM_MASK)) >= USER_RPL;
+	#else
+		return !!(regs->cs & 3);
+	#endif
+}
+// 两个CPU各自会产生一个调用，这正好方便我们使用
+SEC("perf_event")
+int tick_update(struct pt_regs *ctx) {
+
+	// bpf_trace_printk("cs_rpl = %x\n", ctx->cs & 3);
+	u32 key = 0;
+	u64 val, *valp;
+
+	// 记录用户态时间，直接从头文件arch/x86/include/asm/ptrace.h中引用
+	if (user_mode(ctx)) {
+		u64 initval = 1;
+		valp = bpf_map_lookup_elem(&tick_user, &key);
+		if (valp) *valp += 1;
+		else bpf_map_update_elem(&tick_user, &key, &initval, BPF_ANY);
+	}
+
+	unsigned long total_forks;
+
+	// if(forks_addr !=0){
+    //     valp = (u64 *)forks_addr;
+    //     bpf_probe_read_kernel(&total_forks, sizeof(unsigned long), valp);
+    //     key = 1;
+    //     val = total_forks;
+    //     bpf_map_update_elem(&countMap,&key,&val,BPF_ANY);
+    // }
+
+	valp = bpf_map_lookup_elem(&symAddr, &key);
+	if (valp) {
+		void *addr = (void *)(*valp);
+		if (addr > 0) {
+			bpf_probe_read_kernel(&total_forks, sizeof(unsigned long), addr);
+			key = 1;
+			val = total_forks;
+			bpf_map_update_elem(&countMap, &key, &val, BPF_ANY);
+		}
+	}
+
 	return 0;
 }

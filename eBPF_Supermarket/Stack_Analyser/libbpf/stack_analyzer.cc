@@ -22,8 +22,8 @@
 #include <iostream>
 #include <cxxabi.h>
 
-#include "symbol.h"
-#include "clipp.h"
+#include "include/symbol.h"
+#include "include/clipp.h"
 
 extern "C"
 {
@@ -33,12 +33,13 @@ extern "C"
 #include <signal.h>
 #include <sys/wait.h>
 
-#include "sa_user.h"
+#include "include/sa_user.h"
 #include "bpf/on_cpu_count.skel.h"
 #include "bpf/off_cpu_count.skel.h"
 #include "bpf/mem_count.skel.h"
 #include "bpf/io_count.skel.h"
 #include "bpf/pre_count.skel.h"
+#include "bpf/stack_count.skel.h"
 }
 
 std::string demangleCppSym(std::string symbol)
@@ -48,20 +49,8 @@ std::string demangleCppSym(std::string symbol)
 	char *demangled = abi::__cxa_demangle(symbol.c_str(), NULL, &size, &status);
 
 	if (status == 0 && demangled != NULL)
-	// 去除参数列表及括号
 	{
-		char *func_name = demangled;
-		for (auto i = size - 1; i; i--)
-		{
-			if (demangled[i] == ' ')
-			{
-				for (char *p = demangled + i; *p; p++)
-				{
-					*p = p[1];
-				}
-			}
-		}
-		std::string FuncName(func_name);
+		std::string FuncName(demangled);
 		free(demangled);
 		return FuncName;
 	}
@@ -69,6 +58,21 @@ std::string demangleCppSym(std::string symbol)
 	// 解码失败，返回原始符号
 	{
 		return symbol;
+	}
+}
+
+void clearSpace(std::string &sym)
+{
+	for (auto i = sym.begin(); i != sym.end();)
+	{
+		if (isblank(*i))
+		{
+			sym.erase(i);
+		}
+		else
+		{
+			i++;
+		}
 	}
 }
 
@@ -96,6 +100,7 @@ private:
 		double val;
 		CountItem(int32_t p, int32_t k, int32_t u, double v)
 		{
+
 			pid = p;
 			ksid = k;
 			usid = u;
@@ -163,16 +168,11 @@ protected:
 	/// @return 解析出的值
 	virtual double data_value(void *data) { return *(uint32_t *)data; };
 
-	/// @brief 为特定值添加注解
-	/// @param f 特定值
-	/// @return 字符串
-	virtual std::string data_str(void) = 0;
-
 #define declareEBPF(eBPFName) \
 	struct eBPFName *skel = NULL;
 
 public:
-	std::string name; // 标识类名
+	Scale scale;
 
 	int pid = -1; // 用于设置ebpf程序跟踪的pid
 	int cpu = -1; // 用于设置ebpf程序跟踪的cpu
@@ -184,7 +184,6 @@ public:
 	uint64_t max = __UINT64_MAX__; // 设置采集指标最大值，最小值
 
 	bool clear = false; // 清除已输出的指标积累量
-
 	int self_pid;
 
 	StackCollector()
@@ -244,6 +243,7 @@ public:
 	operator std::string()
 	{
 		std::ostringstream oss;
+		oss << "Type:" << scale.Type << " Unit:" << scale.Unit << " Period:" << scale.Period << '\n';
 		oss << "time:";
 		{
 			oss << getLocalDateTime() << '\n';
@@ -254,7 +254,7 @@ public:
 			auto D = sortedCountList();
 			if (!D)
 				return oss.str();
-			oss << "pid\tusid\tksid\t" << data_str() << '\n';
+			oss << "pid\tusid\tksid\tcount\n";
 			uint64_t trace[MAX_STACKS], *p;
 			for (auto id : *D)
 			{
@@ -292,6 +292,7 @@ public:
 							sym.name = ss.str();
 							g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
 						}
+						clearSpace(sym.name);
 						traces[id.usid].push_back(sym.name);
 					}
 				}
@@ -314,6 +315,7 @@ public:
 							sym.name = ss.str();
 							g_symbol_parser.putin_symbol_cache(pid, addr, sym.name);
 						}
+						clearSpace(sym.name);
 						traces[id.ksid].push_back(sym.name);
 					}
 				}
@@ -330,7 +332,7 @@ public:
 				{
 					oss << s << ';';
 				}
-				oss << "\b \n";
+				oss << "\n";
 			}
 		}
 		oss << "groups:\n";
@@ -393,21 +395,25 @@ private:
 	int *pefds = NULL, num_cpus = 0, num_online_cpus = 0;
 	struct perf_event_attr attr = {0};
 	struct bpf_link **links = NULL;
-
-public:
 	unsigned long long freq = 49;
 
+public:
 	OnCPUStackCollector()
 	{
-		name = "on_cpu";
+		setScale(freq);
 		err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
 		CHECK_ERR_EXIT(err, "Fail to get online CPU numbers");
 		num_cpus = libbpf_num_possible_cpus();
 		CHECK_ERR_EXIT(num_cpus <= 0, "Fail to get the number of processors");
 	};
 
-	double data_value(void *data) override { return 1. * *(uint32_t *)data * 1000 / freq; }
-	std::string data_str(void) override { return "ThisTimeOnCpu/ms"; };
+	void setScale(uint64_t freq)
+	{
+		this->freq = freq;
+		scale.Period = 1e9 / freq;
+		scale.Type = "OnCPUTime";
+		scale.Unit = "nanoseconds";
+	}
 
 	int load(void) override
 	{
@@ -460,6 +466,7 @@ public:
 		{
 			for (int cpu = 0; cpu < num_cpus; cpu++)
 			{
+
 				bpf_link__destroy(links[cpu]);
 			}
 			free(links);
@@ -488,14 +495,18 @@ private:
 	declareEBPF(off_cpu_count_bpf);
 
 protected:
-	std::string data_str(void) override { return "OffCpuThisTime/ms"; };
 	defaultLoad;
 	defaultAttach;
 	defaultDetach;
 	defaultUnload;
 
 public:
-	OffCPUStackCollector() { name = "off-cpu"; };
+	OffCPUStackCollector()
+	{
+		scale.Period = 1 << 20;
+		scale.Type = "OffCPUTime";
+		scale.Unit = "milliseconds";
+	};
 };
 
 class MemoryStackCollector : public StackCollector
@@ -504,16 +515,16 @@ private:
 	declareEBPF(mem_count_bpf);
 
 protected:
-	std::string data_str(void) override { return "LeakMomery/Byte"; };
-
 public:
 	char *object = (char *)"libc.so.6";
 
 	MemoryStackCollector()
 	{
 		kstack = false;
-		name = "memory";
 		showDelta = false;
+		scale.Period = 1;
+		scale.Type = "LeakedMomery";
+		scale.Unit = "bytes";
 	};
 
 	int load(void) override
@@ -570,12 +581,6 @@ private:
 	declareEBPF(io_count_bpf);
 
 protected:
-	std::string data_str(void) override
-	{
-		static const std::string IOScale[] = {"IOCountThisTime/1", "IOSizeThisTime/Byte", "AverageIOSizeThisTime/Byte"};
-		return IOScale[DataType];
-	};
-
 	double data_value(void *data) override
 	{
 		io_tuple *p = (io_tuple *)data;
@@ -593,12 +598,29 @@ protected:
 	};
 
 public:
+	typedef enum
+	{
+		COUNT,
+		SIZE,
+		AVE
+	} io_mod;
+
 	io_mod DataType = io_mod::COUNT;
+
+	void setScale(io_mod mod)
+	{
+		DataType = mod;
+		static const char *Types[] = {"IOCount", "IOSize", "AverageIOSize"};
+		static const char *Units[] = {"counts", "bytes", "bytes"};
+		scale.Type = Types[mod];
+		scale.Unit = Units[mod];
+		scale.Period = 1;
+	};
 
 	IOStackCollector()
 	{
 		count_size = sizeof(io_tuple);
-		name = "io";
+		setScale(DataType);
 	};
 
 	defaultLoad;
@@ -613,11 +635,6 @@ private:
 	declareEBPF(pre_count_bpf);
 
 protected:
-	std::string data_str(void) override
-	{
-		return "TotalUnusedReadaheadPages/Page";
-	};
-
 	double data_value(void *data) override
 	{
 		ra_tuple *p = (ra_tuple *)data;
@@ -632,21 +649,58 @@ public:
 
 	ReadaheadStackCollector()
 	{
-		name = "readahead";
 		count_size = sizeof(ra_tuple);
 		showDelta = false;
+		scale = {
+			.Type = "UnusedReadaheadPages",
+			.Unit = "pages",
+			.Period = 1,
+		};
 	};
+};
+
+class StackCountStackCollector : public StackCollector
+{
+private:
+	declareEBPF(stack_count_bpf);
+
+public:
+	std::string probe = ""; // 保存命令行的输入
+
+	StackCountStackCollector()
+	{
+		scale = {
+			.Type = "StackCounts",
+			.Unit = "Counts",
+			.Period = 1,
+		};
+	};
+
+	void setProbe(std::string probe) {
+		this->probe = probe;
+		scale.Type = (probe+scale.Type).c_str();
+	}
+
+	defaultLoad;
+	int attach(void) override
+	{
+		skel->links.handle =
+			bpf_program__attach_kprobe(skel->progs.handle, false,
+									   probe.c_str());
+		CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		return 0;
+	};
+	defaultDetach;
+	defaultUnload;
 };
 
 namespace MainConfig
 {
-	int run_time = __INT_MAX__;				 // 运行时间
-	unsigned delay = 5;						 // 设置输出间隔
-	display_t d_mode = display_t::NO_OUTPUT; // 设置显示模式
+	int run_time = __INT_MAX__; // 运行时间
+	unsigned delay = 5;			// 设置输出间隔
 	std::string command = "";
 	int32_t target_pid = -1;
-};
-
+}
 std::vector<StackCollector *> StackCollectorList;
 void endCollect(void)
 {
@@ -666,15 +720,15 @@ void endCollect(void)
 	}
 }
 
-uint64_t optbuff;
+uint64_t IntTmp;
+std::string StrTmp;
 int main(int argc, char *argv[])
 {
 	auto MainOption = ((
 						   ((clipp::option("-p", "--pid") & clipp::value("pid of sampled process, default -1 for all", MainConfig::target_pid)) % "set pid of process to monitor") |
 						   ((clipp::option("-c", "--command") & clipp::value("to be sampled command to run, default none", MainConfig::command)) % "set command for monitoring the whole life")),
 					   (clipp::option("-d", "--delay") & clipp::value("delay time(seconds) to output, default 5", MainConfig::delay)) % "set the interval to output",
-					   clipp::option("-l", "--realtime-list").set(MainConfig::d_mode, LIST_OUTPUT) % "output in console, default false",
-					   clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time) % "set the total simpling time");
+					   (clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time)) % "set the total simpling time");
 
 	auto SubOption = (clipp::option("-U", "--user-stack-only").call([]
 																	{ StackCollectorList.back()->kstack = false; }) %
@@ -682,18 +736,18 @@ int main(int argc, char *argv[])
 					  clipp::option("-K", "--kernel-stack-only").call([]
 																	  { StackCollectorList.back()->ustack = false; }) %
 						  "only sample kernel stacks",
-					  (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", optbuff).call([]
-																														 { StackCollectorList.back()->max = optbuff; })) %
+					  (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", IntTmp).call([]
+																														 { StackCollectorList.back()->max = IntTmp; })) %
 						  "set the max threshold of sampled value",
-					  (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", optbuff).call([]
-																														 { StackCollectorList.back()->min = optbuff; })) %
+					  (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", IntTmp).call([]
+																														 { StackCollectorList.back()->min = IntTmp; })) %
 						  "set the min threshold of sampled value");
 
 	auto OnCpuOption = clipp::option("on-cpu").call([]
 													{ StackCollectorList.push_back(new OnCPUStackCollector()); }) %
 						   "sample the call stacks of on-cpu processes" &
-					   (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", optbuff).call([]
-																											  { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->freq = optbuff; }) %
+					   (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", IntTmp).call([]
+																											  { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
 																 "sampling at a set frequency",
 						SubOption);
 
@@ -711,13 +765,13 @@ int main(int argc, char *argv[])
 											 { StackCollectorList.push_back(new IOStackCollector()); }) %
 						"sample the IO data volume of call stacks" &
 					((clipp::option("--mod") & (clipp::option("count").call([]
-																			{ static_cast<IOStackCollector *>(StackCollectorList.back())->DataType = COUNT; }) %
+																			{ static_cast<IOStackCollector *>(StackCollectorList.back())->setScale(IOStackCollector::io_mod::COUNT); }) %
 													"Counting the number of I/O operations" |
 												clipp::option("ave").call([]
-																		  { static_cast<IOStackCollector *>(StackCollectorList.back())->DataType = AVE; }) %
+																		  { static_cast<IOStackCollector *>(StackCollectorList.back())->setScale(IOStackCollector::io_mod::AVE); }) %
 													"Counting the ave of I/O operations" |
 												clipp::option("size").call([]
-																		   { static_cast<IOStackCollector *>(StackCollectorList.back())->DataType = SIZE; }) %
+																		   { static_cast<IOStackCollector *>(StackCollectorList.back())->setScale(IOStackCollector::io_mod::SIZE); }) %
 													"Counting the size of I/O operations")) %
 						 "set the statistic mod",
 					 SubOption);
@@ -726,6 +780,13 @@ int main(int argc, char *argv[])
 													{ StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
 							   "sample the readahead hit rate of call stacks" &
 						   SubOption;
+	auto StackCountOption = clipp::option("stackcount").call([]
+															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
+								"sample the counts of calling stacks" &
+							(clipp::option("-S", "--String") & clipp::value("probe String", StrTmp).call([]
+																														{ static_cast<StackCountStackCollector *>(StackCollectorList.back())->setProbe(StrTmp); }) %
+																   "sampling at a set probe string",
+							 SubOption);
 
 	auto cli = (MainOption,
 				clipp::option("-v", "--version").call([]
@@ -735,7 +796,8 @@ int main(int argc, char *argv[])
 				OffCpuOption,
 				MemoryOption,
 				IOOption,
-				ReadaheadOption) %
+				ReadaheadOption,
+				StackCountOption) %
 			   "statistic call trace relate with some metrics";
 
 	if (!clipp::parse(argc, argv, cli))
@@ -788,7 +850,7 @@ int main(int argc, char *argv[])
 		Item++;
 		continue;
 	err:
-		fprintf(stderr, "%s eBPF prog err\n", (*Item)->name.c_str());
+		fprintf(stderr, "%s eBPF prog err\n", (*Item)->scale.Type);
 		(*Item)->detach();
 		(*Item)->unload();
 		Item = StackCollectorList.erase(Item);
@@ -808,7 +870,7 @@ int main(int argc, char *argv[])
 		for (auto Item : StackCollectorList)
 		{
 			Item->detach();
-			std::cout << std::string(*Item) << std::endl;
+			std::cout << std::string(*Item);
 			Item->attach();
 		}
 	}

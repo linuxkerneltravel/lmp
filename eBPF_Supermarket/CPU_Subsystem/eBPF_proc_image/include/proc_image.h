@@ -19,12 +19,14 @@
 #ifndef __PROC_IMAGE_H
 #define __PROC_IMAGE_H
 
-#define MAX_SYSCALL_COUNT 116
+#define MAX_SYSCALL_COUNT 50
 #define ARGSIZE  128
 #define TOTAL_MAX_ARGS 60
 #define DEFAULT_MAXARGS 20
 #define FULL_MAX_ARGS_ARR 440
 #define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
+
+#define TASK_RUNNING	0x00000000
 
 // resource_image
 struct proc_id{
@@ -50,9 +52,10 @@ struct total_rsc{
 //syscall_image
 struct syscall_seq{
 	int pid;
-	long long unsigned int oncpu_time;
-	long long unsigned int offcpu_time;
-	int count;		// 若count值超过MAX_SYSCALL_COUNT，则record_syscall数组最后一个元素的值用-1表示以作说明
+	long long unsigned int enter_time;
+	long long unsigned int sum_delay;
+	long long unsigned int max_delay;
+	int count;
 	int record_syscall[MAX_SYSCALL_COUNT];
 };
 
@@ -98,6 +101,24 @@ struct keytime_event{
 	long long unsigned int info[6];
 	unsigned int info_size;
 	char char_info[FULL_MAX_ARGS_ARR];
+};
+
+// schedule_image
+struct schedule_event{
+	int pid;
+	int prio;
+	int count;
+	long long unsigned int enter_time;
+	long long unsigned int sum_delay;
+	long long unsigned int max_delay;
+	long long unsigned int min_delay;
+};
+
+struct sum_schedule{
+	long long unsigned int sum_count;
+	long long unsigned int sum_delay;
+	long long unsigned int max_delay;
+	long long unsigned int min_delay;
 };
 
 #endif /* __PROCESS_H */
