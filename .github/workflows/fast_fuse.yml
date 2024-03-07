@@ -44,6 +44,10 @@ jobs:
           ./fusedemo ./yourdir
           df -T ./yourdir
 
+      - name: Run cat
+        run: |
+          cat
+
       - name: Run frida
         run: |
           pip install frida-tools
