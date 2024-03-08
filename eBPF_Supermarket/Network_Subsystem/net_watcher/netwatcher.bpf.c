@@ -1437,7 +1437,6 @@ int BPF_KPROBE(ip_local_deliver_finish) {
     tinfo->ip_local_deliver_finish_time = bpf_ktime_get_ns() / 1000;
 
     struct netfilter *message;
-    struct netfilter *netfilter =bpf_map_lookup_elem(&netfilter_time, pkt_tuple);
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if (!message) {
         return 0;
@@ -1446,8 +1445,8 @@ int BPF_KPROBE(ip_local_deliver_finish) {
     message->daddr =pkt_tuple->daddr;
     message->sport =pkt_tuple->sport;
     message->dport = pkt_tuple->dport;
-    //message->local_input_time = tinfo->ip_local_deliver_finish_time - tinfo->ip_local_deliver_time;
-   // message->pre_routing_time = tinfo->ip_local_deliver_time - tinfo->ip_rcv_time;
+    message->local_input_time = tinfo->ip_local_deliver_finish_time - tinfo->ip_local_deliver_time;
+    message->pre_routing_time = tinfo->ip_local_deliver_time - tinfo->ip_rcv_time;
     message->flag=1;//收包
     bpf_ringbuf_submit(message, 0);
     return 0;
@@ -1494,7 +1493,6 @@ int BPF_KPROBE(ip_finish_output) {
     }
     tinfo->ip_finish_output_time = bpf_ktime_get_ns() / 1000;
     struct netfilter *message;
-    //struct netfilter *netfilter =bpf_map_lookup_elem(&netfilter_time, pkt_tuple);
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if(!message){
         return 0;
