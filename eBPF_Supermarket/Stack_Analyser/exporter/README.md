@@ -1,0 +1,3 @@
+# 数据发送器
+
+适用于Pyroscope服务器的数据发送程序，程序通过监听标准输入来获取调用栈数据，输入格式和libbpf框架实现的Stack_Analyzer输出格式一致，可通过管道配合Stack_Analyer使用，将Stack_Analyzer的数据发送到Pyroscope服务器获取更强的数据存储和可视化能力。
