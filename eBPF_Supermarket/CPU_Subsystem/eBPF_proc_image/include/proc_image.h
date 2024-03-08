@@ -114,5 +114,11 @@ struct schedule_event{
 	long long unsigned int min_delay;
 };
 
+struct sum_schedule{
+	long long unsigned int sum_count;
+	long long unsigned int sum_delay;
+	long long unsigned int max_delay;
+	long long unsigned int min_delay;
+};
 
 #endif /* __PROCESS_H */
