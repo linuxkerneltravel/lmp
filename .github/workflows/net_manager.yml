@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   build-and-run:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-23.10
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
