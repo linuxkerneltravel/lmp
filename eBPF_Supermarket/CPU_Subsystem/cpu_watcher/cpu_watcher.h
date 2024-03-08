@@ -17,74 +17,15 @@
 // eBPF map for libbpf sar
 #include <asm/types.h>
 #include <linux/version.h>
+//#include <unordered_map>
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
 #define MAX_CPU_NR	128
 #define TASK_COMM_LEN 20
 #define SYSCALL_MIN_TIME 1E7
-/*----------------------------------------------*/
-/*          cs_delay结构体                     */
-/*----------------------------------------------*/
-#ifndef __CS_DELAY_H
-#define __CS_DELAY_H
-struct event {
-	long unsigned int t1;
-	long unsigned int t2;
-	long unsigned int delay;   
-};
-#endif /* __CS_DELAY_H */
-
-/*----------------------------------------------*/
-/*          syscall_delay结构体                     */
-/*----------------------------------------------*/
-struct event2 {
-	long unsigned int start_time;
-	long unsigned int exit_time;
-	long unsigned int delay;
-    int pid;
-    char comm[TASK_COMM_LEN];
-};
-
-/*----------------------------------------------*/
-/*          cswch_args结构体                     */
-/*----------------------------------------------*/
-struct cswch_args {
-	u64 pad;
-	char prev_comm[16];
-	pid_t prev_pid;
-	int prev_prio;
-	long prev_state;
-	char next_comm[16];
-	pid_t next_pid;
-	int next_prio;
-};
-
-/*----------------------------------------------*/
-/*          软中断结构体                         */
-/*----------------------------------------------*/
-struct __softirq_info {
-	u64 pad;
-	u32 vec;
-};
-
-/*----------------------------------------------*/
-/*          硬中断结构体                         */
-/*----------------------------------------------*/
-struct __irq_info {
-	u64 pad;
-	u32 irq;
-};
-
-/*----------------------------------------------*/
-/*          idlecpu空闲时间所需结构体             */
-/*----------------------------------------------*/
-struct idleStruct {
-	u64 pad;
-	unsigned int state;
-	unsigned int cpu_id;
-};
-
+#define MAX_SYSCALL_COUNT 100
+#define MAX_ENTRIES 102400 // map容量
 
 /*----------------------------------------------*/
 /*          一些maps结构体的宏定义                */
@@ -144,3 +85,69 @@ struct idleStruct {
         __uint(value_size, sizeof(type2)); \
         __uint(max_entries, MAX_ENTRIES);  \
     } name SEC(".maps")
+
+/*----------------------------------------------*/
+/*          cs_delay结构体                     */
+/*----------------------------------------------*/
+#ifndef __CS_DELAY_H
+#define __CS_DELAY_H
+struct event {
+	long unsigned int t1;
+	long unsigned int t2;
+	long unsigned int delay;   
+};
+#endif /* __CS_DELAY_H */
+
+/*----------------------------------------------*/
+/*          syscall_delay结构体                     */
+/*----------------------------------------------*/
+struct syscall_flags{
+	long unsigned int start_time;
+	int syscall_id;
+};
+
+struct syscall_events {//每个进程一个
+    int pid,count;
+    char comm[TASK_COMM_LEN];
+    u64 delay;
+    u64 syscall_id;
+};
+
+/*----------------------------------------------*/
+/*          cswch_args结构体                     */
+/*----------------------------------------------*/
+struct cswch_args {
+	u64 pad;
+	char prev_comm[16];
+	pid_t prev_pid;
+	int prev_prio;
+	long prev_state;
+	char next_comm[16];
+	pid_t next_pid;
+	int next_prio;
+};
+
+/*----------------------------------------------*/
+/*          软中断结构体                         */
+/*----------------------------------------------*/
+struct __softirq_info {
+	u64 pad;
+	u32 vec;
+};
+
+/*----------------------------------------------*/
+/*          硬中断结构体                         */
+/*----------------------------------------------*/
+struct __irq_info {
+	u64 pad;
+	u32 irq;
+};
+
+/*----------------------------------------------*/
+/*          idlecpu空闲时间所需结构体             */
+/*----------------------------------------------*/
+struct idleStruct {
+	u64 pad;
+	unsigned int state;
+	unsigned int cpu_id;
+};
