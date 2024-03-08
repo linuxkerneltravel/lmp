@@ -58,7 +58,7 @@ static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
     CHECK_PID(vm_pid);
     u32 reason;
     reason = (u32)ctx->exit_reason;
-    //如果是节能停止退出，就不采集数据
+    // 如果是节能停止退出，就不采集数据
     if (reason == EXIT_REASON_HLT) {
         return 0;
     }
