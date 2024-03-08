@@ -97,7 +97,6 @@ struct exit_key {
     __u64 reason;
     __u32 pid;
     __u32 tid;
-    __u32 pad;
 };
 
 struct exit_value {

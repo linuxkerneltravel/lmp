@@ -812,7 +812,7 @@ int sort_by_key(struct kvm_watcher_bpf *skel, struct exit_key *keys,
             fprintf(stderr, "failed to lookup exit_value: %d\n", err);
             return -1;
         }
-        //insert sort
+        // insert sort
         j = i - 1;
         struct exit_key temp_key = next_key;
         struct exit_value temp_value = exit_value;
@@ -857,6 +857,7 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
             printf(
                 "------------ ------------ ------------ ------------ "
                 "------------ "
+                "------------ "
                 "------------\n");
         }
         // Print the current entry
@@ -864,9 +865,9 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
             tid = keys[i].tid;
             if (pid == 0 || pid != keys[i].pid) {
                 pid = keys[i].pid;
-                printf("%-12d", pid);
+                printf("%-13d", pid);
             } else {
-                printf("%-12s", "");
+                printf("%-13s", "");
             }
             printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", keys[i].tid,
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
@@ -874,7 +875,7 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
                    getExitReasonName(keys[i].reason));
         } else if (tid == keys[i].tid) {
-            printf("%24s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
+            printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
