@@ -1,22 +1,4 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: 2280349454@qq.com
-//
-// net_manager
-
-
+/* SPDX-License-Identifier: GPL-2.0 */
 static const char *__doc__ = "XDP loader\n"
 	" - Allows selecting BPF program --progname name to XDP-attach to --dev\n";
 
@@ -42,10 +24,8 @@ static const char *__doc__ = "XDP loader\n"
 #include "../common/common_libbpf.h"
 #include "common_kern_user.h"
 
-
-
 static const char *default_filename = "xdp_prog_kern.o";
-static const char *default_progname = "filter_ethernet_pass";
+static const char *default_progname = "xdp_rtcache_prog";
 
 static const struct option_wrapper long_options[] = {
 
@@ -72,9 +52,6 @@ static const struct option_wrapper long_options[] = {
 
 	{{"quiet",       no_argument,		NULL, 'q' },
 	 "Quiet mode (no output)"},
-
-	{{"progname",    required_argument,	NULL,  2  },
-	 "Load program from function <name> in the ELF file", "<name>"},
 
 	{{0, 0, NULL,  0 }, NULL, false}
 };
@@ -125,31 +102,38 @@ int pin_maps_in_bpf_object(struct bpf_object *bpf_obj)
 
 int main(int argc, char **argv)
 {
-	struct xdp_program *program;
-	int err;
-	int len;
-	char errmsg[1024];
+	int i;
+	int map_fd;
+	struct xdp_program *program;  // XDP程序对象指针
+	int err;  // 错误码
+	int len;  // 字符串长度
+	char errmsg[1024];  // 错误消息字符串
 
+
+	// 配置结构体，包括XDP模式、接口索引、是否卸载程序以及程序名称等信息
 	struct config cfg = {
 		.attach_mode = XDP_MODE_NATIVE,
 		.ifindex     = -1,
+		//.redirect_ifindex   = -1,
 		.do_unload   = false,
 	};
-	
-
 	/* Set default BPF-ELF object file and BPF program name */
+	// 设置默认的BPF ELF对象文件名和BPF程序名称
 	strncpy(cfg.filename, default_filename, sizeof(cfg.filename));
 	strncpy(cfg.progname,  default_progname,  sizeof(cfg.progname));
 	/* Cmdline options can change progname */
+	// 解析命令行参数，可能会修改程序名称等配置信息
 	parse_cmdline_args(argc, argv, long_options, &cfg, __doc__);
 
 	/* Required option */
+	// 检查是否提供了必需的选项
 	if (cfg.ifindex == -1) {
 		fprintf(stderr, "ERR: required option --dev missing\n\n");
 		usage(argv[0], __doc__, long_options, (argc == 1));
 		return EXIT_FAIL_OPTION;
 	}
 	/* Generate pin_dir & map_filename string */
+	// 生成pin目录和映射文件名字符串
 	len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
 	if (len < 0) {
 		fprintf(stderr, "ERR: creating pin dirname\n");
@@ -162,18 +146,20 @@ int main(int argc, char **argv)
 		return EXIT_FAIL_OPTION;
 	}
 
+	// 加载BPF程序并将其附加到XDP
 	program = load_bpf_and_xdp_attach(&cfg);
 	if (!program)
-		return EXIT_FAIL_BPF;
+		return EXIT_FAIL_BPF;   // 如果加载失败，则返回BPF错误退出码
 
 	/* do unload */
+	// 如果指定了卸载选项，则执行卸载操作
 	if (cfg.do_unload) {
-		unpin_maps(xdp_program__bpf_obj(program));
+		unpin_maps(xdp_program__bpf_obj(program));  // 解除BPF程序固定的映射
 		err = do_unload(&cfg);
 		if (err) {
 			libxdp_strerror(err, errmsg, sizeof(errmsg));
 			fprintf(stderr, "Couldn't unload XDP program %s: %s\n",
-				cfg.progname, errmsg);
+				cfg.progname, errmsg);  // 打印卸载错误消息
 			return err;
 		}
 
@@ -181,6 +167,7 @@ int main(int argc, char **argv)
 		return EXIT_OK;; 
 	}
 
+	// 如果启用了详细模式，则打印加载的BPF对象文件和程序名称，以及附加的XDP程序的设备信息
 	if (verbose) {
 		printf("Success: Loaded BPF-object(%s) and used program(%s)\n",
 		       cfg.filename, cfg.progname);
@@ -189,11 +176,21 @@ int main(int argc, char **argv)
 	}
 
 	/* Use the --dev name as subdir for exporting/pinning maps */
+	// 使用--dev名称作为子目录来导出/固定映射
 	err = pin_maps_in_bpf_object(xdp_program__bpf_obj(program));
 	if (err) {
 		fprintf(stderr, "ERR: pinning maps\n");
 		return err;
 	}
 
+
+	map_fd = open_bpf_map_file(pin_dir, "tx_port", NULL);
+	if (map_fd < 0) {
+		return EXIT_FAIL_BPF;
+	}
+
+	i = 0;
+	bpf_map_update_elem(map_fd, &i, &cfg.ifindex, 0);	
+	printf("redirect from ifnum=%d to ifnum=%d\n", cfg.ifindex, cfg.ifindex);
 	return EXIT_OK;
 }

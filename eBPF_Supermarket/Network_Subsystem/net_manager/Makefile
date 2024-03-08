@@ -8,11 +8,13 @@ VERBOSE = 0
 endif
 
 ifeq ($(VERBOSE),0)
-MAKEFLAGS += --no-print-directory
+MAKEFLAGS += --no-print-directory -s
 Q = @
 endif
 
-PROJ = xacl_core
+PROJ := xacl_ip router xacl_mac xstate
+
+
 
 PROJ_CLEAN = $(addsuffix _clean,$(PROJ))
 
