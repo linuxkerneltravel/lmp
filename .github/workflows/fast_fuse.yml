@@ -30,14 +30,10 @@ jobs:
           mv fuse-3.16.2 libfuse
           cd libfuse
           cp ../fusedemo.c ./example/
+          cp ../Makefile ./
           rm ./example/meson.build
           cp ../meson.build ./example/
-          mkdir ./build/
-          cd ./build/
-          meson ../
-          meson configure -D disable-mtab=true
-          ninja
-          sudo ninja install
+          make
           cd ./example/
           mkdir ./yourdir
           ./fusedemo ./yourdir
