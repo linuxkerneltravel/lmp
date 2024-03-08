@@ -24,6 +24,7 @@
 #include "../include/kvm_vcpu.h"
 #include "../include/kvm_mmu.h"
 #include "../include/kvm_irq.h"
+#include "../include/kvm_hypercall.h"
 #include "../include/kvm_watcher.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -60,7 +61,7 @@ int tp_exit(struct exit *ctx) {
 // 记录vm_entry和vm_exit的时间差
 SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
-    return trace_kvm_entry(&rb, e);
+    return trace_kvm_entry();
 }
 
 SEC("kprobe/mark_page_dirty_in_slot")
@@ -138,4 +139,9 @@ int BPF_PROG(fentry_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
 SEC("fexit/vmx_inject_irq")
 int BPF_PROG(fexit_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
     return exit_vmx_inject_irq(vcpu, &rb, e);
+}
+
+SEC("fentry/kvm_emulate_hypercall")
+int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
+    return entry_emulate_hypercall(vcpu, &rb, e, vm_pid);
 }

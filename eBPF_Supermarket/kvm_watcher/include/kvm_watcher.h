@@ -29,11 +29,11 @@
 #define NS_TO_MS_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_MS_FACTOR)
 
 #define MICROSECONDS_IN_SECOND 1000000
-#define OUTPUT_INTERVAL_SECONDS 0.5
+#define OUTPUT_INTERVAL_SECONDS 2
 
 #define OUTPUT_INTERVAL(us) usleep((__u32)(us * MICROSECONDS_IN_SECOND))
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, or -e"
+#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -70,7 +70,7 @@
     } while (0)
 
 // 定义清屏宏
-#define CLEAR_SCREEN() printf("\033[2J\033[H")
+#define CLEAR_SCREEN() printf("\033[2J\033[H\n")
 
 #define RING_BUFFER_TIMEOUT_MS 100
 
@@ -88,15 +88,23 @@
         return 0;                                 \
     }
 
-struct ExitReason {
-    __u32 number;
-    const char *name;
-};
-
 struct reason_info {
     __u64 time;
     __u64 reason;
+};
+
+struct exit_key {
+    __u64 reason;
+    __u32 pid;
+    __u32 pad;
+};
+
+struct exit_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
     __u32 count;
+    __u32 pad;
 };
 
 struct dirty_page_info {
@@ -105,6 +113,22 @@ struct dirty_page_info {
     __u16 slot_id;
     __u16 pad;
     __u32 pid;
+};
+
+struct hc_value {
+    __u64 a0;
+    __u64 a1;
+    __u64 a2;
+    __u64 a3;
+    __u64 hypercalls;  // vcpu上hypercall发生的次数
+    __u32 counts;      // 特定hypercall发生的次数
+    __u32 pad;
+};
+
+struct hc_key {
+    __u64 nr;
+    pid_t pid;
+    __u32 vcpu_id;
 };
 
 struct process {
@@ -122,6 +146,7 @@ enum EventType {
     PAGE_FAULT,
     IRQCHIP,
     IRQ_INJECT,
+    HYPERCALL,
 } event_type;
 
 struct common_event {
@@ -200,6 +225,17 @@ struct common_event {
             __u64 injections;
             // IRQ_INJECT 特有成员
         } irq_inject_data;
+
+        struct {
+            __u64 hc_nr;
+            __u64 a0;
+            __u64 a1;
+            __u64 a2;
+            __u64 a3;
+            __u64 hypercalls;
+            __u32 vcpu_id;
+            // HYPERCALL 特有成员
+        } hypercall_data;
     };
 };
 
