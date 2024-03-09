@@ -19,6 +19,8 @@ cp /path/to/make.sh ./
 
 ## 编译libfuse库并构建项目：
 
+（此步骤已成功由Makefile实现，可直接运行“make”命令进行实现）
+
 ```
 mkdir build
 cd build
@@ -34,7 +36,7 @@ sudo ninja install
 ## 运行(挂载)：
 
 ```
-cd ./example/
+cd ./build/example/
 mkdir yourdir
 ./fusedemo yourdir
 ```
