@@ -785,13 +785,56 @@ int print_hc_map(struct kvm_watcher_bpf *skel) {
     }
     return 0;
 }
+// In order to sort vm_exit maps
+int sort_by_key(struct kvm_watcher_bpf *skel, struct exit_key *keys,
+                struct exit_value *values) {
+    int fd = bpf_map__fd(skel->maps.exit_map);
+    int err = 0;
+    struct exit_key lookup_key = {};
+    struct exit_key next_key = {};
+    struct exit_value exit_value;
+    int first = 1;
+    int i = 0, j;
+    int count = 0;
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        count++;
+        if (first) {
+            first = 0;
+            bpf_map_lookup_elem(fd, &next_key, &exit_value);
+            keys[0] = next_key;
+            values[0] = exit_value;
+            i++;
+            continue;
+        }
+        err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
 
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup exit_value: %d\n", err);
+            return -1;
+        }
+        // insert sort
+        j = i - 1;
+        struct exit_key temp_key = next_key;
+        struct exit_value temp_value = exit_value;
+        while (j >= 0 &&
+               (keys[j].pid > temp_key.pid || (keys[j].tid > temp_key.tid))) {
+            keys[j + 1] = keys[j];
+            values[j + 1] = values[j];
+            j--;
+        }
+        i++;
+        keys[j + 1] = next_key;
+        values[j + 1] = temp_value;
+        // Move to the next key
+        lookup_key = next_key;
+    }
+    return count;
+}
 int print_exit_map(struct kvm_watcher_bpf *skel) {
     int fd = bpf_map__fd(skel->maps.exit_map);
     int err;
     struct exit_key lookup_key = {};
     struct exit_key next_key = {};
-    struct exit_value exit_value;
     struct tm *tm;
     char ts[32];
     time_t t;
@@ -799,33 +842,47 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
     int first_run = 1;
-    // Iterate over the map
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+    struct exit_key keys[8192];
+    struct exit_value values[8192];
+    int count = sort_by_key(skel, keys, values);
+    // Iterate over the array
+    __u32 pid = 0;
+    __u32 tid = 0;
+    for (int i = 0; i < count; i++) {
         if (first_run) {
             first_run = 0;
             printf("\nTIME:%s\n", ts);
-            printf("%-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "total_time",
-                   "max_time", "min_time", "counts", "reason");
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "tid",
+                   "total_time", "max_time", "min_time", "counts", "reason");
             printf(
                 "------------ ------------ ------------ ------------ "
+                "------------ "
                 "------------ "
                 "------------\n");
         }
         // Print the current entry
-        err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
-        if (err < 0) {
-            fprintf(stderr, "failed to lookup exit_value: %d\n", err);
-            return -1;
+        if (tid == 0 || tid != keys[i].tid) {
+            tid = keys[i].tid;
+            if (pid == 0 || pid != keys[i].pid) {
+                pid = keys[i].pid;
+                printf("%-13d", pid);
+            } else {
+                printf("%-13s", "");
+            }
+            printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", keys[i].tid,
+                   NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
+                   getExitReasonName(keys[i].reason));
+        } else if (tid == keys[i].tid) {
+            printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
+                   NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
+                   getExitReasonName(keys[i].reason));
         }
-        printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", next_key.pid,
-               NS_TO_MS_WITH_DECIMAL(exit_value.total_time),
-               NS_TO_MS_WITH_DECIMAL(exit_value.max_time),
-               NS_TO_MS_WITH_DECIMAL(exit_value.min_time), exit_value.count,
-               getExitReasonName(next_key.reason));
-
-        // Move to the next key
-        lookup_key = next_key;
     }
+    // clear the maps
     memset(&lookup_key, 0, sizeof(struct exit_key));
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
         err = bpf_map_delete_elem(fd, &next_key);
@@ -838,7 +895,9 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
     return 0;
 }
 
-void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *), struct kvm_watcher_bpf *skel, const char *map_name, int err) {
+void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
+                               struct kvm_watcher_bpf *skel,
+                               const char *map_name, int err) {
     OUTPUT_INTERVAL(OUTPUT_INTERVAL_SECONDS);
     print_func(skel);
     if (err < 0) {
@@ -919,7 +978,7 @@ int main(int argc, char **argv) {
     }
     while (!exiting) {
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
-      
+
         if (env.execute_hypercall) {
             print_map_and_check_error(print_hc_map, skel, "hypercall", err);
         }
