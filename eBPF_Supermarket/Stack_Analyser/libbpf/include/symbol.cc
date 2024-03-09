@@ -10,6 +10,7 @@
 #include <vector>
 #include <string.h>
 #include <algorithm>
+#include <cxxabi.h>
 
 #include "symbol.h"
 #include "elf.h"
@@ -371,11 +372,8 @@ bool symbol_parser::find_elf_symbol(symbol &sym, const elf_file &file, int pid, 
             return false;
         }
         it = file_symbols.find(file);
-        return search_symbol(it->second, sym);
-    } else {
-        return search_symbol(it->second, sym);
     }
-    return true;
+    return search_symbol(it->second, sym);
 }
 
 vma* symbol_parser::find_vma(pid_t pid, size_t pc)
@@ -527,5 +525,39 @@ void symbol_parser::dump(void)
 		        count2 += map.size();
 		}
 		printf("xby-debug, symbols_cache: %d, %d\n", count1, count2);
+	}
+}
+
+std::string demangleCppSym(std::string symbol)
+{
+	size_t size = 0;
+	int status = 0;
+	char *demangled = abi::__cxa_demangle(symbol.c_str(), NULL, &size, &status);
+
+	if (status == 0 && demangled != NULL)
+	{
+		std::string FuncName(demangled);
+		free(demangled);
+		return FuncName;
+	}
+	else
+	{
+		// 解码失败，返回原始符号
+		return symbol;
+	}
+}
+
+void clearSpace(std::string &sym)
+{
+	for (auto i = sym.begin(); i != sym.end();)
+	{
+		if (isblank(*i))
+		{
+			sym.erase(i);
+		}
+		else
+		{
+			i++;
+		}
 	}
 }
