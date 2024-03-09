@@ -6,23 +6,22 @@
  * License terms: GNU General Public License (GPL) version 3
  *
  */
-
+#include <elf.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <elf.h>
 #include <libelf.h>
 #include <gelf.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <stdio.h>
 
-#include "elf.h"
+#include "elf.hpp"
 
 #define NOTE_ALIGN(n) (((n) + 3) & -4U)
 
-struct sym_section_ctx {
+struct sym_section_ctx
+{
     Elf_Data *syms;
     Elf_Data *symstrs;
     Elf_Data *rel_data;
@@ -34,26 +33,30 @@ struct sym_section_ctx {
     unsigned long plt_entsize;
 };
 
-struct symbol_sections_ctx {
+struct symbol_sections_ctx
+{
     sym_section_ctx symtab;
     sym_section_ctx symtab_in_dynsym;
     sym_section_ctx dynsymtab;
 };
 
-struct section_info {
+struct section_info
+{
     Elf_Scn *sec;
     GElf_Shdr *hdr;
 };
 
-struct plt_ctx {
+struct plt_ctx
+{
     section_info dynsym;
     section_info plt_rel;
     section_info plt;
 };
 
 __attribute__((unused)) static Elf_Scn *elf_section_by_name(Elf *elf, GElf_Ehdr *ep,
-                                    GElf_Shdr *shp, const char *name,
-                                    size_t *idx) {
+                                                            GElf_Shdr *shp, const char *name,
+                                                            size_t *idx)
+{
     Elf_Scn *sec = NULL;
     size_t cnt = 1;
 
@@ -61,13 +64,15 @@ __attribute__((unused)) static Elf_Scn *elf_section_by_name(Elf *elf, GElf_Ehdr 
     if (!elf_rawdata(elf_getscn(elf, ep->e_shstrndx), NULL))
         return NULL;
 
-    while ((sec = elf_nextscn(elf, sec)) != NULL) {
+    while ((sec = elf_nextscn(elf, sec)) != NULL)
+    {
         char *str;
 
         gelf_getshdr(sec, shp);
         str = elf_strptr(elf, ep->e_shstrndx, shp->sh_name);
 
-        if (!strcmp(name, str)) {
+        if (!strcmp(name, str))
+        {
             if (idx)
                 *idx = cnt;
 
@@ -80,7 +85,8 @@ __attribute__((unused)) static Elf_Scn *elf_section_by_name(Elf *elf, GElf_Ehdr 
     return sec;
 }
 
-__attribute__((unused)) static int elf_read_build_id(Elf *elf, char *bf, size_t size) {
+__attribute__((unused)) static int elf_read_build_id(Elf *elf, char *bf, size_t size)
+{
     int err = -1;
     GElf_Ehdr ehdr;
     GElf_Shdr shdr;
@@ -97,7 +103,8 @@ __attribute__((unused)) static int elf_read_build_id(Elf *elf, char *bf, size_t 
     if (ek != ELF_K_ELF)
         goto out;
 
-    if (gelf_getehdr(elf, &ehdr) == NULL) {
+    if (gelf_getehdr(elf, &ehdr) == NULL)
+    {
         fprintf(stderr, "%s: cannot get elf header.\n", __func__);
         goto out;
     }
@@ -108,7 +115,8 @@ __attribute__((unused)) static int elf_read_build_id(Elf *elf, char *bf, size_t 
      *   '.notes'
      *   '.note' (VDSO specific)
      */
-    do {
+    do
+    {
         sec = elf_section_by_name(elf, &ehdr, &shdr,
                                   ".note.gnu.build-id", NULL);
 
@@ -138,7 +146,8 @@ __attribute__((unused)) static int elf_read_build_id(Elf *elf, char *bf, size_t 
 
     ptr = (char *)data->d_buf;
 
-    while ((intptr_t)ptr < (intptr_t)((char *)data->d_buf + data->d_size)) {
+    while ((intptr_t)ptr < (intptr_t)((char *)data->d_buf + data->d_size))
+    {
         GElf_Nhdr *nhdr = (GElf_Nhdr *)ptr;
         size_t namesz = NOTE_ALIGN(nhdr->n_namesz),
                descsz = NOTE_ALIGN(nhdr->n_descsz);
@@ -149,8 +158,10 @@ __attribute__((unused)) static int elf_read_build_id(Elf *elf, char *bf, size_t 
         ptr += namesz;
 
         if (nhdr->n_type == NT_GNU_BUILD_ID &&
-                nhdr->n_namesz == sizeof("GNU")) {
-            if (memcmp(name, "GNU", sizeof("GNU")) == 0) {
+            nhdr->n_namesz == sizeof("GNU"))
+        {
+            if (memcmp(name, "GNU", sizeof("GNU")) == 0)
+            {
                 size_t sz = size < descsz ? size : descsz;
                 memcpy(bf, ptr, sz);
                 memset(bf + sz, 0, size - sz);
@@ -168,7 +179,8 @@ out:
 
 extern int calc_sha1_1M(const char *filename, unsigned char *buf);
 
-int filename__read_build_id(int pid, const char *mnt_ns_name, const char *filename, char *bf, size_t size) {
+int filename__read_build_id(int pid, const char *mnt_ns_name, const char *filename, char *bf, size_t size)
+{
     int fd, err = -1;
     struct stat sb;
 
@@ -180,7 +192,8 @@ int filename__read_build_id(int pid, const char *mnt_ns_name, const char *filena
     if (fd < 0)
         goto out;
 
-    if (fstat(fd, &sb) == 0) {
+    if (fstat(fd, &sb) == 0)
+    {
         snprintf(bf, size, "%s[%lu]", filename, sb.st_size);
         err = 0;
     }
@@ -193,24 +206,27 @@ out:
 static int is_function(const GElf_Sym *sym)
 {
     return GELF_ST_TYPE(sym->st_info) == STT_FUNC &&
-        sym->st_name != 0 &&
-        sym->st_shndx != SHN_UNDEF;
+           sym->st_name != 0 &&
+           sym->st_shndx != SHN_UNDEF;
 }
 
 static int get_symbols_in_section(sym_section_ctx *sym, Elf *elf, Elf_Scn *sec, GElf_Shdr *shdr, int is_reloc)
 {
     sym->syms = elf_getdata(sec, NULL);
-    if (!sym->syms) {
+    if (!sym->syms)
+    {
         return -1;
     }
 
     Elf_Scn *symstrs_sec = elf_getscn(elf, shdr->sh_link);
-    if (!sec) {
+    if (!sec)
+    {
         return -1;
     }
 
     sym->symstrs = elf_getdata(symstrs_sec, NULL);
-    if (!sym->symstrs) {
+    if (!sym->symstrs)
+    {
         return -1;
     }
 
@@ -224,22 +240,26 @@ static int get_symbols_in_section(sym_section_ctx *sym, Elf *elf, Elf_Scn *sec, 
 static int get_plt_symbols_in_section(sym_section_ctx *sym, Elf *elf, plt_ctx *plt)
 {
     sym->syms = elf_getdata(plt->dynsym.sec, NULL);
-    if (!sym->syms) {
+    if (!sym->syms)
+    {
         return -1;
     }
-   
-    sym->rel_data = elf_getdata(plt->plt_rel.sec, NULL);       
-    if (!sym->rel_data) {
+
+    sym->rel_data = elf_getdata(plt->plt_rel.sec, NULL);
+    if (!sym->rel_data)
+    {
         return -1;
     }
-   
+
     Elf_Scn *symstrs_sec = elf_getscn(elf, plt->dynsym.hdr->sh_link);
-    if (!symstrs_sec) {
+    if (!symstrs_sec)
+    {
         return -1;
     }
-    
+
     sym->symstrs = elf_getdata(symstrs_sec, NULL);
-    if (!sym->symstrs) {
+    if (!sym->symstrs)
+    {
         return -1;
     }
 
@@ -263,22 +283,27 @@ static void __get_plt_symbol(std::set<symbol> &ss, symbol_sections_ctx *si, Elf 
     s.end = 0;
     s.start = 0;
 
-    if (!si->dynsymtab.syms) {
+    if (!si->dynsymtab.syms)
+    {
         return;
     }
 
-    while (index < si->dynsymtab.sym_count) {
-        if (si->dynsymtab.plt_rel_type == SHT_RELA) {
+    while (index < si->dynsymtab.sym_count)
+    {
+        if (si->dynsymtab.plt_rel_type == SHT_RELA)
+        {
             GElf_Rela pos_mem, *pos;
             pos = gelf_getrela(si->dynsymtab.rel_data, index, &pos_mem);
             symidx = GELF_R_SYM(pos->r_info);
         }
-        else if (si->dynsymtab.plt_rel_type == SHT_REL) {
+        else if (si->dynsymtab.plt_rel_type == SHT_REL)
+        {
             GElf_Rel pos_mem, *pos;
             pos = gelf_getrel(si->dynsymtab.rel_data, index, &pos_mem);
             symidx = GELF_R_SYM(pos->r_info);
         }
-        else {
+        else
+        {
             return;
         }
         index++;
@@ -303,26 +328,31 @@ static void __get_symbol_without_plt(std::set<symbol> &ss, sym_section_ctx *tab,
     s.end = 0;
     s.start = 0;
 
-    while (index < tab->sym_count) {
+    while (index < tab->sym_count)
+    {
         gelf_getsym(tab->syms, index, &sym);
         index++;
-        if (sym.st_shndx == SHN_ABS) {
+        if (sym.st_shndx == SHN_ABS)
+        {
             continue;
         }
-        if (!is_function(&sym)) {
+        if (!is_function(&sym))
+        {
             continue;
-        } 
+        }
         sym_name = (const char *)tab->symstrs->d_buf + sym.st_name;
-        if (tab->is_reloc) {
+        if (tab->is_reloc)
+        {
             Elf_Scn *sec = elf_getscn(elf, sym.st_shndx);
-            if (!sec) {
+            if (!sec)
+            {
                 continue;
             }
             GElf_Shdr shdr;
             gelf_getshdr(sec, &shdr);
             sym.st_value -= shdr.sh_addr - shdr.sh_offset;
         }
-        s.start = sym.st_value & 0xffffffff; 
+        s.start = sym.st_value & 0xffffffff;
         s.end = s.start + sym.st_size;
         s.ip = s.start;
         s.name = sym_name;
@@ -336,7 +366,8 @@ static void __get_symbol(std::set<symbol> &ss, symbol_sections_ctx *si, Elf *elf
     s.end = 0;
     s.start = 0;
 
-    if (!si->symtab.syms && !si->dynsymtab.syms) {
+    if (!si->symtab.syms && !si->dynsymtab.syms)
+    {
         return;
     }
 
@@ -356,7 +387,8 @@ bool search_symbol(const std::set<symbol> &ss, symbol &sym)
 {
     std::set<symbol>::const_iterator it = ss.find(sym);
 
-    if (it != ss.end()) {
+    if (it != ss.end())
+    {
         sym.end = it->end;
         sym.start = it->start;
         sym.name = it->name;
@@ -381,29 +413,34 @@ bool get_symbol_from_elf(std::set<symbol> &ss, const char *path)
     int fd = open(path, O_RDONLY);
 
     Elf *elf = elf_begin(fd, ELF_C_READ, NULL);
-    if (elf == NULL) {
+    if (elf == NULL)
+    {
         close(fd);
         return false;
     }
 
     Elf_Kind ek = elf_kind(elf);
-    if (ek != ELF_K_ELF) {
+    if (ek != ELF_K_ELF)
+    {
         elf_end(elf);
         close(fd);
         return false;
     }
     GElf_Ehdr hdr;
-    if (gelf_getehdr(elf, &hdr) == NULL) {
+    if (gelf_getehdr(elf, &hdr) == NULL)
+    {
         elf_end(elf);
         close(fd);
         return false;
     }
 
-    if (hdr.e_type == ET_EXEC) {
+    if (hdr.e_type == ET_EXEC)
+    {
         is_reloc = 1;
     }
 
-    if (!elf_rawdata(elf_getscn(elf, hdr.e_shstrndx), NULL)) {
+    if (!elf_rawdata(elf_getscn(elf, hdr.e_shstrndx), NULL))
+    {
         elf_end(elf);
         close(fd);
         return false;
@@ -426,33 +463,39 @@ bool get_symbol_from_elf(std::set<symbol> &ss, const char *path)
     Elf_Scn *plt_sec = NULL;
     Elf_Scn *plt_rel_sec = NULL;
 
-    while ((sec = elf_nextscn(elf, sec)) != NULL) {
+    while ((sec = elf_nextscn(elf, sec)) != NULL)
+    {
         char *str;
         gelf_getshdr(sec, &shdr);
         str = elf_strptr(elf, hdr.e_shstrndx, shdr.sh_name);
 
-        if (str && strcmp(".symtab", str) == 0) {
+        if (str && strcmp(".symtab", str) == 0)
+        {
             symtab_sec = sec;
             memcpy(&symtab_shdr, &shdr, sizeof(dynsym_shdr));
         }
-        if (str && strcmp(".dynsym", str) == 0) {
+        if (str && strcmp(".dynsym", str) == 0)
+        {
             dynsym_sec = sec;
             memcpy(&dynsym_shdr, &shdr, sizeof(dynsym_shdr));
         }
-        if (str && strcmp(".rela.plt", str) == 0) {
+        if (str && strcmp(".rela.plt", str) == 0)
+        {
             plt_rel_sec = sec;
             memcpy(&plt_rel_shdr, &shdr, sizeof(plt_rel_shdr));
         }
-        if (str && strcmp(".plt", str) == 0) {
+        if (str && strcmp(".plt", str) == 0)
+        {
             plt_sec = sec;
             memcpy(&plt_shdr, &shdr, sizeof(plt_shdr));
         }
-        if (str && strcmp(".gnu.prelink_undo", str) == 0) {
+        if (str && strcmp(".gnu.prelink_undo", str) == 0)
+        {
             is_reloc = 1;
         }
     }
 
-    plt_ctx plt;  
+    plt_ctx plt;
     plt.dynsym.hdr = &dynsym_shdr;
     plt.dynsym.sec = dynsym_sec;
     plt.plt.hdr = &plt_shdr;
@@ -462,13 +505,16 @@ bool get_symbol_from_elf(std::set<symbol> &ss, const char *path)
 
     symbol_sections_ctx si;
     memset(&si, 0, sizeof(si));
-    if (symtab_sec) {
+    if (symtab_sec)
+    {
         get_symbols_in_section(&si.symtab, elf, symtab_sec, &symtab_shdr, is_reloc);
     }
-    if (dynsym_sec) {
+    if (dynsym_sec)
+    {
         get_symbols_in_section(&si.symtab_in_dynsym, elf, dynsym_sec, &dynsym_shdr, is_reloc);
     }
-    if (dynsym_sec && plt_sec) {
+    if (dynsym_sec && plt_sec)
+    {
         get_plt_symbols_in_section(&si.dynsymtab, elf, &plt);
     }
 
@@ -478,7 +524,8 @@ bool get_symbol_from_elf(std::set<symbol> &ss, const char *path)
     return true;
 }
 
-struct symbol_cache_item {
+struct symbol_cache_item
+{
     int start;
     int size;
     char name[0];
@@ -491,34 +538,40 @@ bool save_symbol_cache(std::set<symbol> &ss, const char *path)
     bool status = true;
 
     int fd = open(path, O_RDONLY);
-    if (fd < 0) {
+    if (fd < 0)
+    {
         status = false;
         return status;
     }
     int ret;
     ret = read(fd, &len, 4);
-    if (ret <= 0) {
+    if (ret <= 0)
+    {
         close(fd);
         status = false;
         return status;
     }
     ret = read(fd, buf, len);
-    if (ret <= 0) {
+    if (ret <= 0)
+    {
         close(fd);
         status = false;
         return status;
     }
 
-    while (1) {
+    while (1)
+    {
         struct symbol_cache_item *sym;
         symbol s;
         ret = read(fd, &len, 4);
-        if (ret <= 0) {
+        if (ret <= 0)
+        {
             status = false;
             break;
         }
         ret = read(fd, buf, len);
-        if (ret < len) {
+        if (ret < len)
+        {
             status = false;
             break;
         }
@@ -536,24 +589,28 @@ bool save_symbol_cache(std::set<symbol> &ss, const char *path)
 bool load_symbol_cache(std::set<symbol> &ss, const char *path, const char *filename)
 {
     int fd = open(path, O_RDWR | O_EXCL);
-    if (fd < 0) {
+    if (fd < 0)
+    {
         return false;
     }
     int len = strlen(filename);
     int ret = write(fd, &len, 4);
-    if (ret < 0) {
+    if (ret < 0)
+    {
         close(fd);
         return false;
     }
     ret = write(fd, filename, len);
-    if (ret < 0) {
+    if (ret < 0)
+    {
         close(fd);
         return false;
     }
 
     std::set<symbol>::iterator it;
     int v;
-    for (it = ss.begin(); it != ss.end(); ++it) {
+    for (it = ss.begin(); it != ss.end(); ++it)
+    {
         v = it->start;
         ret = write(fd, &v, 4);
         v = it->end - it->start;
