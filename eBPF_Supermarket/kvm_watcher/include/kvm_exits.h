@@ -89,6 +89,7 @@ static int trace_kvm_entry() {
     struct exit_key exit_key;
     __builtin_memset(&exit_key, 0, sizeof(struct exit_key));
     exit_key.pid = pid;
+    exit_key.tid = tid;
     exit_key.reason = reas->reason;
     struct exit_value *exit_value;
     exit_value = bpf_map_lookup_elem(&exit_map, &exit_key);

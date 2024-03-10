@@ -93,7 +93,7 @@ struct reason_info {
 struct exit_key {
     __u64 reason;
     __u32 pid;
-    __u32 pad;
+    __u32 tid;
 };
 
 struct exit_value {
