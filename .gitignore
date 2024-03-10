@@ -72,5 +72,5 @@ eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image
 *.skel.h
 
 # Stack_Analyser
-stack_analyzer
-exporter
+eBPF_Supermarket/Stack_Analyser/stack_analyzer
+eBPF_Supermarket/Stack_Analyser/exporter/exporter
