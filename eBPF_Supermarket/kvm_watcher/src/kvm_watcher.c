@@ -884,13 +884,13 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                   getName(next_key.reason, EXIT));
+                   getName(keys[i].reason, EXIT));
         } else if (tid == keys[i].tid) {
             printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                  getName(next_key.reason, EXIT));
+                  getName(keys[i].reason, EXIT));
         }
     }
     // clear the maps
