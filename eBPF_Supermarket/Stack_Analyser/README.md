@@ -68,8 +68,7 @@ $ git submodule update --init --recursive
 $ apt install clang libelf1 libelf-dev zlib1g-dev
 ```
 
-g++-10以上
-clang-12以上
+g++-10以上，clang-12以上
 
 # 使用方法
 
@@ -105,6 +104,10 @@ commands:
 OK
 ```
 
+## 发送到Pyroscope
+
+请阅读[`exporter/README.md`](exporter/README.md)。
+
 # 目录描述
 
 - include：各种定义。
@@ -113,3 +116,5 @@ OK
 - src/bpf：eBPF程序的代码和其包装类的实现。
 - exporter：使用Golang开发的数据推送程序，将采集到的调用栈数据推送到Pyroscope服务器，获取更强的数据存储和可视化性能。
 - main.cpp：负责参数解析、配置、调用栈数据收集器管理和子进程管理。
+- libbpf-bootstrap: 项目依赖的libbpf及相关工具源代码，方便移植。
+- new_bpf.sh：初始化新的采集能力的脚本，详情请参考`框架使用说明.md`。

@@ -54,6 +54,7 @@ var (
 )
 
 func main() {
+	flag.Parse()
 	reader = *bufio.NewReader(os.Stdin)
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	// 创建画像数据发送信道
