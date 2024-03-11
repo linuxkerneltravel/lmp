@@ -23,8 +23,6 @@ import (
 	"ebpf_prometheus/checker"
 	"ebpf_prometheus/dao"
 	"ebpf_prometheus/prom_core"
-	"github.com/urfave/cli/v2"
-	"gopkg.in/yaml.v2"
 	"io"
 	"log"
 	"os"
@@ -33,6 +31,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v2"
 )
 
 // Pro_Setting 定义了设置项，通过读取同目录下的tmux_proc_setting.yaml实现对基本信息的设置。
@@ -45,12 +46,12 @@ type Proc_Setting struct {
 
 // 定义了一个名为 proc_imageCommand 的 CLI 命令，用于执行特定的数据收集任务
 var proc_imageCommand = cli.Command{
-	Name:    "proc_image",
+	Name: "proc_image",
 	// 设置命令的别名，即用户可以使用 "pro" 作为缩写形式来调用相同的命令
 	Aliases: []string{"pro"},
 	Usage:   "Special collect data out from proc_image",
 	// 设置命令执行时调用的函数为 procCollect
-	Action:  procCollect,
+	Action: procCollect,
 }
 
 // Get_Setting 函数用于获取设置的信息，返回一个错误、命令字符串和最大记录数
@@ -107,7 +108,7 @@ func procCollect(ctx *cli.Context) error {
 // 该函数接收一个字符串参数 command，表示要执行的命令
 func ProcRun(command string) error {
 	// 检查文件类型，并将检查后的命令字符串存储在 cmdStr 变量中
-	cmdStr := CheckFileType(command)
+	_, cmdStr := CheckFileType(command)
 	// 创建一个表示将要执行的命令的对象，并将其赋值给 cmd 变量
 	cmd := exec.Command("sh", "-c", cmdStr)
 
@@ -244,7 +245,7 @@ func redirectProc(stdout io.ReadCloser, mapchan chan map[string]interface{}) {
 			// log.Println(onemap)
 			// 将存储了当前行数据的 onemap 发送到 mapchan 通道中，以便后续处理
 			mapchan <- onemap
-		// 如果不是 "proc" 命令的输出，则继续下一轮循环
+			// 如果不是 "proc" 命令的输出，则继续下一轮循环
 		} else {
 			continue
 		}

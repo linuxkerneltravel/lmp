@@ -60,7 +60,20 @@ std::string demangleCppSym(std::string symbol)
 		return symbol;
 	}
 }
-
+void splitString(std::string symbol, const char split, std::vector<std::string> &res)
+{
+	if (symbol == "")
+		return;
+	std::string strs = symbol + split;
+	size_t pos = strs.find(split);
+	while (pos != strs.npos)
+	{
+		std::string temp = strs.substr(0, pos);
+		res.push_back(temp);
+		strs = strs.substr(pos + 1, strs.size());
+		pos = strs.find(split);
+	}
+}
 void clearSpace(std::string &sym)
 {
 	for (auto i = sym.begin(); i != sym.end();)
@@ -666,6 +679,17 @@ private:
 
 public:
 	std::string probe = ""; // 保存命令行的输入
+	std::string tp_class = "";
+	std::vector<std::string> strList;
+	typedef enum
+	{
+		KPROBE,
+		TRACEPOINT,
+		USTD_TP,
+		UPROBE
+	} stack_mod;
+
+	stack_mod ProbeType = stack_mod::KPROBE;
 
 	StackCountStackCollector()
 	{
@@ -676,18 +700,71 @@ public:
 		};
 	};
 
-	void setProbe(std::string probe) {
-		this->probe = probe;
-		scale.Type = (probe+scale.Type).c_str();
+	void setProbe(std::string probe)
+	{
+		splitString(probe, ':', strList);
+		if (strList.size() == 1)
+		{
+			// probe a kernel function
+			this->probe = probe;
+		}
+		else if (strList.size() == 3)
+		{
+			if (strList[0] == "p" && strList[1] == "")
+			{
+				// probe a kernel function
+				this->probe = strList[2];
+			}
+			else if (strList[0] == "t")
+			{
+				// probe a kernel tracepoint
+				this->tp_class = strList[1];
+				this->probe = strList[2];
+				ProbeType = stack_mod::TRACEPOINT;
+			}
+			else if (strList[0] == "p" && strList[1] != "")
+			{
+				// probe a user-space function in the library 'lib'
+				ProbeType = stack_mod::UPROBE;
+			}
+			else if (strList[0] == "u")
+			{
+				// probe a USDT tracepoint
+				ProbeType = stack_mod::USTD_TP;
+			}
+			else
+			{
+				printf("Type must be 'p', 't', or 'u'");
+			}
+		}
+		else if (strList.size() == 2)
+		{
+			// probe a user-space function in the library 'lib'
+			ProbeType = stack_mod::UPROBE;
+		}
+		else
+		{
+			printf("Too many args");
+		}
+		scale.Type = (probe + scale.Type).c_str();
 	}
 
 	defaultLoad;
 	int attach(void) override
 	{
-		skel->links.handle =
-			bpf_program__attach_kprobe(skel->progs.handle, false,
-									   probe.c_str());
-		CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		if (ProbeType == KPROBE)
+		{
+			skel->links.handle =
+				bpf_program__attach_kprobe(skel->progs.handle, false,
+										   probe.c_str());
+			CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		}
+		else if (ProbeType == TRACEPOINT)
+		{
+			skel->links.handle_tp =
+				bpf_program__attach_tracepoint(skel->progs.handle_tp, tp_class.c_str(), probe.c_str());
+			CHECK_ERR(!skel->links.handle_tp, "Fail to attach tracepoint");
+		}
 		return 0;
 	};
 	defaultDetach;
@@ -737,17 +814,17 @@ int main(int argc, char *argv[])
 																	  { StackCollectorList.back()->ustack = false; }) %
 						  "only sample kernel stacks",
 					  (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", IntTmp).call([]
-																														 { StackCollectorList.back()->max = IntTmp; })) %
+																														{ StackCollectorList.back()->max = IntTmp; })) %
 						  "set the max threshold of sampled value",
 					  (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", IntTmp).call([]
-																														 { StackCollectorList.back()->min = IntTmp; })) %
+																														{ StackCollectorList.back()->min = IntTmp; })) %
 						  "set the min threshold of sampled value");
 
 	auto OnCpuOption = clipp::option("on-cpu").call([]
 													{ StackCollectorList.push_back(new OnCPUStackCollector()); }) %
 						   "sample the call stacks of on-cpu processes" &
 					   (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", IntTmp).call([]
-																											  { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
+																											 { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
 																 "sampling at a set frequency",
 						SubOption);
 
@@ -780,11 +857,12 @@ int main(int argc, char *argv[])
 													{ StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
 							   "sample the readahead hit rate of call stacks" &
 						   SubOption;
+
 	auto StackCountOption = clipp::option("stackcount").call([]
 															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
 								"sample the counts of calling stacks" &
 							(clipp::option("-S", "--String") & clipp::value("probe String", StrTmp).call([]
-																														{ static_cast<StackCountStackCollector *>(StackCollectorList.back())->setProbe(StrTmp); }) %
+																										 { static_cast<StackCountStackCollector *>(StackCollectorList.back())->setProbe(StrTmp); }) %
 																   "sampling at a set probe string",
 							 SubOption);
 

@@ -24,20 +24,21 @@ import (
 	"ebpf_prometheus/checker"
 	"ebpf_prometheus/collector"
 	"fmt"
-	"github.com/urfave/cli/v2"
 	"log"
 	"os"
 	"sort"
+
+	"github.com/urfave/cli/v2"
 )
 
 // 主函数的开始
 func main() {
 	// 创建一个新的 CLI 应用
+	// cli是一个简单、快速、有趣的包，用于在Go中构建命令行应用程序。其目标是使开发人员能够以一种富有表现力的方式编写快速且可分发的命令行应用程序
 	app := cli.NewApp()
 	// 配置应用的名称和使用说明文本
 	app.Name = "data-visual"
-	app.Usage = `
-	use this cli-tool to collect output data and Convert output data to standard prometheus data.
+	app.Usage = `	use this cli-tool to collect output data and Convert output data to standard prometheus data.
 	here are two different sub-command : collect & ecli
 	example:
 		sudo data-visual collect ./vfsstat.py
