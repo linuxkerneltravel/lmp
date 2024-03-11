@@ -28,10 +28,7 @@
 #define NS_TO_US_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_US_FACTOR)
 #define NS_TO_MS_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_MS_FACTOR)
 
-#define MICROSECONDS_IN_SECOND 1000000
-#define OUTPUT_INTERVAL_SECONDS 2
-
-#define OUTPUT_INTERVAL(us) usleep((__u32)(us * MICROSECONDS_IN_SECOND))
+#define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
 #define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
 
@@ -147,6 +144,7 @@ enum EventType {
     IRQCHIP,
     IRQ_INJECT,
     HYPERCALL,
+    IOCTL,
 } event_type;
 
 struct common_event {
