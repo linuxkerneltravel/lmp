@@ -41,6 +41,21 @@ extern "C"
 #include "bpf/stack_count.skel.h"
 }
 
+void splitString(std::string symbol, const char split, std::vector<std::string> &res)
+{
+	if (symbol == "")
+		return;
+	std::string strs = symbol + split;
+	size_t pos = strs.find(split);
+	while (pos != strs.npos)
+	{
+		std::string temp = strs.substr(0, pos);
+		res.push_back(temp);
+		strs = strs.substr(pos + 1, strs.size());
+		pos = strs.find(split);
+	}
+}
+
 std::string getLocalDateTime(void)
 {
 	auto t = time(NULL);
@@ -639,6 +654,17 @@ private:
 
 public:
 	std::string probe = ""; // 保存命令行的输入
+	std::string tp_class = "";
+	std::vector<std::string> strList;
+	typedef enum
+	{
+		KPROBE,
+		TRACEPOINT,
+		USTD_TP,
+		UPROBE
+	} stack_mod;
+
+	stack_mod ProbeType = stack_mod::KPROBE;
 
 	StackCountStackCollector()
 	{
@@ -651,16 +677,69 @@ public:
 
 	void setProbe(std::string probe)
 	{
-		this->probe = probe;
+		splitString(probe, ':', strList);
+		if (strList.size() == 1)
+		{
+			// probe a kernel function
+			this->probe = probe;
+		}
+		else if (strList.size() == 3)
+		{
+			if (strList[0] == "p" && strList[1] == "")
+			{
+				// probe a kernel function
+				this->probe = strList[2];
+			}
+			else if (strList[0] == "t")
+			{
+				// probe a kernel tracepoint
+				this->tp_class = strList[1];
+				this->probe = strList[2];
+				ProbeType = stack_mod::TRACEPOINT;
+			}
+			else if (strList[0] == "p" && strList[1] != "")
+			{
+				// probe a user-space function in the library 'lib'
+				ProbeType = stack_mod::UPROBE;
+			}
+			else if (strList[0] == "u")
+			{
+				// probe a USDT tracepoint
+				ProbeType = stack_mod::USTD_TP;
+			}
+			else
+			{
+				printf("Type must be 'p', 't', or 'u'");
+			}
+		}
+		else if (strList.size() == 2)
+		{
+			// probe a user-space function in the library 'lib'
+			ProbeType = stack_mod::UPROBE;
+		}
+		else
+		{
+			printf("Too many args");
+		}
 		scale.Type = (probe + scale.Type).c_str();
 	}
 
 	defaultLoad;
 	int attach(void) override
 	{
-		skel->links.handle =
-			bpf_program__attach_kprobe(skel->progs.handle, false, probe.c_str());
-		CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		if (ProbeType == KPROBE)
+		{
+			skel->links.handle =
+				bpf_program__attach_kprobe(skel->progs.handle, false,
+										   probe.c_str());
+			CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		}
+		else if (ProbeType == TRACEPOINT)
+		{
+			skel->links.handle_tp =
+				bpf_program__attach_tracepoint(skel->progs.handle_tp, tp_class.c_str(), probe.c_str());
+			CHECK_ERR(!skel->links.handle_tp, "Fail to attach tracepoint");
+		}
 		return 0;
 	};
 	defaultDetach;
@@ -753,6 +832,7 @@ int main(int argc, char *argv[])
 													{ StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
 							   "sample the readahead hit rate of call stacks" &
 						   SubOption;
+
 	auto StackCountOption = clipp::option("stackcount").call([]
 															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
 								"sample the counts of calling stacks" &

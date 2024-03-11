@@ -233,7 +233,7 @@ static int print_resource(struct bpf_map *map)
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
 		if(prev_image != RESOURCE_IMAGE){
-			printf("RESOURCE-------------------------------------------------------------------------------------------------\n");
+			printf("RESOURCE ------------------------------------------------------------------------------------------------\n");
 			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
@@ -306,7 +306,7 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 	int key = 0;
 
 	if(prev_image != SCHEDULE_IMAGE){
-		printf("SCHEDULE-----------------------------------------------------------------------------------------------------------------------\n");
+		printf("SCHEDULE ----------------------------------------------------------------------------------------------------------------------\n");
 		printf("%-8s  ","TIME");
 		if(env.tgid != -1)	printf("%-6s  ","TGID");
 		printf("%-6s  %-4s  %s\n","PID","PRIO","| P_AVG_DELAY(ms) S_AVG_DELAY(ms) | P_MAX_DELAY(ms) S_MAX_DELAY(ms) | P_MIN_DELAY(ms) S_MIN_DELAY(ms) |");
@@ -397,7 +397,7 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
     int sec = localTime->tm_sec;
 
 	if(prev_image != SYSCALL_IMAGE){
-        printf("SYSCALL--------------------------------------------------------------------------------------------------\n");
+        printf("SYSCALL -------------------------------------------------------------------------------------------------\n");
         printf("%-8s  %-6s  %-14s  %-14s  %-14s  %-13s  %-13s  %-8s\n",
 				"TIME","PID","1st/num","2nd/num","3nd/num","AVG_DELAY(ns)","MAX_DELAY(ns)","SYSCALLS");
 
@@ -463,7 +463,7 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 	const struct lock_event *e = data;
 	
 	if(prev_image != LOCK_IMAGE){
-        printf("USERLOCK-------------------------------------------------------------------------------------------------\n");
+        printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
         printf("%-14s  %-6s  %-15s  %s\n","TIME","PID","LockAddr","LockStatus");
 
 		prev_image = LOCK_IMAGE;
@@ -556,7 +556,7 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
     int sec = localTime->tm_sec;
 	
 	if(prev_image != KEYTIME_IMAGE){
-        printf("KEYTIME_IMAGE--------------------------------------------------------------------------------------------\n");
+        printf("KEYTIME -------------------------------------------------------------------------------------------------\n");
         printf("%-8s  %-6s  %-15s  %s\n","TIME","PID","EVENT","ARGS/RET/OTHERS");
 
 		prev_image = KEYTIME_IMAGE;
