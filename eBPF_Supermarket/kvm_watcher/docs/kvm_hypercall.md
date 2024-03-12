@@ -8,7 +8,7 @@ kvm watcher 的 kvm hypercall 子模块是一个专为 KVM 虚拟化环境设计
 
 在虚拟化环境中，Hypercall 机制是虚拟机（VM）从非特权模式（no root mode）切换到特权模式（root mode）的一种方式，类似于传统操作系统中从用户态切换到内核态的系统调用（syscall）。KVM（Kernel-based Virtual Machine）通过支持 Hypercall 机制，提供了一种高效的方式让虚拟机的 Guest OS 执行一些需要更高权限的操作，比如更新页表或访问物理资源等，这些操作由于虚拟机的非特权域无法完成，因此通过 Hypercall 交由 Hypervisor 来执行。
 
-![wKiom1afF9-BZbZuAAAotW_0zjg092.png](http://s2.51cto.com/wyfs02/M01/79/F3/wKiom1afF9-BZbZuAAAotW_0zjg092.png)
+<div align=center>![wKiom1afF9-BZbZuAAAotW_0zjg092.png](http://s2.51cto.com/wyfs02/M01/79/F3/wKiom1afF9-BZbZuAAAotW_0zjg092.png)</div>
 
 hypercall的发起需求触发vm exit原因为EXIT_REASON_VMCALL，其对应的处理函数为：
 
@@ -218,8 +218,8 @@ TIME(ms)           COMM            PID        VCPU_ID    NAME       HYPERCALLS A
 ## 参数解释
 
 - **PID**: 相应虚拟机进程的标识符（PID）
-- **VCPU_ID:**对应的vcpu标识符
-- **NAME：**所发生的hypercall名称
-- **COUNTS:**当前时间段内hypercall发送的次数
-- **HYPERCALLS：**  自虚拟机启动以来，每个vcpu上发生的hypercall的次数
+- **VCPU_ID**:对应的vcpu标识符
+- **NAME**:所发生的hypercall名称
+- **COUNTS**:当前时间段内hypercall发送的次数
+- **HYPERCALLS**:自虚拟机启动以来，每个vcpu上发生的hypercall的次数
 

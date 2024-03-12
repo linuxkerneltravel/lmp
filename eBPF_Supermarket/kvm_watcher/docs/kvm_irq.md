@@ -113,6 +113,7 @@ KVM_CREATE_IRQCHIP用于虚拟机向VMM的虚拟apic发送中断请求，再有V
 ## 示例输出
 
 ```
+#sudo ./kvm_watcher -c
 TIME(ms)           COMM            PID        DELAY      TYPE/PIN       DST/VEC    OTHERS  
 962804587.768667   CPU 0/KVM       269394     773        MSI       /-   0x2/40     Fixed  |physical|edge |-     |-
 962805792.231419   vhost-529746    529767     3008       MSI       /-   0x1/40     Fixed  |physical|edge |-     |-
