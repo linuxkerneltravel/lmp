@@ -100,7 +100,8 @@ KVM_CREATE_IRQCHIP用于虚拟机向VMM的虚拟apic发送中断请求，再有V
 
 其中ioapic的回调函数kvm_set_ioapic_irq依次调用kvm_ioapic_set_irq、ioapic_set_irq最后调用ioapic_service函数，ioapic_service主要是找到中断的重映射表，然后查找中断的目的地信息并转发到对应vcpu的lapic去处理。然后会调用kvm_irq_delivery_to_apic负责将中断分发给lapic。
 
->  中断虚拟化详细介绍可以参考：[kvm中断虚拟化 ]() [内核虚拟化：虚拟中断注入](https://blog.csdn.net/weixin_46324627/article/details/136661252?csdn_share_tail=%7B%22type%22%3A%22blog%22%2C%22rType%22%3A%22article%22%2C%22rId%22%3A%22136661252%22%2C%22source%22%3A%22weixin_46324627%22%7D)
+>  中断虚拟化详细介绍可以参考：[kvm中断虚拟化 ](https://blog.csdn.net/zgy666/article/details/105456569) 
+> [内核虚拟化：虚拟中断注入](https://blog.csdn.net/weixin_46324627/article/details/136661252?csdn_share_tail=%7B%22type%22%3A%22blog%22%2C%22rType%22%3A%22article%22%2C%22rId%22%3A%22136661252%22%2C%22source%22%3A%22weixin_46324627%22%7D)
 
 ## 挂载点
 

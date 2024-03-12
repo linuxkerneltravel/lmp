@@ -7,8 +7,7 @@ kvm watcher 的 kvm hypercall 子模块是一个专为 KVM 虚拟化环境设计
 ## 原理介绍
 
 在虚拟化环境中，Hypercall 机制是虚拟机（VM）从非特权模式（no root mode）切换到特权模式（root mode）的一种方式，类似于传统操作系统中从用户态切换到内核态的系统调用（syscall）。KVM（Kernel-based Virtual Machine）通过支持 Hypercall 机制，提供了一种高效的方式让虚拟机的 Guest OS 执行一些需要更高权限的操作，比如更新页表或访问物理资源等，这些操作由于虚拟机的非特权域无法完成，因此通过 Hypercall 交由 Hypervisor 来执行。
-
-<div align=center>![wKiom1afF9-BZbZuAAAotW_0zjg092.png](http://s2.51cto.com/wyfs02/M01/79/F3/wKiom1afF9-BZbZuAAAotW_0zjg092.png)</div>
+<div align=center><img src="http://s2.51cto.com/wyfs02/M01/79/F3/wKiom1afF9-BZbZuAAAotW_0zjg092.png"></div>
 
 hypercall的发起需求触发vm exit原因为EXIT_REASON_VMCALL，其对应的处理函数为：
 
