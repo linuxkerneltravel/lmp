@@ -23,5 +23,5 @@ jobs:
       - name: Test program execution
         run: |
           cd eBPF_Supermarket/kvm_watcher/
-          make
-
+          make test
+ 
