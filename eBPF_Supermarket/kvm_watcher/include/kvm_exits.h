@@ -58,7 +58,7 @@ static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
     CHECK_PID(vm_pid);
     u32 reason;
     reason = (u32)ctx->exit_reason;
-    //如果是节能停止退出，就不采集数据
+    // 如果是节能停止退出，就不采集数据
     if (reason == EXIT_REASON_HLT) {
         return 0;
     }
@@ -89,6 +89,7 @@ static int trace_kvm_entry() {
     struct exit_key exit_key;
     __builtin_memset(&exit_key, 0, sizeof(struct exit_key));
     exit_key.pid = pid;
+    exit_key.tid = tid;
     exit_key.reason = reas->reason;
     struct exit_value *exit_value;
     exit_value = bpf_map_lookup_elem(&exit_map, &exit_key);

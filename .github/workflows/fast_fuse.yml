@@ -1,0 +1,40 @@
+name: fast_fuse
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/**'
+      - '.github/workflows/fast_fuse.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/**'
+      - '.github/workflows/ebpf_FUSE_read.yml'
+  
+jobs:
+  fast_fuse-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run fusedemo
+        run: |
+          cd eBPF_Supermarket/Filesystem_Subsystem/fast_fuse/fusedemo/
+          sudo apt update
+          sudo apt install fuse libfuse-dev meson wget git
+          wget https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
+          tar -zxvf fuse-3.16.2.tar.gz
+          mv fuse-3.16.2 libfuse
+          cd libfuse
+          cp ../fusedemo.c ./example/
+          cp ../Makefile ./
+          rm ./example/meson.build
+          cp ../meson.build ./example/
+          make
+          cd ./build/example/
+          mkdir ./yourdir
+          ./fusedemo ./yourdir
+          df -T ./yourdir
