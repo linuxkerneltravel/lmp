@@ -34,8 +34,8 @@ jobs:
       - name: Build and Run
         run: |
           cd eBPF_Supermarket/Network_Subsystem/net_manager/
-          ./configure
-          make
+          sudo ./configure
+          sudo make
           # run
           sudo timeout -s SIGINT 5 ./xdp_loader -d ens33 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
           sudo ./xacladm load ens33 ./conf.d/mac_load.conf
