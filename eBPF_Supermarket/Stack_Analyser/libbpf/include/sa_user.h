@@ -34,13 +34,6 @@ struct Scale {
 	int64_t Period;
 };
 
-struct diy_header
-{
-	uint64_t len;
-	char name[32];
-	int magic;
-};
-
 /// @brief 获取epbf程序中指定表的文件描述符
 /// @param name 表的名字
 #define OPEN_MAP(name) bpf_map__fd(skel->maps.name)
@@ -110,8 +103,8 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架
-/// @param sym_name 用户态函数名
-/// @param prog_name ebpf处理函数
+/// @param sym_name 用户态函数名字面量，不加双引号
+/// @param prog_name ebpf处理函数，skel->progs中的成员名
 /// @param is_retprobe 布尔类型，是否附加到符号返回处
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
@@ -184,15 +177,15 @@ extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 
 /// @brief 向指定用户态函数入口处附加一个处理函数并检查是否连接成功
 /// @param skel ebpf程序骨架
-/// @param sym_name 要跟踪的用户态函数名
-/// @param prog_name ebpf处理函数
+/// @param sym_name 要跟踪的用户态函数名字面量，不带双引号
+/// @param prog_name ebpf处理函数，skel->progs中的成员
 /// @note 如果检查到没有被附加则使上层函数返回负的错误代码
 #define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
 
 /// @brief 向指定用户态函数返回处附加一个处理函数并检查是否连接成功
 /// @param skel ebpf程序骨架
-/// @param sym_name 要附加的用户态函数名
-/// @param prog_name ebpf处理函数
+/// @param sym_name 要附加的用户态函数名，字面量，不带双引号
+/// @param prog_name ebpf处理函数，skel->progs中的成员
 /// @note 如果检查到没有被附加则使上层函数返回负的错误代码
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
