@@ -19,12 +19,10 @@ permissions:
 
 jobs:
   build-and-run:
-    runs-on: ubuntu-23.10
+    runs-on: ubuntu-22.04
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
-        with:
-          submodules: recursive
 
       - name: Install dependencies and Init Env
         run: |
@@ -39,8 +37,7 @@ jobs:
           ./configure
           make
           # run
-          cd eBPF_Supermarket/Network_Subsystem/net_manager/xacl_mac
-          sudo ./xdp_loader -d ens33 -S
+          sudo timeout -s SIGINT 5 ./xdp_loader -d ens33 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
           sudo ./xacladm load ens33 ./conf.d/mac_load.conf
           sudo xdp-loader unload ens33 --all
   
