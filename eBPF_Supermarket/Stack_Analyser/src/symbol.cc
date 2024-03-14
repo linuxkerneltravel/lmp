@@ -13,7 +13,7 @@
 #include <cxxabi.h>
 
 #include "symbol.h"
-#include "elf.h"
+#include "elf.hpp"
 
 void restore_global_env();
 int attach_ns_env(int pid);
