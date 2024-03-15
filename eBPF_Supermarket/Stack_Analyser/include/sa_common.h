@@ -36,14 +36,4 @@ typedef struct {
     char str[COMM_LEN];
 } comm;
 
-typedef struct {
-    __u64 truth;
-    __u64 expect;
-} ra_tuple;
-
-typedef struct {
-    __u64 count;
-    __u64 size;
-} io_tuple;
-
 #endif

@@ -34,12 +34,14 @@ VMLINUX := libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX)) -I./include
+INCLUDES := -I./include -I$(OUTPUT) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = on_cpu_count off_cpu_count mem_count io_count pre_count stack_count
-SYMBOL = elf symbol
+BPF = $(patsubst src/bpf/%.bpf.c, %, ${wildcard src/bpf/*.bpf.c})
+BPF_WAPPER = $(patsubst src/bpf/%.cpp, %, ${wildcard src/bpf/*.cpp})
+THIRD_PARTY = $(patsubst src/%.cc, %, ${wildcard src/*.cc})
+
 TARGETS = stack_analyzer
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
@@ -73,17 +75,18 @@ endef
 
 $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
+args = `arg="$(filter-out $@,$(MAKECMDGOALS))" && echo $${arg:-${1}}`
 
 .PHONY: all
 all: $(TARGETS)
 
 .PHONY: bpf_skel_h
-bpf_skel_h: $(APPS)
+bpf_skel_h: $(BPF)
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS) bpf/*.skel.h
+	$(Q)rm -rf $(OUTPUT) $(TARGETS) include/bpf/*.skel.h
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -103,7 +106,7 @@ $(BPFTOOL): | $(BPFTOOL_OUTPUT)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
 # Build BPF code
-$(OUTPUT)/%.bpf.o: bpf/%.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
+$(OUTPUT)/%.bpf.o: src/bpf/%.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)		      \
 		     $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES)		      \
@@ -111,22 +114,27 @@ $(OUTPUT)/%.bpf.o: bpf/%.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTP
 	$(Q)$(BPFTOOL) gen object $@ $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
 
 # Generate BPF skeletons
-.PHONY: $(APPS)
-$(APPS): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
+.PHONY: $(BPF)
+$(BPF): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
 	$(call msg,GEN-SKEL,$@)
-	$(Q)$(BPFTOOL) gen skeleton $< > bpf/$@.skel.h
+	$(Q)$(BPFTOOL) gen skeleton $< > include/bpf/$@.skel.h
+
+$(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)): $(OUTPUT)/%.o: src/bpf/%.cpp
+	$(call msg,CXX,$@)
+	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build depending library
-$(patsubst %,$(OUTPUT)/%.o,$(SYMBOL)): $(OUTPUT)/%.o: include/%.cc
+$(patsubst %,$(OUTPUT)/%.o,$(THIRD_PARTY)): $(OUTPUT)/%.o: src/%.cc
 	$(call msg,CXX,$@)
-	$(Q)$(CXX) $(CFLAGS) -c $< -o $@
+	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
+# $(Q)$(CXX) $(CFLAGS) $(INCLUDES) $< -E > log
 
-$(OUTPUT)/$(TARGETS).o: $(TARGETS).cc $(APPS) | $(OUTPUT)
+$(OUTPUT)/$(TARGETS).o: main.cpp $(BPF) $(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)) | $(OUTPUT)
 	$(call msg,CXX,$@)
-	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $(filter %.cc,$^) -o $@
+	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c main.cpp -o $@
 
 # Build application binary
-$(TARGETS): %: $(OUTPUT)/%.o $(patsubst %,$(OUTPUT)/%.o,$(SYMBOL)) $(LIBBPF_OBJ) | $(OUTPUT)
+$(TARGETS): %: $(OUTPUT)/%.o $(patsubst %,$(OUTPUT)/%.o,$(THIRD_PARTY)) $(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CXX) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 
