@@ -1,0 +1,38 @@
+name: MagicEyes
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'MagicEyes/**'
+      - '.github/workflows/magic_eyes.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'MagicEyes/**'
+      - '.github/workflows/magic_eyes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies and Init Env
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang-14 llvm-14 libelf-dev libpcap-dev gcc-multilib build-essential cmake
+          git submodule update --init --recursive
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake -DBUILD_ALL=ON ..
+          make
+          make install
+     
