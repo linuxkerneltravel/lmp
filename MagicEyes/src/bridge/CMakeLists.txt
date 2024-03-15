@@ -1,0 +1,9 @@
+set(BRIDGE_PROMETHEUS_INSTALL_DIR bridge/prometheus_bridge)
+set(BRIDGE_FRAME_GRAPH_INSTALL_DIR bridge/frame_graph_bridge)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/prometheus_bridge/
+        DESTINATION ${BRIDGE_PROMETHEUS_INSTALL_DIR}
+)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/frame_graph_bridge/
+        DESTINATION ${BRIDGE_FRAME_GRAPH_INSTALL_DIR}
+)
