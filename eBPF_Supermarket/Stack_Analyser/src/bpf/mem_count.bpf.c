@@ -171,7 +171,7 @@ int gen_free_enter(u64 addr, size_t unsize)
         .pid = pid,
         .usid = info->usid,
     };
-    bpf_printk("%d", __LINE__);
+
     u64 *size = bpf_map_lookup_elem(&psid_count, &apsid);
     if (!size)
         return -1;

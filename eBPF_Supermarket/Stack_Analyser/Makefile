@@ -134,7 +134,7 @@ $(OUTPUT)/$(TARGETS).o: main.cpp $(BPF) $(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c main.cpp -o $@
 
 # Build application binary
-$(TARGETS): %: $(OUTPUT)/%.o $(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)) $(LIBBPF_OBJ)  $(patsubst %,$(OUTPUT)/%.o,$(THIRD_PARTY)) | $(OUTPUT)
+$(TARGETS): %: $(OUTPUT)/%.o $(patsubst %,$(OUTPUT)/%.o,$(THIRD_PARTY)) $(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CXX) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 

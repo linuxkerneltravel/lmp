@@ -1,6 +1,5 @@
 #include "bpf/ProbeStackCollector.h"
 #include "uprobe_helpers.h"
-#include <iostream>
 
 double StackCountStackCollector::count_value(void *data)
 {
@@ -15,6 +14,7 @@ StackCountStackCollector::StackCountStackCollector()
         .Period = 1,
     };
 };
+
 void splitString(std::string symbol, const char split, std::vector<std::string> &res)
 {
     if (symbol == "")
@@ -83,7 +83,6 @@ int StackCountStackCollector::attach(void)
     }
 
     scale.Type = (probe + scale.Type).c_str();
-
     return 0;
 };
 
