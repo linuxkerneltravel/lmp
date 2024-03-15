@@ -47,18 +47,7 @@ type MyMetrics struct {
 	Sqlinited bool
 }
 
-type procMetrics struct {
-	BPFName     string
-	mu          sync.Mutex
-	procMaps    map[int]map[string]float64
-	procMaplist map[int][]map[string]float64
-	procSqlobj  *dao.procSqlobj
-	Sqlinited   bool
-}
-
 func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {}
-
-func (m *procMetrics) Describe(ch chan<- *prometheus.Desc) {}
 
 // Convert_Maps_To_Dict shift dict list to dict
 func (m *MyMetrics) UpdateData() {
@@ -71,41 +60,15 @@ func (m *MyMetrics) UpdateData() {
 	m.Maps = new_Dict
 }
 
-func (m *procMetrics) UpdateData() {
-	new_Dict := make(map[int]map[string]float64)
-	for key, value := range m.procMaplist {
-		innerMap := make(map[string]float64)
-		for _, item := range value {
-			for innerKey, innerValue := range item {
-				innerMap[innerKey] = innerValue
-			}
-		}
-		new_Dict[key] = innerMap
-	}
-	m.procMaps = new_Dict
-}
-
 func (m *MyMetrics) UpdataSql() {
 	m.Sqlobj.Data = m.Maps
 	m.Sqlobj.CreateRow()
-}
-
-func (m *procMetrics) UpdataSql() {
-	m.procSqlobj.Data = m.procMaps
-	m.procSqlobj.CreateRow()
 }
 
 func (m *MyMetrics) Initsql() {
 	m.Sqlobj.Data = m.Maps
 	m.Sqlobj.Connectsql()
 	m.Sqlobj.OperateTable(m.BPFName)
-	m.Sqlinited = true
-}
-
-func (m *procMetrics) Initsql() {
-	m.procSqlobj.Data = m.procMaps
-	m.procSqlobj.Connectsql()
-	m.procSqlobj.OperateTable(m.BPFName)
 	m.Sqlinited = true
 }
 

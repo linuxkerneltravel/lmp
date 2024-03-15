@@ -261,11 +261,8 @@ func (b *BPF_name) Run(full string) error {
 	// 创建一个用于传递 map 数据的通道
 	mapchan := make(chan []map[string]interface{}, 2)
 
-	// 创建一个用于传递进程画像 map 数据的通道
-	procmap_chan := make(chan map[int][]map[string]float64, 2)
-
 	// 启动一个 goroutine 用于重定向命令的标准输出
-	go redirectStdout(fn, stdout, mapchan, procmap_chan)
+	go redirectStdout(fn, stdout, mapchan)
 
 	// 创建一个指向 prom_core.MyMetrics 类型的指针 metricsobj，
 	// 并使用结构体字段初始化 BPFName 和 Sqlinited。
@@ -298,11 +295,6 @@ func (b *BPF_name) Run(full string) error {
 				}
 				// 从通道中接收第二次数据
 				<-mapchan
-			case <-procmap_chan:
-				//receivedElement := <-procmap_chan
-				//fmt.Println("Received Element:", receivedElement)
-				metricsobj.procMaplist = <-procmap_chan
-				log.Println(metricsobj.procMaplist)
 			default:
 			}
 		}
@@ -348,7 +340,7 @@ func listenSystemSignals(cmd *exec.Cmd) {
 }
 
 // 定义了一个名为 redirectStdout 的函数，用于读取 stdout，并将其解析成 map 数据发送到指定通道
-func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]interface{}, procmap_chan chan map[int][]map[string]float64) {
+func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
 	// 用于存储解析后的 map 数据的切片
 	var maps []map[string]interface{}
 	// 互斥锁，用于保护 maps 切片的并发写入
@@ -362,6 +354,7 @@ func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]i
 	var syscall_titles []string
 	var ulock_titles []string
 	var kt_titles []string
+
 	// 行号计数器
 	var line_number = 1
 	// 命令索引，用于区分不同的命令
@@ -370,8 +363,18 @@ func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]i
 	// RESOURCE(1)、SCHEDULE(2)、SYSCALL(3)、USERLOCK(4)、KEYTIME(5)
 	var data_type = 0
 	var set_map = 0
+	var enable_tgid = 0
 	// 1 代表已创建表头
 	data_map := [6]int{0, 0, 0, 0, 0, 0}
+
+	rsc_pidheader := make(map[int][]string)
+	sched_pidheader := make(map[int][]string)
+	syscall_pidheader := make(map[int][]string)
+	ulock_pidheader := make(map[int][]string)
+	kt_pidheader := make(map[int][]string)
+
+	var pid int
+	var err error
 
 	// proc_image
 	// 判断程序名是否为 proc_image
@@ -395,84 +398,189 @@ func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]i
 					data_type = 5
 				}
 				set_map = 1
+				enable_tgid = 0
 			} else if set_map == 1 {
-				// 对于表头行判断是否已经记录过表头，若没记录过则记录到相应的map中，设置 set_map 为 0
+				// 对于表头行判断是否已经记录过表头，若没记录过则记录到相应的map中
 				if data_map[data_type] == 0 {
-					for _, value := range fields[2:] {
-						switch data_type {
-						case 1:
-							rsc_titles = append(rsc_titles, value)
-						case 2:
-							sched_titles = append(sched_titles, value)
-						case 3:
-							syscall_titles = append(syscall_titles, value)
-						case 4:
-							ulock_titles = append(ulock_titles, value)
-						case 5:
-							kt_titles = append(kt_titles, value)
+					if fields[1] == "PID" {
+						for _, value := range fields[2:] {
+							switch data_type {
+							case 1:
+								rsc_titles = append(rsc_titles, value)
+							case 2:
+								sched_titles = append(sched_titles, value)
+							case 3:
+								syscall_titles = append(syscall_titles, value)
+							case 4:
+								ulock_titles = append(ulock_titles, value)
+							case 5:
+								kt_titles = append(kt_titles, value)
+							}
 						}
+					} else {
+						for _, value := range fields[3:] {
+							switch data_type {
+							case 1:
+								rsc_titles = append(rsc_titles, value)
+							case 2:
+								sched_titles = append(sched_titles, value)
+							case 3:
+								syscall_titles = append(syscall_titles, value)
+							case 4:
+								ulock_titles = append(ulock_titles, value)
+							case 5:
+								kt_titles = append(kt_titles, value)
+							}
+						}
+						enable_tgid = 1
 					}
 					data_map[data_type] = 1
 				}
 				set_map = 0
 			} else {
-				// 则根据 data_type 进行数据的记录（利用case语句）
+				if enable_tgid == 0 {
+					// pid 为 fields[1]
+					pid, err = strconv.Atoi(fields[1])
+					if err != nil {
+						// 处理转换错误
+						fmt.Println("Error:", err)
+						return
+					}
+				} else if enable_tgid == 1 {
+					// pid 为 fields[2]
+					pid, err = strconv.Atoi(fields[2])
+					if err != nil {
+						// 处理转换错误
+						fmt.Println("Error:", err)
+						return
+					}
+				}
+
 				switch data_type {
 				case 1:
-					rsc_Map := make(map[int][]map[string]float64)
-					secondElement, _ := strconv.Atoi(fields[1])
-
-					rsc_Map[secondElement] = make([]map[string]float64, 0)
-					for i, value := range fields[2:] {
-						floatValue, _ := strconv.ParseFloat(value, 64)
-						rsc_Map[secondElement] = append(rsc_Map[secondElement], map[string]float64{rsc_titles[i]: floatValue})
+					if _, ok := rsc_pidheader[pid]; !ok {
+						if enable_tgid == 0 {
+							for _, title := range rsc_titles {
+								if enable_tgid == 0 {
+									rsc_pidheader[pid] = append(rsc_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+								} else if enable_tgid == 1 {
+									rsc_pidheader[pid] = append(rsc_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+								}
+							}
+						}
 					}
-
-					procmap_chan <- rsc_Map
 				case 2:
-					sched_Map := make(map[int][]map[string]float64)
-					secondElement, _ := strconv.Atoi(fields[1])
-
-					sched_Map[secondElement] = make([]map[string]float64, 0)
-					for i, value := range fields[2:] {
-						floatValue, _ := strconv.ParseFloat(value, 64)
-						sched_Map[secondElement] = append(sched_Map[secondElement], map[string]float64{sched_titles[i]: floatValue})
+					if _, ok := sched_pidheader[pid]; !ok {
+						for _, title := range sched_titles {
+							if enable_tgid == 0 {
+								sched_pidheader[pid] = append(sched_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								sched_pidheader[pid] = append(sched_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
 					}
-
-					procmap_chan <- sched_Map
 				case 3:
-					syscall_Map := make(map[int][]map[string]float64)
-					secondElement, _ := strconv.Atoi(fields[1])
-
-					syscall_Map[secondElement] = make([]map[string]float64, 0)
-					for i, value := range fields[2:] {
-						floatValue, _ := strconv.ParseFloat(value, 64)
-						syscall_Map[secondElement] = append(syscall_Map[secondElement], map[string]float64{syscall_titles[i]: floatValue})
+					if _, ok := syscall_pidheader[pid]; !ok {
+						for _, title := range syscall_titles {
+							if enable_tgid == 0 {
+								syscall_pidheader[pid] = append(syscall_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								syscall_pidheader[pid] = append(syscall_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
 					}
-
-					procmap_chan <- syscall_Map
 				case 4:
-					ulock_Map := make(map[int][]map[string]float64)
-					secondElement, _ := strconv.Atoi(fields[1])
-
-					ulock_Map[secondElement] = make([]map[string]float64, 0)
-					for i, value := range fields[2:] {
-						floatValue, _ := strconv.ParseFloat(value, 64)
-						ulock_Map[secondElement] = append(ulock_Map[secondElement], map[string]float64{ulock_titles[i]: floatValue})
+					if _, ok := ulock_pidheader[pid]; !ok {
+						for _, title := range ulock_titles {
+							if enable_tgid == 0 {
+								ulock_pidheader[pid] = append(ulock_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								ulock_pidheader[pid] = append(ulock_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
 					}
-
-					procmap_chan <- ulock_Map
 				case 5:
-					kt_Map := make(map[int][]map[string]float64)
-					secondElement, _ := strconv.Atoi(fields[1])
-
-					kt_Map[secondElement] = make([]map[string]float64, 0)
-					for i, value := range fields[2:] {
-						floatValue, _ := strconv.ParseFloat(value, 64)
-						kt_Map[secondElement] = append(kt_Map[secondElement], map[string]float64{kt_titles[i]: floatValue})
+					if _, ok := kt_pidheader[pid]; !ok {
+						for _, title := range kt_titles {
+							if enable_tgid == 0 {
+								kt_pidheader[pid] = append(kt_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								kt_pidheader[pid] = append(kt_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
 					}
+				}
 
-					procmap_chan <- kt_Map
+				switch data_type {
+				case 1:
+					rsc_Map := make(map[string]interface{})
+					mu.Lock()
+					rsc_header := rsc_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							rsc_Map[rsc_header[i]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							rsc_Map[rsc_header[i]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{rsc_Map}
+				case 2:
+					sched_Map := make(map[string]interface{})
+					mu.Lock()
+					sched_header := sched_pidheader[pid]
+					for i, value := range fields[2:] {
+						sched_Map[sched_header[i]] = value
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{sched_Map}
+				case 3:
+					syscall_Map := make(map[string]interface{})
+					mu.Lock()
+					syscall_header := syscall_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							syscall_Map[syscall_header[i-2]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							syscall_Map[syscall_header[i-3]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{syscall_Map}
+				case 4:
+					ulock_Map := make(map[string]interface{})
+					mu.Lock()
+					ulock_header := ulock_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							ulock_Map[ulock_header[i-2]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							ulock_Map[ulock_header[i-3]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{ulock_Map}
+				case 5:
+					kt_Map := make(map[string]interface{})
+					mu.Lock()
+					kt_header := kt_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							kt_Map[kt_header[i-2]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							kt_Map[kt_header[i-3]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{kt_Map}
 				}
 			}
 			// 行号递增
