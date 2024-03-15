@@ -7,6 +7,7 @@ kvm watcher 的 kvm hypercall 子模块是一个专为 KVM 虚拟化环境设计
 ## 原理介绍
 
 在虚拟化环境中，Hypercall 机制是虚拟机（VM）从非特权模式（no root mode）切换到特权模式（root mode）的一种方式，类似于传统操作系统中从用户态切换到内核态的系统调用（syscall）。KVM（Kernel-based Virtual Machine）通过支持 Hypercall 机制，提供了一种高效的方式让虚拟机的 Guest OS 执行一些需要更高权限的操作，比如更新页表或访问物理资源等，这些操作由于虚拟机的非特权域无法完成，因此通过 Hypercall 交由 Hypervisor 来执行。
+
 <div align=center><img src="http://s2.51cto.com/wyfs02/M01/79/F3/wKiom1afF9-BZbZuAAAotW_0zjg092.png"></div>
 
 hypercall的发起需求触发vm exit原因为EXIT_REASON_VMCALL，其对应的处理函数为：
@@ -24,111 +25,117 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 ```
 int kvm_emulate_hypercall(struct kvm_vcpu *vcpu)
 {
-	unsigned long nr, a0, a1, a2, a3, ret;
-	int op_64_bit;
+    unsigned long nr, a0, a1, a2, a3, ret;
+    int op_64_bit;
 
-	// 检查是否启用了Xen超级调用，如果是，则调用Xen超级调用处理函数
-	if (kvm_xen_hypercall_enabled(vcpu->kvm))
-		return kvm_xen_hypercall(vcpu);
+    // 检查是否启用了Xen超级调用，如果是，则调用Xen超级调用处理函数
+    if (kvm_xen_hypercall_enabled(vcpu->kvm))
+        return kvm_xen_hypercall(vcpu);
 
-	// 检查是否启用了Hypervisor超级调用，如果是，则调用Hypervisor超级调用处理函数
-	if (kvm_hv_hypercall_enabled(vcpu))
-		return kvm_hv_hypercall(vcpu);
+    // 检查是否启用了Hypervisor超级调用，如果是，则调用Hypervisor超级调用处理函数
+    if (kvm_hv_hypercall_enabled(vcpu))
+        return kvm_hv_hypercall(vcpu);
 
-	// 从寄存器中读取超级调用号及参数
-	nr = kvm_rax_read(vcpu);
-	a0 = kvm_rbx_read(vcpu);
-	a1 = kvm_rcx_read(vcpu);
-	a2 = kvm_rdx_read(vcpu);
-	a3 = kvm_rsi_read(vcpu);
+    // 从寄存器中读取超级调用号及参数
+    nr = kvm_rax_read(vcpu);
+    a0 = kvm_rbx_read(vcpu);
+    a1 = kvm_rcx_read(vcpu);
+    a2 = kvm_rdx_read(vcpu);
+    a3 = kvm_rsi_read(vcpu);
 
-	// 记录超级调用的追踪信息
-	trace_kvm_hypercall(nr, a0, a1, a2, a3);
+    // 记录超级调用的追踪信息
+    trace_kvm_hypercall(nr, a0, a1, a2, a3);
 
-	// 检查是否为64位超级调用
-	op_64_bit = is_64_bit_hypercall(vcpu);
-	if (!op_64_bit) {
-		nr &= 0xFFFFFFFF;
-		a0 &= 0xFFFFFFFF;
-		a1 &= 0xFFFFFFFF;
-		a2 &= 0xFFFFFFFF;
-		a3 &= 0xFFFFFFFF;
-	}
+    // 检查是否为64位超级调用
+    op_64_bit = is_64_bit_hypercall(vcpu);
+    if (!op_64_bit) {
+        nr &= 0xFFFFFFFF;
+        a0 &= 0xFFFFFFFF;
+        a1 &= 0xFFFFFFFF;
+        a2 &= 0xFFFFFFFF;
+        a3 &= 0xFFFFFFFF;
+    }
 
-	// 检查当前CPU的特权级是否为0
-	if (static_call(kvm_x86_get_cpl)(vcpu) != 0) {
-		ret = -KVM_EPERM;
-		goto out;
-	}
+    // 检查当前CPU的特权级是否为0
+    if (static_call(kvm_x86_get_cpl)(vcpu) != 0) {
+        ret = -KVM_EPERM;
+        goto out;
+    }
 
-	ret = -KVM_ENOSYS;
+    ret = -KVM_ENOSYS;
 
-	// 根据超级调用号执行相应的操作
-	switch (nr) {
-	case KVM_HC_VAPIC_POLL_IRQ:
-		ret = 0;
-		break;
-	case KVM_HC_KICK_CPU:
-		// 处理CPU唤醒的超级调用
-		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_UNHALT))
-			break;
+    // 根据超级调用号执行相应的操作
+    switch (nr) {
+    case KVM_HC_VAPIC_POLL_IRQ:
+        ret = 0;
+        break;
+    case KVM_HC_KICK_CPU:
+        // 处理CPU唤醒的超级调用
+        if (!guest_pv_has(vcpu, KVM_FEATURE_PV_UNHALT))
+            break;
 
-		kvm_pv_kick_cpu_op(vcpu->kvm, a1);
-		kvm_sched_yield(vcpu, a1);
-		ret = 0;
-		break;
+        kvm_pv_kick_cpu_op(vcpu->kvm, a1);
+        kvm_sched_yield(vcpu, a1);
+        ret = 0;
+        break;
 #ifdef CONFIG_X86_64
-	case KVM_HC_CLOCK_PAIRING:
-		// 处理时钟配对的超级调用
-		ret = kvm_pv_clock_pairing(vcpu, a0, a1);
-		break;
+    case KVM_HC_CLOCK_PAIRING:
+        // 处理时钟配对的超级调用
+        ret = kvm_pv_clock_pairing(vcpu, a0, a1);
+        break;
 #endif
-	case KVM_HC_SEND_IPI:
-		// 处理发送中断请求的超级调用
-		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_SEND_IPI))
-			break;
+    case KVM_HC_SEND_IPI:
+        // 处理发送中断请求的超级调用
+        if (!guest_pv_has(vcpu, KVM_FEATURE_PV_SEND_IPI))
+            break;
 
-		ret = kvm_pv_send_ipi(vcpu->kvm, a0, a1, a2, a3, op_64_bit);
-		break;
-	case KVM_HC_SCHED_YIELD:
-		// 处理调度让出的超级调用
-		if (!guest_pv_has(vcpu, KVM_FEATURE_PV_SCHED_YIELD))
-			break;
+        ret = kvm_pv_send_ipi(vcpu->kvm, a0, a1, a2, a3, op_64_bit);
+        break;
+    case KVM_HC_SCHED_YIELD:
+        // 处理调度让出的超级调用
+        if (!guest_pv_has(vcpu, KVM_FEATURE_PV_SCHED_YIELD))
+            break;
 
-		kvm_sched_yield(vcpu, a0);
-		ret = 0;
-		break;
-	case KVM_HC_MAP_GPA_RANGE:
-		// 处理GPA范围映射的超级调用
-		ret = -KVM_ENOSYS;
-		if (!(vcpu->kvm->arch.hypercall_exit_enabled & (1 << KVM_HC_MAP_GPA_RANGE)))
-			break;
+        kvm_sched_yield(vcpu, a0);
+        ret = 0;
+        break;
+    case KVM_HC_MAP_GPA_RANGE:
+        // 处理GPA范围映射的超级调用
+        ret = -KVM_ENOSYS;
+        if (!(vcpu->kvm->arch.hypercall_exit_enabled & (1 << KVM_HC_MAP_GPA_RANGE)))
+            break;
 
-		// 设置KVM_EXIT_HYPERCALL退出类型，并填充相关信息
-		vcpu->run->exit_reason        = KVM_EXIT_HYPERCALL;
-		vcpu->run->hypercall.nr       = KVM_HC_MAP_GPA_RANGE;
-		vcpu->run->hypercall.args[0]  = a0;
-		vcpu->run->hypercall.args[1]  = a1;
-		vcpu->run->hypercall.args[2]  = a2;
-		vcpu->run->hypercall.longmode = op_64_bit;
-		vcpu->arch.complete_userspace_io = complete_hypercall_exit;
-		return 0;
-	default:
-		ret = -KVM_ENOSYS;
-		break;
-	}
+        // 设置KVM_EXIT_HYPERCALL退出类型，并填充相关信息
+        vcpu->run->exit_reason        = KVM_EXIT_HYPERCALL;
+        vcpu->run->hypercall.nr       = KVM_HC_MAP_GPA_RANGE;
+        vcpu->run->hypercall.args[0]  = a0;
+        vcpu->run->hypercall.args[1]  = a1;
+        vcpu->run->hypercall.args[2]  = a2;
+        vcpu->run->hypercall.longmode = op_64_bit;
+        vcpu->arch.complete_userspace_io = complete_hypercall_exit;
+        return 0;
+    default:
+        ret = -KVM_ENOSYS;
+        break;
+    }
 
 out:
-	// 如果不是64位超级调用，则返回值需要截断为32位
-	if (!op_64_bit)
-		ret = (u32)ret;
-	kvm_rax_write(vcpu, ret);
+    // 如果不是64位超级调用，则返回值需要截断为32位
+    if (!op_64_bit)
+        ret = (u32)ret;
+    kvm_rax_write(vcpu, ret);
 
-	// 更新超级调用统计信息，并跳过被模拟的指令
-	++vcpu->stat.hypercalls;
-	return kvm_skip_emulated_instruction(vcpu);
+    // 更新超级调用统计信息，并跳过被模拟的指令
+    ++vcpu->stat.hypercalls;
+    return kvm_skip_emulated_instruction(vcpu);
 }
 ```
+
+## 挂载点
+
+| 类型   | 名称                  |
+| ------ | --------------------- |
+| fentry | kvm_emulate_hypercall |
 
 ## 示例输出
 
@@ -221,4 +228,3 @@ TIME(ms)           COMM            PID        VCPU_ID    NAME       HYPERCALLS A
 - **NAME**:所发生的hypercall名称
 - **COUNTS**:当前时间段内hypercall发送的次数
 - **HYPERCALLS**:自虚拟机启动以来，每个vcpu上发生的hypercall的次数
-

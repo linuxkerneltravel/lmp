@@ -30,6 +30,15 @@
 
 ![VM entry 与 VM exit](https://ctf-wiki.org/pwn/virtualization/basic-knowledge/figure/vm-entry-and-exit.png)
 
+
+
+## 挂载点
+
+| 类型       | 名称      |
+| ---------- | --------- |
+| tracepoint | kvm_exit  |
+| tracepoint | kvm_entry |
+
 ## 示例输出
 
 4391为主机上的虚拟机进程，4508、4509、4510...分别是虚拟机中的vcpu子进程，每隔两秒输出虚拟机中产生的exit事件及其处理延时等信息。
@@ -89,4 +98,4 @@ pid          tid          total_time   max_time     min_time     counts       re
 - **VM Exit 原因统计**：记录并展示触发 VM Exit 的具体原因，帮助用户理解 VM Exit 发生的上下文和背景。
 - **VM Exit 延时分析**：统计每次 VM Exit 处理的最大、最小和总共延时，为性能分析提供量化数据。
 - **VM Exit 次数计数**：计算每种类型的 VM Exit 发生的次数，帮助识别最频繁的性能瓶颈。
-- **PID、TID号**：其中PID为主机侧的虚拟机进程号，TID为虚拟机内部的vcpu的进程号
+- **PID、TID号**：其中PID为主机侧的虚拟机进程号，TID为虚拟机内部的vcpu**的进程号**
