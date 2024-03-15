@@ -64,3 +64,12 @@
 [submodule "eBPF_Supermarket/Network_Subsystem/net_manager/lib/xdp-tools"]
 	path = eBPF_Supermarket/Network_Subsystem/net_manager/lib/xdp-tools
 	url = https://github.com/xdp-project/xdp-tools.git
+[submodule "MagicEyes/blazesym"]
+	path = MagicEyes/blazesym
+	url = https://github.com/libbpf/blazesym.git
+[submodule "MagicEyes/bpftool"]
+	path = MagicEyes/bpftool
+	url = https://github.com/libbpf/bpftool.git
+[submodule "MagicEyes/libbpf"]
+	path = MagicEyes/libbpf
+	url = https://github.com/libbpf/libbpf.git
