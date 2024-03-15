@@ -16,6 +16,27 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256 * 1024);
+	__type(key, unsigned long);
+	__type(value, int);
+} last_val1 SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256 * 1024);
+	__type(key, unsigned long);
+	__type(value, int);
+} last_val2 SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256 * 1024);
+	__type(key, unsigned long);
+	__type(value, int);
+} last_val3 SEC(".maps");
+
+struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
@@ -30,12 +51,29 @@ int BPF_KPROBE(get_page_from_freelist_second, gfp_t gfp_mask, unsigned int order
 	pid_t pid = bpf_get_current_pid_tgid() >> 32;
 	if (pid == user_pid)
 		return 0;
+	t = (unsigned long *)BPF_CORE_READ(ac, preferred_zoneref, zone, zone_pgdat, vm_stat);
+	unsigned long anon_ina = t[0] * 4;
+	unsigned long anon_mapped = t[17] * 4;
+	unsigned long file_mapped = t[18] * 4;
+	int val = 1;
+	int *last_1, *last_2, *last_3;
+	last_1 = bpf_map_lookup_elem(&last_val1, &anon_ina);
+	last_2 = bpf_map_lookup_elem(&last_val2, &anon_mapped);
+	last_3 = bpf_map_lookup_elem(&last_val3, &file_mapped);
+	if (!last_1 || !last_2 || !last_3) {
+		bpf_map_update_elem(&last_val1, &anon_ina, &val, BPF_ANY);
+		bpf_map_update_elem(&last_val2, &anon_mapped, &val, BPF_ANY);
+		bpf_map_update_elem(&last_val3, &file_mapped, &val, BPF_ANY);
+	}
+	else if ((*last_1 && *last_2 && *last_3) == val) {
+		return 0;
+	}
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;
 
 	//	e->present = BPF_CORE_READ(ac, preferred_zoneref, zone, zone_pgdat, node_spanned_pages);
-	t = (unsigned long *)BPF_CORE_READ(ac, preferred_zoneref, zone, zone_pgdat, vm_stat);
+	//t = (unsigned long *)BPF_CORE_READ(ac, preferred_zoneref, zone, zone_pgdat, vm_stat);
 	//	t = (unsigned long *)BPF_CORE_READ(ac, preferred_zoneref, zone, vm_stat);
 	e->anon_inactive = t[0] * 4;
 	e->anon_active = t[1] * 4;
