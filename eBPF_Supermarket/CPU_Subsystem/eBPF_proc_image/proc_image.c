@@ -41,6 +41,7 @@ static volatile bool exiting = false;
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 static struct env {
     int pid;
+	int tgid;
 	int ignore_tgid;
     int cpu_id;
     int time;
@@ -66,6 +67,7 @@ static struct env {
 	bool enable_schedule;
 } env = {
     .pid = -1,
+	.tgid = -1,
     .cpu_id = -1,
     .time = 0,
 	.enable_myproc = false,
@@ -109,6 +111,7 @@ const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
+	{ "tgid", 'P', "TGID", 0, "Thread group to trace" },
     { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{ "myproc", 'm', NULL, 0, "Trace the process of the tool itself (not tracked by default)" },
@@ -118,7 +121,7 @@ static const struct argp_option opts[] = {
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
 	{ "quote", 'q', NULL, 0, "Add quotemarks (\") around arguments" },
 	{ "keytime", 'k', NULL, 0, "Collects keytime information about processes" },
-	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes" },
+	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes (trace tool process)" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
@@ -126,6 +129,7 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
 	long pid;
+	long tgid;
 	long cpu_id;
 	long syscalls;
 	switch (key) {
@@ -139,7 +143,17 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				}
 				env.pid = pid;
 				break;
-        case 'c':
+        case 'P':
+				errno = 0;
+				tgid = strtol(arg, NULL, 10);
+				if (errno || tgid < 0) {
+					warn("Invalid TGID: %s\n", arg);
+					// 调用argp_usage函数，用于打印用法信息并退出程序
+					argp_usage(state);
+				}
+				env.tgid = tgid;
+				break;
+		case 'c':
 				cpu_id = strtol(arg, NULL, 10);
 				if(cpu_id < 0){
 					warn("Invalid CPUID: %s\n", arg);
@@ -219,7 +233,7 @@ static int print_resource(struct bpf_map *map)
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
 		if(prev_image != RESOURCE_IMAGE){
-			printf("RESOURCE-------------------------------------------------------------------------------------------------\n");
+			printf("RESOURCE ------------------------------------------------------------------------------------------------\n");
 			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
@@ -270,36 +284,100 @@ delete_elem:
 	return 0;
 }
 
-static int print_schedule(struct bpf_map *map)
+static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,struct bpf_map *tg_map,struct bpf_map *sys_map)
 {
 	struct proc_id lookup_key = {-1}, next_key;
-	int err, fd = bpf_map__fd(map);
-	struct schedule_event event;
+	int l_key = -1, n_key;
+	int err;
+	int proc_fd = bpf_map__fd(proc_map);
+	int target_fd = bpf_map__fd(target_map);
+	int tg_fd = bpf_map__fd(tg_map);
+	int sys_fd = bpf_map__fd(sys_map);
+	struct schedule_event proc_event;
+	struct sum_schedule sys_event;
 	time_t now = time(NULL);
 	struct tm *localTime = localtime(&now);
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
-	u64 avg_delay;
+	u64 proc_avg_delay;
+	u64 target_avg_delay;
+	u64 sys_avg_delay;
+	int key = 0;
 
-	while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-		if(prev_image != SCHEDULE_IMAGE){
-			printf("SCHEDULE-------------------------------------------------------------------------------------------------\n");
-			printf("%-8s  %-6s  %-4s  %-13s  %-13s  %-13s\n","TIME","PID","PRIO","AVG_DELAY(ns)","MAX_DELAY(ns)","MIN_DELAY(ns)");
-			prev_image = SCHEDULE_IMAGE;
+	if(prev_image != SCHEDULE_IMAGE){
+		printf("SCHEDULE ----------------------------------------------------------------------------------------------------------------------\n");
+		printf("%-8s  ","TIME");
+		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		printf("%-6s  %-4s  %s\n","PID","PRIO","| P_AVG_DELAY(ms) S_AVG_DELAY(ms) | P_MAX_DELAY(ms) S_MAX_DELAY(ms) | P_MIN_DELAY(ms) S_MIN_DELAY(ms) |");
+		prev_image = SCHEDULE_IMAGE;
+	}
+
+	if(env.pid==-1 && env.tgid==-1){
+		while (!bpf_map_get_next_key(proc_fd, &lookup_key, &next_key)) {
+			err = bpf_map_lookup_elem(proc_fd, &next_key, &proc_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			proc_avg_delay = proc_event.sum_delay/proc_event.count;
+
+			err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
+
+			printf("%02d:%02d:%02d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
+					hour,min,sec,proc_event.pid,proc_event.prio,proc_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+			
+			lookup_key = next_key;
 		}
-
-		err = bpf_map_lookup_elem(fd, &next_key, &event);
+	}else if(env.pid!=-1 && env.tgid==-1){
+		err = bpf_map_lookup_elem(target_fd, &key, &proc_event);
 		if (err < 0) {
 			fprintf(stderr, "failed to lookup infos: %d\n", err);
 			return -1;
 		}
 
-		avg_delay = event.sum_delay/event.count;
-		printf("%02d:%02d:%02d  %-6d  %-4d  %-13lld  %-13lld  %-13lld\n",
-				hour,min,sec,event.pid,event.prio,avg_delay,event.max_delay,event.min_delay);
-		
-		lookup_key = next_key;
+		if(proc_event.count != 0){	
+			target_avg_delay = proc_event.sum_delay/proc_event.count;
+			
+			err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
+
+			printf("%02d:%02d:%02d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
+					hour,min,sec,proc_event.pid,proc_event.prio,target_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+		}
+	}else if(env.pid==-1 && env.tgid!=-1){
+		while (!bpf_map_get_next_key(tg_fd, &l_key, &n_key)) {
+			err = bpf_map_lookup_elem(tg_fd, &n_key, &proc_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			proc_avg_delay = proc_event.sum_delay/proc_event.count;
+
+			err = bpf_map_lookup_elem(sys_fd, &key, &sys_event);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos: %d\n", err);
+				return -1;
+			}
+			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
+
+			printf("%02d:%02d:%02d  %-6d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
+					hour,min,sec,env.tgid,proc_event.pid,proc_event.prio,proc_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
+			
+			l_key = n_key;
+		}
 	}
 
 	env.output_schedule = false;
@@ -311,8 +389,7 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct syscall_seq *e = data;
 	u64 avg_delay;
-	int first_syscall = env.first_syscall;
-	int second_syscall = env.second_syscall;
+	int tmp;
 	time_t now = time(NULL);
 	struct tm *localTime = localtime(&now);
     int hour = localTime->tm_hour;
@@ -320,7 +397,7 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
     int sec = localTime->tm_sec;
 
 	if(prev_image != SYSCALL_IMAGE){
-        printf("SYSCALL--------------------------------------------------------------------------------------------------\n");
+        printf("SYSCALL -------------------------------------------------------------------------------------------------\n");
         printf("%-8s  %-6s  %-14s  %-14s  %-14s  %-13s  %-13s  %-8s\n",
 				"TIME","PID","1st/num","2nd/num","3nd/num","AVG_DELAY(ns)","MAX_DELAY(ns)","SYSCALLS");
 
@@ -329,30 +406,36 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 
 	for(int i=0; i<e->count; i++){
 		syscalls[e->record_syscall[i]] ++;
-		if(e->record_syscall[i]!=env.first_syscall && e->record_syscall[i]==env.second_syscall){
-			if(syscalls[e->record_syscall[i]] > syscalls[env.first_syscall]){
-				env.first_syscall = e->record_syscall[i];
-				env.second_syscall = first_syscall;
+
+		if(e->record_syscall[i]==env.first_syscall || e->record_syscall[i]==env.second_syscall || e->record_syscall[i]==env.third_syscall){
+			// 将前三名进行冒泡排序
+			if(syscalls[env.third_syscall] > syscalls[env.second_syscall]){
+				tmp = env.second_syscall;
+				env.second_syscall = env.third_syscall;
+				env.third_syscall = tmp;
 			}
-		}else if(e->record_syscall[i]==env.third_syscall){
-			if(syscalls[e->record_syscall[i]] > syscalls[env.first_syscall]){
+			if(syscalls[env.second_syscall] > syscalls[env.first_syscall]){
+				tmp = env.first_syscall;
+				env.first_syscall = env.second_syscall;
+				env.second_syscall = tmp;
+			}
+			if(syscalls[env.third_syscall] > syscalls[env.second_syscall]){
+				tmp = env.second_syscall;
+				env.second_syscall = env.third_syscall;
+				env.third_syscall = tmp;
+			}
+		}else if(syscalls[e->record_syscall[i]] > syscalls[env.third_syscall]){
+			if(syscalls[e->record_syscall[i]] > syscalls[env.second_syscall]){
+				if(syscalls[e->record_syscall[i]] > syscalls[env.first_syscall]){
+					env.third_syscall = env.second_syscall;
+					env.second_syscall = env.first_syscall;
 					env.first_syscall = e->record_syscall[i];
-					env.second_syscall = first_syscall;
-					env.third_syscall = second_syscall;
-			}else if(syscalls[e->record_syscall[i]] > syscalls[env.second_syscall]){
-					env.second_syscall = e->record_syscall[i];
-					env.third_syscall = second_syscall;
+					continue;
+				}
+				env.third_syscall = env.second_syscall;
+				env.second_syscall = e->record_syscall[i];
+				continue;
 			}
-		}else if(syscalls[e->record_syscall[i]] > syscalls[env.first_syscall]){
-			env.first_syscall = e->record_syscall[i];
-			env.second_syscall = first_syscall;
-			env.third_syscall = second_syscall;
-		}else if(syscalls[e->record_syscall[i]] > syscalls[env.second_syscall] 
-				 && e->record_syscall[i]!=env.first_syscall){
-			env.second_syscall = e->record_syscall[i];
-			env.third_syscall = second_syscall;
-		}else if(syscalls[e->record_syscall[i]] > syscalls[env.third_syscall]
-				 && e->record_syscall[i]!=env.first_syscall && e->record_syscall[i]!=env.second_syscall){
 			env.third_syscall = e->record_syscall[i];
 		}
 	}
@@ -380,7 +463,7 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 	const struct lock_event *e = data;
 	
 	if(prev_image != LOCK_IMAGE){
-        printf("USERLOCK-------------------------------------------------------------------------------------------------\n");
+        printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
         printf("%-14s  %-6s  %-15s  %s\n","TIME","PID","LockAddr","LockStatus");
 
 		prev_image = LOCK_IMAGE;
@@ -473,7 +556,7 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
     int sec = localTime->tm_sec;
 	
 	if(prev_image != KEYTIME_IMAGE){
-        printf("KEYTIME_IMAGE--------------------------------------------------------------------------------------------\n");
+        printf("KEYTIME -------------------------------------------------------------------------------------------------\n");
         printf("%-8s  %-6s  %-15s  %s\n","TIME","PID","EVENT","ARGS/RET/OTHERS");
 
 		prev_image = KEYTIME_IMAGE;
@@ -720,8 +803,8 @@ int main(int argc, char **argv)
 		}
 
 		schedule_skel->rodata->target_pid = env.pid;
+		schedule_skel->rodata->target_tgid = env.tgid;
 		schedule_skel->rodata->target_cpu_id = env.cpu_id;
-		if(!env.enable_myproc)	schedule_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = schedule_image_bpf__load(schedule_skel);
 		if (err) {
@@ -809,7 +892,8 @@ int main(int argc, char **argv)
 		}
 
 		if(env.enable_schedule && env.output_schedule){
-			err = print_schedule(schedule_skel->maps.proc_schedule);
+			err = print_schedule(schedule_skel->maps.proc_schedule,schedule_skel->maps.target_schedule,
+								 schedule_skel->maps.tg_schedule,schedule_skel->maps.sys_schedule);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
 				err = 0;

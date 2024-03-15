@@ -46,12 +46,9 @@
 [submodule "eBPF_Supermarket/CPU_Subsystem/libbpf"]
 	path = eBPF_Supermarket/CPU_Subsystem/libbpf
 	url = https://github.com/libbpf/libbpf.git
-[submodule "eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap"]
-	path = eBPF_Supermarket/Stack_Analyser/libbpf/libbpf-bootstrap
+[submodule "eBPF_Supermarket/Stack_Analyser/libbpf-bootstrap"]
+	path = eBPF_Supermarket/Stack_Analyser/libbpf-bootstrap
 	url = https://github.com/libbpf/libbpf-bootstrap.git
-[submodule "eBPF_Supermarket/Stack_Analyser/speedscope"]
-	path = eBPF_Supermarket/Stack_Analyser/speedscope
-	url = https://github.com/jlfwong/speedscope
 [submodule "eBPF_Supermarket/Memory_Subsystem/blazesym"]
 	path = eBPF_Supermarket/Memory_Subsystem/blazesym
 	url = https://github.com/libbpf/blazesym.git
@@ -60,4 +57,19 @@
 	url = https://github.com/libbpf/bpftool.git
 [submodule "eBPF_Supermarket/Memory_Subsystem/libbpf"]
 	path = eBPF_Supermarket/Memory_Subsystem/libbpf
+	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Network_Subsystem/net_manager/lib/libbpf"]
+	path = eBPF_Supermarket/Network_Subsystem/net_manager/lib/libbpf
+	url = https://github.com/libbpf/libbpf.git
+[submodule "eBPF_Supermarket/Network_Subsystem/net_manager/lib/xdp-tools"]
+	path = eBPF_Supermarket/Network_Subsystem/net_manager/lib/xdp-tools
+	url = https://github.com/xdp-project/xdp-tools.git
+[submodule "MagicEyes/blazesym"]
+	path = MagicEyes/blazesym
+	url = https://github.com/libbpf/blazesym.git
+[submodule "MagicEyes/bpftool"]
+	path = MagicEyes/bpftool
+	url = https://github.com/libbpf/bpftool.git
+[submodule "MagicEyes/libbpf"]
+	path = MagicEyes/libbpf
 	url = https://github.com/libbpf/libbpf.git
