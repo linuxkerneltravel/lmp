@@ -31,7 +31,7 @@ jobs:
 
       - name: Build
         run: |
-          cd MagicEyes
+          cd MagicEyes/
           mkdir build && cd build
           cmake -DBUILD_ALL=ON ..
           make
