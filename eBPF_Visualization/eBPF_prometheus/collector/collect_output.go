@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -260,14 +261,16 @@ func (b *BPF_name) Run(full string) error {
 	// 创建一个用于传递 map 数据的通道
 	mapchan := make(chan []map[string]interface{}, 2)
 
-	test := make(chan []map[string]interface{}, 2)
+	// 创建一个用于传递进程画像 map 数据的通道
+	procmap_chan := make(chan map[int][]map[string]float64, 2)
 
 	// 启动一个 goroutine 用于重定向命令的标准输出
-	go redirectStdout(fn, stdout, mapchan, test)
+	go redirectStdout(fn, stdout, mapchan, procmap_chan)
 
 	// 创建一个指向 prom_core.MyMetrics 类型的指针 metricsobj，
 	// 并使用结构体字段初始化 BPFName 和 Sqlinited。
 	metricsobj := &prom_core.MyMetrics{BPFName: b.Name, Sqlinited: false}
+
 	// 创建一个指向 dao.Sqlobj 类型的指针 sqlobj，
 	// 并使用结构体字段初始化 Tablename。
 	sqlobj := &dao.Sqlobj{Tablename: b.Name}
@@ -295,6 +298,11 @@ func (b *BPF_name) Run(full string) error {
 				}
 				// 从通道中接收第二次数据
 				<-mapchan
+			case <-procmap_chan:
+				//receivedElement := <-procmap_chan
+				//fmt.Println("Received Element:", receivedElement)
+				metricsobj.procMaplist = <-procmap_chan
+				log.Println(metricsobj.procMaplist)
 			default:
 			}
 		}
@@ -340,7 +348,7 @@ func listenSystemSignals(cmd *exec.Cmd) {
 }
 
 // 定义了一个名为 redirectStdout 的函数，用于读取 stdout，并将其解析成 map 数据发送到指定通道
-func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]interface{}, test chan []map[string]interface{}) {
+func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]interface{}, procmap_chan chan map[int][]map[string]float64) {
 	// 用于存储解析后的 map 数据的切片
 	var maps []map[string]interface{}
 	// 互斥锁，用于保护 maps 切片的并发写入
@@ -390,7 +398,7 @@ func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]i
 			} else if set_map == 1 {
 				// 对于表头行判断是否已经记录过表头，若没记录过则记录到相应的map中，设置 set_map 为 0
 				if data_map[data_type] == 0 {
-					for _, value := range fields {
+					for _, value := range fields[2:] {
 						switch data_type {
 						case 1:
 							rsc_titles = append(rsc_titles, value)
@@ -411,45 +419,60 @@ func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]i
 				// 则根据 data_type 进行数据的记录（利用case语句）
 				switch data_type {
 				case 1:
-					rsc_Map := make(map[string]interface{})
-					mu.Lock()
-					for i, value := range fields {
-						rsc_Map[rsc_titles[i]] = value
+					rsc_Map := make(map[int][]map[string]float64)
+					secondElement, _ := strconv.Atoi(fields[1])
+
+					rsc_Map[secondElement] = make([]map[string]float64, 0)
+					for i, value := range fields[2:] {
+						floatValue, _ := strconv.ParseFloat(value, 64)
+						rsc_Map[secondElement] = append(rsc_Map[secondElement], map[string]float64{rsc_titles[i]: floatValue})
 					}
-					mu.Unlock()
-					test <- []map[string]interface{}{rsc_Map}
+
+					procmap_chan <- rsc_Map
 				case 2:
-					sched_Map := make(map[string]interface{})
-					mu.Lock()
-					for i, value := range fields {
-						sched_Map[sched_titles[i]] = value
+					sched_Map := make(map[int][]map[string]float64)
+					secondElement, _ := strconv.Atoi(fields[1])
+
+					sched_Map[secondElement] = make([]map[string]float64, 0)
+					for i, value := range fields[2:] {
+						floatValue, _ := strconv.ParseFloat(value, 64)
+						sched_Map[secondElement] = append(sched_Map[secondElement], map[string]float64{sched_titles[i]: floatValue})
 					}
-					mu.Unlock()
-					mapchan <- []map[string]interface{}{sched_Map}
+
+					procmap_chan <- sched_Map
 				case 3:
-					syscall_Map := make(map[string]interface{})
-					mu.Lock()
-					for i, value := range fields {
-						syscall_Map[syscall_titles[i]] = value
+					syscall_Map := make(map[int][]map[string]float64)
+					secondElement, _ := strconv.Atoi(fields[1])
+
+					syscall_Map[secondElement] = make([]map[string]float64, 0)
+					for i, value := range fields[2:] {
+						floatValue, _ := strconv.ParseFloat(value, 64)
+						syscall_Map[secondElement] = append(syscall_Map[secondElement], map[string]float64{syscall_titles[i]: floatValue})
 					}
-					mu.Unlock()
-					mapchan <- []map[string]interface{}{syscall_Map}
+
+					procmap_chan <- syscall_Map
 				case 4:
-					ulock_Map := make(map[string]interface{})
-					mu.Lock()
-					for i, value := range fields {
-						ulock_Map[ulock_titles[i]] = value
+					ulock_Map := make(map[int][]map[string]float64)
+					secondElement, _ := strconv.Atoi(fields[1])
+
+					ulock_Map[secondElement] = make([]map[string]float64, 0)
+					for i, value := range fields[2:] {
+						floatValue, _ := strconv.ParseFloat(value, 64)
+						ulock_Map[secondElement] = append(ulock_Map[secondElement], map[string]float64{ulock_titles[i]: floatValue})
 					}
-					mu.Unlock()
-					mapchan <- []map[string]interface{}{ulock_Map}
+
+					procmap_chan <- ulock_Map
 				case 5:
-					kt_Map := make(map[string]interface{})
-					mu.Lock()
-					for i, value := range fields {
-						kt_Map[kt_titles[i]] = value
+					kt_Map := make(map[int][]map[string]float64)
+					secondElement, _ := strconv.Atoi(fields[1])
+
+					kt_Map[secondElement] = make([]map[string]float64, 0)
+					for i, value := range fields[2:] {
+						floatValue, _ := strconv.ParseFloat(value, 64)
+						kt_Map[secondElement] = append(kt_Map[secondElement], map[string]float64{kt_titles[i]: floatValue})
 					}
-					mu.Unlock()
-					mapchan <- []map[string]interface{}{kt_Map}
+
+					procmap_chan <- kt_Map
 				}
 			}
 			// 行号递增

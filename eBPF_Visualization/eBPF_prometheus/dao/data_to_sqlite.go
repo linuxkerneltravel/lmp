@@ -20,11 +20,12 @@ package dao
 
 import (
 	"fmt"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 	"log"
 	"os"
 	"strconv"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // 定义一个名为 Sqlobj 的结构体类型，用于封装数据库相关的信息
@@ -32,9 +33,15 @@ type Sqlobj struct {
 	// Tablename 字段存储数据库表的名称。
 	Tablename string
 	// db 字段是一个指向 gorm.DB 类型的指针，用于处理与数据库交互的对象。
-	db        *gorm.DB
+	db *gorm.DB
 	// Data 字段是一个 map，存储与数据库相关的信息。
-	Data      map[string]interface{}
+	Data map[string]interface{}
+}
+
+type procSqlobj struct {
+	Tablename string
+	db        *gorm.DB
+	Data      map[int]map[string]float64
 }
 
 type Basicdata struct {
@@ -50,12 +57,40 @@ func (s *Sqlobj) Connectsql() {
 	s.db = db
 }
 
+func (s *procSqlobj) Connectsql() {
+	currentdir, _ := os.Getwd()
+	path := currentdir + "/dao/data.db"
+	db, _ := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	log.Println("connected.")
+	s.db = db
+}
+
 func (s *Sqlobj) Tableexist(name string) bool {
+	return s.db.Migrator().HasTable(name)
+}
+
+func (s *procSqlobj) Tableexist(name string) bool {
 	return s.db.Migrator().HasTable(name)
 }
 
 // CreateTable 建表
 func (s *Sqlobj) OperateTable(name string) {
+	if !s.Tableexist(name) {
+		deletetable := fmt.Sprintf("drop table if exists %s;", s.Tablename)
+		if err := s.db.Exec(deletetable).Error; err != nil {
+			log.Fatalf("drop exist table failed.")
+		}
+		if err := s.db.Table(s.Tablename).AutoMigrate(&Basicdata{}); err != nil {
+			log.Fatalf("create table failed.")
+		}
+		s.AppendTable()
+		s.CreateRow()
+	} else {
+		s.CreateRow()
+	}
+}
+
+func (s *procSqlobj) OperateTable(name string) {
 	if !s.Tableexist(name) {
 		deletetable := fmt.Sprintf("drop table if exists %s;", s.Tablename)
 		if err := s.db.Exec(deletetable).Error; err != nil {
@@ -86,7 +121,26 @@ func (s *Sqlobj) AppendTable() {
 	}
 }
 
+func (s *procSqlobj) AppendTable() {
+	for key, value := range s.Data {
+		datatype := "text"
+		for innerkey, _ := range value {
+			//			if strvalue, is_string := innervalue.(string); is_string {
+			//				if _, err := strconv.ParseFloat(strvalue, 64); err == nil {
+			//					datatype = "real"
+			//				}
+			//			}
+			addcolumn := fmt.Sprintf("alter table %s add column \"%s\"%s\" %s", s.Tablename, key, innerkey, datatype)
+			s.db.Exec(addcolumn)
+		}
+	}
+}
+
 // CreateRow 写入数据
 func (s *Sqlobj) CreateRow() {
+	s.db.Table(s.Tablename).Create(s.Data)
+}
+
+func (s *procSqlobj) CreateRow() {
 	s.db.Table(s.Tablename).Create(s.Data)
 }

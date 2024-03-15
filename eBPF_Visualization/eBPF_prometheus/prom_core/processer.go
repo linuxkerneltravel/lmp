@@ -21,32 +21,44 @@ package prom_core
 import (
 	"ebpf_prometheus/checker"
 	"ebpf_prometheus/dao"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // 定义一个名为 MyMetrics 的结构体类型。
 type MyMetrics struct {
 	// BPFName 字段存储与此度量相关的 BPF 的名称。
-	BPFName   string
+	BPFName string
 	// mu 字段是一个互斥锁，用于在多协程之间同步对结构体字段的访问。
-	mu        sync.Mutex
+	mu sync.Mutex
 	// Maps 字段是一个 map，存储与此度量相关的信息。
-	Maps      map[string]interface{}
+	Maps map[string]interface{}
 	// Maplist 字段是一个切片，存储与此度量相关的信息的列表。
-	Maplist   []map[string]interface{}
+	Maplist []map[string]interface{}
 	// Sqlobj 字段是一个指向 dao.Sqlobj 类型的指针，用于处理与数据库相关的信息。
-	Sqlobj    *dao.Sqlobj
+	Sqlobj *dao.Sqlobj
 	// Sqlinited 字段表示与此度量相关的数据库是否已初始化。
 	Sqlinited bool
 }
 
+type procMetrics struct {
+	BPFName     string
+	mu          sync.Mutex
+	procMaps    map[int]map[string]float64
+	procMaplist map[int][]map[string]float64
+	procSqlobj  *dao.procSqlobj
+	Sqlinited   bool
+}
+
 func (m *MyMetrics) Describe(ch chan<- *prometheus.Desc) {}
+
+func (m *procMetrics) Describe(ch chan<- *prometheus.Desc) {}
 
 // Convert_Maps_To_Dict shift dict list to dict
 func (m *MyMetrics) UpdateData() {
@@ -59,15 +71,41 @@ func (m *MyMetrics) UpdateData() {
 	m.Maps = new_Dict
 }
 
+func (m *procMetrics) UpdateData() {
+	new_Dict := make(map[int]map[string]float64)
+	for key, value := range m.procMaplist {
+		innerMap := make(map[string]float64)
+		for _, item := range value {
+			for innerKey, innerValue := range item {
+				innerMap[innerKey] = innerValue
+			}
+		}
+		new_Dict[key] = innerMap
+	}
+	m.procMaps = new_Dict
+}
+
 func (m *MyMetrics) UpdataSql() {
 	m.Sqlobj.Data = m.Maps
 	m.Sqlobj.CreateRow()
+}
+
+func (m *procMetrics) UpdataSql() {
+	m.procSqlobj.Data = m.procMaps
+	m.procSqlobj.CreateRow()
 }
 
 func (m *MyMetrics) Initsql() {
 	m.Sqlobj.Data = m.Maps
 	m.Sqlobj.Connectsql()
 	m.Sqlobj.OperateTable(m.BPFName)
+	m.Sqlinited = true
+}
+
+func (m *procMetrics) Initsql() {
+	m.procSqlobj.Data = m.procMaps
+	m.procSqlobj.Connectsql()
+	m.procSqlobj.OperateTable(m.BPFName)
 	m.Sqlinited = true
 }
 
@@ -109,11 +147,16 @@ func (m *MyMetrics) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// StartService get map list chan and run a service to show metrics
+// StartService 方法是 MyMetrics 类型的一个方法，用于启动服务并将 MyMetrics 注册到 Prometheus。
 func (m *MyMetrics) StartService() {
+	// 使用 Prometheus 的 MustRegister 函数将 MyMetrics 注册到 Prometheus 收集器中。
 	prometheus.MustRegister(m)
 
+	// 将 /metrics 路径映射到 Prometheus HTTP 处理器，以便可以通过该路径访问指标数据。
 	http.Handle("/metrics", promhttp.Handler())
+
+	// 启动 HTTP 服务器，监听端口 8090，处理器为 nil（使用默认的多路复用器）。
+	// 如果启动失败，使用 log.Fatalf 输出错误信息并终止程序。
 	if err := http.ListenAndServe(":8090", nil); err != nil {
 		log.Fatalf("Failed to start HTTP server:", err)
 	}
