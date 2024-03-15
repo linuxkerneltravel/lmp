@@ -6,47 +6,64 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 // 定义数组映射
-BPF_HASH(procStartTime,pid_t,u64,4096);//记录时间戳
+//BPF_PERCPU_HASH(SyscallEnterTime,pid_t,struct syscall_flags,512);//记录时间戳
+BPF_PERCPU_HASH(SyscallEnterTime,pid_t,u64,512);//记录时间戳
+BPF_PERCPU_HASH(Events,pid_t,u64,10);
+
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");//环形缓冲区；
 
 
-SEC("tracepoint/syscalls/sys_enter_execve")//进入系统调用
-int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx){
+SEC("tracepoint/raw_syscalls/sys_enter")//进入系统调用
+int tracepoint__syscalls__sys_enter(struct trace_event_raw_sys_enter *args){
 	u64 start_time = bpf_ktime_get_ns()/1000;//ms
-	pid_t pid = bpf_get_current_pid_tgid() >> 32;//获取到当前进程的pid
-	bpf_map_update_elem(&procStartTime,&pid,&start_time,BPF_ANY);
-	return 0;
+	pid_t pid = bpf_get_current_pid_tgid();//获取到当前进程的pid
+	u64 syscall_id = (u64)args->id;
 
+	//bpf_printk("ID:%ld\n",syscall_id);
+	bpf_map_update_elem(&Events,&pid,&syscall_id,BPF_ANY);
+	bpf_map_update_elem(&SyscallEnterTime,&pid,&start_time,BPF_ANY);
+	return 0;
 }
 
-SEC("tracepoint/syscalls/sys_exit_execve")//退出系统调用
-int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit* ctx){
+SEC("tracepoint/raw_syscalls/sys_exit")//退出系统调用
+int tracepoint__syscalls__sys_exit(struct trace_event_raw_sys_exit *args){
 	u64 exit_time = bpf_ktime_get_ns()/1000;//ms
+	pid_t pid = bpf_get_current_pid_tgid() ;//获取到当前进程的pid
+	u64 syscall_id;
 	u64 start_time, delay;
-	pid_t pid = bpf_get_current_pid_tgid() >> 32;//获取到当前进程的pid
-	u64 *val = bpf_map_lookup_elem(&procStartTime, &pid);
+
+	u64 *val = bpf_map_lookup_elem(&SyscallEnterTime, &pid);
 	if(val !=0){
 		start_time = *val;
 		delay = exit_time - start_time;
-		bpf_map_delete_elem(&procStartTime, &pid);
+		bpf_map_delete_elem(&SyscallEnterTime, &pid);
 	}else{ 
 		return 0;
 	}
 
-	struct event2 *e;
+	u64 *val2 = bpf_map_lookup_elem(&Events, &pid);
+	if(val2 !=0){
+		syscall_id = *val2;
+		bpf_map_delete_elem(&SyscallEnterTime, &pid);
+	}else{ 
+		return 0;
+	}
+
+
+	struct syscall_events *e;
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
-	if (!e)	return 0;	
-	
-	e->start_time=start_time;//开始时间
-	e->exit_time=exit_time;//结束时间
-	e->delay=delay;//时间间隔
+	if (!e)	return 0;
+
 	e->pid = pid;
+	e->delay = delay;
 	bpf_get_current_comm(&e->comm, sizeof(e->comm));
-	/* 成功地将其提交到用户空间进行后期处理 */
+	e->syscall_id = syscall_id;
+
 	bpf_ringbuf_submit(e, 0);
-	
+
+
 	return 0;
 }
