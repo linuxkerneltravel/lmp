@@ -24,14 +24,11 @@
 #include <bpf/libbpf.h>
 #include <sys/select.h>
 #include <unistd.h>
-#include "paf.h"
 #include "paf.skel.h"
-#include "pr.h"
 #include "pr.skel.h"
-#include "procstat.h"
 #include "procstat.skel.h"
-#include "sysstat.h"
 #include "sysstat.skel.h"
+#include "mem_watcher.h"
 
 static struct env {
 	int time;
@@ -130,14 +127,6 @@ static void sig_handler(int sig) {
 	exiting = true;
 }
 
-static void msleep(long secs) {
-	struct timeval tval;
-
-	tval.tv_sec = secs / 1000;
-	tval.tv_usec = (secs * 1000) % 1000000;
-	select(0, NULL, NULL, NULL, &tval);
-}
-
 /*
 static char* flags(int flag)
 {
@@ -180,13 +169,7 @@ static int handle_event_paf(void *ctx, void *data, size_t data_sz) {
 
 	printf("%-8lu %-8lu  %-8lu %-8lu %-8x\n",
 		e->min, e->low, e->high, e->present, e->flag);
-	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块   */
-	// if (env.time != 0) {
-	// 	msleep(env.time);
-	// }
-	// else {
-	// 	msleep(1000);
-	// }
+
 	return 0;
 }
 
@@ -202,15 +185,7 @@ static int handle_event_pr(void *ctx, void *data, size_t data_sz) {
 
 	printf("%-8lu %-8lu  %-8u %-8u %-8u\n",
 		e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested, e->writeback);
-	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块   */
-	// if (env.time != 0)
-	// {
-	// 	msleep(env.time);
-	// }
-	// else
-	// {
-	// 	msleep(1000);
-	// }
+
 	return 0;
 }
 
@@ -237,15 +212,7 @@ static int handle_event_procstat(void *ctx, void *data, size_t data_sz) {
 		else
 			printf("%-8s %-8d %-8ld %-8lld %-8lld %-8lld\n", ts, e->pid, e->size, e->rssanon, e->rssfile, e->rssshmem);
 	}
-	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块   */
-	// if (env.time != 0)
-	// {
-	// 	msleep(env.time);
-	// }
-	// else
-	// {
-	// 	msleep(1000);
-	// }
+
 	return 0;
 }
 
@@ -264,15 +231,6 @@ static int handle_event_sysstat(void *ctx, void *data, size_t data_sz) {
 	else
 		printf("%-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu\n", e->anon_active + e->file_active, e->file_inactive + e->anon_inactive, e->anon_active, e->anon_inactive, e->file_active, e->file_inactive, e->unevictable, e->file_dirty, e->writeback, e->anon_mapped, e->file_mapped, e->shmem);
 
-	/* 睡眠会导致程序无法终止，所以需要注释掉这个代码块   */
-	// if (env.time != 0)
-	// {
-	// 	msleep(env.time);
-	// }
-	// else
-	// {
-	// 	msleep(1000);
-	// }
 	return 0;
 }
 
