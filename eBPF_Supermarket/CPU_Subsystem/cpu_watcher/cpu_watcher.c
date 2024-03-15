@@ -73,7 +73,7 @@ static const struct argp_option opts[] = {
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{"libbpf_sar", 's',	0,0,"print sar_info (the data of cpu)"},
 	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
-	{"syscall_delay", 'y',	0,0,"print syscall_delay (the data of syscall)"},
+	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
@@ -90,7 +90,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'c':
 			env.CS_DELAY = true;
 			break;		
-		case 'y':
+		case 'S':
 			env.SYSCALL_DELAY = true;
 			break;			
 		case 'h':
@@ -385,26 +385,19 @@ static void histogram()
 }
 
 
-static void max_print(){
+// static void max_print(){
 
-	int sc_average_time = sc_sum_time/sys_call_count;
-	printf("Average_Syscall_Time: %8d ms\n",sc_average_time);
-	printf("MAX_Syscall_Time: %8d ms\n",sc_max_time);
-	printf("MIN_Syscall_Time: %8d ms\n",sc_min_time);
-}
+// 	int sc_average_time = sc_sum_time/sys_call_count;
+// 	printf("Average_Syscall_Time: %8d ms\n",sc_average_time);
+// 	printf("MAX_Syscall_Time: %8d ms\n",sc_max_time);
+// 	printf("MIN_Syscall_Time: %8d ms\n",sc_min_time);
+// }
 static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 {
 
-	const struct event2 *e = data;
-	printf("|COMM:  %-15s |pid: %-8lu  |start_time: %-10lu  |exit_time: %-10lu  |delay: %-8lu|\n",e->comm,e->pid,e->start_time,e->exit_time,e->delay);
-	sc_sum_time += e->delay;
-	if(sc_max_time < e->delay){
-		sc_max_time = e->delay;
-	}
-	else if(sc_min_time > e->delay){
-		sc_min_time = e->delay;
-	}
-	sys_call_count ++;
+	const struct syscall_events *e = data;
+	printf("pid: %-8llu comm: %-10s syscall_id: %-8ld delay: %-8llu\n",
+		e->pid,e->comm,e->syscall_id,e->delay);
 	return 0;
 }
 
@@ -563,19 +556,12 @@ int main(int argc, char **argv)
 			}
 			time_t now = time(NULL);// 获取当前时间
 			struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
-			if(!syscall_start_print){
-				syscall_start_print=1;
-			}else{
-				printf("----------------------------------------------------------------------------------------------------------\n");
-				max_print();
-			}
 			printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
 			printf("----------------------------------------------------------------------------------------------------------\n");
-			sc_sum_time = 0 , sc_max_time = 0 ,sc_min_time = SYSCALL_MIN_TIME, sys_call_count = 0;
-			sleep(3);			
+			sleep(1);			
 		}
 		else {
-			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n");
+			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-S	打印sc_delay:\t系统调用运行延迟进行检测; \n");
 			break;
 		}
 	}
