@@ -21,11 +21,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,10 +49,12 @@ var server = flag.String("server", "http://localhost:4040", "")
 
 var (
 	logger log.Logger
+	// bufio reader 会先将数据存入缓存，再由readX接口读取数据，若定义为局部变量就会丢失数据
+	reader bufio.Reader
 )
 
 func main() {
-
+	reader = *bufio.NewReader(os.Stdin)
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	// 创建画像数据发送信道
 	profiles := make(chan *pushv1.PushRequest, 128)
@@ -164,75 +168,86 @@ type scale struct {
 }
 
 func CollectProfiles(cb CollectProfilesCallback) error {
+	var err error
+	var line string
+	// read scale
 	var s scale
-	if _, err := fmt.Scanf("Type:%s Unit:%s Period:%d", &s.Type, &s.Unit, &s.Period); err != nil {
+	if line, err = reader.ReadString('\n'); err != nil {
 		return err
 	}
-	var buf string
-	if _, err := fmt.Scanf("time:%s\n", &buf); err != nil {
+	if _, err = fmt.Sscanf(line, "Type:%s Unit:%s Period:%d\n", &s.Type, &s.Unit, &s.Period); err != nil {
 		return err
 	}
-	filename := buf
+	// omit timestap, title and head of counts table
+	for range lo.Range(3) {
+		if line, err = reader.ReadString('\n'); err != nil {
+			return err
+		}
+	}
+	// read counts table
 	counts := make(map[psid]uint32)
-	if _, err := fmt.Scanf("counts:\n"); err != nil {
-		return err
-	}
-	if _, err := fmt.Scanf("pid\tusid\tksid\t%s\n", &buf); err != nil {
-		return err
-	}
-	filename += buf
 	for {
 		var k psid
 		var v float32
-		if _, err := fmt.Scanf("%d\t%d\t%d\t%f\n", &k.pid, &k.usid, &k.ksid, &v); err != nil {
+		if line, err = reader.ReadString('\n'); err != nil {
+			return err
+		}
+		if _, err = fmt.Sscanf(line, "%d\t%d\t%d\t%f\n", &k.pid, &k.usid, &k.ksid, &v); err != nil {
+			// has read traces title
 			break
 		}
 		counts[k] = uint32(v)
 	}
-	traces := make(map[int32][]string)
-	fmt.Scanln(&buf)
-	if _, err := fmt.Scanf("sid\ttrace\n"); err != nil {
-		fmt.Printf("scan err at trace \"%s\"\n", buf)
+	// omit traces table head
+	if line, err = reader.ReadString('\n'); err != nil {
 		return err
 	}
+	traces := make(map[int32][]string)
 	for {
 		var k int32
-		if _, err := fmt.Scanf("%d\t", &k); err != nil {
+		var v string
+		if line, err = reader.ReadString('\n'); err != nil {
+			return err
+		}
+		if _, err = fmt.Sscanf(line, "%d\t%s\n", &k, &v); err != nil {
+			// has read groups title
 			break
 		}
-		if _, err := fmt.Scanf("%s\n", &buf); err != nil {
-			break
-		}
-		traces[k] = strings.Split(buf, ";")
+		traces[k] = strings.Split(v, ";")
 	}
-	groups := make(map[int32]int32)
-	fmt.Scanln(&buf)
-	if _, err := fmt.Scanf("pid\ttgid\n"); err != nil {
-		fmt.Printf("scan err at group \"%s\"\n", buf)
+	// omit groups table head
+	if line, err = reader.ReadString('\n'); err != nil {
 		return err
 	}
+	groups := make(map[int32]int32)
 	for {
 		var k, v int32
-		if _, err := fmt.Scanf("%d\t%d\n", &k, &v); err != nil {
+		if line, err = reader.ReadString('\n'); err != nil {
+			return err
+		}
+		if _, err = fmt.Sscanf(line, "%d\t%d\n", &k, &v); err != nil {
+			// has read comm title
 			break
 		}
 		groups[k] = v
 	}
-	comms := make(map[int32]string)
-	fmt.Scanln(&buf)
-	if _, err := fmt.Scanf("pid\tcommand\n"); err != nil {
-		fmt.Printf("scan err at command \"%s\"\n", buf)
+	// omit comm table head
+	if line, err = reader.ReadString('\n'); err != nil {
 		return err
 	}
+	comms := make(map[uint32]string)
 	for {
-		var k int32
-		var comm string
-		if _, err := fmt.Scanf("%d\t%s\n", &k, &comm); err != nil {
+		var pid int
+		if line, err = reader.ReadString('\n'); err != nil {
 			break
 		}
-		comms[k] = comm
+		tuple := strings.Split(line, "\t")
+		if pid, err = strconv.Atoi(tuple[0]); err != nil {
+			// has read end
+			break
+		}
+		comms[uint32(pid)] = tuple[1][:len(tuple[1])-1]
 	}
-	fmt.Scanln(&buf)
 	for k, v := range counts {
 		target := sd.NewTarget("", k.pid, sd.DiscoveryTarget{
 			"__process_pid__": fmt.Sprintf("%d", k.pid),
@@ -250,7 +265,7 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 					return exe
 				}
 			}(),
-			"__meta_process_comm": comms[int32(k.pid)],
+			"__meta_process_comm": comms[k.pid],
 			"__meta_process_cgroup": func() string {
 				if cgroup, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", k.pid)); err != nil {
 					return ""
@@ -259,7 +274,7 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 				}
 			}(),
 		})
-		base := []string{fmt.Sprint(groups[int32(k.pid)]), fmt.Sprint(k.pid), fmt.Sprint(comms[int32(k.pid)])}
+		base := []string{fmt.Sprint(groups[int32(k.pid)]), fmt.Sprint(k.pid), fmt.Sprint(comms[k.pid])}
 		trace := append(traces[k.usid], traces[k.ksid]...)
 		cb(target, lo.Reverse(append(base, trace...)), uint64(v), s, true)
 	}
