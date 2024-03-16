@@ -35,5 +35,6 @@ jobs:
           make pr
           make procstat
           make sysstat
+          make memleak
           make mem_watcher
           sudo timeout 20 ./mem_watcher
