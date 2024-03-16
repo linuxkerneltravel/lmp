@@ -136,6 +136,7 @@ public:
     std::set<int>& get_java_procs() { return java_procs; }
 
     bool find_kernel_symbol(symbol &sym);
+    bool complete_kernel_symbol(symbol &sym);
     
     /// @brief 从elf file中查找sym中地址对应的符号名存入sym
     /// @param sym 符号对象

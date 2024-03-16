@@ -274,6 +274,25 @@ bool symbol_parser::find_kernel_symbol(symbol &sym)
     return false;
 }
 
+bool symbol_parser::complete_kernel_symbol(symbol &sym)
+{
+    load_kernel();
+    sym.end = sym.start = 0;
+    for (auto it = kernel_symbols.begin(); it != kernel_symbols.end(); ++it) {
+        auto size = sym.name.size(), tsize = it->name.size();
+        if(size > tsize || it->name.substr(tsize-5, 5) == ".cold") {
+            continue;
+        }
+        if(it->name.substr(0, size) == sym.name) {
+            sym.end = it->end;
+            sym.start = it->start;
+            sym.name = it->name;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool symbol_parser::find_symbol_in_cache(int tgid, unsigned long addr, std::string &symbol)
 {
     std::map<int, std::map<unsigned long, std::string> >::const_iterator it_pid =
