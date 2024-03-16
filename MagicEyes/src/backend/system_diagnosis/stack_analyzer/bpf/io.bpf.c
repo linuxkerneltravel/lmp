@@ -22,7 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "sa_ebpf.h"
-#include "bpf/IOStackCollector.h"
+#include "bpf/io.h"
 #include "task.h"
 
 DeclareCommonMaps(io_tuple);

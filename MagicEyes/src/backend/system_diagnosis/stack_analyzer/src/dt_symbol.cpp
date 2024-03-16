@@ -12,8 +12,8 @@
 #include <algorithm>
 #include <cxxabi.h>
 
-#include "stack_analyzer/include/symbol.h"
-#include "stack_analyzer/include/elf.h"
+#include "dt_symbol.h"
+#include "dt_elf.h"
 
 void restore_global_env();
 int attach_ns_env(int pid);

@@ -13,7 +13,7 @@
 #include <set>
 #include <string>
 
-#include "symbol.h"
+#include "dt_symbol.h"
 
 #define BUILD_ID_SIZE 40
 bool save_symbol_cache(std::set<symbol> &ss, const char *path);

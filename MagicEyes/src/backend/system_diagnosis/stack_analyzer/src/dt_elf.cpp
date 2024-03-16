@@ -6,6 +6,8 @@
  * License terms: GNU General Public License (GPL) version 3
  *
  */
+#include "dt_elf.h"
+
 #include <elf.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -15,12 +17,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-
-<<<<<<<< HEAD:eBPF_Supermarket/Stack_Analyser/src/elf.cc
-#include "elf.hpp"
-========
-#include "stack_analyzer/include/elf.h"
->>>>>>>> 642a5109ef5dd10a13d3e9a905aefffb9dfdb467:MagicEyes/src/backend/system_diagnosis/stack_analyzer/src/elf.cc
 
 #define NOTE_ALIGN(n) (((n) + 3) & -4U)
 
