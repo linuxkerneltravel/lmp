@@ -39,7 +39,7 @@ public:
             skel->progs.prog_name,                               \
             pid,                                                 \
             object,                                              \
-            1,                                                   \
+            0,                                                   \
             &uprobe_opts);                                       \
     } while (false)
 #else
