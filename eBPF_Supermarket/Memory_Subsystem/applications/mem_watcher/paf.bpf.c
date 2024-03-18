@@ -10,7 +10,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
-#include "paf.h"
+#include "mem_watcher.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
