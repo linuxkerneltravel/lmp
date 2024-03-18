@@ -32,7 +32,7 @@ BPF_HASH(start, u32, u64);                                                  //�
 
 const char LICENSE[] SEC("license") = "GPL";
 
-SEC("kprobe/finish_task_switch.isra.0")                                     //动态挂载点finish_task_switch.isra.0
+SEC("kprobe/finish_task_switch")                                     //动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     // u32 pid = BPF_CORE_READ(curr, pid);

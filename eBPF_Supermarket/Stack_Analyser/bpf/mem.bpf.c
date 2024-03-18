@@ -48,7 +48,7 @@ BPF_HASH(piddr_meminfo, piddr, mem_info); // 记录了每次申请的内存空�
 
 const char LICENSE[] SEC("license") = "GPL";
 
-int gen_alloc_enter(size_t size)
+static int gen_alloc_enter(size_t size)
 {
     if (size <= min || size > max)
         return 0;
@@ -90,9 +90,9 @@ int BPF_KPROBE(mmap_enter)
     return gen_alloc_enter(size);
 }
 
-int gen_alloc_exit(struct pt_regs *ctx)
+static int gen_alloc_exit(struct pt_regs *ctx)
 {
-    void *addr = (void *)PT_REGS_RC(ctx);
+    u64 addr = PT_REGS_RC(ctx);
     if (!addr)
     {
         return 0;
@@ -120,7 +120,7 @@ int gen_alloc_exit(struct pt_regs *ctx)
     }
     // record pid_addr-info
     piddr a = {
-        .addr = (u64)addr,
+        .addr = addr,
         .pid = pid,
         .o = 0,
     };
@@ -156,7 +156,7 @@ int BPF_KRETPROBE(mmap_exit)
     return gen_alloc_exit(ctx);
 }
 
-int gen_free_enter(u64 addr, size_t unsize)
+static int gen_free_enter(u64 addr, size_t unsize)
 {
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
     u32 pid = get_task_ns_pid(curr);

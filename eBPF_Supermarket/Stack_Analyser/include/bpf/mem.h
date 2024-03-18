@@ -47,20 +47,6 @@ public:
 /// @param sym_name 用户态函数名字面量，不加双引号
 /// @param prog_name ebpf处理函数，skel->progs中的成员名
 /// @param is_retprobe 布尔类型，是否附加到符号返回处
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
-#define ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)    \
-    do                                                           \
-    {                                                            \
-        DECLARE_LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,        \
-                            .retprobe = is_retprobe);            \
-        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
-            skel->progs.prog_name,                               \
-            pid,                                                 \
-            object,                                              \
-            1,                                                   \
-            &uprobe_opts);                                       \
-    } while (false)
-#else
 #define ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe) \
     do                                                        \
     {                                                         \
@@ -75,7 +61,6 @@ public:
                 0,                                            \
                 &uprobe_opts);                                \
     } while (false)
-#endif
 
 /// @brief 向指定用户函数附加一个处理函数并检查是否连接成功
 /// @param skel ebpf程序骨架
