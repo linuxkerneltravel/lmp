@@ -26,8 +26,6 @@
 
 DeclareCommonMaps(u32);
 DeclareCommonVar();
-
-// 传进来的参数
 int apid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";

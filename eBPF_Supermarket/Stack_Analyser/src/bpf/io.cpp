@@ -51,7 +51,7 @@ IOStackCollector::IOStackCollector()
 
 int IOStackCollector::load(void)
 {
-    StackProgLoadOpen();
+    StackProgLoadOpen(skel->bss->apid=pid;);
     return 0;
 }
 

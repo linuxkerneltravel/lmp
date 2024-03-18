@@ -43,70 +43,75 @@
                          __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM)
 #define GFP_TRANSHUGE   (GFP_TRANSHUGE_LIGHT | __GFP_DIRECT_RECLAIM)
 
-
-struct event {
-	unsigned long reclaim;
-	unsigned long reclaimed;
-	unsigned int unqueued_dirty;
-	unsigned int congested;
-    unsigned int writeback;
-
-    unsigned long min;
+struct paf_event {
+	unsigned long min;
 	unsigned long low;
 	unsigned long high;
 	unsigned long present;
 	unsigned long protection;
 	int flag;
+};
 
+struct pr_event {
+	unsigned long reclaim;
+	unsigned long reclaimed;
+	unsigned int unqueued_dirty;
+	unsigned int congested;
+	unsigned int writeback;
+};
+
+struct procstat_event {
 	/*进程内存状态报告*/
 	pid_t pid;
-    long nvcsw;
-    long nivcsw;
-    long vsize;              //虚拟内存
-    long size;               //物理内存
-    long long rssanon;       //匿名页面
-    long long rssfile;       //文件页面
-    long long rssshmem;      //共享页面
-    long long vswap;         //交换页面
-    long long Hpages;        //hugetlbPages
-    long Vdata;              //Private data segments
-    long Vstk;               //User stack
+	long nvcsw;
+	long nivcsw;
+	long vsize;              //虚拟内存
+	long size;               //物理内存
+	long long rssanon;       //匿名页面
+	long long rssfile;       //文件页面
+	long long rssshmem;      //共享页面
+	long long vswap;         //交换页面
+	long long Hpages;        //hugetlbPages
+	long Vdata;              //Private data segments
+	long Vstk;               //User stack
 	long long VPTE;
+};
 
+struct sysstat_event {
 	/*系统内存状态报告*/
-	//unsigned long present;
-	unsigned long anon_inactive;//0
-	unsigned long anon_active;//1
-    unsigned long file_inactive;//2
-	unsigned long file_active;//3
-	unsigned long unevictable;//不可回收页面	
+	unsigned long present;
+	unsigned long anon_inactive; // 0
+	unsigned long anon_active;	 // 1
+	unsigned long file_inactive; // 2
+	unsigned long file_active;	 // 3
+	unsigned long unevictable;	 // 不可回收页面
 	unsigned long slab_reclaimable;
 	unsigned long slab_unreclaimable;
-	unsigned long anon_isolated;        //匿名隔离页面
-	unsigned long file_isolated;        //文件隔离页面
+	unsigned long anon_isolated; // 匿名隔离页面
+	unsigned long file_isolated; // 文件隔离页面
 
-	unsigned long working_nodes;//12
+	unsigned long working_nodes; // 12
 	unsigned long working_refault;
 	unsigned long working_activate;
 	unsigned long working_restore;
 	unsigned long working_nodereclaim;
 
-	unsigned long anon_mapped;//17
+	unsigned long anon_mapped; // 17
 	unsigned long file_mapped;
 
-	unsigned long file_pages;//19
+	unsigned long file_pages; // 19
 	unsigned long file_dirty;
-	//unsigned long writeback;
+	unsigned long writeback;
 	unsigned long writeback_temp;
 
-	unsigned long shmem;//共享内存23
+	unsigned long shmem; // 共享内存23
 	unsigned long shmem_thps;
 	unsigned long pmdmapped;
 	unsigned long anon_thps;
 	unsigned long unstable_nfs;
 	unsigned long vmscan_write;
 	unsigned long vmscan_immediate;
-	
+
 	unsigned long diried;
 	unsigned long written;
 	unsigned long kernel_misc_reclaimable;
