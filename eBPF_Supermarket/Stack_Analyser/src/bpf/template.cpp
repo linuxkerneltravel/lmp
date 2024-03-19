@@ -14,26 +14,31 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 通用数据结构
+// ebpf程序包装类的模板，实现接口和一些自定义方法
 
-#ifndef STACK_ANALYZER_COMMON
-#define STACK_ANALYZER_COMMON
+#include "bpf/template.h"
 
-#include <asm/types.h>
+// ========== implement virtual func ==========
 
-#define COMM_LEN 16        // 进程名最大长度
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
+double TemplateClass::count_value(void *data)
+{
+    return *(uint32_t*)data;
+};
 
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
+int TemplateClass::load(void)
+{
+    return 0;
+};
 
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
+int TemplateClass::attach(void)
+{
+    return 0;
+};
 
-#endif
+void TemplateClass::detach(void){};
+
+void TemplateClass::unload(void){};
+
+// ========== other implementations ========== 
+
+TemplateClass::TemplateClass(){};

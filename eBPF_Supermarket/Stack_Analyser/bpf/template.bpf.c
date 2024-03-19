@@ -14,26 +14,18 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 通用数据结构
+// 内核态bpf程序的模板代码
 
-#ifndef STACK_ANALYZER_COMMON
-#define STACK_ANALYZER_COMMON
+#include "vmlinux.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
 
-#include <asm/types.h>
+#include "sa_ebpf.h"
+#include "bpf/template.h"
+#include "task.h"
 
-#define COMM_LEN 16        // 进程名最大长度
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
+DeclareCommonMaps(__u32);
+DeclareCommonVar();
 
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
-
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
-
-#endif
+const char LICENSE[] SEC("license") = "GPL";

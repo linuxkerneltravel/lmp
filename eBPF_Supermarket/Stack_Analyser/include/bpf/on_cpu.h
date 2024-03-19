@@ -14,26 +14,37 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 通用数据结构
+// on cpu ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef STACK_ANALYZER_COMMON
-#define STACK_ANALYZER_COMMON
+#ifndef _SA_ON_CPU_H__
+#define _SA_ON_CPU_H__
 
-#include <asm/types.h>
+#include "eBPFStackCollector.h"
+#include "on_cpu.skel.h"
 
-#define COMM_LEN 16        // 进程名最大长度
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
 
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
+#ifdef __cplusplus
+class OnCPUStackCollector : public StackCollector
+{
+private:
+	struct on_cpu_bpf *skel = __null;
 
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
+	int *pefds = NULL;
+	int num_cpus = 0;
+	struct bpf_link **links = NULL;
+	unsigned long long freq = 49;
+
+protected:
+	virtual double count_value(void *);
+
+public:
+	void setScale(uint64_t freq);
+	OnCPUStackCollector();
+    virtual int load(void);
+    virtual int attach(void);
+    virtual void detach(void);
+    virtual void unload(void);
+};
+#endif
 
 #endif
