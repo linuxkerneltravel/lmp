@@ -107,9 +107,15 @@ func (s *Sqlobj) ProcAppendTable() {
 	// 遍历数据集合
 	for key, value := range s.Data {
 		if !enable {
+			var pid int
 			index := strings.Index(key, "(")
 			intPart := key[:index]
-			pid, _ := strconv.Atoi(intPart)
+			parts := strings.Split(intPart, "_")
+			if len(parts) >= 2 {
+				pid, _ = strconv.Atoi(parts[1])
+			} else {
+				pid, _ = strconv.Atoi(intPart)
+			}
 			leftIndex := strings.Index(key, "(")
 			rightIndex := strings.Index(key, ")")
 			if leftIndex != -1 && rightIndex != -1 && rightIndex > leftIndex {
