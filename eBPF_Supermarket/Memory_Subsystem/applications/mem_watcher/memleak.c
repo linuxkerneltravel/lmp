@@ -1,4 +1,4 @@
-// Copyright 2024 The LMP Authors.
+// Copyright 2023 The LMP Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,28 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: luiyanbing@foxmail.com
+// author: zai953879556@163.com
 //
-// 通用数据结构
+// mem_watcher libbpf user mode code
 
-#ifndef STACK_ANALYZER_COMMON
-#define STACK_ANALYZER_COMMON
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/resource.h>
+#include <bpf/libbpf.h>
+#include "memleak.skel.h"
+#include "mem_watcher.h"
 
-#include <asm/types.h>
+#include "blazesym.h"
 
-#define COMM_LEN 16        // 进程名最大长度
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
-
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
-
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
-
-#endif
+int main(int argc, char **argv) {
+    
+}

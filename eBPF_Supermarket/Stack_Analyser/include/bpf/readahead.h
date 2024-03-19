@@ -14,26 +14,37 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 通用数据结构
+// readahead ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef STACK_ANALYZER_COMMON
-#define STACK_ANALYZER_COMMON
+#ifndef _SA_READAHEAD_H__
+#define _SA_READAHEAD_H__
 
 #include <asm/types.h>
+typedef struct
+{
+    __u32 expect;
+    __u32 truth;
+} ra_tuple;
 
-#define COMM_LEN 16        // 进程名最大长度
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
+#ifdef __cplusplus
+#include "readahead.skel.h"
+#include "bpf/eBPFStackCollector.h"
 
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
+class ReadaheadStackCollector : public StackCollector
+{
+private:
+    declareEBPF(readahead);
 
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
+protected:
+    virtual double count_value(void *data);
+
+public:
+    ReadaheadStackCollector();
+    virtual int load(void);
+    virtual int attach(void);
+    virtual void detach(void);
+    virtual void unload(void);
+};
+#endif
 
 #endif
