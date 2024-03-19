@@ -136,6 +136,13 @@ public:
     std::set<int>& get_java_procs() { return java_procs; }
 
     bool find_kernel_symbol(symbol &sym);
+    
+    /// @brief 从elf file中查找sym中地址对应的符号名存入sym
+    /// @param sym 符号对象
+    /// @param file 进程对应的elf file
+    /// @param pid 进程
+    /// @param pid_ns 进程的命名空间？
+    /// @return 查找成功返回true，否则返回false
     bool find_elf_symbol(symbol &sym, const elf_file &file, int pid, int pid_ns);
     bool find_java_symbol(symbol &sym, int pid, int pid_ns);
 
@@ -152,6 +159,10 @@ public:
     void dump(void);
 private:
     bool load_pid_maps(int pid);
+    /// @brief 对elf_file对应的符号表进行缓存
+/// @param pid 未使用
+/// @param file elf file
+/// @return 缓存成功返回true，否则返回false
     bool load_elf(pid_t pid, const elf_file& file);
     bool load_perf_map(int pid, int pid_ns);
 public:
@@ -160,5 +171,8 @@ public:
 };
 
 extern symbol_parser g_symbol_parser;
+
+std::string demangleCppSym(std::string symbol);
+void clearSpace(std::string &sym);
 
 #endif

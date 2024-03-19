@@ -20,7 +20,6 @@
 #include <vector>
 #include <sstream>
 #include <iostream>
-#include <cxxabi.h>
 
 #include "include/symbol.h"
 #include "include/clipp.h"
@@ -42,37 +41,18 @@ extern "C"
 #include "bpf/stack_count.skel.h"
 }
 
-std::string demangleCppSym(std::string symbol)
+void splitString(std::string symbol, const char split, std::vector<std::string> &res)
 {
-	size_t size = 0;
-	int status = 0;
-	char *demangled = abi::__cxa_demangle(symbol.c_str(), NULL, &size, &status);
-
-	if (status == 0 && demangled != NULL)
+	if (symbol == "")
+		return;
+	std::string strs = symbol + split;
+	size_t pos = strs.find(split);
+	while (pos != strs.npos)
 	{
-		std::string FuncName(demangled);
-		free(demangled);
-		return FuncName;
-	}
-	else
-	// 解码失败，返回原始符号
-	{
-		return symbol;
-	}
-}
-
-void clearSpace(std::string &sym)
-{
-	for (auto i = sym.begin(); i != sym.end();)
-	{
-		if (isblank(*i))
-		{
-			sym.erase(i);
-		}
-		else
-		{
-			i++;
-		}
+		std::string temp = strs.substr(0, pos);
+		res.push_back(temp);
+		strs = strs.substr(pos + 1, strs.size());
+		pos = strs.find(split);
 	}
 }
 
@@ -159,17 +139,22 @@ protected:
 	int comm_fd = -1;  // pid-进程名表的文件描述符
 	int trace_fd = -1; // 栈id-栈轨迹表的文件描述符
 
+	// 计数变量类型默认为u32
 	size_t count_size = sizeof(uint32_t);
 
+	// 默认显示计数的变化情况，即每次输出数据后清除计数
 	bool showDelta = true;
 
-	/// @brief 将缓冲区的数据解析为特定值
+	/// @brief 将缓冲区的数据解析为特定值，默认解析为u32
 	/// @param  无
 	/// @return 解析出的值
-	virtual double data_value(void *data) { return *(uint32_t *)data; };
+	virtual double data_value(void *data)
+	{
+		return *(uint32_t *)data;
+	};
 
-#define declareEBPF(eBPFName) \
-	struct eBPFName *skel = NULL;
+	// 声明
+#define declareEBPF(eBPFName) struct eBPFName *skel = NULL;
 
 public:
 	Scale scale;
@@ -195,12 +180,11 @@ public:
 	/// @param  无
 	/// @return 成功则返回0，否则返回负数
 	virtual int load(void) = 0;
-#define defaultLoad                 \
-	int load(void) override         \
-	{                               \
-		StackProgLoadOpen(          \
-			skel->bss->apid = pid); \
-		return 0;                   \
+#define defaultLoad                               \
+	int load(void) override                       \
+	{                                             \
+		StackProgLoadOpen(skel->bss->apid = pid); \
+		return 0;                                 \
 	};
 
 	/// @brief 将ebpf程序挂载到跟踪点上
@@ -244,10 +228,7 @@ public:
 	{
 		std::ostringstream oss;
 		oss << "Type:" << scale.Type << " Unit:" << scale.Unit << " Period:" << scale.Period << '\n';
-		oss << "time:";
-		{
-			oss << getLocalDateTime() << '\n';
-		}
+		oss << "time:" << getLocalDateTime() << '\n';
 		std::map<int32_t, std::vector<std::string>> traces;
 		oss << "counts:\n";
 		{
@@ -258,7 +239,8 @@ public:
 			uint64_t trace[MAX_STACKS], *p;
 			for (auto id : *D)
 			{
-				oss << id.pid << '\t' << id.usid << '\t' << id.ksid << '\t' << id.val << '\n';
+				oss << id.pid << '\t' << id.usid << '\t' << id.ksid << '\t' << id.val
+					<< '\n';
 				if (id.usid > 0 && traces.find(id.usid) == traces.end())
 				{
 					bpf_map_lookup_elem(trace_fd, &id.usid, trace);
@@ -272,8 +254,7 @@ public:
 						elf_file file;
 						if (g_symbol_parser.find_symbol_in_cache(id.pid, addr, sym.name))
 							;
-						else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) &&
-								 g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+						else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) && g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
 						{
 							if (sym.name[0] == '_' && sym.name[1] == 'Z')
 							// 代表是C++符号，则调用demangle解析
@@ -281,7 +262,7 @@ public:
 								sym.name = demangleCppSym(sym.name);
 							}
 							std::stringstream ss("");
-							ss << "+0x" << std::hex << (addr - sym.ip);
+							ss << "+0x" << std::hex << (addr - sym.start);
 							sym.name += ss.str();
 							g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
 						}
@@ -345,7 +326,8 @@ public:
 			auto vals = new uint32_t[MAX_ENTRIES];
 			uint32_t count = MAX_ENTRIES;
 			uint32_t next_key;
-			int err = bpf_map_lookup_batch(tgid_fd, NULL, &next_key, keys, vals, &count, NULL);
+			int err = bpf_map_lookup_batch(tgid_fd, NULL, &next_key, keys, vals,
+										   &count, NULL);
 			if (err == EFAULT)
 			{
 				return oss.str();
@@ -368,7 +350,8 @@ public:
 			auto vals = new char[MAX_ENTRIES][16];
 			uint32_t count = MAX_ENTRIES;
 			uint32_t next_key;
-			int err = bpf_map_lookup_batch(comm_fd, NULL, &next_key, keys, vals, &count, NULL);
+			int err = bpf_map_lookup_batch(comm_fd, NULL, &next_key, keys, vals,
+										   &count, NULL);
 			if (err == EFAULT)
 			{
 				return oss.str();
@@ -422,8 +405,7 @@ public:
 		unsigned long *load_a;
 		fscanf(fp, "%p", &load_a);
 		pclose(fp);
-		StackProgLoadOpen(
-			skel->bss->load_a = load_a) return 0;
+		StackProgLoadOpen(skel->bss->load_a = load_a) return 0;
 	};
 
 	int attach(void) override
@@ -515,11 +497,17 @@ private:
 	declareEBPF(mem_count_bpf);
 
 protected:
+	double data_value(void *d) override
+	{
+		return *(uint64_t *)d;
+	}
+
 public:
 	char *object = (char *)"libc.so.6";
 
 	MemoryStackCollector()
 	{
+		count_size = sizeof(uint64_t);
 		kstack = false;
 		showDelta = false;
 		scale.Period = 1;
@@ -666,6 +654,17 @@ private:
 
 public:
 	std::string probe = ""; // 保存命令行的输入
+	std::string tp_class = "";
+	std::vector<std::string> strList;
+	typedef enum
+	{
+		KPROBE,
+		TRACEPOINT,
+		USTD_TP,
+		UPROBE
+	} stack_mod;
+
+	stack_mod ProbeType = stack_mod::KPROBE;
 
 	StackCountStackCollector()
 	{
@@ -676,18 +675,71 @@ public:
 		};
 	};
 
-	void setProbe(std::string probe) {
-		this->probe = probe;
-		scale.Type = (probe+scale.Type).c_str();
+	void setProbe(std::string probe)
+	{
+		splitString(probe, ':', strList);
+		if (strList.size() == 1)
+		{
+			// probe a kernel function
+			this->probe = probe;
+		}
+		else if (strList.size() == 3)
+		{
+			if (strList[0] == "p" && strList[1] == "")
+			{
+				// probe a kernel function
+				this->probe = strList[2];
+			}
+			else if (strList[0] == "t")
+			{
+				// probe a kernel tracepoint
+				this->tp_class = strList[1];
+				this->probe = strList[2];
+				ProbeType = stack_mod::TRACEPOINT;
+			}
+			else if (strList[0] == "p" && strList[1] != "")
+			{
+				// probe a user-space function in the library 'lib'
+				ProbeType = stack_mod::UPROBE;
+			}
+			else if (strList[0] == "u")
+			{
+				// probe a USDT tracepoint
+				ProbeType = stack_mod::USTD_TP;
+			}
+			else
+			{
+				printf("Type must be 'p', 't', or 'u'");
+			}
+		}
+		else if (strList.size() == 2)
+		{
+			// probe a user-space function in the library 'lib'
+			ProbeType = stack_mod::UPROBE;
+		}
+		else
+		{
+			printf("Too many args");
+		}
+		scale.Type = (probe + scale.Type).c_str();
 	}
 
 	defaultLoad;
 	int attach(void) override
 	{
-		skel->links.handle =
-			bpf_program__attach_kprobe(skel->progs.handle, false,
-									   probe.c_str());
-		CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		if (ProbeType == KPROBE)
+		{
+			skel->links.handle =
+				bpf_program__attach_kprobe(skel->progs.handle, false,
+										   probe.c_str());
+			CHECK_ERR(!skel->links.handle, "Fail to attach kprobe");
+		}
+		else if (ProbeType == TRACEPOINT)
+		{
+			skel->links.handle_tp =
+				bpf_program__attach_tracepoint(skel->progs.handle_tp, tp_class.c_str(), probe.c_str());
+			CHECK_ERR(!skel->links.handle_tp, "Fail to attach tracepoint");
+		}
 		return 0;
 	};
 	defaultDetach;
@@ -737,17 +789,17 @@ int main(int argc, char *argv[])
 																	  { StackCollectorList.back()->ustack = false; }) %
 						  "only sample kernel stacks",
 					  (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", IntTmp).call([]
-																														 { StackCollectorList.back()->max = IntTmp; })) %
+																														{ StackCollectorList.back()->max = IntTmp; })) %
 						  "set the max threshold of sampled value",
 					  (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", IntTmp).call([]
-																														 { StackCollectorList.back()->min = IntTmp; })) %
+																														{ StackCollectorList.back()->min = IntTmp; })) %
 						  "set the min threshold of sampled value");
 
-	auto OnCpuOption = clipp::option("on-cpu").call([]
-													{ StackCollectorList.push_back(new OnCPUStackCollector()); }) %
-						   "sample the call stacks of on-cpu processes" &
+	auto OnCpuOption = (clipp::option("on-cpu").call([]
+													 { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
+						"sample the call stacks of on-cpu processes") &
 					   (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", IntTmp).call([]
-																											  { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
+																											 { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
 																 "sampling at a set frequency",
 						SubOption);
 
@@ -780,11 +832,12 @@ int main(int argc, char *argv[])
 													{ StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
 							   "sample the readahead hit rate of call stacks" &
 						   SubOption;
+
 	auto StackCountOption = clipp::option("stackcount").call([]
 															 { StackCollectorList.push_back(new StackCountStackCollector()); }) %
 								"sample the counts of calling stacks" &
 							(clipp::option("-S", "--String") & clipp::value("probe String", StrTmp).call([]
-																														{ static_cast<StackCountStackCollector *>(StackCollectorList.back())->setProbe(StrTmp); }) %
+																										 { static_cast<StackCountStackCollector *>(StackCollectorList.back())->setProbe(StrTmp); }) %
 																   "sampling at a set probe string",
 							 SubOption);
 

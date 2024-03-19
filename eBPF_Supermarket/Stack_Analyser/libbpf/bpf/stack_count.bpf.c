@@ -74,6 +74,12 @@ static int handle_func(void *ctx)
 SEC("kprobe/dummy_kprobe")
 int BPF_KPROBE(handle)
 {
+	handle_func(ctx);
+	return 0;
+}
+SEC("tp/sched/dummy_tp")
+int handle_tp(void *ctx)
+{
     handle_func(ctx);
     return 0;
 }
