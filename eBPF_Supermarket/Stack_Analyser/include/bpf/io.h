@@ -14,26 +14,46 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 通用数据结构
+// io ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef STACK_ANALYZER_COMMON
-#define STACK_ANALYZER_COMMON
+#ifndef _SA_IO_H__
+#define _SA_IO_H__
 
 #include <asm/types.h>
+typedef struct
+{
+    __u64 size : 40;
+    __u64 count : 24;
+} io_tuple;
 
-#define COMM_LEN 16        // 进程名最大长度
-#define MAX_STACKS 32      // 栈最大深度
-#define MAX_ENTRIES 102400 // map容量
+#ifdef __cplusplus
+#include "io.skel.h"
+#include "bpf/eBPFStackCollector.h"
 
-/// @brief 栈计数的键，可以唯一标识一个用户内核栈
-typedef struct {
-    __u32 pid;
-    __s32 ksid, usid;
-} psid;
+class IOStackCollector : public StackCollector
+{
+private:
+    declareEBPF(io);
 
-/// @brief 进程名
-typedef struct {
-    char str[COMM_LEN];
-} comm;
+public:
+    enum io_mod
+    {
+        COUNT,
+        SIZE,
+        AVE,
+    } DataType = COUNT;
+
+protected:
+    virtual double count_value(void *);
+
+public:
+    void setScale(io_mod mod);
+    IOStackCollector();
+    virtual int load(void);
+    virtual int attach(void);
+    virtual void detach(void);
+    virtual void unload(void);
+};
+#endif
 
 #endif

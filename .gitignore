@@ -78,3 +78,4 @@ eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image
 # Stack_Analyser
 eBPF_Supermarket/Stack_Analyser/stack_analyzer
 eBPF_Supermarket/Stack_Analyser/exporter/exporter
+eBPF_Supermarket/Stack_Analyser/bpf_skel
