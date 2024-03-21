@@ -1,3 +1,21 @@
+// Copyright 2024 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: luiyanbing@foxmail.com
+//
+// 包装用于采集调用栈数据的eBPF程序，声明接口、通用成员和一些辅助结构
+
 #ifndef _SA_STACK_COLLECTOR_H__
 #define _SA_STACK_COLLECTOR_H__
 
@@ -78,7 +96,7 @@ public:
     virtual void unload(void) = 0;
 
 // 声明eBPF骨架
-#define declareEBPF(eBPFName) struct eBPFName *skel = NULL;
+#define declareEBPF(func) struct func##_bpf *skel = NULL;
 
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param ... 一些ebpf程序全局变量初始化语句

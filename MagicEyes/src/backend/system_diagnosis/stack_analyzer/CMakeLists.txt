@@ -13,7 +13,8 @@
 set(TOOL_NAME stack_analyzer)
 set(TOOL_BELONG_TO_MODULE system_diagnosis)
 
-file(GLOB STACK_ANALYZER_SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc)
+file(GLOB STACK_ANALYZER_SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+file(GLOB STACK_ANALYZER_WAPPER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/bpf/*.cpp)
 file(GLOB apps ${CMAKE_CURRENT_SOURCE_DIR}/bpf/*.bpf.c)
 
 # 若不用Rust，则排除 profile.bpf.c
@@ -28,6 +29,7 @@ if (NOT EXISTS ${SRC_GEN_TARGET_DIR})
     message(STATUS "directory create success")
 endif ()
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/ ${SRC_GEN_TARGET_DIR})
 # 遍历文件夹内所有的bpf.c
 foreach(app ${apps})
     get_filename_component(app_stem ${app} NAME_WE)
@@ -36,7 +38,7 @@ foreach(app ${apps})
     add_dependencies(${app_stem}_skel libbpf-build bpftool-build)
 endforeach()
 
-add_executable(${TOOL_NAME} ${STACK_ANALYZER_SOURCE_FILES})
+add_executable(${TOOL_NAME} ${STACK_ANALYZER_WAPPER_FILES} ${STACK_ANALYZER_SOURCE_FILES})
 foreach (app ${apps})
     get_filename_component(app_stem ${app} NAME_WE)
     target_link_libraries(${TOOL_NAME} ${app_stem}_skel -lstdc++)
