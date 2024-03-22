@@ -64,7 +64,11 @@ SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
-
+//记录VCPU调度的信息
+SEC("kprobe/vmx_vcpu_load")
+int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    return trace_vmx_vcpu_load(vcpu, cpu, &rb, e);
+}
 SEC("kprobe/mark_page_dirty_in_slot")
 int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
                const struct kvm_memory_slot *memslot, gfn_t gfn) {
