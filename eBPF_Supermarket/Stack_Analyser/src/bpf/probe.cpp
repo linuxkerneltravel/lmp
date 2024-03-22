@@ -87,7 +87,28 @@ int StackCountStackCollector::attach(void)
     else if (strList.size() == 2 || (strList.size() == 3 && strList[0] == "p" && strList[1] != ""))
     {
         // probe a user-space function in the library 'lib'
-        
+        char *binary, *function;
+        char bin_path[128];
+        std::string func = probe;
+        off_t func_off;
+        if (strList.size() == 3)
+            func = strList[1] + ":" + strList[2];
+
+        binary = strdup(func.c_str());
+        function = strchr(binary, ':'); // 查找：首次出现的位置
+        *function = '\0';
+        function++;
+
+        if (resolve_binary_path(binary, pid, bin_path, sizeof(bin_path)))
+            free(binary);
+
+        func_off = get_elf_func_offset(bin_path, function);
+        if (func_off < 0)
+            free(binary);
+        skel->links.handle =
+            bpf_program__attach_uprobe(skel->progs.handle, false, pid,
+                                       bin_path, func_off);
+        CHECK_ERR(!skel->links.handle, "Fail to attach uprobe");
         return 0;
     }
     else if (strList.size() == 3 && strList[0] == "u")
