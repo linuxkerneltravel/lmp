@@ -104,7 +104,7 @@ static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
             break;
         }
         case KVM_RUN: {
-            bpf_printk("KVM_RUN:fd=%d,fd);
+            bpf_printk("KVM_RUN:fd=%d",fd);
             break;
         }
         default:
