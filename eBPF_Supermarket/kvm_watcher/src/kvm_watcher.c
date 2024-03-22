@@ -690,7 +690,10 @@ static int print_event_head(struct env *env) {
             break;
         }
         case IOCTL: {
-            printf("wait....\n");
+            printf(
+                "Successfully started! Please run `sudo cat "
+                "/sys/kernel/debug/tracing/trace_pipe` "
+                "to see output of the BPF programs.\n");
             break;
         }
         default:

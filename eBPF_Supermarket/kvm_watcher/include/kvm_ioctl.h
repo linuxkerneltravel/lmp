@@ -59,9 +59,9 @@ static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
             bpf_probe_read(&region, sizeof(region), (void *)arg);
             // 打印或处理 region 数据
             bpf_printk(
-                "KVM_SET_USER_MEMORY_REGION: fd=%d, slot=%u, flags=%u, "
+                "KVM_SET_USER_MEMORY_REGION: fd=%d, slot=%u, "
                 "guest_phys_addr=%llx, memory_size=%lluK,userspace_addr=%llx\n",
-                fd, region.slot, region.flags, region.guest_phys_addr,
+                fd, region.slot, region.guest_phys_addr,
                 region.memory_size / 1024, region.userspace_addr);
             break;
         }
@@ -82,9 +82,8 @@ static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
             // 此处仅展示部分寄存器值的打印
             bpf_printk(
                 "KVM_GET/SET_REGS: fd=%d, rax=%llx, rbx=%llx, rcx=%llx, "
-                "rdx=%llx, rsi=%llx\n",
-                fd, regs.rax, regs.rbx, regs.rcx, regs.rdx, regs.rsi);
-
+                "rdx=%llx\n",
+                fd, regs.rax, regs.rbx, regs.rcx, regs.rdx);
             break;
         }
         case KVM_TRANSLATE: {
@@ -101,10 +100,6 @@ static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
             bpf_probe_read(&irq, sizeof(irq), (void *)arg);
             bpf_printk("KVM_INTERRUPT:fd=%d,interrupt vector:%d\n", fd,
                        irq.irq);
-            break;
-        }
-        case KVM_RUN: {
-            bpf_printk("KVM_RUN:fd=%d",fd);
             break;
         }
         default:
