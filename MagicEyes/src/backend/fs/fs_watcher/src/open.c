@@ -3,8 +3,9 @@
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include <signal.h>
-#include "open.skel.h"	//包含了 BPF 字节码和相关的管理函数
-#include "open.h"
+
+#include "fs/fs_watcher/open.skel.h"	//包含了 BPF 字节码和相关的管理函数
+#include "fs_watcher/include/open.h"
 
 static volatile bool exiting = false;
 
