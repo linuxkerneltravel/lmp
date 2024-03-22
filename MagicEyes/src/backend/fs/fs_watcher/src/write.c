@@ -5,7 +5,7 @@
 #include <time.h>
 #include <bpf/libbpf.h>
 
-#include "fs/fs_watcher/include/write.h"
+#include "fs_watcher/include/write.h"
 #include "fs/fs_watcher/write.skel.h"
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
