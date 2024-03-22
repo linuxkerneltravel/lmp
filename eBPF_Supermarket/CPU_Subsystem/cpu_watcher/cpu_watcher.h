@@ -112,7 +112,15 @@ struct syscall_events {//每个进程一个
     u64 delay;
     u64 syscall_id;
 };
-
+/*----------------------------------------------*/
+/*         preempt_event结构体                     */
+/*----------------------------------------------*/
+struct preempt_event{
+	pid_t prev_pid;
+	pid_t next_pid;
+	unsigned long long duration;
+	char comm[TASK_COMM_LEN];
+};
 /*----------------------------------------------*/
 /*          cswch_args结构体                     */
 /*----------------------------------------------*/
