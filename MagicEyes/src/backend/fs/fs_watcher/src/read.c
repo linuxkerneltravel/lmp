@@ -2,8 +2,9 @@
 #include <signal.h>
 #include <time.h>
 #include <bpf/libbpf.h>
-#include "read.h"
-#include "read.skel.h"
+
+#include "fs_watcher/include/read.h"
+#include "fs/fs_watcher/read.skel.h"
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
