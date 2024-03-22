@@ -54,8 +54,8 @@ struct {
 } hc_count SEC(".maps");
 
 static int entry_emulate_hypercall(struct kvm_vcpu *vcpu, void *rb,
-                                   struct common_event *e, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+                                   struct common_event *e) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 nr, a0, a1, a2, a3;
     nr = kvm_rax_read(vcpu);  // 超级调用号
     // 超级调用参数

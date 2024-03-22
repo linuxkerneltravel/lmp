@@ -54,8 +54,7 @@ struct {
     __type(value, u32);
 } vcpu_tid SEC(".maps");
 // 记录vcpu_halt的id信息
-static int trace_kvm_vcpu_halt(struct kvm_vcpu *vcpu, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int trace_kvm_vcpu_halt(struct kvm_vcpu *vcpu) {
     u32 tid = bpf_get_current_pid_tgid();
     u32 vcpu_id;
     bpf_probe_read_kernel(&vcpu_id, sizeof(vcpu->vcpu_id), &vcpu->vcpu_id);
@@ -64,8 +63,8 @@ static int trace_kvm_vcpu_halt(struct kvm_vcpu *vcpu, pid_t vm_pid) {
 }
 // 使用kvm_vcpu_halt记录的数据，来获取vcpu的启动信息
 static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx, void *rb,
-                                 struct common_event *e, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+                                 struct common_event *e) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 tid = bpf_get_current_pid_tgid();
     u32 *vcpu_id = bpf_map_lookup_elem(&vcpu_tid, &tid);
     if (!vcpu_id) {
@@ -86,8 +85,8 @@ static int trace_kvm_vcpu_wakeup(struct vcpu_wakeup *ctx, void *rb,
 }
 
 static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
-                                  struct common_event *e, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+                                  struct common_event *e) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 tid = bpf_get_current_pid_tgid();
     RESERVE_RINGBUF_ENTRY(rb, e);
     u64 time = bpf_ktime_get_ns();
@@ -106,8 +105,8 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
 static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
                                          const struct kvm_memory_slot *memslot,
                                          gfn_t gfn, void *rb,
-                                         struct common_event *e, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+                                         struct common_event *e) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 flags;
     struct kvm_memory_slot *slot;
     bpf_probe_read_kernel(&slot, sizeof(memslot), &memslot);
