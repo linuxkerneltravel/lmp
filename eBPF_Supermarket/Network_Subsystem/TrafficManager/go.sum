@@ -52,8 +52,8 @@ github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWR
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
 github.com/cilium/checkmate v1.0.3 h1:CQC5eOmlAZeEjPrVZY3ZwEBH64lHlx9mXYdUehEwI5w=
-github.com/cilium/cilium v1.14.7 h1:VKUTM/fFH0uKtKlNrbBKBIg8JlwXohkus3clxKjEB24=
-github.com/cilium/cilium v1.14.7/go.mod h1:3Q34bqZuEHw/lvIqdGc8TcPxPs04AJ3sSTopB9MxDZs=
+github.com/cilium/cilium v1.14.8 h1:Jm54iA7XxWJn+GdZrfzcEyeoNUb58w8y0g8ZB2lVcJw=
+github.com/cilium/cilium v1.14.8/go.mod h1:7cWSSEl+dU9Q5CqnEWT//c0w8yLSazShw287Uop6xVs=
 github.com/cilium/ebpf v0.11.0 h1:V8gS/bTCCjX9uUnkUFUpPsksM8n1lXBAvHcpiFk1X2Y=
 github.com/cilium/ebpf v0.11.0/go.mod h1:WE7CZAnqOL2RouJ4f1uyNhqr2P4CCvXFIqdRDUgWsVs=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
