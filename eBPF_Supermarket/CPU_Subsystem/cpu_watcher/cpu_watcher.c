@@ -436,24 +436,25 @@ static int schedule_print(struct bpf_map *sys_fd)
 {
     int key = 0;
     struct sum_schedule info;
-	int err, fd = bpf_map__fd(sys_fd);
+    int err, fd = bpf_map__fd(sys_fd);
     time_t now = time(NULL);
-	struct tm *localTime = localtime(&now);
+    struct tm *localTime = localtime(&now);
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
-	unsigned long long avg_delay;
-	err = bpf_map_lookup_elem(fd, &key,&info);
-	if (err < 0) {
-		fprintf(stderr, "failed to lookup infos: %d\n", err);
-		return -1;
-	}
-    avg_delay = info.sum_delay/info.sum_count;
-
-	printf("%02d:%02d:%02d | %-15lf %-15lf  %-15lf |\n",
-	hour,min,sec,avg_delay/1000.0,info.max_delay/1000.0,info.min_delay/1000.0);
+    unsigned long long avg_delay;
+    
+    err = bpf_map_lookup_elem(fd, &key, &info);
+    if (err < 0) {
+        fprintf(stderr, "failed to lookup infos: %d\n", err);
+        return -1;
+    }
+    avg_delay = info.sum_delay / info.sum_count;
+    printf("%02d:%02d:%02d | %-15lf %-15lf %-15lf |\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0, info.min_delay / 1000.0);
     return 0;
 }
+
 
 int main(int argc, char **argv)
 {
