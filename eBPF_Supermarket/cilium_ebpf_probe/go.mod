@@ -3,7 +3,7 @@ module lmp/eBPF_Supermarket/cilium_ebpf_probe
 go 1.18
 
 require (
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/gorilla/mux v1.8.0
 	github.com/iovisor/gobpf v0.2.0
