@@ -265,6 +265,7 @@ static struct env {
     bool execute_irq_inject;
     bool execute_hypercall;
     bool execute_ioctl;
+    bool verbose;
     int monitoring_time;
     pid_t vm_pid;
     enum EventType event_type;
@@ -279,6 +280,7 @@ static struct env {
     .mmio_page_fault = false,
     .execute_hypercall = false,
     .execute_ioctl = false,
+    .verbose = false,
     .monitoring_time = 0,
     .vm_pid = -1,
     .event_type = NONE_TYPE,
@@ -309,6 +311,7 @@ static const struct argp_option opts[] = {
     {"vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor."},
     {"monitoring_time", 't', "SEC", 0, "Time for monitoring."},
     {"kvm_ioctl", 'l', NULL, 0, "Monitoring the KVM IOCTL."},
+    {"verbose", 'v', NULL, 0, "Verbose debug output"},
     {NULL, 'H', NULL, OPTION_HIDDEN, "Show the full help"},
     {},
 };
@@ -317,6 +320,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
         case 'H':
             argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+            break;
+        case 'v':
+            env.verbose = true;
             break;
         case 'w':
             SET_OPTION_AND_CHECK_USAGE(option_selected,
@@ -392,6 +398,8 @@ static const struct argp argp = {
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {
+    if (level == LIBBPF_DEBUG && !env.verbose)
+        return 0;
     return vfprintf(stderr, format, args);
 }
 
@@ -471,7 +479,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
         case PAGE_FAULT: {
             // 使用 e->page_fault_data 访问 PAGE_FAULT 特有成员
-            printf("%-18.6f %-15s %-10u %-14llx %-6u %-10.4f ", timestamp_ms,
+            printf("%-18.6f %-15s %-10u %-12llx %-6u %-10.4f ", timestamp_ms,
                    e->process.comm, e->process.pid, e->page_fault_data.addr,
                    e->page_fault_data.count,
                    NS_TO_US_WITH_DECIMAL(e->page_fault_data.delay));
@@ -643,6 +651,7 @@ static int print_event_head(struct env *env) {
                    "VAILD?");
             break;
         case EXIT:
+            printf("Waiting vm_exit ... \n");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -655,12 +664,12 @@ static int print_event_head(struct env *env) {
             break;
         case PAGE_FAULT:
             printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
-                   "TIME(ms)", "COMM", "PID", "(f(GPA)m(GFN))", "COUNT",
-                   "DELAY(us)", "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
+                   "TIME(ms)", "COMM", "PID", "GPA", "COUNT", "DELAY(us)",
+                   "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
             break;
         case IRQCHIP:
             printf("%-18s %-15s %-10s %-10s %-14s %-10s %-10s\n", "TIME(ms)",
-                   "COMM", "PID", "DELAY", "CHIP/PIN", "DST/VEC", "OTHERS");
+                   "COMM", "PID", "DELAY", "TYPE/PIN", "DST/VEC", "OTHERS");
             break;
         case IRQ_INJECT:
             printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
@@ -721,9 +730,9 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_irqchip ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_kvm_ioapic_set_irq,
                               env.execute_irqchip ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_set_msi_irq,
+    bpf_program__set_autoload(skel->progs.fentry_kvm_set_msi,
                               env.execute_irqchip ? true : false);
-    bpf_program__set_autoload(skel->progs.fexit_kvm_set_msi_irq,
+    bpf_program__set_autoload(skel->progs.fexit_kvm_set_msi,
                               env.execute_irqchip ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_vmx_inject_irq,
                               env.execute_irq_inject ? true : false);
@@ -890,7 +899,7 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                  getName(keys[i].reason, EXIT));
+                   getName(keys[i].reason, EXIT));
         }
     }
     // clear the maps
@@ -976,11 +985,6 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    // 清屏
-    if (option_selected) {
-        CLEAR_SCREEN();
-    }
-
     /*打印信息头*/
     err = print_event_head(&env);
     if (err) {
@@ -989,7 +993,6 @@ int main(int argc, char **argv) {
     }
     while (!exiting) {
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
-
         if (env.execute_hypercall) {
             print_map_and_check_error(print_hc_map, skel, "hypercall", err);
         }
