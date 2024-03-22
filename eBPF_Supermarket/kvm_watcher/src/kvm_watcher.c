@@ -257,6 +257,7 @@ int save_count_dirtypagemap_to_file(struct bpf_map *map) {
 static struct env {
     bool execute_vcpu_wakeup;
     bool execute_exit;
+    bool execute_vcpu_load;
     bool execute_halt_poll_ns;
     bool execute_mark_page_dirty;
     bool execute_page_fault;
@@ -270,6 +271,7 @@ static struct env {
     enum EventType event_type;
 } env = {
     .execute_vcpu_wakeup = false,
+    .execute_vcpu_load = false,
     .execute_exit = false,
     .execute_halt_poll_ns = false,
     .execute_mark_page_dirty = false,
@@ -291,6 +293,7 @@ int option_selected = 0;  // 功能标志变量,确保激活子功能
 // 具体解释命令行参数
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
+    {"vcpu_load", 'o', NULL, 0, "Monitoring the load of vcpu."},
     {"vm_exit", 'e', NULL, 0, "Monitoring the event of vm exit."},
     {"halt_poll_ns", 'n', NULL, 0,
      "Monitoring the variation in vCPU halt-polling time."},
@@ -324,6 +327,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             break;
         case 'e':
             SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_exit);
+            break;
+        case 'o':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_vcpu_load);
             break;
         case 'n':
             SET_OPTION_AND_CHECK_USAGE(option_selected,
@@ -424,6 +430,8 @@ static int determineEventType(struct env *env) {
         env->event_type = HYPERCALL;
     } else if (env->execute_ioctl) {
         env->event_type = IOCTL;
+    } else if (env->execute_vcpu_load) {
+        env->event_type = VCPU_LOAD;
     } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
@@ -447,6 +455,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case EXIT: {
+            break;
+        }
+        case VCPU_LOAD: {
+            printf("%-20.6f %-15s %-6d/%-8d %-10d\n", timestamp_ms,
+                   e->process.comm, e->process.pid, e->process.tid,
+                   e->vcpu_load_data.vcpu_id);
             break;
         }
         case HALT_POLL: {
@@ -695,6 +709,8 @@ static int print_event_head(struct env *env) {
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load,
+                              env.execute_vcpu_load ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
                               env.execute_vcpu_wakeup ? true : false);
     bpf_program__set_autoload(skel->progs.tp_exit,
@@ -821,10 +837,10 @@ int sort_by_key(struct kvm_watcher_bpf *skel, struct exit_key *keys,
             keys[0] = next_key;
             values[0] = exit_value;
             i++;
+            lookup_key = next_key;
             continue;
         }
         err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
-
         if (err < 0) {
             fprintf(stderr, "failed to lookup exit_value: %d\n", err);
             return -1;
@@ -890,7 +906,7 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                  getName(keys[i].reason, EXIT));
+                   getName(keys[i].reason, EXIT));
         }
     }
     // clear the maps
@@ -905,7 +921,6 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
     }
     return 0;
 }
-
 void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
                                struct kvm_watcher_bpf *skel,
                                const char *map_name, int err) {
@@ -915,7 +930,6 @@ void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
         printf("Error printing %s map: %d\n", map_name, err);
     }
 }
-
 int main(int argc, char **argv) {
     // 定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
