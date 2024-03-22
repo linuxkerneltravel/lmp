@@ -30,31 +30,37 @@
 #include "cs_delay.skel.h"
 #include "sc_delay.skel.h"
 #include "preempt.skel.h"
+#include "schedule_delay.skel.h"
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
+
 static struct env {
-	int time;
-	bool enable_proc;
-	bool SAR;
-	bool CS_DELAY;
-	bool SYSCALL_DELAY;
-	bool PREEMPT;
-	int freq;
+    int time;
+    bool enable_proc;
+    bool SAR;
+    bool CS_DELAY;
+    bool SYSCALL_DELAY;
+    bool PREEMPT;
+    bool SCHEDULE_DELAY;
+    int freq;
 } env = {
-	.time = 0,
-	.enable_proc = false,
-	.SAR = false,
-	.CS_DELAY = false,
-	.SYSCALL_DELAY = false,
-	.PREEMPT=false,
-	.freq = 99,
+    .time = 0,
+    .enable_proc = false,
+    .SAR = false,
+    .CS_DELAY = false,
+    .SYSCALL_DELAY = false,
+    .PREEMPT = false,
+    .SCHEDULE_DELAY = false,
+    .freq = 99
 };
+
 
 struct cs_delay_bpf *cs_skel;
 struct sar_bpf *sar_skel;
 struct sc_delay_bpf *sc_skel;
 struct preempt_bpf *preempt_skel;
+struct schedule_delay_bpf *sd_skel;
 
 u64 softirq = 0;//初始化softirq;
 u64 irqtime = 0;//初始化irq;
@@ -83,6 +89,7 @@ static const struct argp_option opts[] = {
 	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
 	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
 	{"preempt_time", 'p',	0,0,"print preempt_time (the data of preempt_schedule)"},
+	{"schedule_delay", 'd',	0,0,"print schedule_delay (the data of cpu)"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
@@ -104,6 +111,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 			break;			
 		case 'p':
 			env.PREEMPT = true;
+			break;
+		case 'd':
+			env.SCHEDULE_DELAY = true;
 			break;
 		case 'h':
 			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -422,6 +432,29 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
     return 0;
 }
 
+static int schedule_print(struct bpf_map *sys_fd)
+{
+    int key = 0;
+    struct sum_schedule info;
+	int err, fd = bpf_map__fd(sys_fd);
+    time_t now = time(NULL);
+	struct tm *localTime = localtime(&now);
+    int hour = localTime->tm_hour;
+    int min = localTime->tm_min;
+    int sec = localTime->tm_sec;
+	unsigned long long avg_delay;
+	err = bpf_map_lookup_elem(fd, &key,&info);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+    avg_delay = info.sum_delay/info.sum_count;
+
+	printf("%02d:%02d:%02d | %-15lf %-15lf  %-15lf |\n",
+	hour,min,sec,avg_delay/1000.0,info.max_delay/1000.0,info.min_delay/1000.0);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
@@ -532,6 +565,23 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto sc_delay_cleanup;		
 		}
+	}else if(env.SCHEDULE_DELAY){
+		sd_skel = schedule_delay_bpf__open();
+		if (!sd_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		err = schedule_delay_bpf__load(sd_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto schedule_cleanup;
+		}
+		err = schedule_delay_bpf__attach(sd_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto schedule_cleanup;
+		}
+	printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs     min_delay/μs");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
@@ -630,6 +680,17 @@ int main(int argc, char **argv)
 			sum_preemptTime = 0;
 			sleep(2);
 		}
+		else if (env.SCHEDULE_DELAY){
+			err = schedule_print(sd_skel->maps.sys_schedule);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				break;
+			}
+			sleep(1);
+		}
 		else {
 			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n-p	打印preempt_time:\t对抢占调度时间输出;\n");
 			break;
@@ -653,5 +714,9 @@ sc_delay_cleanup:
 preempt_cleanup:
 	ring_buffer__free(rb);
 	preempt_bpf__destroy(preempt_skel);
+	return err < 0 ? -err : 0;
+
+schedule_cleanup:
+	schedule_delay_bpf__destroy(sd_skel);
 	return err < 0 ? -err : 0;
 }

@@ -122,6 +122,27 @@ struct preempt_event{
 	char comm[TASK_COMM_LEN];
 };
 /*----------------------------------------------*/
+/*         schedule_delay相关结构体                     */
+/*----------------------------------------------*/
+//标识不同进程
+struct proc_id{
+	int pid;
+	int cpu_id;
+}; 
+//标识该进程的调度信息
+struct schedule_event{
+	int pid;
+	int count;//调度次数
+	unsigned long long enter_time;
+};
+//整个系统所有调度信息
+struct sum_schedule{
+	unsigned long long sum_count;
+	unsigned long long sum_delay;
+	unsigned long long max_delay;
+	unsigned long long min_delay;
+};
+/*----------------------------------------------*/
 /*          cswch_args结构体                     */
 /*----------------------------------------------*/
 struct cswch_args {
