@@ -113,6 +113,8 @@ struct  reasonissue
     unsigned int daddr;
     unsigned short sport;
     unsigned short dport;
+    long location;
+    unsigned short protocol;
     int  drop_reason;
 };
 

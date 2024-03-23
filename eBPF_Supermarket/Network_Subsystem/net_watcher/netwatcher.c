@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "dropreason.h"
 
 static volatile bool exiting = false;
 
@@ -39,7 +40,7 @@ static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,kfree_info = 0; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,kfree_info = 0,addr_to_func=0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
@@ -55,6 +56,7 @@ static const struct argp_option opts[] = {
     {"udp", 'u', 0, 0, "trace the udp message"},
     {"net_filter",'n',0,0,"trace ipv4 packget filter "},
     {"kfree_info",'k',0,0,"trace kfree "},
+    {"addr_to_func",'T',0,0,"translation addr to func and offset"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -93,6 +95,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'k':
         kfree_info = 1;
         break;
+    case 'T':
+        addr_to_func = 1;
+        break;
     default:
         return ARGP_ERR_UNKNOWN;
     }
@@ -105,6 +110,50 @@ static const struct argp argp = {
     .doc = argp_program_doc,
 };
 
+struct SymbolEntry{
+    unsigned long addr;
+    char name[30];
+};
+struct SymbolEntry symbols[300000];
+int num_symbols = 0;
+struct SymbolEntry findfunc(unsigned long int addr)
+{
+    int low = 0, high = num_symbols - 1;
+    int result = -1;
+
+    while (low <= high) {
+        int mid = low + (high - low) / 2;
+        if (symbols[mid].addr < addr) {
+            result = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return symbols[result];
+};
+void readallsym()
+{
+    FILE *file = fopen("/proc/kallsyms", "r");
+    if (!file) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        unsigned long addr;
+        char type, name[30];
+        int ret = sscanf(line, "%lx %c %s", &addr, &type, name);
+        if (ret == 3) {       
+            symbols[num_symbols].addr = addr;
+            strncpy(symbols[num_symbols].name, name, 30);
+            num_symbols++;
+        }
+    }
+
+    fclose(file);
+}
 static void sig_handler(int signo) { exiting = true; }
 
 static void bytes_to_str(char *str, unsigned long long num) {
@@ -335,41 +384,29 @@ static int print_kfree(void *ctx, void *packet_info, size_t size) {
     {
         return 0;
     }
-    printf("%-25s %-25s %-25u %-25u", 
+    char prot[6];
+    if(pack_info->protocol==2048)
+    {
+        strcpy(prot, "ipv4");
+    }
+    else if(pack_info->protocol==34525)
+    {
+        strcpy(prot, "ipv6");
+    }
+    else {
+        // 其他协议
+        strcpy(prot, "other");
+    }
+    printf("%-20s %-20s %-10u %-10u %-10s", 
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,pack_info->dport);
-    switch (pack_info->drop_reason) {
-        case 0:
-            printf("SKB_NOT_DROPPED_YET");
-            break;
-        case 1:
-            printf("SKB_CONSUMED");
-            break;
-        case 2:
-            printf("SKB_DROP_REASON_NOT_SPECIFIED");
-            break;
-        case 3:
-            printf("SKB_DROP_REASON_NO_SOCKET");
-            break;
-        case 4:
-            printf("SKB_DROP_REASON_PKT_TOO_SMALL");
-            break;
-        case 5:
-            printf("SKB_DROP_REASON_TCP_CSUM");
-            break;
-        case 6:
-            printf("SKB_DROP_REASON_SOCKET_FILTER");
-            break;
-        case 7:
-            printf("SKB_DROP_REASON_UDP_CSUM");
-            break;
-        case 8:
-            printf("SKB_DROP_REASON_NETFILTER_DROP");
-            break;
-        default:
-            printf("Unknown SKB Drop Reason"); 
-        }          
-    printf("\n");
+    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,pack_info->dport,prot);
+    if(!addr_to_func)
+        printf("%-20lx",pack_info->location);
+    else {
+        struct SymbolEntry data= findfunc(pack_info->location);
+        printf("%s+0x%-10lx",data.name,pack_info->location-data.addr);
+    }
+    printf("%s\n", SKB_Drop_Reason_Strings[pack_info->drop_reason]);
     return 0;
 }
 int main(int argc, char **argv) {
@@ -422,6 +459,9 @@ int main(int argc, char **argv) {
     skel->rodata->net_filter = net_filter;
     skel->rodata->kfree_info = kfree_info;
 
+    if(addr_to_func)
+        readallsym();
+
     err = netwatcher_bpf__load(skel);
     if (err) {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
@@ -444,7 +484,7 @@ int main(int argc, char **argv) {
     }
     else if(kfree_info)
     {
-        printf("%-25s %-25s %-25s %-25s %-25s\n", "saddr", "daddr","sprot", "dprot","reason");
+        printf("%-20s %-20s %-10s %-10s %-9s %-24s %-25s\n", "saddr", "daddr","sprot", "dprot","prot","addr","reason");
     }
     else{
           printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
