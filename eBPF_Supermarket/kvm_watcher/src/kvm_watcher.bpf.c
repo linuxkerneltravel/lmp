@@ -20,12 +20,13 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include "../include/kvm_watcher.h"
 #include "../include/kvm_exits.h"
 #include "../include/kvm_vcpu.h"
 #include "../include/kvm_mmu.h"
 #include "../include/kvm_irq.h"
 #include "../include/kvm_hypercall.h"
-#include "../include/kvm_watcher.h"
+#include "../include/kvm_ioctl.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -63,7 +64,11 @@ SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
-
+//记录VCPU调度的信息
+SEC("kprobe/vmx_vcpu_load")
+int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    return trace_vmx_vcpu_load(vcpu, cpu, &rb, e);
+}
 SEC("kprobe/mark_page_dirty_in_slot")
 int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
                const struct kvm_memory_slot *memslot, gfn_t gfn) {
@@ -75,10 +80,10 @@ int tp_page_fault(struct page_fault *ctx) {
     return trace_page_fault(ctx, vm_pid);
 }
 
-SEC("fexit/direct_page_fault")
-int BPF_PROG(fexit_direct_page_fault, struct kvm_vcpu *vcpu,
+SEC("fexit/kvm_tdp_page_fault")
+int BPF_PROG(fexit_tdp_page_fault, struct kvm_vcpu *vcpu,
              struct kvm_page_fault *fault) {
-    return trace_direct_page_fault(vcpu, fault, &rb, e);
+    return trace_tdp_page_fault(vcpu, fault, &rb, e);
 }
 
 SEC("fentry/kvm_mmu_page_fault")
@@ -87,10 +92,9 @@ int BPF_PROG(fentry_kvm_mmu_page_fault, struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
     return trace_kvm_mmu_page_fault(vcpu, cr2_or_gpa, error_code, vm_pid);
 }
 
-SEC("fexit/handle_mmio_page_fault")
-int BPF_PROG(fexit_handle_mmio_page_fault, struct kvm_vcpu *vcpu, u64 addr,
-             bool direct) {
-    return trace_handle_mmio_page_fault(vcpu, addr, direct, &rb, e);
+SEC("tp/kvmmmu/handle_mmio_page_fault")
+int tp_handle_mmio_page_fault(struct mmio_page_fault *ctx) {
+    return trace_handle_mmio_page_fault(ctx, &rb, e);
 }
 
 SEC("fentry/kvm_pic_set_irq")
@@ -144,4 +148,9 @@ int BPF_PROG(fexit_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
 SEC("fentry/kvm_emulate_hypercall")
 int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
     return entry_emulate_hypercall(vcpu, &rb, e, vm_pid);
+}
+
+SEC("tracepoint/syscalls/sys_enter_ioctl")
+int tp_ioctl(struct trace_event_raw_sys_enter *args) {
+    return trace_kvm_ioctl(args);
 }
