@@ -79,5 +79,5 @@ const char *SKB_Drop_Reason_Strings[] = {
     "SKB_DROP_REASON_IPV6_NDISC_NS_OTHERHOST",
     "SKB_DROP_REASON_MAX",
     "SKB_DROP_REASON_SUBSYS_MASK",
-}   
+};
 #endif
