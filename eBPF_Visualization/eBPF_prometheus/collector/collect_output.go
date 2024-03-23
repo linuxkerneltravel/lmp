@@ -24,15 +24,18 @@ import (
 	"ebpf_prometheus/dao"
 	"ebpf_prometheus/prom_core"
 	"fmt"
-	"github.com/urfave/cli/v2"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/urfave/cli/v2"
 )
 
 const firstline = int(1)
@@ -165,7 +168,6 @@ type BPF_name struct {
 	Name string
 }
 
-
 // 定义了一个名为 simpleCollect 的函数，用于执行简单的收集操作
 func simpleCollect(ctx *cli.Context) error {
 	// 调用 CollectCheck 函数，检查并获取完整的命令行参数
@@ -189,7 +191,7 @@ func simpleCollect(ctx *cli.Context) error {
 }
 
 // 定义了一个名为 CheckFileType 的函数，用于检查文件类型并返回相应的命令字符串
-func CheckFileType(full string) (specificcommand string) {
+func CheckFileType(full string) (filename, specificcommand string) {
 	// 创建一个字符串切片，用于构建命令
 	cmdSlice := make([]string, 0)
 	// 将 "sudo" 添加到命令切片
@@ -203,6 +205,8 @@ func CheckFileType(full string) (specificcommand string) {
 	path := strings.Fields(full)[0]
 	// 将文件路径转换为小写
 	lowercaseFilename := strings.ToLower(path)
+	// 获取文件名
+	fn := filepath.Base(lowercaseFilename)
 	// 如果文件路径以 ".py" 结尾
 	if strings.HasSuffix(lowercaseFilename, ".py") {
 		// 打印日志，表示尝试运行一个 Python 程序
@@ -216,7 +220,7 @@ func CheckFileType(full string) (specificcommand string) {
 		// 使用空格连接命令切片，形成完整的命令字符串
 		cmdStr := strings.Join(cmdSlice, " ")
 		// 返回构建好的命令字符串
-		return cmdStr
+		return fn, cmdStr
 	} else {
 		// 如果不是以 ".py" 结尾
 		// 打印日志，表示尝试运行一个 eBPF 程序
@@ -228,14 +232,14 @@ func CheckFileType(full string) (specificcommand string) {
 		// 使用空格连接命令切片，形成完整的命令字符串
 		cmdStr := strings.Join(cmdSlice, " ")
 		// 返回构建好的命令字符串
-		return cmdStr
+		return fn, cmdStr
 	}
 }
 
 // 定义了一个名为 Run 的方法，属于 BPF_name 结构体
 func (b *BPF_name) Run(full string) error {
 	// 检查文件类型，获取相应的命令字符串
-	cmdStr := CheckFileType(full)
+	fn, cmdStr := CheckFileType(full)
 	// 创建一个执行外部命令的 Command 对象
 	// -c 表示后面的参数是一个命令字符串，而不是一个可执行文件
 	cmd := exec.Command("sh", "-c", cmdStr)
@@ -258,11 +262,12 @@ func (b *BPF_name) Run(full string) error {
 	mapchan := make(chan []map[string]interface{}, 2)
 
 	// 启动一个 goroutine 用于重定向命令的标准输出
-	go redirectStdout(stdout, mapchan)
+	go redirectStdout(fn, stdout, mapchan)
 
 	// 创建一个指向 prom_core.MyMetrics 类型的指针 metricsobj，
 	// 并使用结构体字段初始化 BPFName 和 Sqlinited。
 	metricsobj := &prom_core.MyMetrics{BPFName: b.Name, Sqlinited: false}
+
 	// 创建一个指向 dao.Sqlobj 类型的指针 sqlobj，
 	// 并使用结构体字段初始化 Tablename。
 	sqlobj := &dao.Sqlobj{Tablename: b.Name}
@@ -314,28 +319,28 @@ func (b *BPF_name) Run(full string) error {
 
 // 定义了一个名为 listenSystemSignals 的函数，用于监听系统信号
 func listenSystemSignals(cmd *exec.Cmd) {
-    // 创建一个用于接收系统信号的通道
+	// 创建一个用于接收系统信号的通道
 	signalChan := make(chan os.Signal, 1)
-	
-    // 向 signalChan 注册接收的系统信号类型，包括 Interrupt、Kill 和 SIGTERM
+
+	// 向 signalChan 注册接收的系统信号类型，包括 Interrupt、Kill 和 SIGTERM
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
-	
-    // 无限循环，等待接收系统信号
+
+	// 无限循环，等待接收系统信号
 	for {
 		select {
 		// 当从 signalChan 中接收到信号时
 		case <-signalChan:
 			// 向指定进程组发送 SIGKILL 信号，结束进程
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			
-            // 退出当前程序，返回状态码 1
+
+			// 退出当前程序，返回状态码 1
 			os.Exit(1)
 		}
 	}
 }
 
 // 定义了一个名为 redirectStdout 的函数，用于读取 stdout，并将其解析成 map 数据发送到指定通道
-func redirectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
+func redirectStdout(fn string, stdout io.ReadCloser, mapchan chan []map[string]interface{}) {
 	// 用于存储解析后的 map 数据的切片
 	var maps []map[string]interface{}
 	// 互斥锁，用于保护 maps 切片的并发写入
@@ -344,92 +349,328 @@ func redirectStdout(stdout io.ReadCloser, mapchan chan []map[string]interface{})
 	scanner := bufio.NewScanner(stdout)
 	// 存储标题的字符串切片
 	var titles []string
+	var rsc_titles []string
+	var sched_titles []string
+	var syscall_titles []string
+	var ulock_titles []string
+	var kt_titles []string
+
 	// 行号计数器
 	var line_number = 1
 	// 命令索引，用于区分不同的命令
 	var commandindex = 0
-	// 逐行扫描 stdout
-	for scanner.Scan() {
-		// 获取一行的文本内容
-		line := scanner.Text()
-		// 处理第一行，提取标题信息
-		if line_number == firstline {
-			// log.Printf("Title:%s\n", line)
-			// 将字符串 line 按照空白字符进行分割，并返回一个切片 parms，其中包含了被空白字符分割的各个子字符串
-			parms := strings.Fields(line)
-			// 遍历切片 parms 中的每个元素，并将元素的值赋给变量 value。在这里，使用了下划线 _ 表示我们对元素的索引不感兴趣，只关注元素的值
-			for _, value := range parms {
-				// 根据标题字段的值是否为 "COMM" 确定命令索引，如果不等于，则将 commandindex 的值增加 1
-				if strings.ToUpper(value) != "COMM" {
-					commandindex = commandindex + 1
+
+	// RESOURCE(1)、SCHEDULE(2)、SYSCALL(3)、USERLOCK(4)、KEYTIME(5)
+	var data_type = 0
+	var set_map = 0
+	var enable_tgid = 0
+	// 1 代表已创建表头
+	data_map := [6]int{0, 0, 0, 0, 0, 0}
+
+	rsc_pidheader := make(map[int][]string)
+	sched_pidheader := make(map[int][]string)
+	syscall_pidheader := make(map[int][]string)
+	ulock_pidheader := make(map[int][]string)
+	kt_pidheader := make(map[int][]string)
+
+	var pid int
+	var err error
+
+	// proc_image
+	// 判断程序名是否为 proc_image
+	if fn == "proc_image" {
+		for scanner.Scan() {
+			// 获取一行的文本内容
+			line := strings.ReplaceAll(scanner.Text(), "|", "")
+			fields := strings.Fields(line)
+
+			if fields[0] == "RESOURCE" || fields[0] == "SCHEDULE" || fields[0] == "SYSCALL" || fields[0] == "USERLOCK" || fields[0] == "KEYTIME" {
+				switch fields[0] {
+				case "RESOURCE":
+					data_type = 1
+				case "SCHEDULE":
+					data_type = 2
+				case "SYSCALL":
+					data_type = 3
+				case "USERLOCK":
+					data_type = 4
+				case "KEYTIME":
+					data_type = 5
 				}
-				
-				// 创建一个新的空 map，其键是字符串类型，值是空接口类型 interface{}。这种设置允许 map 中的值可以是任何类型
-				one_map := make(map[string]interface{})
-				// 向 one_map 中添加一个键值对，其中键是字符串 value，值是 nil
-				one_map[value] = nil
-				// 将新创建的 one_map 添加到切片 maps 中。这样，maps 就成为一个包含了多个这样的 map 的切片
-				maps = append(maps, one_map)
-				
-				// 将标题字段添加到 titles 切片中
-				titles = append(titles, value)
-			}
-		} else {
-			// 使用 strings.Fields 函数将字符串 line 按照空白字符分割成多个字段，返回一个切片 parms。这个切片包含了一行文本中的各个字段
-			parms := strings.Fields(line)
-			// 声明了一个新的字符串切片 special_parms，用于存储处理后的字段。这个切片将用于存储由原始字段组成的新的字段切片，以保证字段数量与标题数量一致
-			var special_parms []string
-			
-			// 检查字段数量是否与标题数量一致
-			if len(parms) != len(titles) {
-				// log.Printf("title number: %d, content number:%d", len(titles), len(parms))
-				// 声明一个字符串变量 COMM，用于存储合并后的字段值
-				var COMM string
-				// 遍历一行文本中的字段(这个遍历过程没看太懂)
-				for i, value := range parms {
-					// 检查字段是否在命令字段之前或者之后
-					if i < commandindex-1 && i >= len(parms)-commandindex {
-						// 将特殊处理的字段值添加到 special_parms 切片中
-						special_parms = append(special_parms, value)
-					// 如果当前字段是命令字段
-					} else if i == commandindex-1 {
-						// 将当前字段的值赋给 COMM
-						COMM = value
-					// 如果当前字段在命令字段之前
-					} else if i < len(parms)-commandindex {
-						// 将当前字段的值追加到 COMM，用空格分隔
-						COMM = COMM + " " + value
-						// 将合并后的字段值添加到 special_parms 切片中
-						special_parms = append(special_parms, COMM)
+				set_map = 1
+				enable_tgid = 0
+			} else if set_map == 1 {
+				// 对于表头行判断是否已经记录过表头，若没记录过则记录到相应的map中
+				if data_map[data_type] == 0 {
+					if fields[1] == "PID" {
+						for _, value := range fields[2:] {
+							switch data_type {
+							case 1:
+								rsc_titles = append(rsc_titles, value)
+							case 2:
+								sched_titles = append(sched_titles, value)
+							case 3:
+								syscall_titles = append(syscall_titles, value)
+							case 4:
+								ulock_titles = append(ulock_titles, value)
+							case 5:
+								kt_titles = append(kt_titles, value)
+							}
+						}
+					} else {
+						for _, value := range fields[3:] {
+							switch data_type {
+							case 1:
+								rsc_titles = append(rsc_titles, value)
+							case 2:
+								sched_titles = append(sched_titles, value)
+							case 3:
+								syscall_titles = append(syscall_titles, value)
+							case 4:
+								ulock_titles = append(ulock_titles, value)
+							case 5:
+								kt_titles = append(kt_titles, value)
+							}
+						}
+						enable_tgid = 1
+					}
+					data_map[data_type] = 1
+				}
+				set_map = 0
+			} else {
+				if enable_tgid == 0 {
+					// pid 为 fields[1]
+					pid, err = strconv.Atoi(fields[1])
+					if err != nil {
+						// 处理转换错误
+						fmt.Println("Error:", err)
+						return
+					}
+				} else if enable_tgid == 1 {
+					// pid 为 fields[2]
+					pid, err = strconv.Atoi(fields[2])
+					if err != nil {
+						// 处理转换错误
+						fmt.Println("Error:", err)
+						return
 					}
 				}
-				
-				// 创建新的 map，并将数据发送到通道
-				newMap := make(map[string]interface{})
-				mu.Lock()
-				// 遍历特殊处理后的字段值
-				for i, value := range special_parms {
-					// 将字段值与标题对应，构建新的 map
-					newMap[titles[i]] = value
+
+				switch data_type {
+				case 1:
+					if _, ok := rsc_pidheader[pid]; !ok {
+						if enable_tgid == 0 {
+							for _, title := range rsc_titles {
+								if enable_tgid == 0 {
+									rsc_pidheader[pid] = append(rsc_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+								} else if enable_tgid == 1 {
+									rsc_pidheader[pid] = append(rsc_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+								}
+							}
+						}
+					}
+				case 2:
+					if _, ok := sched_pidheader[pid]; !ok {
+						for _, title := range sched_titles {
+							if enable_tgid == 0 {
+								sched_pidheader[pid] = append(sched_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								sched_pidheader[pid] = append(sched_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
+					}
+				case 3:
+					if _, ok := syscall_pidheader[pid]; !ok {
+						for _, title := range syscall_titles {
+							if enable_tgid == 0 {
+								syscall_pidheader[pid] = append(syscall_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								syscall_pidheader[pid] = append(syscall_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
+					}
+				case 4:
+					if _, ok := ulock_pidheader[pid]; !ok {
+						for _, title := range ulock_titles {
+							if enable_tgid == 0 {
+								ulock_pidheader[pid] = append(ulock_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								ulock_pidheader[pid] = append(ulock_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
+					}
+				case 5:
+					if _, ok := kt_pidheader[pid]; !ok {
+						for _, title := range kt_titles {
+							if enable_tgid == 0 {
+								kt_pidheader[pid] = append(kt_pidheader[pid], fmt.Sprintf("%s(%s)", fields[1], title))
+							} else if enable_tgid == 1 {
+								kt_pidheader[pid] = append(kt_pidheader[pid], fmt.Sprintf("%s_%s(%s)", fields[1], fields[2], title))
+							}
+						}
+					}
 				}
-				mu.Unlock()
-				// 将新创建的 map 发送到通道 mapchan
-				mapchan <- []map[string]interface{}{newMap}
-			// 如果字段数量与标题数量一致
-			} else {
-				// 创建新的 map，并将数据发送到通道
-				newMap := make(map[string]interface{})
-				mu.Lock()
-				for i, value := range parms {
-					newMap[titles[i]] = value
+
+				switch data_type {
+				case 1:
+					rsc_Map := make(map[string]interface{})
+					mu.Lock()
+					rsc_header := rsc_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							rsc_Map[rsc_header[i]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							rsc_Map[rsc_header[i]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{rsc_Map}
+				case 2:
+					sched_Map := make(map[string]interface{})
+					mu.Lock()
+					sched_header := sched_pidheader[pid]
+					for i, value := range fields[2:] {
+						sched_Map[sched_header[i]] = value
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{sched_Map}
+				case 3:
+					syscall_Map := make(map[string]interface{})
+					mu.Lock()
+					syscall_header := syscall_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							syscall_Map[syscall_header[i-2]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							syscall_Map[syscall_header[i-3]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{syscall_Map}
+				case 4:
+					ulock_Map := make(map[string]interface{})
+					mu.Lock()
+					ulock_header := ulock_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							ulock_Map[ulock_header[i-2]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							ulock_Map[ulock_header[i-3]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{ulock_Map}
+				case 5:
+					kt_Map := make(map[string]interface{})
+					mu.Lock()
+					kt_header := kt_pidheader[pid]
+					if enable_tgid == 0 {
+						for i, value := range fields[2:] {
+							kt_Map[kt_header[i-2]] = value
+						}
+					} else if enable_tgid == 1 {
+						for i, value := range fields[3:] {
+							kt_Map[kt_header[i-3]] = value
+						}
+					}
+					mu.Unlock()
+					mapchan <- []map[string]interface{}{kt_Map}
 				}
-				mu.Unlock()
-				// 将新创建的 map 发送到通道 mapchan
-				mapchan <- []map[string]interface{}{newMap}
 			}
+			// 行号递增
+			line_number += 1
 		}
-		
-		// 行号递增
-		line_number += 1
+	} else {
+		// 常规方法提取方法
+		// 逐行扫描 stdout
+		for scanner.Scan() {
+			// 获取一行的文本内容
+			line := scanner.Text()
+			// 处理第一行，提取标题信息
+			if line_number == firstline {
+				// log.Printf("Title:%s\n", line)
+				// 将字符串 line 按照空白字符进行分割，并返回一个切片 parms，其中包含了被空白字符分割的各个子字符串
+				parms := strings.Fields(line)
+				// 遍历切片 parms 中的每个元素，并将元素的值赋给变量 value。在这里，使用了下划线 _ 表示我们对元素的索引不感兴趣，只关注元素的值
+				for _, value := range parms {
+					// 根据标题字段的值是否为 "COMM" 确定命令索引，如果不等于，则将 commandindex 的值增加 1
+					if strings.ToUpper(value) != "COMM" {
+						commandindex = commandindex + 1
+					}
+
+					// 创建一个新的空 map，其键是字符串类型，值是空接口类型 interface{}。这种设置允许 map 中的值可以是任何类型
+					one_map := make(map[string]interface{})
+					// 向 one_map 中添加一个键值对，其中键是字符串 value，值是 nil
+					one_map[value] = nil
+					// 将新创建的 one_map 添加到切片 maps 中。这样，maps 就成为一个包含了多个这样的 map 的切片
+					maps = append(maps, one_map)
+
+					// 将标题字段添加到 titles 切片中
+					titles = append(titles, value)
+				}
+			} else {
+				// 使用 strings.Fields 函数将字符串 line 按照空白字符分割成多个字段，返回一个切片 parms。这个切片包含了一行文本中的各个字段
+				parms := strings.Fields(line)
+				// 声明了一个新的字符串切片 special_parms，用于存储处理后的字段。这个切片将用于存储由原始字段组成的新的字段切片，以保证字段数量与标题数量一致
+				var special_parms []string
+
+				// 检查字段数量是否与标题数量一致
+				if len(parms) != len(titles) {
+					// log.Printf("title number: %d, content number:%d", len(titles), len(parms))
+					// 声明一个字符串变量 COMM，用于存储合并后的字段值
+					var COMM string
+					// 遍历一行文本中的字段(这个遍历过程没看太懂)
+					for i, value := range parms {
+						// 检查字段是否在命令字段之前或者之后
+						if i < commandindex-1 && i >= len(parms)-commandindex {
+							// 将特殊处理的字段值添加到 special_parms 切片中
+							special_parms = append(special_parms, value)
+							// 如果当前字段是命令字段
+						} else if i == commandindex-1 {
+							// 将当前字段的值赋给 COMM
+							COMM = value
+							// 如果当前字段在命令字段之前
+						} else if i < len(parms)-commandindex {
+							// 将当前字段的值追加到 COMM，用空格分隔
+							COMM = COMM + " " + value
+							// 将合并后的字段值添加到 special_parms 切片中
+							special_parms = append(special_parms, COMM)
+						}
+					}
+
+					// 创建新的 map，并将数据发送到通道
+					newMap := make(map[string]interface{})
+					mu.Lock()
+					// 遍历特殊处理后的字段值
+					for i, value := range special_parms {
+						// 将字段值与标题对应，构建新的 map
+						newMap[titles[i]] = value
+					}
+					mu.Unlock()
+					// 将新创建的 map 发送到通道 mapchan
+					mapchan <- []map[string]interface{}{newMap}
+					// 如果字段数量与标题数量一致
+				} else {
+					// 创建新的 map，并将数据发送到通道
+					newMap := make(map[string]interface{})
+					mu.Lock()
+					for i, value := range parms {
+						newMap[titles[i]] = value
+					}
+					mu.Unlock()
+					// 将新创建的 map 发送到通道 mapchan
+					mapchan <- []map[string]interface{}{newMap}
+				}
+			}
+
+			// 行号递增
+			line_number += 1
+		}
 	}
 }

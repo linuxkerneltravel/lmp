@@ -28,10 +28,7 @@
 #define NS_TO_US_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_US_FACTOR)
 #define NS_TO_MS_WITH_DECIMAL(ns) ((double)(ns) / NS_TO_MS_FACTOR)
 
-#define MICROSECONDS_IN_SECOND 1000000
-#define OUTPUT_INTERVAL_SECONDS 2
-
-#define OUTPUT_INTERVAL(us) usleep((__u32)(us * MICROSECONDS_IN_SECOND))
+#define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
 #define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
 
@@ -92,11 +89,10 @@ struct reason_info {
     __u64 time;
     __u64 reason;
 };
-
 struct exit_key {
     __u64 reason;
     __u32 pid;
-    __u32 pad;
+    __u32 tid;
 };
 
 struct exit_value {
@@ -140,6 +136,7 @@ struct process {
 enum EventType {
     NONE_TYPE,
     VCPU_WAKEUP,
+    VCPU_LOAD,
     EXIT,
     HALT_POLL,
     MARK_PAGE_DIRTY,
@@ -147,6 +144,7 @@ enum EventType {
     IRQCHIP,
     IRQ_INJECT,
     HYPERCALL,
+    IOCTL,
 } event_type;
 
 struct common_event {
@@ -162,6 +160,11 @@ struct common_event {
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
+
+        struct {
+            __u32 vcpu_id;
+            // VCPU_LOAD 特有成员
+        } vcpu_load_data;
 
         struct {
             __u32 reason_number;
