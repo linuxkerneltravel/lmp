@@ -6,7 +6,7 @@ replace github.com/iovisor/gobpf => github.com/eswzy/gobpf v0.2.1-0.202207202016
 
 require (
 	github.com/cilium/ebpf v0.9.1
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/iovisor/gobpf v0.0.0-00010101000000-000000000000
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/prometheus/client_golang v1.13.0
