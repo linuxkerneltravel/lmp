@@ -87,7 +87,6 @@ struct reason_info {
     __u64 time;
     __u64 reason;
 };
-
 struct exit_key {
     __u64 reason;
     __u32 pid;
@@ -135,6 +134,7 @@ struct process {
 enum EventType {
     NONE_TYPE,
     VCPU_WAKEUP,
+    VCPU_LOAD,
     EXIT,
     HALT_POLL,
     MARK_PAGE_DIRTY,
@@ -158,6 +158,11 @@ struct common_event {
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
+
+        struct {
+            __u32 vcpu_id;
+            // VCPU_LOAD 特有成员
+        } vcpu_load_data;
 
         struct {
             __u32 reason_number;
