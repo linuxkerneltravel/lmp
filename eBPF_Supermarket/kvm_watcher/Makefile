@@ -96,6 +96,6 @@ test: bpf
 
 clean:
 	cd src && rm -f *.o *.skel.h *.bpf.o
-	rm -f $(notdir $(APP))
-	rm -rf include/vmlinux.h
+	rm -rf $(notdir $(APP)) include/vmlinux.h temp
+
 

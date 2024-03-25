@@ -54,8 +54,7 @@ struct exit {
     unsigned int vcpu_id;
 };
 
-static int trace_kvm_exit(struct exit *ctx, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int trace_kvm_exit(struct exit *ctx) {
     u32 reason;
     reason = (u32)ctx->exit_reason;
     // 如果是节能停止退出，就不采集数据
