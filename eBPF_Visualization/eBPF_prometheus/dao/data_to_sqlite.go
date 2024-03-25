@@ -23,10 +23,13 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+var GlobalMap map[int][6]bool
 
 // 定义一个名为 Sqlobj 的结构体类型，用于封装数据库相关的信息
 type Sqlobj struct {
@@ -56,18 +59,29 @@ func (s *Sqlobj) Tableexist(name string) bool {
 }
 
 // CreateTable 建表
-func (s *Sqlobj) OperateTable(name string) {
+func (s *Sqlobj) OperateTable(name string, fn string) {
+	// 检查表是否存在
 	if !s.Tableexist(name) {
+		// 如果表不存在，先删除已存在的同名表
 		deletetable := fmt.Sprintf("drop table if exists %s;", s.Tablename)
+		// 执行SQL语句，删除表
 		if err := s.db.Exec(deletetable).Error; err != nil {
 			log.Fatalf("drop exist table failed.")
 		}
+		// 创建表
 		if err := s.db.Table(s.Tablename).AutoMigrate(&Basicdata{}); err != nil {
 			log.Fatalf("create table failed.")
 		}
-		s.AppendTable()
+		// 添加表
+		if fn == "proc_image" {
+			s.ProcAppendTable()
+		} else {
+			s.AppendTable()
+		}
+		// 创建行
 		s.CreateRow()
 	} else {
+		// 如果表存在，直接创建行
 		s.CreateRow()
 	}
 }
@@ -87,7 +101,77 @@ func (s *Sqlobj) AppendTable() {
 	}
 }
 
+func (s *Sqlobj) ProcAppendTable() {
+	enable := false
+	data := 0
+	// 遍历数据集合
+	for key, value := range s.Data {
+		if !enable {
+			var pid int
+			index := strings.Index(key, "(")
+			intPart := key[:index]
+			parts := strings.Split(intPart, "_")
+			if len(parts) >= 2 {
+				pid, _ = strconv.Atoi(parts[1])
+			} else {
+				pid, _ = strconv.Atoi(intPart)
+			}
+			leftIndex := strings.Index(key, "(")
+			rightIndex := strings.Index(key, ")")
+			if leftIndex != -1 && rightIndex != -1 && rightIndex > leftIndex {
+				substring := key[leftIndex+1 : rightIndex]
+				switch substring {
+				case "r":
+					data = 1
+				case "S":
+					data = 2
+				case "s":
+					data = 3
+				case "l":
+					data = 4
+				case "k":
+					data = 5
+				}
+			}
+
+			if _, ok := GlobalMap[pid]; !ok {
+				GlobalMap[pid] = [6]bool{false, false, false, false, false, false}
+				array := GlobalMap[pid]
+				array[data] = true
+				GlobalMap[pid] = array
+			} else {
+				array := GlobalMap[pid]
+				if array[data] {
+					break
+				}
+				array[data] = true
+				GlobalMap[pid] = array
+			}
+			enable = true
+		}
+		// 默认数据类型为"text"
+		datatype := "text"
+		// 检查值是否为字符串类型
+		if strvalue, is_string := value.(string); is_string {
+			// 如果值为字符串类型，则尝试将其转换为浮点数
+			if _, err := strconv.ParseFloat(strvalue, 64); err == nil {
+				// 如果可以成功转换，则将数据类型设置为"real"
+				datatype = "real"
+			}
+		}
+		// 构建SQL语句，用于向表中添加列
+		addcolumn := fmt.Sprintf("alter table %s add column \"%s\" %s", s.Tablename, key, datatype)
+		// 执行SQL语句，向表中添加列
+		s.db.Exec(addcolumn)
+	}
+}
+
 // CreateRow 写入数据
 func (s *Sqlobj) CreateRow() {
+	// 使用数据库连接对象创建行，并将数据插入指定表中
 	s.db.Table(s.Tablename).Create(s.Data)
+}
+
+func init() {
+	GlobalMap = make(map[int][6]bool)
 }

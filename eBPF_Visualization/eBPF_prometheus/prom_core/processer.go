@@ -60,15 +60,18 @@ func (m *MyMetrics) UpdateData() {
 	m.Maps = new_Dict
 }
 
-func (m *MyMetrics) UpdataSql() {
+func (m *MyMetrics) UpdataSql(fn string) {
 	m.Sqlobj.Data = m.Maps
+	if fn == "proc_image" {
+		m.Sqlobj.ProcAppendTable()
+	}
 	m.Sqlobj.CreateRow()
 }
 
-func (m *MyMetrics) Initsql() {
+func (m *MyMetrics) Initsql(fn string) {
 	m.Sqlobj.Data = m.Maps
 	m.Sqlobj.Connectsql()
-	m.Sqlobj.OperateTable(m.BPFName)
+	m.Sqlobj.OperateTable(m.BPFName, fn)
 	m.Sqlinited = true
 }
 
