@@ -38,8 +38,7 @@ struct {
     __type(value, u64);
 } irq_inject_delay SEC(".maps");
 
-static int entry_kvm_pic_set_irq(int irq, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_kvm_pic_set_irq(int irq) {
     if (irq < 0 || irq >= PIC_NUM_PINS) {
         return 0;
     }
@@ -77,8 +76,7 @@ static int exit_kvm_pic_set_irq(struct kvm_pic *s, int irq, int ret, void *rb,
     return 0;
 }
 
-static int entry_kvm_ioapic_set_irq(int irq, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_kvm_ioapic_set_irq(int irq) {
     if (irq < 0 || irq >= IOAPIC_NUM_PINS) {
         return 0;
     }
@@ -118,17 +116,25 @@ static int exit_kvm_ioapic_set_irq(struct kvm_ioapic *ioapic, int irq, int ret,
     return 0;
 }
 
-static int entry_kvm_set_msi_irq(struct kvm *kvm, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_kvm_set_msi(struct kvm *kvm,
+                             struct kvm_kernel_irq_routing_entry *routing_entry,
+                             int level) {
+    bool x2apic_format;
+    bpf_probe_read_kernel(&x2apic_format, sizeof(bool),
+                          &kvm->arch.x2apic_format);
+    if (x2apic_format && (routing_entry->msi.address_hi & 0xff))
+        return 0;
+    if (!level)
+        return 0;
     pid_t tid = (u32)bpf_get_current_pid_tgid();
     u64 ts = bpf_ktime_get_ns();
     bpf_map_update_elem(&irq_set_delay, &tid, &ts, BPF_ANY);
     return 0;
 }
 
-static int exit_kvm_set_msi_irq(
-    struct kvm *kvm, struct kvm_kernel_irq_routing_entry *routing_entry,
-    void *rb, struct common_event *e) {
+static int exit_kvm_set_msi(struct kvm *kvm,
+                            struct kvm_kernel_irq_routing_entry *routing_entry,
+                            void *rb, struct common_event *e) {
     struct msi_msg msg = {.address_lo = routing_entry->msi.address_lo,
                           .address_hi = routing_entry->msi.address_hi,
                           .data = routing_entry->msi.data};
@@ -156,8 +162,7 @@ static int exit_kvm_set_msi_irq(
     return 0;
 }
 
-static int entry_vmx_inject_irq(struct kvm_vcpu *vcpu, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_vmx_inject_irq(struct kvm_vcpu *vcpu) {
     u32 irq_nr;
     bool rei;
     bpf_probe_read_kernel(&irq_nr, sizeof(u32), &vcpu->arch.interrupt.nr);
