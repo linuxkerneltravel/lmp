@@ -29,7 +29,6 @@
 #include "sa_user.h"
 #include "clipp.h"
 
-
 namespace MainConfig
 {
     int run_time = __INT_MAX__; // 运行时间
@@ -116,11 +115,11 @@ int main(int argc, char *argv[])
                      SubOption);
 
     auto ReadaheadOption = clipp::option("readahead").call([]
-                                                    { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
+                                                           { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
                                "sample the readahead hit rate of call stacks" &
                            SubOption;
     auto StackCountOption = clipp::option("probe").call([]
-                                                             { StackCollectorList.push_back(new StackCountStackCollector()); }) %
+                                                        { StackCollectorList.push_back(new StackCountStackCollector()); }) %
                                 "sample the counts of calling stacks" &
                             (clipp::option("-S", "--String") & clipp::value("probe String", StrTmp).call([]
                                                                                                          { static_cast<StackCountStackCollector *>(StackCollectorList.back())->setScale(StrTmp); }) %
@@ -201,7 +200,7 @@ int main(int argc, char *argv[])
         write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
     }
 
-    // printf("display mode: %d\n", MainConfig::d_mode);
+    atexit(endCollect);
 
     for (; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay)
     {
@@ -213,6 +212,4 @@ int main(int argc, char *argv[])
             Item->attach();
         }
     }
-
-    atexit(endCollect);
 }
