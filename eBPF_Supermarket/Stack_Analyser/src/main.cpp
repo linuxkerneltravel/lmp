@@ -19,12 +19,12 @@
 #include <signal.h>
 #include <iostream>
 
-#include "bpf/on_cpu.h"
-#include "bpf/off_cpu.h"
-#include "bpf/mem.h"
-#include "bpf/io.h"
-#include "bpf/readahead.h"
-#include "bpf/probe.h"
+#include "bpf_wapper/on_cpu.h"
+#include "bpf_wapper/off_cpu.h"
+#include "bpf_wapper/mem.h"
+#include "bpf_wapper/io.h"
+#include "bpf_wapper/readahead.h"
+#include "bpf_wapper/probe.h"
 
 #include "sa_user.h"
 #include "clipp.h"

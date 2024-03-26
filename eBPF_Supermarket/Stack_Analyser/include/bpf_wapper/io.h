@@ -14,36 +14,46 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// ebpf程序的包装类的模板，声明接口和一些自定义方法，以及辅助结构
+// io ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef _TEMPLATE_H__
-#define _TEMPLATE_H__
+#ifndef _SA_IO_H__
+#define _SA_IO_H__
 
-// ========== C code part ==========
-
-// ========== C code end ========== 
+#include <asm/types.h>
+typedef struct
+{
+    __u64 size : 40;
+    __u64 count : 24;
+} io_tuple;
 
 #ifdef __cplusplus
-// ========== C++ code part ==========
-#include "template.skel.h"
-#include "bpf/eBPFStackCollector.h"
+#include "io.skel.h"
+#include "bpf_wapper/eBPFStackCollector.h"
 
-class TemplateClass : public StackCollector
+class IOStackCollector : public StackCollector
 {
 private:
-    declareEBPF(template_bpf);
+    declareEBPF(io);
+
+public:
+    enum io_mod
+    {
+        COUNT,
+        SIZE,
+        AVE,
+    } DataType = COUNT;
 
 protected:
     virtual double count_value(void *);
 
 public:
-    TemplateClass();
+    void setScale(io_mod mod);
+    IOStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
 };
-// ========== C++ code end ==========
 #endif
 
 #endif

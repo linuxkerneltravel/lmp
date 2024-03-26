@@ -14,27 +14,28 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// probe ebpf程序的包装类，声明接口和一些自定义方法
+// off cpu ebpf程序的包装类，声明接口和一些自定义方法
 
-#include "bpf/eBPFStackCollector.h"
-#include "probe.skel.h"
+#ifndef _SA_OFF_CPU_H__
+#define _SA_OFF_CPU_H__
 
-class StackCountStackCollector : public StackCollector
+#include "bpf_wapper/eBPFStackCollector.h"
+#include "off_cpu.skel.h"
+
+class OffCPUStackCollector : public StackCollector
 {
 private:
-    struct probe_bpf *skel = __null;
-
-public:
-    std::string probe;
+    struct off_cpu_bpf *skel = __null;
 
 protected:
-    virtual double count_value(void *);
+    virtual double count_value(void*);
 
 public:
-    void setScale(std::string probe);
-    StackCountStackCollector();
+    OffCPUStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
 };
+
+#endif

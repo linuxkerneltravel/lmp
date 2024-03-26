@@ -19,7 +19,7 @@
 #ifndef _SA_MEMORY_H__
 #define _SA_MEMORY_H__
 
-#include "bpf/eBPFStackCollector.h"
+#include "bpf_wapper/eBPFStackCollector.h"
 #include "mem.skel.h"
 #include <linux/version.h>
 

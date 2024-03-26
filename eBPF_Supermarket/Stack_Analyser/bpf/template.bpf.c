@@ -22,7 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "sa_ebpf.h"
-#include "bpf/template.h"
+#include "bpf_wapper/template.h"
 #include "task.h"
 
 DeclareCommonMaps(__u32);

@@ -14,28 +14,37 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// off cpu ebpf程序的包装类，声明接口和一些自定义方法
+// readahead ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef _SA_OFF_CPU_H__
-#define _SA_OFF_CPU_H__
+#ifndef _SA_READAHEAD_H__
+#define _SA_READAHEAD_H__
 
-#include "bpf/eBPFStackCollector.h"
-#include "off_cpu.skel.h"
+#include <asm/types.h>
+typedef struct
+{
+    __u32 expect;
+    __u32 truth;
+} ra_tuple;
 
-class OffCPUStackCollector : public StackCollector
+#ifdef __cplusplus
+#include "readahead.skel.h"
+#include "bpf_wapper/eBPFStackCollector.h"
+
+class ReadaheadStackCollector : public StackCollector
 {
 private:
-    struct off_cpu_bpf *skel = __null;
+    declareEBPF(readahead);
 
 protected:
-    virtual double count_value(void*);
+    virtual double count_value(void *data);
 
 public:
-    OffCPUStackCollector();
+    ReadaheadStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
 };
+#endif
 
 #endif
