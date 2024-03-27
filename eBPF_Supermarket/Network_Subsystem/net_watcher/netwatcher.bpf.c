@@ -1015,7 +1015,7 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
     // TX HTTP info
     if (http_info) {
         
-        u8 *user_data = (u8 *)BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
+        u8 *user_data = (u8 *)BPF_CORE_READ(msg, msg_iter.iov, iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
