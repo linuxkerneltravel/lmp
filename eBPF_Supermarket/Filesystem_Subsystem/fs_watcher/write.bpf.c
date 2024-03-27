@@ -35,7 +35,6 @@ int BPF_KPROBE(do_sys_openat2)
   return 0;
 }
 
-
 SEC("kprobe/vfs_write")
 
 int kprobe_vfs_write(struct pt_regs *ctx)
@@ -56,6 +55,7 @@ int kprobe_vfs_write(struct pt_regs *ctx)
   
   pid = bpf_get_current_pid_tgid() >> 32;
 
+  //获取文件描述符指针
   fd_ptr = bpf_map_lookup_elem(&data,&pid);
   
   e = bpf_ringbuf_reserve(&rb,sizeof(*e),0);
@@ -70,7 +70,6 @@ int kprobe_vfs_write(struct pt_regs *ctx)
     e->count = count;
     e->pid = pid;
   }
-
   bpf_ringbuf_submit(e,0);
   return 0;
 }
