@@ -3,9 +3,13 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <bpf/libbpf.h>
+#include <limits.h>
+#include <string.h>
+#include <errno.h> 
 #include "write.h"
 #include "write.skel.h"
+
+#define PATH_MAX 128
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -25,11 +29,18 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     struct tm *tm;
     char ts[32];
     time_t t;
-
+	char path[PATH_MAX];
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-    printf("%-8s  %-7d  %-7llu\n", ts, e->pid,e->duration_ns);
+
+	snprintf(path,sizeof(path),"/proc/self/fd/%d",e->fd);
+	char *real_path = realpath(path,NULL);
+	if(real_path != NULL){
+		printf("%-8s  %-7d  %-7ld  %-7ld   %-7s\n", ts, e->pid,e->real_count,e->count,real_path);
+		free(real_path);
+	}
+   
     return 0;
 }
 
@@ -77,7 +88,7 @@ int main(int argc, char **argv)
 	}
 
     /* Process events */
-	printf("%-8s  %-7s   %-7s\n", "TIME", "PID", "durations");
+	printf("%-8s  %-7s   %-7s  %-7s  %-7s  %-7s\n", "TIME", "PID","Real_Count","Count","Real_Path");
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
