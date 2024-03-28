@@ -107,4 +107,15 @@ struct netfilter
     unsigned long long post_routing_time;
     unsigned int flag;
 };
+struct  reasonissue
+{
+    unsigned int saddr;
+    unsigned int daddr;
+    unsigned short sport;
+    unsigned short dport;
+    long location;
+    unsigned short protocol;
+    int  drop_reason;
+};
+
 #endif /* __NETWATCHER_H */
