@@ -105,12 +105,12 @@ public:
     {                                                  \
         skel = skel->open(NULL);                       \
         CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
-        skel->bss->min = min;                          \
-        skel->bss->max = max;                          \
-        skel->bss->u = ustack;                         \
-        skel->bss->k = kstack;                         \
-        skel->bss->self_pid = self_pid;                \
         __VA_ARGS__;                                   \
+        skel->rodata->min = min;                       \
+        skel->rodata->max = max;                       \
+        skel->rodata->trace_user = ustack;             \
+        skel->rodata->trace_kernel = kstack;           \
+        skel->rodata->self_pid = self_pid;             \
         err = skel->load(skel);                        \
         CHECK_ERR(err, "Fail to load BPF skeleton");   \
         obj = skel->obj;                               \

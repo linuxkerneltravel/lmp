@@ -27,7 +27,7 @@
 
 DeclareCommonMaps(io_tuple);
 DeclareCommonVar();
-int apid = 0;
+const volatile int apid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
 
@@ -52,8 +52,8 @@ static int do_stack(struct trace_event_raw_sys_enter* ctx)
     }
     psid apsid = {
         .pid = pid,
-        .usid = u ? USER_STACK : -1,                                        //u存在，则USER_STACK
-        .ksid = k ? KERNEL_STACK : -1,                                      //K存在，则KERNEL_STACK
+        .usid = trace_user ? USER_STACK : -1,                                        //u存在，则USER_STACK
+        .ksid = trace_kernel ? KERNEL_STACK : -1,                                      //K存在，则KERNEL_STACK
     };
 
     // record time delta

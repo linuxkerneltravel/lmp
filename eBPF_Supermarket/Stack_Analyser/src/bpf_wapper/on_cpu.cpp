@@ -63,7 +63,7 @@ int OnCPUStackCollector::load(void)
     unsigned long *load_a;
     fscanf(fp, "%p", &load_a);
     pclose(fp);
-    StackProgLoadOpen(skel->bss->load_a = load_a;);
+    StackProgLoadOpen(skel->rodata->load_a = load_a;);
 
     return 0;
 };

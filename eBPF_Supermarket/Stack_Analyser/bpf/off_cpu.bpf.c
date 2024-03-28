@@ -27,7 +27,7 @@
 DeclareCommonMaps(u32);
 DeclareCommonVar();
 
-int apid = 0;
+const volatile int apid = 0;
 BPF_HASH(start, u32, u64);                                                  //记录进程运行的起始时间
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -71,8 +71,8 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
     }
     psid apsid = {
         .pid = pid,
-        .usid = u ? USER_STACK : -1,
-        .ksid = k ? KERNEL_STACK : -1,
+        .usid = trace_user ? USER_STACK : -1,
+        .ksid = trace_kernel ? KERNEL_STACK : -1,
     };
 
     // record time delta

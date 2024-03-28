@@ -22,18 +22,19 @@
 #include "sa_common.h"
 
 #define PF_KTHREAD 0x00200000
-#define ignoreKthread(task) \
-    do { \
+#define ignoreKthread(task)                     \
+    do                                          \
+    {                                           \
         int flags = BPF_CORE_READ(task, flags); \
-        if(flags & PF_KTHREAD) \
-            return 0; \
-    } while(false)
-
+        if (flags & PF_KTHREAD)                 \
+            return 0;                           \
+    } while (false)
 
 /// @brief 创建一个指定名字的ebpf调用栈表
 /// @param 新栈表的名字
 #define BPF_STACK_TRACE(name)                           \
-    struct {                                            \
+    struct                                              \
+    {                                                   \
         __uint(type, BPF_MAP_TYPE_STACK_TRACE);         \
         __uint(key_size, sizeof(__u32));                \
         __uint(value_size, MAX_STACKS * sizeof(__u64)); \
@@ -45,7 +46,8 @@
 /// @param type1 键的类型
 /// @param type2 值的类型
 #define BPF_HASH(name, type1, type2)       \
-    struct {                               \
+    struct                                 \
+    {                                      \
         __uint(type, BPF_MAP_TYPE_HASH);   \
         __uint(key_size, sizeof(type1));   \
         __uint(value_size, sizeof(type2)); \
@@ -66,15 +68,18 @@
  * pid_comm 存储 <pid, comm> 键值对，记录pid以及对应的命令名
  * type：指定count值的类型
  */
-#define DeclareCommonMaps(type)            \
+#define DeclareCommonMaps(type)       \
     BPF_HASH(psid_count, psid, type); \
     BPF_STACK_TRACE(stack_trace);     \
     BPF_HASH(pid_tgid, u32, u32);     \
-    BPF_HASH(pid_comm, u32, comm);
+    BPF_HASH(pid_comm, u32, comm);    \
+    BPF_HASH(pid_cid, u32, char[CONTAINER_ID_LEN]);
 
-#define DeclareCommonVar()       \
-    bool u = false, k = false;  \
-    __u64 min = 0, max = 0;     \
-    int self_pid = 0;
+#define DeclareCommonVar()                    \
+    const volatile bool trace_user = false;   \
+    const volatile bool trace_kernel = false; \
+    const volatile __u64 min = 0;             \
+    const volatile __u64 max = 0;             \
+    const volatile int self_pid = 0;
 
 #endif

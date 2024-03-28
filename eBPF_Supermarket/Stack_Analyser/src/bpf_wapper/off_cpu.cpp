@@ -33,7 +33,7 @@ double OffCPUStackCollector::count_value(void *data)
 
 int OffCPUStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->bss->apid = pid;);
+    StackProgLoadOpen(skel->rodata->apid = pid;);
     return 0;
 }
 

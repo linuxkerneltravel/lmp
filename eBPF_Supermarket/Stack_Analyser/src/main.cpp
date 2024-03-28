@@ -21,7 +21,7 @@
 
 #include "bpf_wapper/on_cpu.h"
 #include "bpf_wapper/off_cpu.h"
-#include "bpf_wapper/mem.h"
+#include "bpf_wapper/memleak.h"
 #include "bpf_wapper/io.h"
 #include "bpf_wapper/readahead.h"
 #include "bpf_wapper/probe.h"
@@ -94,10 +94,16 @@ int main(int argc, char *argv[])
                             "sample the call stacks of off-cpu processes" &
                         SubOption;
 
-    auto MemoryOption = clipp::option("mem").call([]
-                                                  { StackCollectorList.push_back(new MemoryStackCollector()); }) %
-                            "sample the memory usage of call stacks" &
-                        SubOption;
+    auto MemleakOption = (clipp::option("memleak").call([]
+                                                        { StackCollectorList.push_back(new MemleakStackCollector()); }) %
+                          "sample the memory usage of call stacks") &
+                         (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", IntTmp).call([]
+                                                                                                               { static_cast<MemleakStackCollector *>(StackCollectorList.back())->sample_rate = IntTmp; }) %
+                                                                   "sampling at a set frequency",
+                          clipp::option("-w", "--wa-missing-free").call([]
+                                                                        { static_cast<MemleakStackCollector *>(StackCollectorList.back())->wa_missing_free = true; }) %
+                              "workaround to alleviate misjudgments when free is missing",
+                          SubOption);
 
     auto IOOption = clipp::option("io").call([]
                                              { StackCollectorList.push_back(new IOStackCollector()); }) %
@@ -132,7 +138,7 @@ int main(int argc, char *argv[])
                     "show version",
                 OnCpuOption,
                 OffCpuOption,
-                MemoryOption,
+                MemleakOption,
                 IOOption,
                 ReadaheadOption,
                 StackCountOption) %

@@ -27,7 +27,7 @@
 
 DeclareCommonMaps(u32);
 DeclareCommonVar();
-int apid = 0;
+const volatile int apid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
 
@@ -52,8 +52,8 @@ static int handle_func(void *ctx)
 
     psid apsid = {
         .pid = pid,
-        .usid = u ? USER_STACK : -1,
-        .ksid = k ? KERNEL_STACK : -1,
+        .usid = trace_user ? USER_STACK : -1,
+        .ksid = trace_kernel ? KERNEL_STACK : -1,
     };
 
     u32 *cnt = bpf_map_lookup_elem(&psid_count, &apsid);

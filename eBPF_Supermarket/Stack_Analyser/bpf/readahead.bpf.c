@@ -57,8 +57,8 @@ int BPF_PROG(page_cache_ra_unbounded)
 
     psid apsid = {
         .pid = pid,
-        .usid = u ? USER_STACK : -1,
-        .ksid = k ? KERNEL_STACK : -1,
+        .usid = trace_user ? USER_STACK : -1,
+        .ksid = trace_kernel ? KERNEL_STACK : -1,
     };
 
     ra_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid); // d指向psid_count表中的apsid对应的类型为tuple的值

@@ -51,7 +51,7 @@ IOStackCollector::IOStackCollector()
 
 int IOStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->bss->apid=pid;);
+    StackProgLoadOpen(skel->rodata->apid=pid;);
     return 0;
 }
 
