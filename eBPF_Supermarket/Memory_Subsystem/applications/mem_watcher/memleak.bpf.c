@@ -57,9 +57,7 @@ struct {
  
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-SEC("uprobe")
-int BPF_KPROBE(malloc_enter, size_t size)
-{
+static int gen_alloc_enter(size_t size) {
     const pid_t pid = bpf_get_current_pid_tgid() >> 32;
 
     bpf_map_update_elem(&sizes, &pid, &size, BPF_ANY);
@@ -67,14 +65,13 @@ int BPF_KPROBE(malloc_enter, size_t size)
     return 0;
 }
 
-SEC("uretprobe")
-int BPF_KRETPROBE(malloc_exit, void *address) {
+static int gen_alloc_exit2(void *ctx, u64 address) {
     const u64 addr = (u64)address;
     const pid_t pid = bpf_get_current_pid_tgid() >> 32;
     struct alloc_info info;
 
     const u64 *size = bpf_map_lookup_elem(&sizes, &pid);
-    if (size == NULL) {
+    if (NULL == size) {
         return 0;
     }
 
@@ -83,7 +80,7 @@ int BPF_KRETPROBE(malloc_exit, void *address) {
 
     bpf_map_delete_elem(&sizes, &pid);
 
-    if (address != NULL) {
+    if (0 != address) {
         info.stack_id = bpf_get_stackid(ctx, &stack_traces, USER_STACKID_FLAGS);
 
         bpf_map_update_elem(&allocs, &addr, &info, BPF_ANY);
@@ -94,7 +91,7 @@ int BPF_KRETPROBE(malloc_exit, void *address) {
         };
 
         union combined_alloc_info *exist_cinfo = bpf_map_lookup_elem(&combined_allocs, &info.stack_id);
-        if (exist_cinfo == NULL) {
+        if (NULL == exist_cinfo) {
             bpf_map_update_elem(&combined_allocs, &info.stack_id, &add_cinfo, BPF_NOEXIST);
         }
         else {
@@ -104,30 +101,47 @@ int BPF_KRETPROBE(malloc_exit, void *address) {
 
     return 0;
 }
- 
-SEC("uprobe")
-int BPF_KPROBE(free_enter, void * address)
-{
+
+static int gen_alloc_exit(struct pt_regs *ctx) {
+    return gen_alloc_exit2(ctx, PT_REGS_RC(ctx));
+}
+
+static int gen_free_enter(const void *address) {
     const u64 addr = (u64)address;
- 
-    const struct alloc_info * info = bpf_map_lookup_elem(&allocs, &addr);
-    if (info == NULL) {
+
+    const struct alloc_info *info = bpf_map_lookup_elem(&allocs, &addr);
+    if (NULL == info) {
         return 0;
     }
- 
-    union combined_alloc_info * exist_cinfo = bpf_map_lookup_elem(&combined_allocs, &info->stack_id);
-    if (exist_cinfo == NULL) {
+
+    union combined_alloc_info *exist_cinfo = bpf_map_lookup_elem(&combined_allocs, &info->stack_id);
+    if (NULL == exist_cinfo) {
         return 0;
     }
- 
+
     const union combined_alloc_info sub_cinfo = {
         .total_size = info->size,
         .number_of_allocs = 1
     };
- 
+
     __sync_fetch_and_sub(&exist_cinfo->bits, sub_cinfo.bits);
- 
+
     bpf_map_delete_elem(&allocs, &addr);
- 
+
     return 0;
+}
+
+SEC("uprobe")
+int BPF_KPROBE(malloc_enter, size_t size) {
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(malloc_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(free_enter, void *address) {
+    return gen_free_enter(address);
 }
