@@ -1,4 +1,4 @@
-// Copyright 2019 Aqua Security Software Ltd. 
+// Copyright 2019 Aqua Security Software Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,12 +23,14 @@
 
 #define statfunc static __always_inline
 
-struct pid_link {
+struct pid_link
+{
     struct hlist_node node;
     struct pid *pid;
 };
 
-struct task_struct___older_v50 {
+struct task_struct___older_v50
+{
     struct pid_link pids[PIDTYPE_MAX];
 };
 
@@ -37,10 +39,13 @@ statfunc u32 get_task_pid_vnr(struct task_struct *task)
     unsigned int level = 0;
     struct pid *pid = NULL;
 
-    if (bpf_core_type_exists(struct pid_link)) {
-        struct task_struct___older_v50 *t = (void *) task;
+    if (bpf_core_type_exists(struct pid_link))
+    {
+        struct task_struct___older_v50 *t = (void *)task;
         pid = BPF_CORE_READ(t, pids[PIDTYPE_PID].pid);
-    } else {
+    }
+    else
+    {
         pid = BPF_CORE_READ(task, thread_pid);
     }
 
@@ -64,6 +69,29 @@ statfunc u32 get_task_ns_ppid(struct task_struct *task)
 {
     struct task_struct *real_parent = BPF_CORE_READ(task, real_parent);
     return get_task_pid_vnr(real_parent);
+}
+
+static void fill_container_id(struct task_struct *task, char *container_id)
+{
+    struct css_set *css;
+    struct cgroup_subsys_state *sbs;
+    struct cgroup *cg;
+    struct kernfs_node *knode, *pknode;
+
+    css = BPF_CORE_READ(task, cgroups);
+    bpf_probe_read(&sbs, sizeof(void *), &css->subsys[0]);
+    bpf_probe_read(&cg, sizeof(void *), &sbs->cgroup);
+
+    bpf_probe_read(&knode, sizeof(void *), &cg->kn);
+    bpf_probe_read(&pknode, sizeof(void *), &knode->parent);
+
+    if (pknode != NULL)
+    {
+        char *aus;
+
+        bpf_probe_read(&aus, sizeof(void *), &knode->name);
+        bpf_probe_read_str(container_id, CONTAINER_ID_LEN, aus);
+    }
 }
 
 #endif

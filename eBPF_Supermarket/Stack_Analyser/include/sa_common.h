@@ -24,6 +24,7 @@
 #define COMM_LEN 16        // 进程名最大长度
 #define MAX_STACKS 32      // 栈最大深度
 #define MAX_ENTRIES 102400 // map容量
+#define CONTAINER_ID_LEN (128)
 
 /// @brief 栈计数的键，可以唯一标识一个用户内核栈
 typedef struct {
@@ -35,5 +36,11 @@ typedef struct {
 typedef struct {
     char str[COMM_LEN];
 } comm;
+
+typedef struct {
+    __u32 tgid;
+    char comm[COMM_LEN];
+    char cid[CONTAINER_ID_LEN];
+} task_info;
 
 #endif
