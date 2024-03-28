@@ -22,6 +22,8 @@
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
 
+#define PAGE_SHIFT 12
+
 #define NS_TO_US_FACTOR 1000.0
 #define NS_TO_MS_FACTOR 1000000.0
 
@@ -66,9 +68,6 @@
         }                                         \
     } while (0)
 
-// 定义清屏宏
-#define CLEAR_SCREEN() printf("\033[2J\033[H\n")
-
 #define RING_BUFFER_TIMEOUT_MS 100
 
 #define RESERVE_RINGBUF_ENTRY(rb, e)                             \
@@ -79,17 +78,15 @@
         e = _tmp;                                                \
     } while (0)
 
-#define CHECK_PID(vm_pid)                         \
-    __u32 pid = bpf_get_current_pid_tgid() >> 32; \
-    if ((vm_pid) > 0 && pid != (vm_pid)) {        \
-        return 0;                                 \
+#define CHECK_PID(vm_pid)                                                 \
+    if ((vm_pid) > 0 && (bpf_get_current_pid_tgid() >> 32) != (vm_pid)) { \
+        return 0;                                                         \
     }
 
 struct reason_info {
     __u64 time;
     __u64 reason;
 };
-
 struct exit_key {
     __u64 reason;
     __u32 pid;
@@ -137,6 +134,7 @@ struct process {
 enum EventType {
     NONE_TYPE,
     VCPU_WAKEUP,
+    VCPU_LOAD,
     EXIT,
     HALT_POLL,
     MARK_PAGE_DIRTY,
@@ -160,6 +158,11 @@ struct common_event {
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
+
+        struct {
+            __u32 vcpu_id;
+            // VCPU_LOAD 特有成员
+        } vcpu_load_data;
 
         struct {
             __u32 reason_number;

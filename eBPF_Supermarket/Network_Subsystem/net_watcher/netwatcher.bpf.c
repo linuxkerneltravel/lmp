@@ -104,6 +104,12 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } netfilter_rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} kfree_rb SEC(".maps");
+
 // 存储每个tcp连接所对应的conn_t
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -142,10 +148,17 @@ struct {
     __type(value, struct filtertime);
 } netfilter_time SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, MAX_CONN *MAX_PACKET);
+    __type(key, int);
+    __type(value, struct packet_tuple);
+} kfree  SEC(".maps");
+
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0;
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,kfree_info = 0;
 
 /* help macro */
 
@@ -1353,6 +1366,9 @@ int BPF_KPROBE(ip_send_skb, struct net *net,struct sk_buff *skb) {
     if (tinfo == NULL) {
         return 0;
     }
+
+    bpf_map_update_elem(&pid_filter, &pid, &pt, BPF_ANY); 
+
     struct udp_message *message;
     struct udp_message *udp_message =
         bpf_map_lookup_elem(&timestamps, pt);
@@ -1421,7 +1437,6 @@ int BPF_KPROBE(ip_local_deliver_finish) {
     tinfo->ip_local_deliver_finish_time = bpf_ktime_get_ns() / 1000;
 
     struct netfilter *message;
-    struct netfilter *netfilter =bpf_map_lookup_elem(&netfilter_time, pkt_tuple);
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if (!message) {
         return 0;
@@ -1478,11 +1493,14 @@ int BPF_KPROBE(ip_finish_output) {
     }
     tinfo->ip_finish_output_time = bpf_ktime_get_ns() / 1000;
     struct netfilter *message;
-    struct netfilter *netfilter =bpf_map_lookup_elem(&netfilter_time, pkt_tuple);
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if(!message){
         return 0;
     }
+    message->saddr = pkt_tuple->saddr;
+    message->daddr =pkt_tuple->daddr;
+    message->sport =pkt_tuple->sport;
+    message->dport = pkt_tuple->dport;
     message->local_out_time=tinfo->ip_output_time-tinfo->ip_local_out_time;
     message->post_routing_time=tinfo->ip_finish_output_time-tinfo->ip_output_time; 
     message->flag=2; 
@@ -1490,3 +1508,32 @@ int BPF_KPROBE(ip_finish_output) {
     return 0;
 }
 
+
+//drop
+SEC("tp/skb/kfree_skb")
+int tp_kfree(struct trace_event_raw_kfree_skb *ctx) {
+    if(!kfree_info)
+        return 0;
+    struct sk_buff *skb=ctx->skbaddr;
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+     struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+
+    struct reasonissue  *message;
+    message = bpf_ringbuf_reserve(&kfree_rb, sizeof(*message), 0);
+    if(!message){
+        return 0;
+    }
+    message->saddr = pkt_tuple.saddr;
+    message->daddr = pkt_tuple.daddr;
+    message->sport = pkt_tuple.sport;
+    message->dport = pkt_tuple.dport;
+    message->protocol = ctx->protocol;
+    message->location = (long)ctx->location;
+    message->drop_reason = ctx->reason;
+    bpf_ringbuf_submit(message,0);
+    return 0;
+}
