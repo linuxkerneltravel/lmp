@@ -45,14 +45,13 @@ int do_stack(void *ctx)
     u32 pid = get_task_ns_pid(curr);                           // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
     if (!pid || pid == self_pid)
         return 0;
-    u32 tgid = get_task_ns_tgid(curr);                    // tgid保存当前进程的tgid
-    bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY); // 更新pid_tgid表中的pid表项
-    comm *p = bpf_map_lookup_elem(&pid_comm, &pid);       // p指向pid_comm中的Pid对应的值
-    if (!p)
+    if (!bpf_map_lookup_elem(&pid_info, &pid))
     {
-        comm name;
-        bpf_probe_read_kernel_str(&name, COMM_LEN, curr->comm);   // name中保存的是当前进程tsk的进程名
-        bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST); // 更新pid_comm中的进程号对应的进程名
+        task_info info;
+        info.tgid = get_task_ns_tgid(curr);
+        bpf_get_current_comm(info.comm, COMM_LEN);
+        fill_container_id(curr, info.cid);
+        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
     }
     psid apsid = {
         .pid = pid,

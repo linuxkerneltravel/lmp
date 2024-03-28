@@ -24,7 +24,6 @@
 #include "sa_ebpf.h"
 #include "task.h"
 
-
 DeclareCommonMaps(u32);
 DeclareCommonVar();
 const volatile int apid = 0;
@@ -40,14 +39,13 @@ static int handle_func(void *ctx)
     if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
 
-    u32 tgid = get_task_ns_tgid(curr);                    // 利用帮助函数获取进程的tgid
-    bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY); // 将pid_tgid表中的pid选项更新为tgid,若没有该表项，则创建
-
-    if (!bpf_map_lookup_elem(&pid_comm, &pid))
+    if (!bpf_map_lookup_elem(&pid_info, &pid))
     {
-        comm name;
-        bpf_get_current_comm(&name, COMM_LEN);
-        bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);
+        task_info info;
+        info.tgid = get_task_ns_tgid(curr);
+        bpf_get_current_comm(info.comm, COMM_LEN);
+        fill_container_id(curr, info.cid);
+        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
     }
 
     psid apsid = {
@@ -73,8 +71,8 @@ static int handle_func(void *ctx)
 SEC("kprobe/dummy_kprobe")
 int BPF_KPROBE(handle)
 {
-	handle_func(ctx);
-	return 0;
+    handle_func(ctx);
+    return 0;
 }
 SEC("tp/sched/dummy_tp")
 int handle_tp(void *ctx)

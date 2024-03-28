@@ -32,15 +32,10 @@ typedef struct {
     __s32 ksid, usid;
 } psid;
 
-/// @brief 进程名
 typedef struct {
-    char str[COMM_LEN];
-} comm;
-
-typedef struct {
+    char cid[CONTAINER_ID_LEN];
     __u32 tgid;
     char comm[COMM_LEN];
-    char cid[CONTAINER_ID_LEN];
 } task_info;
 
 #endif

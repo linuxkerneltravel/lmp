@@ -71,9 +71,7 @@
 #define DeclareCommonMaps(type)       \
     BPF_HASH(psid_count, psid, type); \
     BPF_STACK_TRACE(stack_trace);     \
-    BPF_HASH(pid_tgid, u32, u32);     \
-    BPF_HASH(pid_comm, u32, comm);    \
-    BPF_HASH(pid_cid, u32, char[CONTAINER_ID_LEN]);
+    BPF_HASH(pid_info, u32, task_info);
 
 #define DeclareCommonVar()                    \
     const volatile bool trace_user = false;   \

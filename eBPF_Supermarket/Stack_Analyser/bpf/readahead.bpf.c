@@ -44,15 +44,14 @@ int BPF_PROG(page_cache_ra_unbounded)
 
     if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
-
-    u32 tgid = get_task_ns_tgid(curr);
-    bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY); // 更新pid_tgid表中的pid对应的值
-    comm *p = bpf_map_lookup_elem(&pid_comm, &pid);       // p指向pid_comm表中pid对应的值
-    if (!p)
+        
+    if (!bpf_map_lookup_elem(&pid_info, &pid))
     {
-        comm name;
-        bpf_get_current_comm(&name, COMM_LEN);                    // 获取当前进程名
-        bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST); // 在pid_comm表中更新pid对应的值
+        task_info info;
+        info.tgid = get_task_ns_tgid(curr);
+        bpf_get_current_comm(info.comm, COMM_LEN);
+        fill_container_id(curr, info.cid);
+        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
     }
 
     psid apsid = {

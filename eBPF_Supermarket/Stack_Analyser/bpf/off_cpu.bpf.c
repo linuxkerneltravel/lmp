@@ -59,15 +59,13 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
         return 0;
 
     // record data
-    // u32 tgid = BPF_CORE_READ(next, tgid);
-    u32 tgid = get_task_ns_tgid(curr);                                      //利用帮助函数获取当前进程的的tgid
-    bpf_map_update_elem(&pid_tgid, &pid, &tgid, BPF_ANY);                   //利用帮助函数更新tgid对应的pid表项
-    comm *p = bpf_map_lookup_elem(&pid_comm, &pid);                         //p指向pid_comm中pid对应的表项
-    if (!p)
+    if (!bpf_map_lookup_elem(&pid_info, &pid))
     {
-        comm name;
-        bpf_probe_read_kernel_str(&name, COMM_LEN, next->comm);             //获取next指向的进程结构体的comm，赋值给comm
-        bpf_map_update_elem(&pid_comm, &pid, &name, BPF_NOEXIST);           //如果pid_comm中不存在pid项，则创建
+        task_info info;
+        info.tgid = get_task_ns_tgid(next);
+        bpf_probe_read_kernel_str(info.comm, COMM_LEN, next->comm);             //获取next指向的进程结构体的comm，赋值给comm
+        fill_container_id(next, info.cid);
+        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
     }
     psid apsid = {
         .pid = pid,

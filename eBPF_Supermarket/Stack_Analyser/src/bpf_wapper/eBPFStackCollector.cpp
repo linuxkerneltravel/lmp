@@ -179,53 +179,27 @@ StackCollector::operator std::string()
         }
     }
 
-    oss << "groups:\n";
+    oss << "info:\n";
     {
-        auto tgid_fd = bpf_object__find_map_fd_by_name(obj, "pid_tgid");
-        if (tgid_fd < 0)
+        auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info");
+        if (info_fd < 0)
         {
             return oss.str();
         }
         auto keys = new uint32_t[MAX_ENTRIES];
-        auto vals = new uint32_t[MAX_ENTRIES];
+        auto vals = new task_info[MAX_ENTRIES];
         uint32_t count = MAX_ENTRIES;
         uint32_t next_key;
-        int err = bpf_map_lookup_batch(tgid_fd, NULL, &next_key, keys, vals,
+        int err = bpf_map_lookup_batch(info_fd, NULL, &next_key, keys, vals,
                                        &count, NULL);
         if (err == EFAULT)
         {
             return oss.str();
         }
-        oss << "pid\ttgid\n";
+        oss << "pid\tcomm\ttgid\tcontainer id\n";
         for (uint32_t i = 0; i < count; i++)
         {
-            oss << keys[i] << '\t' << vals[i] << '\n';
-        }
-        delete[] keys;
-        delete[] vals;
-    }
-
-    oss << "commands:\n";
-    {
-        auto comm_fd = bpf_object__find_map_fd_by_name(obj, "pid_comm");
-        if (comm_fd < 0)
-        {
-            return oss.str();
-        }
-        auto keys = new uint32_t[MAX_ENTRIES];
-        auto vals = new char[MAX_ENTRIES][16];
-        uint32_t count = MAX_ENTRIES;
-        uint32_t next_key;
-        int err = bpf_map_lookup_batch(comm_fd, NULL, &next_key, keys, vals,
-                                       &count, NULL);
-        if (err == EFAULT)
-        {
-            return oss.str();
-        }
-        oss << "pid\tcommand\n";
-        for (uint32_t i = 0; i < count; i++)
-        {
-            oss << keys[i] << '\t' << vals[i] << '\n';
+            oss << keys[i] << '\t' << vals[i].comm << '\t' << vals[i].tgid << '\t' << vals[i].cid << '\n';
         }
         delete[] keys;
         delete[] vals;

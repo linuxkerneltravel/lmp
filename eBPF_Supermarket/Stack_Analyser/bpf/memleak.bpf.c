@@ -53,23 +53,14 @@ static int gen_alloc_enter(size_t size)
     u32 tgid = get_task_ns_tgid(curr);
     if (tgid == self_pid)
         return 0;
-    bpf_map_update_elem(&pid_tgid, &tgid, &tgid, BPF_ANY);
-    // update comm
-    if (!bpf_map_lookup_elem(&pid_comm, &tgid))
+    if (!bpf_map_lookup_elem(&pid_info, &tgid))
     {
-        comm name;
-        bpf_get_current_comm(&name, COMM_LEN);
-        bpf_map_update_elem(&pid_comm, &tgid, &name, BPF_NOEXIST);
+        task_info info;
+        info.tgid = tgid;
+        bpf_get_current_comm(info.comm, COMM_LEN);
+        fill_container_id(curr, info.cid);
+        bpf_map_update_elem(&pid_info, &tgid, &info, BPF_NOEXIST);
     }
-    // update cid
-    if (!bpf_map_lookup_elem(&pid_cid, &tgid))
-    {
-        char cid[CONTAINER_ID_LEN];
-        fill_container_id(curr, cid);
-		bpf_printk("cid: [%s].", cid);
-        bpf_map_update_elem(&pid_cid, &tgid, &cid, BPF_NOEXIST);
-    }
-
 	if (trace_all)
 		bpf_printk("alloc entered, size = %lu\n", size);
     // record size
