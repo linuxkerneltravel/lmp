@@ -1,20 +1,3 @@
-// Copyright 2024 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: albert_xuu@163.com
-
-
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>		//包含了BPF 辅助函数
 #include <bpf/bpf_tracing.h>
@@ -116,9 +99,30 @@ int BPF_KRETPROBE(load_msg_exit,void *ret){
 	}
 	/*已经获得key*/
 	bpf_map_update_elem(&send_msg2, &Key_msg_ptr, mq_send_info, BPF_ANY);//key_messege->mq_send_info;
-	bpf_map_delete_elem(&send_msg1,&pid);
 	return 0;		
 }
+
+SEC("kretprobe/do_mq_timedsend")
+int BPF_KRETPROBE(do_mq_timedsend_exit,void *ret)
+{
+	bpf_printk("do_mq_timedsend_exit----------------------------------------------------------------\n");
+	u64 send_exit_time = bpf_ktime_get_ns();//开始发送信息时间；
+	int pid = bpf_get_current_pid_tgid();//发送端pid
+	u64 Key; 
+
+	struct send_events *mq_send_info1 = bpf_map_lookup_elem(&send_msg1, &pid);
+	if(!mq_send_info1){
+		return 0;
+	}
+	Key = mq_send_info1->Key_msg_ptr;
+	struct send_events *mq_send_info2 = bpf_map_lookup_elem(&send_msg2, &Key);
+	if(!mq_send_info2){
+		return 0;
+	}
+	mq_send_info2->send_exit_time = send_exit_time;
+	bpf_map_delete_elem(&send_msg1,&pid);
+	return 0;	
+} 
 /*-----------------------------------------------------------------------------发送端--------------------------------------------------------------------------------------------------------*/
 /*																				分界   																										*/
 /*-----------------------------------------------------------------------------接收端--------------------------------------------------------------------------------------------------------*/                                                                                                                                                                                     
@@ -188,9 +192,6 @@ int BPF_KRETPROBE(do_mq_timedreceive_exit,void *ret){
 		return 0;
 	}
 
-	send_enter_time = mq_send_info->send_enter_time;
-	delay = rcv_exit_time - send_enter_time;
-
 	/*ringbuffer传值*/
 	struct mq_events *e;
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
@@ -202,10 +203,9 @@ int BPF_KRETPROBE(do_mq_timedreceive_exit,void *ret){
 		e->msg_prio = mq_send_info->msg_prio;
 
 		e->send_enter_time = mq_send_info->send_enter_time;
-
+		e->send_exit_time = mq_send_info->send_exit_time;
 		e->rcv_enter_time = mq_rcv_info->rcv_enter_time;
 		e->rcv_exit_time = rcv_exit_time;
-		e->delay = delay;
 	bpf_ringbuf_submit(e, 0);
 	bpf_map_delete_elem(&send_msg2, &Key);//暂时性删除
 	bpf_map_delete_elem(&rcv_msg1,&pid);//删除rcv_msg1  map;
