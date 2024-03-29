@@ -214,14 +214,12 @@ int doesVmProcessExist(pid_t pid) {
             // 查看是否进程文件中是否出现"qemu-system"字符串
             if (strstr(proc_name, "qemu-system") != NULL) {
                 fclose(file);
-                return 1;  // VmProcess name contains the target
-                           // string
+                return 1;  // VmProcess name contains the target string
             } else {
                 fclose(file);
                 fprintf(stderr, "Process exist!but is not vmprocess: %d\n",
                         pid);
-                return 0;  // VmProcess name does not contain the
-                           // target string
+                return 0;  // VmProcess name does not contain the target string
             }
         }
         fclose(file);
