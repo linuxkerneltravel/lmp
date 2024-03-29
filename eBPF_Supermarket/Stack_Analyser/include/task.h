@@ -73,22 +73,10 @@ statfunc u32 get_task_ns_ppid(struct task_struct *task)
 
 static void fill_container_id(struct task_struct *task, char *container_id)
 {
-    struct css_set *css;
-    struct cgroup_subsys_state *sbs;
-    struct cgroup *cg;
-    struct kernfs_node *knode, *pknode;
-
-    css = BPF_CORE_READ(task, cgroups);
-    bpf_probe_read(&sbs, sizeof(void *), &css->subsys[0]);
-    bpf_probe_read(&cg, sizeof(void *), &sbs->cgroup);
-
-    bpf_probe_read(&knode, sizeof(void *), &cg->kn);
-    bpf_probe_read(&pknode, sizeof(void *), &knode->parent);
-
-    if (pknode != NULL)
+    struct kernfs_node *knode = BPF_CORE_READ(task, cgroups, subsys[0], cgroup, kn);
+    if (BPF_CORE_READ(knode, parent) != NULL)
     {
         char *aus;
-
         bpf_probe_read(&aus, sizeof(void *), &knode->name);
         bpf_probe_read_str(container_id, CONTAINER_ID_LEN, aus);
     }

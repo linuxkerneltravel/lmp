@@ -25,7 +25,7 @@
 #include "bpf_wapper/template.h"
 #include "task.h"
 
-DeclareCommonMaps(__u32);
-DeclareCommonVar();
+COMMON_MAPS(__u32);
+COMMON_VALS;
 
 const char LICENSE[] SEC("license") = "GPL";

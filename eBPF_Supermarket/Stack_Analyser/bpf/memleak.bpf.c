@@ -25,8 +25,8 @@
 #include "task.h"
 #include "bpf_wapper/memleak.h"
 
-DeclareCommonMaps(union combined_alloc_info);
-DeclareCommonVar();
+COMMON_MAPS(union combined_alloc_info);
+COMMON_VALS;
 const volatile __u64 sample_rate = 1;
 const volatile bool wa_missing_free = false;
 const volatile size_t page_size = 4096;
@@ -47,20 +47,13 @@ static int gen_alloc_enter(size_t size)
 			return 0;
 	}
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    ignoreKthread(curr);
+    RET_IF_KERN(curr);
     // update group
 	// group share memory
-    u32 tgid = get_task_ns_tgid(curr);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
     if (tgid == self_pid)
         return 0;
-    if (!bpf_map_lookup_elem(&pid_info, &tgid))
-    {
-        task_info info;
-        info.tgid = tgid;
-        bpf_get_current_comm(info.comm, COMM_LEN);
-        fill_container_id(curr, info.cid);
-        bpf_map_update_elem(&pid_info, &tgid, &info, BPF_NOEXIST);
-    }
+	SAVE_TASK_INFO(tgid, curr);
 	if (trace_all)
 		bpf_printk("alloc entered, size = %lu\n", size);
     // record size
@@ -76,18 +69,14 @@ static int gen_alloc_exit2(void *ctx, u64 addr)
     if (!size)
         return 0;
     // record counts
-    psid apsid = {
-        .pid = tgid,
-        .usid = trace_user ? USER_STACK : -1,
-        .ksid = trace_kernel ? KERNEL_STACK : -1,
-    };
-    union combined_alloc_info *count = bpf_map_lookup_elem(&psid_count, &apsid);
+    psid apsid = GET_COUNT_KEY(tgid, ctx);
+    union combined_alloc_info *count = bpf_map_lookup_elem(&psid_count_map, &apsid);
 	union combined_alloc_info cur = {
 		.number_of_allocs = 1,
 		.total_size = *size,
 	};
     if (!count)
-        bpf_map_update_elem(&psid_count, &apsid, &cur, BPF_NOEXIST);
+        bpf_map_update_elem(&psid_count_map, &apsid, &cur, BPF_NOEXIST);
     else
         __sync_fetch_and_add(&(count->bits), cur.bits);
     // record pid_addr-info
@@ -127,7 +116,7 @@ static int gen_free_enter(const void *addr)
         .usid = info->usid,
     };
 
-    union combined_alloc_info *size = bpf_map_lookup_elem(&psid_count, &apsid);
+    union combined_alloc_info *size = bpf_map_lookup_elem(&psid_count_map, &apsid);
     if (!size)
         return -1;
 	union combined_alloc_info cur = {
@@ -138,7 +127,7 @@ static int gen_free_enter(const void *addr)
 	__sync_fetch_and_sub(&(size->bits), cur.bits);
 
     if (size->total_size == 0)
-        bpf_map_delete_elem(&psid_count, &apsid);
+        bpf_map_delete_elem(&psid_count_map, &apsid);
 	if (trace_all)
 		bpf_printk("free entered, address = %lx, size = %lu\n", addr, info->size);
     // del freeing addr info

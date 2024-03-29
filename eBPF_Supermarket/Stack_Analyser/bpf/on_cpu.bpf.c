@@ -26,47 +26,39 @@
 
 const char LICENSE[] SEC("license") = "GPL";
 
-DeclareCommonMaps(u32);
-DeclareCommonVar();
+COMMON_MAPS(u32);
+COMMON_VALS;
 unsigned long *const volatile load_a = NULL;
 
 SEC("perf_event") // 挂载点为perf_event
 int do_stack(void *ctx)
 {
-    unsigned long load;
-    bpf_core_read(&load, sizeof(unsigned long), load_a); // load为文件中读出的地址，则该地址开始读取unsigned long大小字节的数据保存到load
-    load >>= 11;                                         // load右移11
-    bpf_printk("%lu %lu", load, min);                    // 输出load 以及min
-    if (load < min || load > max)
-        return 0;
+    if (load_a != NULL)
+    {
+        unsigned long load;
+        bpf_core_read(&load, sizeof(unsigned long), load_a); // load为文件中读出的地址，则该地址开始读取unsigned long大小字节的数据保存到load
+        load >>= 11;                                         // load右移11
+        bpf_printk("%lu %lu", load, min);                    // 输出load 以及min
+        if (load < min || load > max)
+            return 0;
+    }
     // record data
     struct task_struct *curr = (void *)bpf_get_current_task(); // curr指向当前进程的tsk
-    ignoreKthread(curr);                                       // 忽略内核线程
-    u32 pid = get_task_ns_pid(curr);                           // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
+    RET_IF_KERN(curr);                                       // 忽略内核线程
+    u32 pid = BPF_CORE_READ(curr, pid);                        // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
     if (!pid || pid == self_pid)
         return 0;
-    if (!bpf_map_lookup_elem(&pid_info, &pid))
-    {
-        task_info info;
-        info.tgid = get_task_ns_tgid(curr);
-        bpf_get_current_comm(info.comm, COMM_LEN);
-        fill_container_id(curr, info.cid);
-        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
-    }
-    psid apsid = {
-        .pid = pid,
-        .usid = trace_user ? USER_STACK : -1,
-        .ksid = trace_kernel ? KERNEL_STACK : -1,
-    };
+    SAVE_TASK_INFO(pid, curr);
+    psid apsid = GET_COUNT_KEY(pid, ctx);
 
     // add cosunt
-    u32 *count = bpf_map_lookup_elem(&psid_count, &apsid); // count指向psid_count对应的apsid的值
+    u32 *count = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count对应的apsid的值
     if (count)
         (*count)++; // count不为空，则psid_count对应的apsid的值+1
     else
     {
         u32 orig = 1;
-        bpf_map_update_elem(&psid_count, &apsid, &orig, BPF_ANY); // 否则psid_count对应的apsid的值=1
+        bpf_map_update_elem(&psid_count_map, &apsid, &orig, BPF_ANY); // 否则psid_count对应的apsid的值=1
     }
     return 0;
 }

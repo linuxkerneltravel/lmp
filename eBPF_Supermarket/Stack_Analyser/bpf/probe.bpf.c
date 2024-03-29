@@ -24,8 +24,8 @@
 #include "sa_ebpf.h"
 #include "task.h"
 
-DeclareCommonMaps(u32);
-DeclareCommonVar();
+COMMON_MAPS(u32);
+COMMON_VALS;
 const volatile int apid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -33,32 +33,20 @@ const char LICENSE[] SEC("license") = "GPL";
 static int handle_func(void *ctx)
 {
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
-    ignoreKthread(curr);
+    RET_IF_KERN(curr);
 
     u32 pid = get_task_ns_pid(curr); // 利用帮助函数获得当前进程的pid
     if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
 
-    if (!bpf_map_lookup_elem(&pid_info, &pid))
-    {
-        task_info info;
-        info.tgid = get_task_ns_tgid(curr);
-        bpf_get_current_comm(info.comm, COMM_LEN);
-        fill_container_id(curr, info.cid);
-        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
-    }
+    SAVE_TASK_INFO(pid, curr);
+    psid apsid = GET_COUNT_KEY(pid, ctx);
 
-    psid apsid = {
-        .pid = pid,
-        .usid = trace_user ? USER_STACK : -1,
-        .ksid = trace_kernel ? KERNEL_STACK : -1,
-    };
-
-    u32 *cnt = bpf_map_lookup_elem(&psid_count, &apsid);
+    u32 *cnt = bpf_map_lookup_elem(&psid_count_map, &apsid);
     if (!cnt)
     {
         u32 ONE = 1;
-        bpf_map_update_elem(&psid_count, &apsid, &ONE, BPF_NOEXIST);
+        bpf_map_update_elem(&psid_count_map, &apsid, &ONE, BPF_NOEXIST);
     }
     else
     {

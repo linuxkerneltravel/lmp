@@ -25,8 +25,8 @@
 #include "bpf_wapper/io.h"
 #include "task.h"
 
-DeclareCommonMaps(io_tuple);
-DeclareCommonVar();
+COMMON_MAPS(io_tuple);
+COMMON_VALS;
 const volatile int apid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -34,34 +34,23 @@ const char LICENSE[] SEC("license") = "GPL";
 static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
-    ignoreKthread(curr);
-    u32 pid = get_task_ns_pid(curr); // 利用帮助函数获得当前进程的pid
+    RET_IF_KERN(curr);
+    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
     if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
     u64 len = BPF_CORE_READ(ctx, args[2]); // 读取系统调用的第三个参数
     if (len <= min || len > max)
         return 0;
-    if (!bpf_map_lookup_elem(&pid_info, &pid))
-    {
-        task_info info;
-        info.tgid = get_task_ns_tgid(curr);
-        bpf_get_current_comm(info.comm, COMM_LEN);
-        fill_container_id(curr, info.cid);
-        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
-    }
-    psid apsid = {
-        .pid = pid,
-        .usid = trace_user ? USER_STACK : -1,     // u存在，则USER_STACK
-        .ksid = trace_kernel ? KERNEL_STACK : -1, // K存在，则KERNEL_STACK
-    };
+    SAVE_TASK_INFO(pid, curr);
+    psid apsid = GET_COUNT_KEY(pid, ctx);
 
     // record time delta
-    io_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid); // count指向psid_count表当中的apsid表项，即size
+    io_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count表当中的apsid表项，即size
 
     if (!d)
     {
         io_tuple nd = {.count = 1, .size = len};
-        bpf_map_update_elem(&psid_count, &apsid, &nd, BPF_NOEXIST);
+        bpf_map_update_elem(&psid_count_map, &apsid, &nd, BPF_NOEXIST);
     }
     else
     {

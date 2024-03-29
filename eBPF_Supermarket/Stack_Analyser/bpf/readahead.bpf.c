@@ -28,8 +28,8 @@
 #define MINBLOCK_US 1ULL
 #define MAXBLOCK_US 99999999ULL
 
-DeclareCommonMaps(ra_tuple);
-DeclareCommonVar();
+COMMON_MAPS(ra_tuple);
+COMMON_VALS;
 
 int apid = 0;
 BPF_HASH(in_ra, u32, psid);
@@ -39,32 +39,20 @@ SEC("fentry/page_cache_ra_unbounded") // fentry在内核函数page_cache_ra_unbo
 int BPF_PROG(page_cache_ra_unbounded)
 {
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    ignoreKthread(curr);
+    RET_IF_KERN(curr);
     u32 pid = get_task_ns_pid(curr); // 获取当前进程tgid，用户空间的pid即是tgid
 
     if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
         return 0;
         
-    if (!bpf_map_lookup_elem(&pid_info, &pid))
-    {
-        task_info info;
-        info.tgid = get_task_ns_tgid(curr);
-        bpf_get_current_comm(info.comm, COMM_LEN);
-        fill_container_id(curr, info.cid);
-        bpf_map_update_elem(&pid_info, &pid, &info, BPF_NOEXIST);
-    }
+    SAVE_TASK_INFO(pid, curr);
+    psid apsid = GET_COUNT_KEY(pid, ctx);
 
-    psid apsid = {
-        .pid = pid,
-        .usid = trace_user ? USER_STACK : -1,
-        .ksid = trace_kernel ? KERNEL_STACK : -1,
-    };
-
-    ra_tuple *d = bpf_map_lookup_elem(&psid_count, &apsid); // d指向psid_count表中的apsid对应的类型为tuple的值
+    ra_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // d指向psid_count表中的apsid对应的类型为tuple的值
     if (!d)
     {
         ra_tuple a = {.expect = 0, .truth = 0};                // 初始化为0
-        bpf_map_update_elem(&psid_count, &apsid, &a, BPF_ANY); // 更新psid_count表中的apsid的值为a
+        bpf_map_update_elem(&psid_count_map, &apsid, &a, BPF_ANY); // 更新psid_count表中的apsid的值为a
     }
     bpf_map_update_elem(&in_ra, &pid, &apsid, BPF_ANY); // 更新in_ra表中的pid对应的值为apsid
     return 0;
@@ -82,7 +70,7 @@ int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
     if (!apsid)
         return 0;
 
-    ra_tuple *a = bpf_map_lookup_elem(&psid_count, apsid); // a是指向psid_count的apsid对应的内容
+    ra_tuple *a = bpf_map_lookup_elem(&psid_count_map, apsid); // a是指向psid_count的apsid对应的内容
     if (!a)
         return 0;
 
@@ -119,7 +107,7 @@ int BPF_PROG(mark_page_accessed, u64 page)
     apsid = bpf_map_lookup_elem(&page_psid, &page); // 查看page_psid对应的 地址page 对应类型为psid的值，并保存在apsid
     if (!apsid)
         return 0;
-    ra_tuple *a = bpf_map_lookup_elem(&psid_count, apsid); // a指向psid_count的apsid的内容
+    ra_tuple *a = bpf_map_lookup_elem(&psid_count_map, apsid); // a指向psid_count的apsid的内容
     if (!a)
         return 0;
     a->truth++;                             // 已访问
