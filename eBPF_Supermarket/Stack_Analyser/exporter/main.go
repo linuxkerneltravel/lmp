@@ -169,6 +169,7 @@ type scale struct {
 }
 
 type task_info struct {
+	pid  uint32
 	comm string
 	tgid uint32
 	cid  string
@@ -177,16 +178,25 @@ type task_info struct {
 func CollectProfiles(cb CollectProfilesCallback) error {
 	var err error
 	var line string
-	// read scale
 	var s scale
+	// read time
+	for {
+		if line, err = reader.ReadString('\n'); err != nil {
+			return err
+		}
+		if line[:12] == "\033[1;35mtime:" {
+			break
+		}
+	}
+	// read scale
 	if line, err = reader.ReadString('\n'); err != nil {
 		return err
 	}
 	if _, err = fmt.Sscanf(line, "Type:%s Unit:%s Period:%d\n", &s.Type, &s.Unit, &s.Period); err != nil {
 		return err
 	}
-	// omit timestap, title and head of counts table
-	for range lo.Range(3) {
+	// omit title and head of counts table
+	for range lo.Range(2) {
 		if line, err = reader.ReadString('\n'); err != nil {
 			return err
 		}
@@ -220,7 +230,9 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 			// has read info title
 			break
 		}
-		traces[k] = strings.Split(v, ";")
+		trace := strings.Split(v, ";")
+		trace = trace[:len(trace)-1]
+		traces[k] = trace
 	}
 	// omit info table head
 	if line, err = reader.ReadString('\n'); err != nil {
@@ -228,25 +240,29 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 	}
 	info := make(map[uint32]task_info)
 	for {
-		var pid, tgid int
+		var pid, tgid, nspid int
 		if line, err = reader.ReadString('\n'); err != nil {
 			break
 		}
 		secs := strings.Split(line, "\t")
-		if len(secs) < 4 {
+		if len(secs) < 5 {
 			break
 		}
 		if pid, err = strconv.Atoi(secs[0]); err != nil {
 			// has read end
 			break
 		}
-		if tgid, err = strconv.Atoi(secs[2]); err != nil {
+		if nspid, err = strconv.Atoi(secs[1]); err != nil {
+			break
+		}
+		if tgid, err = strconv.Atoi(secs[3]); err != nil {
 			break
 		}
 		info[uint32(pid)] = task_info{
-			comm: secs[1],
+			pid:  uint32(nspid),
+			comm: secs[2],
 			tgid: uint32(tgid),
-			cid:  secs[3],
+			cid:  secs[4],
 		}
 	}
 	for k, v := range counts {
@@ -257,7 +273,7 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 			"__meta_process_comm":   info[k.pid].comm,
 			"__meta_process_cgroup": info[k.pid].cid,
 		})
-		base := []string{fmt.Sprint(info[k.pid].tgid), fmt.Sprint(k.pid), fmt.Sprint(info[k.pid].comm)}
+		base := []string{info[k.pid].cid, "tgid:" + fmt.Sprint(info[k.pid].tgid), "comm:" + info[k.pid].comm + ", pid:" + fmt.Sprint(info[k.pid].pid)}
 		trace := append(traces[k.usid], traces[k.ksid]...)
 		cb(target, lo.Reverse(append(base, trace...)), uint64(v), s, true)
 	}

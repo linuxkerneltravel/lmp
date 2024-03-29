@@ -49,9 +49,9 @@ StackCollector::StackCollector()
 
 std::vector<CountItem> *StackCollector::sortedCountList(void)
 {
-    auto psid_count = bpf_object__find_map_by_name(obj, "psid_count");
-    auto val_size = bpf_map__value_size(psid_count);
-    auto value_fd = bpf_object__find_map_fd_by_name(obj, "psid_count");
+    auto psid_count_map = bpf_object__find_map_by_name(obj, "psid_count_map");
+    auto val_size = bpf_map__value_size(psid_count_map);
+    auto value_fd = bpf_object__find_map_fd_by_name(obj, "psid_count_map");
 
     auto keys = new psid[MAX_ENTRIES];
     auto vals = new char[MAX_ENTRIES * val_size];
@@ -85,11 +85,11 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
 StackCollector::operator std::string()
 {
     std::ostringstream oss;
+    oss << _RED"time:" << getLocalDateTime() << _RE << '\n';
     oss << "Type:" << scale.Type << " Unit:" << scale.Unit << " Period:" << scale.Period << '\n';
-    oss << "time:" << getLocalDateTime() << '\n';
     std::map<int32_t, std::vector<std::string>> traces;
 
-    oss << "counts:\n";
+    oss << _BLUE "counts:" _RE "\n";
     {
         auto D = sortedCountList();
         if (!D)
@@ -100,7 +100,7 @@ StackCollector::operator std::string()
         {
             auto &id = i.k;
             auto &v = i.v;
-            auto trace_fd = bpf_object__find_map_fd_by_name(obj, "stack_trace");
+            auto trace_fd = bpf_object__find_map_fd_by_name(obj, "sid_trace_map");
             oss << id.pid << '\t' << id.usid << '\t' << id.ksid << '\t' << v << '\n';
             if (id.usid > 0 && traces.find(id.usid) == traces.end())
             {
@@ -165,7 +165,7 @@ StackCollector::operator std::string()
         delete D;
     }
 
-    oss << "traces:\n";
+    oss << _BLUE "traces:" _RE "\n";
     {
         oss << "sid\ttrace\n";
         for (auto i : traces)
@@ -179,9 +179,9 @@ StackCollector::operator std::string()
         }
     }
 
-    oss << "info:\n";
+    oss << _BLUE "info:" _RE "\n";
     {
-        auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info");
+        auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
         if (info_fd < 0)
         {
             return oss.str();
@@ -196,10 +196,10 @@ StackCollector::operator std::string()
         {
             return oss.str();
         }
-        oss << "pid\tcomm\ttgid\tcontainer id\n";
+        oss << "pid\tns pid\tcomm\ttgid\tcontainer id\n";
         for (uint32_t i = 0; i < count; i++)
         {
-            oss << keys[i] << '\t' << vals[i].comm << '\t' << vals[i].tgid << '\t' << vals[i].cid << '\n';
+            oss << keys[i] << '\t' << vals[i].pid << '\t' << vals[i].comm << '\t' << vals[i].tgid << '\t' << vals[i].cid << '\n';
         }
         delete[] keys;
         delete[] vals;

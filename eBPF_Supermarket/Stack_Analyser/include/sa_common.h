@@ -33,9 +33,15 @@ typedef struct {
 } psid;
 
 typedef struct {
-    char cid[CONTAINER_ID_LEN];
+    __u32 pid;
     __u32 tgid;
+    char cid[CONTAINER_ID_LEN];
     char comm[COMM_LEN];
 } task_info;
+
+#define _BLUE "\033[1;34m"
+#define _GREEN "\033[1;32m"
+#define _RED "\033[1;35m"
+#define _RE "\033[0m"
 
 #endif
