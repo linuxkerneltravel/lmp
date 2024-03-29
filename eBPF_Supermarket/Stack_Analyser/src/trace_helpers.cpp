@@ -60,7 +60,7 @@ static int ksyms__add_symbol(struct ksyms *ksyms, const char *name, unsigned lon
 		tmp = realloc(ksyms->strs, new_cap);
 		if (!tmp)
 			return -1;
-		ksyms->strs = tmp;
+		ksyms->strs = (char *)tmp;
 		ksyms->strs_cap = new_cap;
 	}
 	if (ksyms->syms_sz + 1 > ksyms->syms_cap) {
@@ -70,13 +70,13 @@ static int ksyms__add_symbol(struct ksyms *ksyms, const char *name, unsigned lon
 		tmp = realloc(ksyms->syms, sizeof(*ksyms->syms) * new_cap);
 		if (!tmp)
 			return -1;
-		ksyms->syms = tmp;
+		ksyms->syms = (struct ksym *)tmp;
 		ksyms->syms_cap = new_cap;
 	}
 
 	ksym = &ksyms->syms[ksyms->syms_sz];
 	/* while constructing, re-use pointer as just a plain offset */
-	ksym->name = (void *)(unsigned long)ksyms->strs_sz;
+	ksym->name = (char *)(unsigned long)ksyms->strs_sz;
 	ksym->addr = addr;
 
 	memcpy(ksyms->strs + ksyms->strs_sz, name, name_len);
@@ -88,7 +88,7 @@ static int ksyms__add_symbol(struct ksyms *ksyms, const char *name, unsigned lon
 
 static int ksym_cmp(const void *p1, const void *p2)
 {
-	const struct ksym *s1 = p1, *s2 = p2;
+	const struct ksym *s1 = (struct ksym *)p1, *s2 = (struct ksym *)p2;
 
 	if (s1->addr == s2->addr)
 		return strcmp(s1->name, s2->name);
@@ -107,7 +107,7 @@ struct ksyms *ksyms__load(void)
 	if (!f)
 		return NULL;
 
-	ksyms = calloc(1, sizeof(*ksyms));
+	ksyms = (struct ksyms *)calloc(1, sizeof(*ksyms));
 	if (!ksyms)
 		goto err_out;
 
@@ -338,7 +338,7 @@ static int syms__add_dso(struct syms *syms, struct map *map, const char *name)
 			      sizeof(*syms->dsos));
 		if (!tmp)
 			return -1;
-		syms->dsos = tmp;
+		syms->dsos = (struct dso *)tmp;
 		dso = &syms->dsos[syms->dso_sz++];
 		memset(dso, 0, sizeof(*dso));
 		dso->name = strdup(name);
@@ -348,7 +348,7 @@ static int syms__add_dso(struct syms *syms, struct map *map, const char *name)
 	tmp = realloc(dso->ranges, (dso->range_sz + 1) * sizeof(*dso->ranges));
 	if (!tmp)
 		return -1;
-	dso->ranges = tmp;
+	dso->ranges = (struct load_range *)tmp;
 	dso->ranges[dso->range_sz].start = map->start_addr;
 	dso->ranges[dso->range_sz].end = map->end_addr;
 	dso->ranges[dso->range_sz].file_off = map->file_off;
@@ -423,13 +423,13 @@ static int dso__add_sym(struct dso *dso, const char *name, uint64_t start,
 		tmp = realloc(dso->syms, sizeof(*dso->syms) * new_cap);
 		if (!tmp)
 			return -1;
-		dso->syms = tmp;
+		dso->syms = (struct sym *)tmp;
 		dso->syms_cap = new_cap;
 	}
 
 	sym = &dso->syms[dso->syms_sz++];
 	/* while constructing, re-use pointer as just a plain offset */
-	sym->name = (void*)(unsigned long)off;
+	sym->name = (char *)(unsigned long)off;
 	sym->start = start;
 	sym->size = size;
 	sym->offset = 0;
@@ -439,7 +439,7 @@ static int dso__add_sym(struct dso *dso, const char *name, uint64_t start,
 
 static int sym_cmp(const void *p1, const void *p2)
 {
-	const struct sym *s1 = p1, *s2 = p2;
+	const struct sym *s1 = (struct sym *)p1, *s2 = (struct sym *)p2;
 
 	if (s1->start == s2->start)
 		return strcmp(s1->name, s2->name);
@@ -667,7 +667,7 @@ struct syms *syms__load_file(const char *fname)
 	if (!f)
 		return NULL;
 
-	syms = calloc(1, sizeof(*syms));
+	syms = (struct syms *)calloc(1, sizeof(*syms));
 	if (!syms)
 		goto err_out;
 
@@ -766,11 +766,11 @@ struct syms_cache *syms_cache__new(int nr)
 {
 	struct syms_cache *syms_cache;
 
-	syms_cache = calloc(1, sizeof(*syms_cache));
+	syms_cache = (struct syms_cache *)calloc(1, sizeof(*syms_cache));
 	if (!syms_cache)
 		return NULL;
 	if (nr > 0)
-		syms_cache->data = calloc(nr, sizeof(*syms_cache->data));
+		syms_cache->data = (typeof(syms_cache->data))calloc(nr, sizeof(*syms_cache->data));
 	return syms_cache;
 }
 
@@ -801,7 +801,7 @@ struct syms *syms_cache__get_syms(struct syms_cache *syms_cache, int tgid)
 		      sizeof(*syms_cache->data));
 	if (!tmp)
 		return NULL;
-	syms_cache->data = tmp;
+	syms_cache->data = (typeof(syms_cache->data))tmp;
 	syms_cache->data[syms_cache->nr].syms = syms__load_pid(tgid);
 	syms_cache->data[syms_cache->nr].tgid = tgid;
 	return syms_cache->data[syms_cache->nr++].syms;
@@ -822,7 +822,7 @@ static int partitions__add_partition(struct partitions *partitions,
 		sizeof(*partitions->items));
 	if (!tmp)
 		return -1;
-	partitions->items = tmp;
+	partitions->items = (struct partition *)tmp;
 	partition = &partitions->items[partitions->sz];
 	partition->name = strdup(name);
 	partition->dev = dev;
@@ -844,7 +844,7 @@ struct partitions *partitions__load(void)
 	if (!f)
 		return NULL;
 
-	partitions = calloc(1, sizeof(*partitions));
+	partitions = (struct partitions *)calloc(1, sizeof(*partitions));
 	if (!partitions)
 		goto err_out;
 
@@ -1036,7 +1036,7 @@ static bool fentry_try_attach(int id)
 	};
 	LIBBPF_OPTS(bpf_prog_load_opts, opts,
 			.expected_attach_type = BPF_TRACE_FENTRY,
-			.attach_btf_id = id,
+			.attach_btf_id = (__u32)id,
 			.log_size = sizeof(error),
 			.log_buf = error,
 	);
