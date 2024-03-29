@@ -168,6 +168,12 @@ type scale struct {
 	Period int64
 }
 
+type task_info struct {
+	comm string
+	tgid uint32
+	cid  string
+}
+
 func CollectProfiles(cb CollectProfilesCallback) error {
 	var err error
 	var line string
@@ -211,71 +217,47 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 			return err
 		}
 		if _, err = fmt.Sscanf(line, "%d\t%s\n", &k, &v); err != nil {
-			// has read groups title
+			// has read info title
 			break
 		}
 		traces[k] = strings.Split(v, ";")
 	}
-	// omit groups table head
+	// omit info table head
 	if line, err = reader.ReadString('\n'); err != nil {
 		return err
 	}
-	groups := make(map[int32]int32)
+	info := make(map[uint32]task_info)
 	for {
-		var k, v int32
-		if line, err = reader.ReadString('\n'); err != nil {
-			return err
-		}
-		if _, err = fmt.Sscanf(line, "%d\t%d\n", &k, &v); err != nil {
-			// has read comm title
-			break
-		}
-		groups[k] = v
-	}
-	// omit comm table head
-	if line, err = reader.ReadString('\n'); err != nil {
-		return err
-	}
-	comms := make(map[uint32]string)
-	for {
-		var pid int
+		var pid, tgid int
 		if line, err = reader.ReadString('\n'); err != nil {
 			break
 		}
-		tuple := strings.Split(line, "\t")
-		if pid, err = strconv.Atoi(tuple[0]); err != nil {
+		secs := strings.Split(line, "\t")
+		if len(secs) < 4 {
+			break
+		}
+		if pid, err = strconv.Atoi(secs[0]); err != nil {
 			// has read end
 			break
 		}
-		comms[uint32(pid)] = tuple[1][:len(tuple[1])-1]
+		if tgid, err = strconv.Atoi(secs[2]); err != nil {
+			break
+		}
+		info[uint32(pid)] = task_info{
+			comm: secs[1],
+			tgid: uint32(tgid),
+			cid:  secs[3],
+		}
 	}
 	for k, v := range counts {
 		target := sd.NewTarget("", k.pid, sd.DiscoveryTarget{
-			"__process_pid__": fmt.Sprintf("%d", k.pid),
-			"__meta_process_cwd": func() string {
-				if cwd, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", k.pid)); err != nil {
-					return ""
-				} else {
-					return cwd
-				}
-			}(),
-			"__meta_process_exe": func() string {
-				if exe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", k.pid)); err != nil {
-					return ""
-				} else {
-					return exe
-				}
-			}(),
-			"__meta_process_comm": comms[k.pid],
-			"__meta_process_cgroup": func() string {
-				if cgroup, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", k.pid)); err != nil {
-					return ""
-				} else {
-					return string(cgroup)
-				}
-			}(),
+			"__process_pid__":       fmt.Sprintf("%d", k.pid),
+			"__meta_process_cwd":    "",
+			"__meta_process_exe":    "",
+			"__meta_process_comm":   info[k.pid].comm,
+			"__meta_process_cgroup": info[k.pid].cid,
 		})
-		base := []string{fmt.Sprint(groups[int32(k.pid)]), fmt.Sprint(k.pid), fmt.Sprint(comms[k.pid])}
+		base := []string{fmt.Sprint(info[k.pid].tgid), fmt.Sprint(k.pid), fmt.Sprint(info[k.pid].comm)}
 		trace := append(traces[k.usid], traces[k.ksid]...)
 		cb(target, lo.Reverse(append(base, trace...)), uint64(v), s, true)
 	}
