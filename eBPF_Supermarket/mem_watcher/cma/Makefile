@@ -1,32 +1,12 @@
-# Copyright 2023 The LMP Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# author: zhangziheng0525@163.com
-#
-# compile the current folder code
-
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 OUTPUT := .output
 CLANG ?= clang
-LIBBPF_SRC := $(abspath ../libbpf/src)
-BPFTOOL_SRC := $(abspath ../bpftool/src)
+LIBBPF_SRC := $(abspath ../libbpf-bootstrap/libbpf/src)
+BPFTOOL_SRC := $(abspath ../libbpf-bootstrap/bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
-LIBBLAZESYM_SRC := $(abspath ../blazesym/)
-LIBBLAZESYM_INC := $(abspath $(LIBBLAZESYM_SRC)/include)
-LIBBLAZESYM_OBJ := $(abspath $(OUTPUT)/libblazesym.a)
+
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/arm.*/arm/' \
 			 | sed 's/aarch64/arm64/' \
@@ -34,17 +14,15 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-VMLINUX := ../vmlinux/$(ARCH)/vmlinux.h
+VMLINUX := ../libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC) -I./
+INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS =cs_delay sar sc_delay preempt schedule_delay mq_delay
-TARGETS=cpu_watcher
-
+APPS = cma_monitor
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -54,7 +32,7 @@ TARGETS=cpu_watcher
 #
 # Use '-idirafter': Don't interfere with include mechanics except where the
 # build would have failed anyways.
-CLANG_BPF_SYS_INCLUDES ?= $(shell $(CLANG) -v -E - </dev/null 2>&1 \
+CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
 ifeq ($(V),1)
@@ -79,12 +57,12 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(TARGETS)
+all: $(APPS)
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS)
+	$(Q)rm -rf $(OUTPUT) $(APPS)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -103,14 +81,6 @@ $(BPFTOOL): | $(BPFTOOL_OUTPUT)
 	$(call msg,BPFTOOL,$@)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
-
-$(LIBBLAZESYM_SRC)/target/release/libblazesym.a::
-	$(Q)cd $(LIBBLAZESYM_SRC) && $(CARGO) build --release
-
-$(LIBBLAZESYM_OBJ): $(LIBBLAZESYM_SRC)/target/release/libblazesym.a | $(OUTPUT)
-	$(call msg,LIB, $@)
-	$(Q)cp $(LIBBLAZESYM_SRC)/target/release/libblazesym.a $@
-
 # Build BPF code
 $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
 	$(call msg,BPF,$@)
@@ -120,18 +90,19 @@ $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) 
 	$(Q)$(BPFTOOL) gen object $@ $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
 
 # Generate BPF skeletons
-.PHONY: $(APPS)
-$(APPS): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
+$(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
 	$(call msg,GEN-SKEL,$@)
-	$(Q)$(BPFTOOL) gen skeleton $< > $(OUTPUT)/$@.skel.h
+	$(Q)$(BPFTOOL) gen skeleton $< > $@
 
 # Build user-space code
-$(OUTPUT)/$(TARGETS).o: $(TARGETS).c $(APPS) | $(OUTPUT)
+$(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h
+
+$(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
 	$(call msg,CC,$@)
 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
 # Build application binary
-$(TARGETS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
 
@@ -140,3 +111,4 @@ $(TARGETS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
+

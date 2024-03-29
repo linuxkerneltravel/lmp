@@ -29,28 +29,54 @@
 #include "sar.skel.h"
 #include "cs_delay.skel.h"
 #include "sc_delay.skel.h"
+#include "preempt.skel.h"
+#include "schedule_delay.skel.h"
+#include "mq_delay.skel.h"
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
-static struct env {
-	int time;
-	bool enable_proc;
-	bool SAR;
-	bool CS_DELAY;
-	bool SYSCALL_DELAY;
-	int freq;
-} env = {
-	.time = 0,
-	.enable_proc = false,
-	.SAR = false,
-	.CS_DELAY = false,
-	.SYSCALL_DELAY = false,
-	.freq = 99,
+
+struct list_head {
+	struct list_head *next;
+	struct list_head *prev;
 };
+struct msg_msg {
+	struct list_head m_list;
+	long int m_type;
+	size_t m_ts;
+	struct msg_msgseg *next;
+	void *security;
+};
+
+static struct env {
+    int time;
+    bool enable_proc;
+    bool SAR;
+    bool CS_DELAY;
+    bool SYSCALL_DELAY;
+    bool PREEMPT;
+    bool SCHEDULE_DELAY;
+	bool MQ_DELAY;
+    int freq;
+} env = {
+    .time = 0,
+    .enable_proc = false,
+    .SAR = false,
+    .CS_DELAY = false,
+    .SYSCALL_DELAY = false,
+    .PREEMPT = false,
+    .SCHEDULE_DELAY = false,
+	.MQ_DELAY = false,
+    .freq = 99
+};
+
 
 struct cs_delay_bpf *cs_skel;
 struct sar_bpf *sar_skel;
 struct sc_delay_bpf *sc_skel;
+struct preempt_bpf *preempt_skel;
+struct schedule_delay_bpf *sd_skel;
+struct mq_delay_bpf *mq_skel;
 
 u64 softirq = 0;//初始化softirq;
 u64 irqtime = 0;//初始化irq;
@@ -67,6 +93,10 @@ int sc_min_time = SYSCALL_MIN_TIME ;
 int sys_call_count = 0;
 
 
+int preempt_count = 0 ;
+int sum_preemptTime = 0 ;
+int preempt_start_print = 0 ;
+
 /*设置传参*/
 const char argp_program_doc[] ="cpu wacher is in use ....\n";
 static const struct argp_option opts[] = {
@@ -74,6 +104,9 @@ static const struct argp_option opts[] = {
 	{"libbpf_sar", 's',	0,0,"print sar_info (the data of cpu)"},
 	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
 	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
+	{"preempt_time", 'p',	0,0,"print preempt_time (the data of preempt_schedule)"},
+	{"schedule_delay", 'd',	0,0,"print schedule_delay (the data of cpu)"},
+	{"mq_delay", 'm',	0,0,"print mq_delay"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
@@ -93,6 +126,15 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'S':
 			env.SYSCALL_DELAY = true;
 			break;			
+		case 'p':
+			env.PREEMPT = true;
+			break;
+		case 'd':
+			env.SCHEDULE_DELAY = true;
+			break;
+		case 'm':
+			env.MQ_DELAY = true;
+			break;
 		case 'h':
 			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 			break;
@@ -400,6 +442,57 @@ static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 		e->pid,e->comm,e->syscall_id,e->delay);
 	return 0;
 }
+//抢占时间输出
+static int preempt_print(void *ctx, void *data, unsigned long data_sz)
+{
+    const struct preempt_event *e = data;
+    printf("%-16s %-7d %-7d %-11llu\n", e->comm, e->prev_pid, e->next_pid, e->duration);
+    preempt_count++;
+    sum_preemptTime += e->duration;
+    return 0;
+}
+
+static int schedule_print(struct bpf_map *sys_fd)
+{
+    int key = 0;
+    struct sum_schedule info;
+    int err, fd = bpf_map__fd(sys_fd);
+    time_t now = time(NULL);
+    struct tm *localTime = localtime(&now);
+    int hour = localTime->tm_hour;
+    int min = localTime->tm_min;
+    int sec = localTime->tm_sec;
+    unsigned long long avg_delay;
+    
+    err = bpf_map_lookup_elem(fd, &key, &info);
+    if (err < 0) {
+        fprintf(stderr, "failed to lookup infos: %d\n", err);
+        return -1;
+    }
+    avg_delay = info.sum_delay / info.sum_count;
+    printf("%02d:%02d:%02d | %-15lf %-15lf %-15lf |\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0, info.min_delay / 1000.0);
+    return 0;
+}
+
+static int mq_event(void *ctx, void *data,unsigned long data_sz)
+{
+	time_t now = time(NULL);// 获取当前时间
+	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+	printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+	printf("-----------------------------------------------------------------------------------------------------------\n");
+	const struct mq_events *e = data;
+	printf("Mqdes: %-8llu msg_len: %-8llu msg_prio: %-8llu\n",e->mqdes,e->msg_len,e->msg_prio);
+	printf("SND_PID: %-8lu SND_enter_time: %-16llu\n",
+		e->send_pid,e->send_enter_time);
+	printf("-----------------------------------------------------------------------------------------------------------\n");
+	printf("RCV_PID: %-8lu RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
+		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
+	printf("RCV_Delay: %-8.2fms\nDelay: %-8.2fms\n\n",(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,e->delay/1000000.0);
+	
+	return 0;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -458,6 +551,31 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto cs_delay_cleanup;
 		}
+	}else if (env.PREEMPT) {
+		preempt_skel = preempt_bpf__open();
+		if (!preempt_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+
+		err = preempt_bpf__load(preempt_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto preempt_cleanup;
+		}
+
+		err = preempt_bpf__attach(preempt_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto preempt_cleanup;
+		}
+
+		rb = ring_buffer__new(bpf_map__fd(preempt_skel->maps.rb), preempt_print, NULL, NULL);
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto preempt_cleanup;
+		}
 	}else if (env.SYSCALL_DELAY){
 		/* Load and verify BPF application */
 		sc_skel = sc_delay_bpf__open();
@@ -486,6 +604,23 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto sc_delay_cleanup;		
 		}
+	}else if(env.SCHEDULE_DELAY){
+		sd_skel = schedule_delay_bpf__open();
+		if (!sd_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		err = schedule_delay_bpf__load(sd_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto schedule_cleanup;
+		}
+		err = schedule_delay_bpf__attach(sd_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto schedule_cleanup;
+		}
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs     min_delay/μs");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
@@ -516,6 +651,34 @@ int main(int argc, char **argv)
 		}
 		//printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
 		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms\n");
+	}else if(env.MQ_DELAY){
+		/* Load and verify BPF application */
+		mq_skel = mq_delay_bpf__open();
+		if (!mq_skel)
+		{
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		/* Load & verify BPF programs */
+		err = mq_delay_bpf__load(mq_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto mq_delay_cleanup;
+		}
+		/* Attach tracepoints */
+		err = mq_delay_bpf__attach(mq_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto mq_delay_cleanup;
+		}
+		rb = ring_buffer__new(bpf_map__fd(mq_skel->maps.rb), mq_event, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto mq_delay_cleanup;
+		}
 	}
 	while (!exiting) {
 		if(env.SAR){
@@ -560,8 +723,54 @@ int main(int argc, char **argv)
 			printf("----------------------------------------------------------------------------------------------------------\n");
 			sleep(1);			
 		}
+		else if (env.PREEMPT) {
+			err = ring_buffer__poll(rb, 100 /* timeout, ms */);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+			time_t now = time(NULL);
+			struct tm *localTime = localtime(&now);
+			if (!preempt_start_print) {
+				preempt_start_print = 1;
+			} else {
+				printf("----------------------------------------------------------------------------------------------------------\n");
+				printf("\nAverage_preempt_Time: %8d ns\n", sum_preemptTime / preempt_count);
+			}
+			printf("\nTime: %02d:%02d:%02d\n", localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+			printf("%-12s %-8s %-8s %11s\n", "COMM", "prev_pid", "next_pid", "duration_ns");
+			preempt_count = 0;
+			sum_preemptTime = 0;
+			sleep(2);
+		}
+		else if (env.SCHEDULE_DELAY){
+			err = schedule_print(sd_skel->maps.sys_schedule);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				break;
+			}
+			sleep(1);
+		}
+        else if(env.MQ_DELAY){
+			err = ring_buffer__poll(rb, 1000 /* timeout, s */);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+        	    printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+		}
 		else {
-			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-S	打印sc_delay:\t系统调用运行延迟进行检测; \n");
+			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n-p	打印preempt_time:\t对抢占调度时间输出;\n");
 			break;
 		}
 	}
@@ -578,5 +787,19 @@ sar_cleanup:
 sc_delay_cleanup:
 	ring_buffer__free(rb);
 	sc_delay_bpf__destroy(sc_skel);
+	return err < 0 ? -err : 0;
+
+preempt_cleanup:
+	ring_buffer__free(rb);
+	preempt_bpf__destroy(preempt_skel);
+	return err < 0 ? -err : 0;
+
+schedule_cleanup:
+	schedule_delay_bpf__destroy(sd_skel);
+	return err < 0 ? -err : 0;
+
+mq_delay_cleanup:
+	ring_buffer__free(rb);
+	mq_delay_bpf__destroy(mq_skel);
 	return err < 0 ? -err : 0;
 }
