@@ -8,9 +8,9 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied. See the License for the specific language governing
+// permissions and limitations under the License.
 //
 // author: nanshuaibo811@163.com
 //
@@ -54,7 +54,7 @@ FILE *create_temp_file(const char *filename) {
     return output;
 }
 
-const char *getName(int number, enum EventType type) {
+const char *getName(int number, enum NameType type) {
     struct NameMapping {
         int number;
         const char *name;
@@ -122,24 +122,71 @@ const char *getName(int number, enum EventType type) {
                                         {68, "TPAUSE"},
                                         {74, "BUS_LOCK"},
                                         {75, "NOTIFY"}};
+    // From include/uapi/linux/kvm.h, KVM_EXIT_xxx
+    struct NameMapping exitReasons_userspace[] = {
+        {0, "UNKNOWN"},
+        {1, "EXCEPTION"},
+        {2, "IO"},
+        {3, "HYPERCALL"},
+        {4, "DEBUG"},
+        {5, "HLT"},
+        {6, "MMIO"},
+        {7, "IRQ_WINDOW_OPEN"},
+        {8, "SHUTDOWN"},
+        {9, "FAIL_ENTRY"},
+        {10, "INTR"},
+        {11, "SET_TPR"},
+        {12, "TPR_ACCESS"},
+        {13, "S390_SIEIC"},
+        {14, "S390_RESET"},
+        {15, "DCR"},
+        {16, "NMI"},
+        {17, "INTERNAL_ERROR"},
+        {18, "OSI"},
+        {19, "PAPR_HCALL"},
+        {20, "S390_UCONTROL"},
+        {21, "WATCHDOG"},
+        {22, "S390_TSCH"},
+        {23, "EPR"},
+        {24, "SYSTEM_EVENT"},
+        {25, "S390_STSI"},
+        {26, "IOAPIC_EOI"},
+        {27, "HYPERV"},
+        {28, "ARM_NISV"},
+        {29, "X86_RDMSR"},
+        {30, "X86_WRMSR"},
+        {31, "DIRTY_RING_FULL"},
+        {32, "AP_RESET_HOLD"},
+        {33, "X86_BUS_LOCK"},
+        {34, "XEN"},
+        {35, "RISCV_SBI"},
+        {36, "RISCV_CSR"},
+        {37, "NOTIFY"},
+    };
     // 定义超级调用 include\uapi\linux\kvm_para.h
     struct NameMapping hypercalls[] = {
         {1, "VAPIC_POLL_IRQ"}, {5, "KICK_CPU"},     {9, "CLOCK_PAIRING"},
         {10, "SEND_IPI"},      {11, "SCHED_YIELD"}, {12, "MAP_GPA_RANGE"}};
+
     // 根据枚举类型选择使用哪个结构体数组进行转换
     struct NameMapping *mappings;
     int count;
     switch (type) {
-        case EXIT:
+        case EXIT_NR:
             mappings = exitReasons;
             count = sizeof(exitReasons) / sizeof(exitReasons[0]);
             break;
-        case HYPERCALL:
+        case EXIT_USERSPACE_NR:
+            mappings = exitReasons_userspace;
+            count = sizeof(exitReasons_userspace) /
+                    sizeof(exitReasons_userspace[0]);
+            break;
+        case HYPERCALL_NR:
             mappings = hypercalls;
             count = sizeof(hypercalls) / sizeof(hypercalls[0]);
             break;
         default:
-            return "Unknown";
+            return "UNKNOWN";
     }
 
     // 根据给定的编号在选择的结构体数组中搜索对应的名称
@@ -149,7 +196,7 @@ const char *getName(int number, enum EventType type) {
         }
     }
 
-    return "Unknown";  // 如果找不到对应的条目，返回一个默认值
+    return "UNKNOWN";  // 如果找不到对应的条目，返回一个默认值
 }
 
 // 检查具有给定 PID 的进程是否存在
@@ -167,12 +214,14 @@ int doesVmProcessExist(pid_t pid) {
             // 查看是否进程文件中是否出现"qemu-system"字符串
             if (strstr(proc_name, "qemu-system") != NULL) {
                 fclose(file);
-                return 1;  // VmProcess name contains the target string
+                return 1;  // VmProcess name contains the target
+                           // string
             } else {
                 fclose(file);
                 fprintf(stderr, "Process exist!but is not vmprocess: %d\n",
                         pid);
-                return 0;  // VmProcess name does not contain the target string
+                return 0;  // VmProcess name does not contain the
+                           // target string
             }
         }
         fclose(file);
@@ -296,7 +345,9 @@ int option_selected = 0;  // 功能标志变量,确保激活子功能
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
     {"vcpu_load", 'o', NULL, 0, "Monitoring the load of vcpu."},
-    {"vm_exit", 'e', NULL, 0, "Monitoring the event of vm exit."},
+    {"vm_exit", 'e', NULL, 0,
+     "Monitoring the event of vm exit(including exiting to KVM and user "
+     "mode)."},
     {"halt_poll_ns", 'n', NULL, 0,
      "Monitoring the variation in vCPU halt-polling time."},
     {"mark_page_dirty", 'd', NULL, 0,
@@ -614,7 +665,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             fprintf(output, "%-18.6f %-15s %-10d %-10d %-10s %-11llu",
                     timestamp_ms, e->process.comm, e->process.pid,
                     e->hypercall_data.vcpu_id,
-                    getName(e->hypercall_data.hc_nr, HYPERCALL),
+                    getName(e->hypercall_data.hc_nr, HYPERCALL_NR),
                     e->hypercall_data.hypercalls);
             if (e->hypercall_data.hc_nr == 5) {
                 fprintf(output, "apic_id:%llu\n", e->hypercall_data.a1);
@@ -729,6 +780,10 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_entry,
                               env.execute_exit ? true : false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_arch_vcpu_ioctl_run,
+                              env.execute_exit ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_kvm_userspace_exit,
+                              env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
                               env.execute_halt_poll_ns ? true : false);
     bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,
@@ -805,7 +860,7 @@ int print_hc_map(struct kvm_watcher_bpf *skel) {
             return -1;
         }
         printf("%-12d %-12d %-12s %-12d %-12lld\n", next_key.pid,
-               next_key.vcpu_id, getName(next_key.nr, HYPERCALL),
+               next_key.vcpu_id, getName(next_key.nr, HYPERCALL_NR),
                hc_value.counts, hc_value.hypercalls);
         // // Move to the next key
         lookup_key = next_key;
@@ -831,9 +886,7 @@ int print_hc_map(struct kvm_watcher_bpf *skel) {
     return 0;
 }
 // In order to sort vm_exit maps
-int sort_by_key(struct kvm_watcher_bpf *skel, struct exit_key *keys,
-                struct exit_value *values) {
-    int fd = bpf_map__fd(skel->maps.exit_map);
+int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
     int err = 0;
     struct exit_key lookup_key = {};
     struct exit_key next_key = {};
@@ -875,24 +928,32 @@ int sort_by_key(struct kvm_watcher_bpf *skel, struct exit_key *keys,
     }
     return count;
 }
-int print_exit_map(struct kvm_watcher_bpf *skel) {
-    int fd = bpf_map__fd(skel->maps.exit_map);
-    int err;
+void __print_exit_map(int fd, enum NameType name_type) {
+    if (name_type == EXIT_NR) {
+        printf(
+            "============================================KVM_EXIT=============="
+            "==============================\n");
+    } else if (name_type == EXIT_USERSPACE_NR) {
+        printf(
+            "\n=======================================KVM_USERSPACE_EXIT======="
+            "================================\n");
+    } else {
+        return;
+    }
     struct exit_key lookup_key = {};
     struct exit_key next_key = {};
     int first_run = 1;
     struct exit_key keys[8192];
     struct exit_value values[8192];
-    int count = sort_by_key(skel, keys, values);
+    int count = sort_by_key(fd, keys, values);
     // Iterate over the array
     __u32 pid = 0;
     __u32 tid = 0;
     for (int i = 0; i < count; i++) {
         if (first_run) {
             first_run = 0;
-            printf("\nTIME:%s\n", getCurrentTimeFormatted());
-            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "tid",
-                   "total_time", "max_time", "min_time", "counts", "reason");
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "PID", "TID",
+                   "TOTAL_TIME", "MAX_TIME", "MIN_TIME", "COUNT", "REASON");
             printf(
                 "------------ ------------ ------------ ------------ "
                 "------------ "
@@ -912,25 +973,32 @@ int print_exit_map(struct kvm_watcher_bpf *skel) {
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                   getName(keys[i].reason, EXIT));
+                   getName(keys[i].reason, name_type));
         } else if (tid == keys[i].tid) {
             printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
                    NS_TO_MS_WITH_DECIMAL(values[i].total_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].max_time),
                    NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                   getName(keys[i].reason, EXIT));
+                   getName(keys[i].reason, name_type));
         }
     }
     // clear the maps
     memset(&lookup_key, 0, sizeof(struct exit_key));
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(fd, &next_key);
+        int err = bpf_map_delete_elem(fd, &next_key);
         if (err < 0) {
             fprintf(stderr, "failed to cleanup counters: %d\n", err);
-            return -1;
+            return;
         }
         lookup_key = next_key;
     }
+}
+int print_exit_map(struct kvm_watcher_bpf *skel) {
+    int exit_fd = bpf_map__fd(skel->maps.exit_map);
+    int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
+    printf("\nTIME:%s\n", getCurrentTimeFormatted());
+    __print_exit_map(exit_fd, EXIT_NR);
+    __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
 }
 void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
@@ -1009,13 +1077,13 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
-        err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         if (env.execute_hypercall) {
             print_map_and_check_error(print_hc_map, skel, "hypercall", err);
         }
         if (env.execute_exit) {
             print_map_and_check_error(print_exit_map, skel, "exit", err);
         }
+        err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;
