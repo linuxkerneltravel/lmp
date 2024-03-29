@@ -742,6 +742,7 @@ static int print_event_head(struct env *env) {
                    "INJECTIONS", "TYPE");
             break;
         case HYPERCALL: {
+            printf("Waiting hypercall ... \n");
             const char *filename = "hc_temp";
             FILE *output = create_temp_file(filename);
             if (!output) {
@@ -1077,13 +1078,13 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     while (!exiting) {
+        err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         if (env.execute_hypercall) {
             print_map_and_check_error(print_hc_map, skel, "hypercall", err);
         }
         if (env.execute_exit) {
             print_map_and_check_error(print_exit_map, skel, "exit", err);
         }
-        err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
             err = 0;
