@@ -40,7 +40,7 @@ static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,kfree_info = 0,addr_to_func=0; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,kfree_info = 0,addr_to_func=0,icmp_info=0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
@@ -57,6 +57,7 @@ static const struct argp_option opts[] = {
     {"net_filter",'n',0,0,"trace ipv4 packget filter "},
     {"kfree_info",'k',0,0,"trace kfree "},
     {"addr_to_func",'T',0,0,"translation addr to func and offset"},
+    {"icmptime", 'I', 0, 0, "set to trace layer time of icmp"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -97,6 +98,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'T':
         addr_to_func = 1;
+        break;
+    case 'I':
+        icmp_info = 1;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -257,7 +261,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
-    if (udp_info || net_filter || kfree_info)
+    if (udp_info || net_filter || kfree_info|| icmp_info)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->err) {
@@ -409,6 +413,22 @@ static int print_kfree(void *ctx, void *packet_info, size_t size) {
     printf("%s\n", SKB_Drop_Reason_Strings[pack_info->drop_reason]);
     return 0;
 }
+
+static int print_icmptime(void *ctx, void *packet_info, size_t size) {
+    if(!icmp_info)
+        return 0;
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN]; 
+    const struct icmptime *pack_info = packet_info;
+    unsigned int saddr = pack_info->saddr;
+    unsigned int daddr = pack_info->daddr;
+    printf("%-20s %-20s %-10lld %-10d\n",
+            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+            pack_info->icmp_tran_time,
+            pack_info->flag);    
+    return 0;
+}
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -426,6 +446,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *udp_rb = NULL;
     struct ring_buffer *netfilter_rb = NULL;
     struct ring_buffer *kfree_rb = NULL;
+    struct ring_buffer *icmp_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -458,6 +479,7 @@ int main(int argc, char **argv) {
     skel->rodata->udp_info = udp_info;
     skel->rodata->net_filter = net_filter;
     skel->rodata->kfree_info = kfree_info;
+    skel->rodata->icmp_info = icmp_info;
 
     if(addr_to_func)
         readallsym();
@@ -486,6 +508,10 @@ int main(int argc, char **argv) {
     {
         printf("%-20s %-20s %-10s %-10s %-9s %-24s %-25s\n", "saddr", "daddr","sprot", "dprot","prot","addr","reason");
     }
+    else if(icmp_info)
+    {
+        printf("%-20s %-20s %-10s %-10s\n", "saddr", "daddr","time","flag");
+    }
     else{
           printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
             "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
@@ -506,6 +532,12 @@ int main(int argc, char **argv) {
     if (!kfree_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+    icmp_rb =ring_buffer__new(bpf_map__fd(skel->maps.icmp_rb), print_icmptime, NULL, NULL);
+    if (!icmp_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(icmp)\n");
         goto cleanup;
     }
     /* Set up ring buffer polling */
@@ -540,6 +572,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(udp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(netfilter_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(kfree_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(icmp_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */
