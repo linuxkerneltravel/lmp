@@ -23,7 +23,7 @@ OffCPUStackCollector::OffCPUStackCollector()
 {
     scale.Period = 1 << 20;
     scale.Type = "OffCPUTime";
-    scale.Unit = "milliseconds";
+    scale.Unit = "nanoseconds";
 };
 
 double OffCPUStackCollector::count_value(void *data)
