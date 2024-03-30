@@ -30,4 +30,4 @@ jobs:
         run: |
           cd eBPF_Supermarket/Stack_Analyser
           make
-          sudo ./stack_analyzer on-cpu off-cpu mem io ra -t 5
+          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead -t 5
