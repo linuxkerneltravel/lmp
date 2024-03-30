@@ -85,7 +85,7 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
 StackCollector::operator std::string()
 {
     std::ostringstream oss;
-    oss << _RED"time:" << getLocalDateTime() << _RE << '\n';
+    oss << _RED "time:" << getLocalDateTime() << _RE "\n";
     oss << "Type:" << scale.Type << " Unit:" << scale.Unit << " Period:" << scale.Period << '\n';
     std::map<int32_t, std::vector<std::string>> traces;
 
@@ -94,7 +94,7 @@ StackCollector::operator std::string()
         auto D = sortedCountList();
         if (!D)
             return oss.str();
-        oss << "pid\tusid\tksid\tcount\n";
+        oss << _GREEN "pid\tusid\tksid\tcount" _RE "\n";
         uint64_t trace[MAX_STACKS], *p;
         for (auto i : *D)
         {
@@ -167,7 +167,7 @@ StackCollector::operator std::string()
 
     oss << _BLUE "traces:" _RE "\n";
     {
-        oss << "sid\ttrace\n";
+        oss << _GREEN "sid\ttrace" _RE "\n";
         for (auto i : traces)
         {
             oss << i.first << "\t";
@@ -196,7 +196,7 @@ StackCollector::operator std::string()
         {
             return oss.str();
         }
-        oss << "pid\tns pid\tcomm\ttgid\tcontainer id\n";
+        oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup" _RE "\n";
         for (uint32_t i = 0; i < count; i++)
         {
             oss << keys[i] << '\t' << vals[i].pid << '\t' << vals[i].comm << '\t' << vals[i].tgid << '\t' << vals[i].cid << '\n';
@@ -205,6 +205,6 @@ StackCollector::operator std::string()
         delete[] vals;
     }
 
-    oss << "OK\n";
+    oss << _BLUE "OK" _RE "\n";
     return oss.str();
 }

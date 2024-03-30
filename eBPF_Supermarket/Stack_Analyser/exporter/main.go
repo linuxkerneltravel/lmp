@@ -184,7 +184,7 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 		if line, err = reader.ReadString('\n'); err != nil {
 			return err
 		}
-		if line[:12] == "\033[1;35mtime:" {
+		if len(line) > 12 && line[:12] == "\033[1;35mtime:" {
 			break
 		}
 	}
