@@ -34,7 +34,6 @@ typedef struct
 typedef struct
 {
     __u64 size;
-    __u64 timestamp_ns;
     __s32 usid;
     __s32 ksid;
 } mem_info;

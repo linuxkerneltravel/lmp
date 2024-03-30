@@ -64,7 +64,7 @@ static int gen_alloc_exit2(void *ctx, u64 addr)
 {
     if (!addr)
         return 0;
-    u32 tgid = get_task_ns_tgid((struct task_struct *)bpf_get_current_task());
+    u32 tgid = bpf_get_current_pid_tgid();
     u64 *size = bpf_map_lookup_elem(&pid_size, &tgid);
     if (!size)
         return 0;
@@ -79,6 +79,8 @@ static int gen_alloc_exit2(void *ctx, u64 addr)
         bpf_map_update_elem(&psid_count_map, &apsid, &cur, BPF_NOEXIST);
     else
         __sync_fetch_and_add(&(count->bits), cur.bits);
+	if (trace_all)
+		bpf_printk("alloc exited, size = %lu, result = %lx\n", *size, addr);
     // record pid_addr-info
     piddr a = {
         .addr = addr,
@@ -90,8 +92,6 @@ static int gen_alloc_exit2(void *ctx, u64 addr)
         .usid = apsid.usid,
         .ksid = apsid.ksid,
     };
-	if (trace_all)
-		bpf_printk("alloc exited, size = %lu, result = %lx\n", info.size, addr);
     return bpf_map_update_elem(&piddr_meminfo, &a, &info, BPF_NOEXIST);
 }
 
@@ -102,8 +102,7 @@ static int gen_alloc_exit(struct pt_regs *ctx)
 
 static int gen_free_enter(const void *addr)
 {
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    u32 tgid = get_task_ns_tgid(curr);
+    u32 tgid = bpf_get_current_pid_tgid();
     piddr a = {.addr = (u64)addr, .pid = tgid, .o = 0};
     mem_info *info = bpf_map_lookup_elem(&piddr_meminfo, &a);
     if (!info)
@@ -111,8 +110,8 @@ static int gen_free_enter(const void *addr)
 
     // get allocated size
     psid apsid = {
-        .ksid = -1,
         .pid = tgid,
+		.ksid = info->ksid,
         .usid = info->usid,
     };
 
@@ -178,7 +177,7 @@ SEC("uprobe")
 int BPF_KPROBE(posix_memalign_enter, void **memptr, size_t alignment, size_t size)
 {
 	const u64 memptr64 = (u64)(size_t)memptr;
-	const u32 tgid = get_task_ns_tgid((struct task_struct *)bpf_get_current_task());
+	const u32 tgid = bpf_get_current_pid_tgid();
 	bpf_map_update_elem(&memptrs, &tgid, &memptr64, BPF_ANY);
 	return gen_alloc_enter(size);
 }
@@ -186,7 +185,7 @@ int BPF_KPROBE(posix_memalign_enter, void **memptr, size_t alignment, size_t siz
 SEC("uretprobe")
 int BPF_KRETPROBE(posix_memalign_exit)
 {
-	const u32 tgid = get_task_ns_tgid((struct task_struct *)bpf_get_current_task());
+	const u32 tgid = bpf_get_current_pid_tgid();
 	u64 *memptr64 = bpf_map_lookup_elem(&memptrs, &tgid);
 	if (!memptr64)
 		return 0;
