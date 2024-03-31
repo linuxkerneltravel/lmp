@@ -25,6 +25,7 @@
 #include "bpf/io.h"
 #include "bpf/readahead.h"
 #include "bpf/probe.h"
+#include "bpf/biostack.h"
 
 #include "sa_user.h"
 #include "clipp.h"
@@ -126,6 +127,10 @@ int main(int argc, char *argv[])
                                                                                                          { static_cast<StackCountStackCollector *>(StackCollectorList.back())->setScale(StrTmp); }) %
                                                                    "sampling at a set probe string",
                              SubOption);
+    auto BioStackOption = clipp::option("bio").call([]
+                                                  { StackCollectorList.push_back(new BioStackStackCollector()); }) %
+                            "sample the bio of calling stacks" &
+                        SubOption;
 
     auto cli = (MainOption,
                 clipp::option("-v", "--version").call([]
@@ -136,7 +141,8 @@ int main(int argc, char *argv[])
                 MemoryOption,
                 IOOption,
                 ReadaheadOption,
-                StackCountOption) %
+                StackCountOption,
+                BioStackOption) %
                "statistic call trace relate with some metrics";
 
     if (!clipp::parse(argc, argv, cli))
