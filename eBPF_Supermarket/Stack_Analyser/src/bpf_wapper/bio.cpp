@@ -12,33 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: luiyanbing@foxmail.com
+// author: GaoYixiang
 //
-// ebpf程序包装类的模板，实现接口和一些自定义方法
+// biostacks ebpf 程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/template.h"
+#include "bpf_wapper/bio.h"
+#include "trace_helpers.h"
 
-// ========== implement virtual func ==========
-
-double TemplateClass::count_value(void *data)
+double BioStackCollector::count_value(void *data)
 {
-    return *(uint32_t*)data;
+    return *(uint32_t *)data;
+}
+
+BioStackCollector::BioStackCollector()
+{
+    Scale scale = {
+        .Type = "BioStack",
+        .Unit = "Counts",
+        .Period = 1,
+    };
 };
 
-int TemplateClass::load(void)
+int BioStackCollector::load(void)
 {
+    StackProgLoadOpen();
     return 0;
 };
 
-int TemplateClass::attach(void)
+int BioStackCollector::attach(void)
 {
+    defaultAttach;
     return 0;
 };
 
-void TemplateClass::detach(void){};
+void BioStackCollector::detach(void)
+{
+    defaultDetach;
+};
 
-void TemplateClass::unload(void){};
-
-// ========== other implementations ========== 
-
-TemplateClass::TemplateClass(){};
+void BioStackCollector::unload(void)
+{
+    defaultUnload;
+};

@@ -14,37 +14,31 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// readahead ebpf程序的包装类，声明接口和一些自定义方法
+// ebpf程序包装类的模板，实现接口和一些自定义方法
 
-#ifndef _SA_READAHEAD_H__
-#define _SA_READAHEAD_H__
+#include "bpf_wapper/template.h"
 
-#include <asm/types.h>
-typedef struct
+// ========== implement virtual func ==========
+
+double TemplateClass::count_value(void *data)
 {
-    __u32 expect;
-    __u32 truth;
-} ra_tuple;
-
-#ifdef __cplusplus
-#include "readahead.skel.h"
-#include "bpf/eBPFStackCollector.h"
-
-class ReadaheadStackCollector : public StackCollector
-{
-private:
-    declareEBPF(readahead);
-
-protected:
-    virtual double count_value(void *data);
-
-public:
-    ReadaheadStackCollector();
-    virtual int load(void);
-    virtual int attach(void);
-    virtual void detach(void);
-    virtual void unload(void);
+    return *(uint32_t*)data;
 };
-#endif
 
-#endif
+int TemplateClass::load(void)
+{
+    return 0;
+};
+
+int TemplateClass::attach(void)
+{
+    return 0;
+};
+
+void TemplateClass::detach(void){};
+
+void TemplateClass::unload(void){};
+
+// ========== other implementations ========== 
+
+TemplateClass::TemplateClass(){};

@@ -16,7 +16,7 @@
 //
 // probe ebpf程序的包装类，声明接口和一些自定义方法
 
-#include "bpf/eBPFStackCollector.h"
+#include "bpf_wapper/eBPFStackCollector.h"
 #include "probe.skel.h"
 
 class StackCountStackCollector : public StackCollector

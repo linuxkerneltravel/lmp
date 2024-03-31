@@ -16,14 +16,14 @@
 //
 // off cpu ebpf程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/off_cpu.h"
+#include "bpf_wapper/off_cpu.h"
 #include "dt_symbol.h"
 
 OffCPUStackCollector::OffCPUStackCollector()
 {
     scale.Period = 1 << 20;
     scale.Type = "OffCPUTime";
-    scale.Unit = "milliseconds";
+    scale.Unit = "nanoseconds";
 };
 
 double OffCPUStackCollector::count_value(void *data)
@@ -33,7 +33,7 @@ double OffCPUStackCollector::count_value(void *data)
 
 int OffCPUStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->bss->apid = pid;);
+    StackProgLoadOpen(skel->rodata->apid = pid;);
     return 0;
 }
 

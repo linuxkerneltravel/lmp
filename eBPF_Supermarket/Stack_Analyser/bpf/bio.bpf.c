@@ -12,34 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: GaoYixiang
+// author: luiyanbing@foxmail.com
 //
-// biostacks ebpf 程序的包装类，实现接口和一些自定义方法
+// 内核态bpf程序的模板代码
 
-#include "bpf/biostack.h"
-#include "trace_helpers.h"
+#include "vmlinux.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
 
-int  BioStackStackCollector::count_value(void *data)
-{
-    return *(uint32_t *)data;
-}
+#include "sa_ebpf.h"
+#include "bpf_wapper/bio.h"
+#include "task.h"
 
-BioStackStackCollector::StackCountStackCollector()
-{
-    Scale scale = {
-        .Type = "BioStack",
-        .Unit = "Counts",
-        .Period = 1,
-    };
-};
+COMMON_MAPS(__u32);
+COMMON_VALS;
 
-
-void BioStackStackCollector::detach(void)
-{
-    defaultDetach;
-};
-
-void BioStackStackCollector::unload(void)
-{
-    defaultUnload;
-};
+const char LICENSE[] SEC("license") = "GPL";

@@ -24,6 +24,7 @@
 #define COMM_LEN 16        // 进程名最大长度
 #define MAX_STACKS 32      // 栈最大深度
 #define MAX_ENTRIES 102400 // map容量
+#define CONTAINER_ID_LEN (128)
 
 
 #define DISK_NAME_LEN	32 //disk名字最大长度
@@ -39,10 +40,19 @@ typedef struct {
     __s32 ksid, usid;
 } psid;
 
-/// @brief 进程名
 typedef struct {
-    char str[COMM_LEN];
-} comm;
+    __u32 pid;
+    __u32 tgid;
+    char cid[CONTAINER_ID_LEN];
+    char comm[COMM_LEN];
+} task_info;
+
+#define _COL_PREFIX "\033["
+#define _BLUE _COL_PREFIX "1;34m"
+#define _GREEN _COL_PREFIX "1;32m"
+#define _RED _COL_PREFIX "1;35m"
+#define _ERED _COL_PREFIX "1;31m"
+#define _RE _COL_PREFIX "0m"
 
 /// @brief 记录请求的结构体
 struct rqinfo {

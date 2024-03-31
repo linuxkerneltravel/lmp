@@ -19,17 +19,16 @@
 #include <signal.h>
 #include <iostream>
 
-#include "bpf/on_cpu.h"
-#include "bpf/off_cpu.h"
-#include "bpf/mem.h"
-#include "bpf/io.h"
-#include "bpf/readahead.h"
-#include "bpf/probe.h"
-#include "bpf/biostack.h"
+#include "bpf_wapper/on_cpu.h"
+#include "bpf_wapper/off_cpu.h"
+#include "bpf_wapper/memleak.h"
+#include "bpf_wapper/io.h"
+#include "bpf_wapper/readahead.h"
+#include "bpf_wapper/probe.h"
+#include "bpf_wapper/bio.h"
 
 #include "sa_user.h"
 #include "clipp.h"
-
 
 namespace MainConfig
 {
@@ -61,95 +60,165 @@ void endCollect(void)
 
 uint64_t IntTmp;
 std::string StrTmp;
+clipp::man_page *man_page;
 
 int main(int argc, char *argv[])
 {
-    auto MainOption = ((
-                           ((clipp::option("-p", "--pid") & clipp::value("pid of sampled process, default -1 for all", MainConfig::target_pid)) % "set pid of process to monitor") |
-                           ((clipp::option("-c", "--command") & clipp::value("to be sampled command to run, default none", MainConfig::command)) % "set command for monitoring the whole life")),
-                       (clipp::option("-d", "--delay") & clipp::value("delay time(seconds) to output, default 5", MainConfig::delay)) % "set the interval to output",
-                       (clipp::option("-t", "--timeout") & clipp::value("run time, default nearly infinite", MainConfig::run_time)) % "set the total simpling time");
+    man_page = new clipp::man_page();
+    clipp::group cli;
+    {
+        auto SubOption = (clipp::option("-u")
+                                  .call([]
+                                        { StackCollectorList.back()->kstack = false; }) %
+                              "Only sample user stacks",
+                          clipp::option("-k")
+                                  .call([]
+                                        { StackCollectorList.back()->ustack = false; }) %
+                              "Only sample kernel stacks",
+                          (clipp::option("-m") &
+                           clipp::value("max", IntTmp)
+                               .call([]
+                                     { StackCollectorList.back()->max = IntTmp; })) %
+                              "Set the max threshold of sampled value",
+                          (clipp::option("-n") &
+                           clipp::value("min", IntTmp)
+                               .call([]
+                                     { StackCollectorList.back()->min = IntTmp; })) %
+                              "Set the min threshold of sampled value\n");
 
-    auto SubOption = (clipp::option("-U", "--user-stack-only").call([]
-                                                                    { StackCollectorList.back()->kstack = false; }) %
-                          "only sample user stacks",
-                      clipp::option("-K", "--kernel-stack-only").call([]
-                                                                      { StackCollectorList.back()->ustack = false; }) %
-                          "only sample kernel stacks",
-                      (clipp::option("-m", "--max-value") & clipp::value("max threshold of sampled value", IntTmp).call([]
-                                                                                                                        { StackCollectorList.back()->max = IntTmp; })) %
-                          "set the max threshold of sampled value",
-                      (clipp::option("-n", "--min-value") & clipp::value("min threshold of sampled value", IntTmp).call([]
-                                                                                                                        { StackCollectorList.back()->min = IntTmp; })) %
-                          "set the min threshold of sampled value");
+        auto OnCpuOption = (clipp::option("on_cpu")
+                                .call([]
+                                      { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
+                            COLLECTOR_INFO("on-cpu")) &
+                           ((clipp::option("-f") &
+                             clipp::value("freq", IntTmp)
+                                 .call([]
+                                       { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
+                                             ->setScale(IntTmp); })) %
+                                "Set sampling frequency",
+                            SubOption);
 
-    auto OnCpuOption = (clipp::option("on_cpu").call([]
-                                                     { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
-                        "sample the call stacks of on-cpu processes") &
-                       (clipp::option("-F", "--frequency") & clipp::value("sampling frequency", IntTmp).call([]
-                                                                                                             { static_cast<OnCPUStackCollector *>(StackCollectorList.back())->setScale(IntTmp); }) %
-                                                                 "sampling at a set frequency",
-                        SubOption);
+        auto OffCpuOption = clipp::option("off_cpu")
+                                    .call([]
+                                          { StackCollectorList.push_back(new OffCPUStackCollector()); }) %
+                                COLLECTOR_INFO("off-cpu") &
+                            (SubOption);
 
-    auto OffCpuOption = clipp::option("off_cpu").call([]
-                                                      { StackCollectorList.push_back(new OffCPUStackCollector()); }) %
-                            "sample the call stacks of off-cpu processes" &
-                        SubOption;
+        auto MemleakOption = (clipp::option("memleak")
+                                  .call([]
+                                        { StackCollectorList.push_back(new MemleakStackCollector()); }) %
+                              COLLECTOR_INFO("memleak")) &
+                             ((clipp::option("-i") &
+                               clipp::value("interval", IntTmp)
+                                   .call([]
+                                         { static_cast<MemleakStackCollector *>(StackCollectorList.back())
+                                               ->sample_rate = IntTmp; })) %
+                                  "Set the sampling interval",
+                              clipp::option("-w")
+                                      .call([]
+                                            { static_cast<MemleakStackCollector *>(StackCollectorList.back())
+                                                  ->wa_missing_free = true; }) %
+                                  "Workaround to alleviate misjudgments when free is missing",
+                              SubOption);
 
-    auto MemoryOption = clipp::option("mem").call([]
-                                                  { StackCollectorList.push_back(new MemoryStackCollector()); }) %
-                            "sample the memory usage of call stacks" &
-                        SubOption;
+        auto IOOption = clipp::option("io")
+                                .call([]
+                                      { StackCollectorList.push_back(new IOStackCollector()); }) %
+                            COLLECTOR_INFO("io") &
+                        ((clipp::option("-M") &
+                          (clipp::option("count")
+                               .call([]
+                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
+                                           ->setScale(IOStackCollector::io_mod::COUNT); }) |
+                           clipp::option("aver")
+                               .call([]
+                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
+                                           ->setScale(IOStackCollector::io_mod::AVE); }) |
+                           clipp::option("size")
+                               .call([]
+                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
+                                           ->setScale(IOStackCollector::io_mod::SIZE); }))) %
+                             "Set the statistic mod",
+                         SubOption);
 
-    auto IOOption = clipp::option("io").call([]
-                                             { StackCollectorList.push_back(new IOStackCollector()); }) %
-                        "sample the IO data volume of call stacks" &
-                    ((clipp::option("--mod") & (clipp::option("count").call([]
-                                                                            { static_cast<IOStackCollector *>(StackCollectorList.back())->setScale(IOStackCollector::io_mod::COUNT); }) %
-                                                    "Counting the number of I/O operations" |
-                                                clipp::option("ave").call([]
-                                                                          { static_cast<IOStackCollector *>(StackCollectorList.back())->setScale(IOStackCollector::io_mod::AVE); }) %
-                                                    "Counting the ave of I/O operations" |
-                                                clipp::option("size").call([]
-                                                                           { static_cast<IOStackCollector *>(StackCollectorList.back())->setScale(IOStackCollector::io_mod::SIZE); }) %
-                                                    "Counting the size of I/O operations")) %
-                         "set the statistic mod",
-                     SubOption);
+        auto ReadaheadOption = clipp::option("readahead")
+                                       .call([]
+                                             { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
+                                   COLLECTOR_INFO("readahead") &
+                               (SubOption);
 
-    auto ReadaheadOption = clipp::option("readahead").call([]
-                                                    { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
-                               "sample the readahead hit rate of call stacks" &
-                           SubOption;
-    auto StackCountOption = clipp::option("probe").call([]
-                                                             { StackCollectorList.push_back(new StackCountStackCollector()); }) %
-                                "sample the counts of calling stacks" &
-                            (clipp::option("-S", "--String") & clipp::value("probe String", StrTmp).call([]
-                                                                                                         { static_cast<StackCountStackCollector *>(StackCollectorList.back())->setScale(StrTmp); }) %
-                                                                   "sampling at a set probe string",
-                             SubOption);
-    auto BioStackOption = clipp::option("bio").call([]
-                                                  { StackCollectorList.push_back(new BioStackStackCollector()); }) %
-                            "sample the bio of calling stacks" &
-                        SubOption;
+        auto StackCountOption = clipp::option("probe")
+                                        .call([]
+                                              { StackCollectorList.push_back(new StackCountStackCollector()); }) %
+                                    COLLECTOR_INFO("probe") &
+                                ((clipp::option("-b") &
+                                  clipp::value("probe", StrTmp)
+                                      .call([]
+                                            { static_cast<StackCountStackCollector *>(StackCollectorList.back())
+                                                  ->setScale(StrTmp); })) %
+                                     "Sampling at a set probe string",
+                                 SubOption);
 
-    auto cli = (MainOption,
-                clipp::option("-v", "--version").call([]
-                                                      { std::cout << "verion 2.0\n\n"; }) %
-                    "show version",
-                OnCpuOption,
-                OffCpuOption,
-                MemoryOption,
-                IOOption,
-                ReadaheadOption,
-                StackCountOption,
-                BioStackOption) %
-               "statistic call trace relate with some metrics";
+        auto MainOption = _GREEN "Some overall options" _RE %
+                          ((
+                               ((clipp::option("-p") &
+                                 clipp::value("pid", MainConfig::target_pid)) %
+                                "Set the pid of the process to be tracked; default is -1, which keeps track of all processes") |
+                               ((clipp::option("-c") &
+                                 clipp::value("command", MainConfig::command)) %
+                                "Set the command to be run and sampled; defaults is none")),
+                           (clipp::option("-d") &
+                            clipp::value("interval", MainConfig::delay)) %
+                               "Set the output delay time (seconds); default is 5",
+                           (clipp::option("-t") &
+                            clipp::value("duration", MainConfig::run_time)) %
+                               "Set the total sampling time; default is __INT_MAX__");
+        auto BioStackOption = clipp::option("bio")
+                                      .call([]
+                                            { StackCollectorList.push_back(new BioStackCollector()); }) %
+                                  "sample the bio of calling stacks" &
+                              SubOption;
+        auto Info = _GREEN "Information of the application" _RE %
+                    ((clipp::option("-v", "--version")
+                          .call([]
+                                { std::cout << "verion 2.0\n\n"; }) %
+                      "Show version"),
+                     (clipp::option("-h", "--help")
+                          .call([]
+                                { std::cout << *man_page << std::endl; exit(0); }) %
+                      "Show man page"));
 
+        cli = (OnCpuOption,
+               OffCpuOption,
+               MemleakOption,
+               IOOption,
+               ReadaheadOption,
+               StackCountOption,
+               BioStackOption,
+               MainOption,
+               Info);
+    }
+    {
+        auto fmt = clipp::doc_formatting{}
+                       .first_column(3)
+                       .doc_column(25)
+                       .last_column(128);
+        *man_page = clipp::make_man_page(cli, argv[0], fmt)
+                        .prepend_section("DESCRIPTION", _RED "Count the function call stack associated with some metric.\n" _RE BANNER)
+                        .append_section("LICENSE", _RED "Apache Licence 2.0" _RE);
+    }
     if (!clipp::parse(argc, argv, cli))
     {
-        std::cout << clipp::make_man_page(cli, argv[0]) << '\n';
-        return 0;
+        std::cerr << *man_page << std::endl;
+        return -1;
     }
+    if (StackCollectorList.size() == 0)
+    {
+        printf(_ERED "At least one collector needs to be added.\n" _RE);
+        return -1;
+    }
+
+    printf(BANNER "\n");
 
     uint64_t eventbuff = 1;
     int child_exec_event_fd = eventfd(0, EFD_CLOEXEC);
@@ -161,21 +230,20 @@ int main(int argc, char *argv[])
         {
         case -1:
         {
-            std::cout << "command create failed." << std::endl;
-            return -1;
+            CHECK_ERR(true, "Command create failed.");
         }
         case 0:
         {
             const auto bytes = read(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
-            CHECK_ERR(bytes < 0, "failed to read from fd %ld", bytes)
-            else CHECK_ERR(bytes != sizeof(eventbuff), "read unexpected size %ld", bytes);
+            CHECK_ERR(bytes < 0, "Failed to read from fd %ld", bytes)
+            else CHECK_ERR(bytes != sizeof(eventbuff), "Read unexpected size %ld", bytes);
             printf("child exec %s\n", MainConfig::command.c_str());
             CHECK_ERR_EXIT(execl("/bin/bash", "bash", "-c", MainConfig::command.c_str(), NULL), "failed to execute child command");
             break;
         }
         default:
         {
-            printf("create child %d\n", MainConfig::target_pid);
+            printf("Create child %d\n", MainConfig::target_pid);
             break;
         }
         }
@@ -183,31 +251,32 @@ int main(int argc, char *argv[])
 
     for (auto Item = StackCollectorList.begin(); Item != StackCollectorList.end();)
     {
+        printf(_RED "Attach %dth collecotor %s.\n" _RE, (int)(Item - StackCollectorList.begin()) + 1, (*Item)->scale.Type);
         (*Item)->pid = MainConfig::target_pid;
-        if ((*Item)->load())
-        {
+        if ((*Item)->load() || (*Item)->attach())
             goto err;
-        }
-        if ((*Item)->attach())
-        {
-            goto err;
-        }
         Item++;
         continue;
     err:
-        fprintf(stderr, "%s eBPF prog err\n", (*Item)->scale.Type);
+        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scale.Type);
         (*Item)->detach();
         (*Item)->unload();
         Item = StackCollectorList.erase(Item);
     }
 
+    if (StackCollectorList.size() == 0)
+    {
+        fprintf(stderr, _ERED "No collecter to run.\n" _RE);
+        return -1;
+    }
+
     if (MainConfig::command.length())
     {
-        printf("wake up child\n");
+        printf(_GREEN "Wake up child.\n" _RE);
         write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
     }
 
-    // printf("display mode: %d\n", MainConfig::d_mode);
+    atexit(endCollect);
 
     for (; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay)
     {
@@ -219,6 +288,4 @@ int main(int argc, char *argv[])
             Item->attach();
         }
     }
-
-    atexit(endCollect);
 }

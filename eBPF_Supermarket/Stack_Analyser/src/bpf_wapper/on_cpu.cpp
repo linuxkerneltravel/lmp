@@ -16,7 +16,7 @@
 //
 // on cpu ebpf程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/on_cpu.h"
+#include "bpf_wapper/on_cpu.h"
 #include <sys/syscall.h>
 #include <linux/perf_event.h>
 
@@ -63,7 +63,7 @@ int OnCPUStackCollector::load(void)
     unsigned long *load_a;
     fscanf(fp, "%p", &load_a);
     pclose(fp);
-    StackProgLoadOpen(skel->bss->load_a = load_a;);
+    StackProgLoadOpen(skel->rodata->load_a = load_a;);
 
     return 0;
 };
