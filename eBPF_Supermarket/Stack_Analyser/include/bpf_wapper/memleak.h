@@ -62,7 +62,7 @@ public:
     bool percpu = false;
     __u64 sample_rate = 1;
     bool wa_missing_free = false;
-    bool trace_all = false;
+
 
 protected:
     virtual double count_value(void *d);

@@ -22,8 +22,8 @@
 #include <asm/types.h>
 typedef struct
 {
-    __u64 size : 40;
-    __u64 count : 24;
+    __u64 size;
+    __u64 count;
 } io_tuple;
 
 #ifdef __cplusplus

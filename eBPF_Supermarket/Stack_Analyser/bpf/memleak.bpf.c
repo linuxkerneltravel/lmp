@@ -40,7 +40,7 @@ const char LICENSE[] SEC("license") = "GPL";
 
 static int gen_alloc_enter(size_t size)
 {
-    if (size <= min || size > max)
+    if (!size)
         return 0;
 	if (sample_rate > 1) {
 		if (bpf_ktime_get_ns() % sample_rate != 0)

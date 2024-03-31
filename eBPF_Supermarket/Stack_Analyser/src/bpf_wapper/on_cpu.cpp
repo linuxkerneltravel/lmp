@@ -58,12 +58,7 @@ double OnCPUStackCollector::count_value(void *data)
 
 int OnCPUStackCollector::load(void)
 {
-    FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
-    CHECK_ERR(!fp, "Failed to draw flame graph");
-    unsigned long *load_a;
-    fscanf(fp, "%p", &load_a);
-    pclose(fp);
-    StackProgLoadOpen(skel->rodata->load_a = load_a;);
+    StackProgLoadOpen();
 
     return 0;
 };

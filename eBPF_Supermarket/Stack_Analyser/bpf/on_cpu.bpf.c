@@ -29,22 +29,13 @@ const char LICENSE[] SEC("license") = "GPL";
 COMMON_MAPS(u32);
 COMMON_VALS;
 unsigned long *const volatile load_a = NULL;
+const volatile unsigned long load_threshold = 0;
 
 SEC("perf_event") // 挂载点为perf_event
 int do_stack(void *ctx)
 {
-    if (load_a != NULL)
-    {
-        unsigned long load;
-        bpf_core_read(&load, sizeof(unsigned long), load_a); // load为文件中读出的地址，则该地址开始读取unsigned long大小字节的数据保存到load
-        load >>= 11;                                         // load右移11
-        bpf_printk("%lu %lu", load, min);                    // 输出load 以及min
-        if (load < min || load > max)
-            return 0;
-    }
-    // record data
     struct task_struct *curr = (void *)bpf_get_current_task(); // curr指向当前进程的tsk
-    RET_IF_KERN(curr);                                       // 忽略内核线程
+    RET_IF_KERN(curr);                                         // 忽略内核线程
     u32 pid = BPF_CORE_READ(curr, pid);                        // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
     if (!pid || pid == self_pid)
         return 0;

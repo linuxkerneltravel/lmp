@@ -70,8 +70,6 @@
 #define COMMON_VALS                           \
     const volatile bool trace_user = false;   \
     const volatile bool trace_kernel = false; \
-    const volatile __u64 min = 0;             \
-    const volatile __u64 max = 0;             \
     const volatile int self_pid = 0;
 
 #define SAVE_TASK_INFO(_pid, _task)                                    \

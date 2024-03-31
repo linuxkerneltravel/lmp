@@ -109,16 +109,12 @@ int MemleakStackCollector::attach_uprobes(struct memleak_bpf *skel)
 int MemleakStackCollector::load(void)
 {
     StackProgLoadOpen(
-        if (pid < 0) {
-            ustack = false;
-            kstack = true;
+        if (kstack) {
             if (!has_kernel_node_tracepoints())
                 disable_kernel_node_tracepoints(skel);
             if (!percpu)
                 disable_kernel_percpu_tracepoints(skel);
         } else {
-            ustack = true;
-            kstack = false;
             disable_kernel_tracepoints(skel);
         };
         skel->rodata->sample_rate = sample_rate;

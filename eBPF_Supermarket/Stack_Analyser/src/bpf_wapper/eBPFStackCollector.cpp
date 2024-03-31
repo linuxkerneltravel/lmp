@@ -172,9 +172,7 @@ StackCollector::operator std::string()
         {
             oss << i.first << "\t";
             for (auto s : i.second)
-            {
                 oss << s << ';';
-            }
             oss << "\n";
         }
     }
@@ -190,17 +188,24 @@ StackCollector::operator std::string()
         auto vals = new task_info[MAX_ENTRIES];
         uint32_t count = MAX_ENTRIES;
         uint32_t next_key;
-        int err = bpf_map_lookup_batch(info_fd, NULL, &next_key, keys, vals,
-                                       &count, NULL);
-        if (err == EFAULT)
         {
-            return oss.str();
+            int err;
+            if (showDelta)
+                err = bpf_map_lookup_and_delete_batch(info_fd, NULL, &next_key,
+                                                      keys, vals, &count, NULL);
+            else
+                err = bpf_map_lookup_batch(info_fd, NULL, &next_key,
+                                           keys, vals, &count, NULL);
+            if (err == EFAULT)
+                return oss.str();
         }
         oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup" _RE "\n";
         for (uint32_t i = 0; i < count; i++)
-        {
-            oss << keys[i] << '\t' << vals[i].pid << '\t' << vals[i].comm << '\t' << vals[i].tgid << '\t' << vals[i].cid << '\n';
-        }
+            oss << keys[i] << '\t'
+                << vals[i].pid << '\t'
+                << vals[i].comm << '\t'
+                << vals[i].tgid << '\t'
+                << vals[i].cid << '\n';
         delete[] keys;
         delete[] vals;
     }

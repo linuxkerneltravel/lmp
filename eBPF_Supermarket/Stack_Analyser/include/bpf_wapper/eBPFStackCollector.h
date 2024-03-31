@@ -47,6 +47,7 @@ struct CountItem
 class StackCollector
 {
 protected:
+    int self_pid = -1;
     struct bpf_object *obj = NULL;
 
     // 默认显示计数的变化情况，即每次输出数据后清除计数
@@ -58,12 +59,8 @@ public:
     int pid = -1; // 用于设置ebpf程序跟踪的pid
     int err = 0;  // 用于保存错误代码
 
-    bool ustack = true; // 是否跟踪用户栈
-    bool kstack = true; // 是否跟踪内核栈
-    uint64_t min = 0;
-    uint64_t max = __UINT64_MAX__; // 设置采集指标最大值，最小值
-
-    int self_pid = -1;
+    bool ustack = false; // 是否跟踪用户栈
+    bool kstack = false; // 是否跟踪内核栈
 
 protected:
     std::vector<CountItem> *sortedCountList(void);
@@ -106,8 +103,6 @@ public:
         skel = skel->open(NULL);                       \
         CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
         __VA_ARGS__;                                   \
-        skel->rodata->min = min;                       \
-        skel->rodata->max = max;                       \
         skel->rodata->trace_user = ustack;             \
         skel->rodata->trace_kernel = kstack;           \
         skel->rodata->self_pid = self_pid;             \

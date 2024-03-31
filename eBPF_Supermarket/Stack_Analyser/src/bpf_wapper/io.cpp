@@ -46,12 +46,14 @@ void IOStackCollector::setScale(io_mod mod)
 
 IOStackCollector::IOStackCollector()
 {
+    ustack = true;
+    kstack = false;
     setScale(DataType);
 };
 
 int IOStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->rodata->apid=pid;);
+    StackProgLoadOpen(skel->rodata->target_pid = pid;);
     return 0;
 }
 

@@ -56,7 +56,7 @@ void StackCountStackCollector::setScale(std::string probe)
 
 int StackCountStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->rodata->apid = pid;);
+    StackProgLoadOpen(skel->rodata->target_pid = pid;);
     return 0;
 };
 

@@ -27,7 +27,7 @@
 COMMON_MAPS(u32);
 COMMON_VALS;
 
-const volatile int apid = 0;
+const volatile int target_pid = 0;
 BPF_HASH(start, u32, u64);                                                  //记录进程运行的起始时间
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -37,7 +37,7 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     u32 pid = BPF_CORE_READ(curr, pid);                                        //利用帮助函数获取当前进程tsk的pid
     RET_IF_KERN(curr);
-    if ((apid >= 0 && pid == apid) || (apid < 0 && pid && pid != self_pid))
+    if ((target_pid >= 0 && pid == target_pid) || (target_pid < 0 && pid && pid != self_pid))
     {
         // record curr block time
         u64 ts = bpf_ktime_get_ns();                                        //ts=当前的时间戳（ns）
@@ -52,8 +52,7 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
         return 0;
     bpf_map_delete_elem(&start, &pid);                                      //存在tsp,则删除pid对应的值
     u32 delta = (bpf_ktime_get_ns() - *tsp) >> 20;                          //delta为当前时间戳 - 原先tsp指向start表中的pid的值.代表运行时间
-
-    if ((delta <= min) || (delta > max))
+    if (!delta)
         return 0;
 
     // record data

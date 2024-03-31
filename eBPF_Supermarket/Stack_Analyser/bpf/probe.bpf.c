@@ -26,7 +26,7 @@
 
 COMMON_MAPS(u32);
 COMMON_VALS;
-const volatile int apid = 0;
+const volatile int target_pid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
 
@@ -36,7 +36,7 @@ static int handle_func(void *ctx)
     RET_IF_KERN(curr);
 
     u32 pid = get_task_ns_pid(curr); // 利用帮助函数获得当前进程的pid
-    if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
+    if ((target_pid >= 0 && pid != target_pid) || !pid || pid == self_pid)
         return 0;
 
     SAVE_TASK_INFO(pid, curr);
