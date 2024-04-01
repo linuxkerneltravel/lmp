@@ -22,7 +22,7 @@
 #include <bpf/bpf_core_read.h>
 
 #include "sa_ebpf.h"
-#include "bpf_wapper/biostacks.h"
+#include "bpf_wapper/bio.h"
 #include "task.h"
 
 COMMON_MAPS(struct internal_rqinfo);

@@ -16,7 +16,7 @@
 //
 // biostacks ebpf 程序的包装类，实现接口和一些自定义方法
 
-#include "bpf_wapper/biostacks.h"
+#include "bpf_wapper/bio.h"
 #include "trace_helpers.h"
 
 double BioStackCollector::count_value(void *d)
