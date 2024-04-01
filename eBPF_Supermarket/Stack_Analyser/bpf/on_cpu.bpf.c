@@ -28,8 +28,6 @@ const char LICENSE[] SEC("license") = "GPL";
 
 COMMON_MAPS(u32);
 COMMON_VALS;
-unsigned long *const volatile load_a = NULL;
-const volatile unsigned long load_threshold = 0;
 
 SEC("perf_event") // 挂载点为perf_event
 int do_stack(void *ctx)

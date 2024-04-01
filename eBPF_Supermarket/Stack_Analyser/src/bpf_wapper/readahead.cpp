@@ -36,26 +36,27 @@ ReadaheadStackCollector::ReadaheadStackCollector()
 
 int ReadaheadStackCollector::load(void)
 {
-    StackProgLoadOpen();
+    EBPF_LOAD_OPEN_INIT();
     return 0;
 }
 
 int ReadaheadStackCollector::attach(void)
 {
-    defaultAttach;
+    ATTACH_PROTO;
     return 0;
 }
 
 void ReadaheadStackCollector::detach(void)
 {
-    defaultDetach;
+    DETACH_PROTO;
 }
 
 void ReadaheadStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 }
 
-void ReadaheadStackCollector::activate(bool tf){
-    defaultActivateBy(tf);
+void ReadaheadStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }

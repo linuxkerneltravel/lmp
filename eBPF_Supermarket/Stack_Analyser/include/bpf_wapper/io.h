@@ -33,7 +33,7 @@ typedef struct
 class IOStackCollector : public StackCollector
 {
 private:
-    declareEBPF(io);
+    DECL_SKEL(io);
 
 public:
     enum io_mod

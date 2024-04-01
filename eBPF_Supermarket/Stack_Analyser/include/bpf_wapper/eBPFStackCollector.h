@@ -97,12 +97,12 @@ public:
     virtual void activate(bool) = 0;
 
 // 声明eBPF骨架
-#define declareEBPF(func) struct func##_bpf *skel = NULL;
+#define DECL_SKEL(func) struct func##_bpf *skel = NULL;
 
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define StackProgLoadOpen(...)                         \
+#define EBPF_LOAD_OPEN_INIT(...)                       \
     {                                                  \
         skel = skel->open(NULL);                       \
         CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
@@ -115,13 +115,13 @@ public:
         obj = skel->obj;                               \
     }
 
-#define defaultAttach                                    \
+#define ATTACH_PROTO                                     \
     {                                                    \
         err = skel->attach(skel);                        \
         CHECK_ERR(err, "Failed to attach BPF skeleton"); \
     }
 
-#define defaultDetach           \
+#define DETACH_PROTO            \
     {                           \
         if (skel)               \
         {                       \
@@ -129,7 +129,7 @@ public:
         }                       \
     }
 
-#define defaultUnload            \
+#define UNLOAD_PROTO             \
     {                            \
         if (skel)                \
         {                        \
@@ -139,7 +139,7 @@ public:
     }
 };
 
-#define defaultActivateBy(_b) \
+#define ACTIVE_SET(_b) \
     skel->bss->__active = _b;
 
 #endif

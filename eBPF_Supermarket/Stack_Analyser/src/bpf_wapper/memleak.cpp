@@ -108,7 +108,7 @@ int MemleakStackCollector::attach_uprobes(struct memleak_bpf *skel)
 
 int MemleakStackCollector::load(void)
 {
-    StackProgLoadOpen(
+    EBPF_LOAD_OPEN_INIT(
         if (kstack) {
             if (!has_kernel_node_tracepoints())
                 disable_kernel_node_tracepoints(skel);
@@ -119,8 +119,7 @@ int MemleakStackCollector::load(void)
         };
         skel->rodata->sample_rate = sample_rate;
         skel->rodata->wa_missing_free = wa_missing_free;
-        skel->rodata->page_size = sysconf(_SC_PAGE_SIZE);
-    );
+        skel->rodata->page_size = sysconf(_SC_PAGE_SIZE););
     return 0;
 };
 
@@ -135,14 +134,15 @@ int MemleakStackCollector::attach(void)
 
 void MemleakStackCollector::detach(void)
 {
-    defaultDetach;
+    DETACH_PROTO;
 };
 
 void MemleakStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 }
 
-void MemleakStackCollector::activate(bool tf){
-    defaultActivateBy(tf);
+void MemleakStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }

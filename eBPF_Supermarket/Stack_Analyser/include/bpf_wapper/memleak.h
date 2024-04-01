@@ -26,7 +26,7 @@ typedef struct
 {
     __u64 addr;
     __u32 pid;
-    __u32 o;
+    __u32 _pad;
 } piddr;
 
 /// @brief 内存分配信息，可溯源的一次内存分配

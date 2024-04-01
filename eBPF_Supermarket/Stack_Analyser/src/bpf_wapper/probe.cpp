@@ -47,16 +47,17 @@ void splitString(std::string symbol, const char split, std::vector<std::string> 
         pos = strs.find(split);
     }
 }
+
 void ProbeStackCollector::setScale(std::string probe)
 {
     this->probe = probe;
-    auto type = new std::string(probe+scale.Type);
+    auto type = new std::string(probe + scale.Type);
     scale.Type = type->c_str();
 };
 
 int ProbeStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->rodata->target_pid = pid;);
+    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
     return 0;
 };
 
@@ -127,14 +128,15 @@ int ProbeStackCollector::attach(void)
 
 void ProbeStackCollector::detach(void)
 {
-    defaultDetach;
+    DETACH_PROTO;
 };
 
 void ProbeStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 };
 
-void ProbeStackCollector::activate(bool tf){
-    defaultActivateBy(tf);
+void ProbeStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }

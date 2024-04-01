@@ -51,26 +51,27 @@ IOStackCollector::IOStackCollector()
 
 int IOStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->rodata->target_pid = pid;);
+    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
     return 0;
 }
 
 int IOStackCollector::attach(void)
 {
-    defaultAttach;
+    ATTACH_PROTO;
     return 0;
 }
 
 void IOStackCollector::detach(void)
 {
-    defaultDetach;
+    DETACH_PROTO;
 }
 
 void IOStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 }
 
-void IOStackCollector::activate(bool tf){
-    defaultActivateBy(tf);
+void IOStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }

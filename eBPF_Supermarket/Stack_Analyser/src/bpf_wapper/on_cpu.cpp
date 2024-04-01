@@ -58,7 +58,7 @@ double OnCPUStackCollector::count_value(void *data)
 
 int OnCPUStackCollector::load(void)
 {
-    StackProgLoadOpen();
+    EBPF_LOAD_OPEN_INIT();
 
     return 0;
 };
@@ -133,9 +133,10 @@ void OnCPUStackCollector::detach(void)
 
 void OnCPUStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 };
 
-void OnCPUStackCollector::activate(bool tf){
-    defaultActivateBy(tf);
+void OnCPUStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }

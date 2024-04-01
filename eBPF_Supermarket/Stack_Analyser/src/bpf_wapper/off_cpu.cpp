@@ -33,7 +33,7 @@ double OffCPUStackCollector::count_value(void *data)
 
 int OffCPUStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->rodata->target_pid = pid;);
+    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
     return 0;
 }
 
@@ -41,7 +41,7 @@ int OffCPUStackCollector::attach(void)
 {
     symbol sym;
     sym.name = "finish_task_switch";
-    if(!g_symbol_parser.complete_kernel_symbol(sym))
+    if (!g_symbol_parser.complete_kernel_symbol(sym))
     {
         return -1;
     }
@@ -49,14 +49,17 @@ int OffCPUStackCollector::attach(void)
     return 0;
 }
 
-void OffCPUStackCollector::detach(void) {
-    defaultDetach;
+void OffCPUStackCollector::detach(void)
+{
+    DETACH_PROTO;
 }
 
-void OffCPUStackCollector::unload(void) {
-    defaultUnload;
+void OffCPUStackCollector::unload(void)
+{
+    UNLOAD_PROTO;
 }
 
-void OffCPUStackCollector::activate(bool tf){
-    defaultActivateBy(tf);
+void OffCPUStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }

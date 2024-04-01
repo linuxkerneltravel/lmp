@@ -21,7 +21,7 @@
 
 // ========== C code part ==========
 
-// ========== C code end ========== 
+// ========== C code end ==========
 
 #ifdef __cplusplus
 // ========== C++ code part ==========
@@ -31,7 +31,7 @@
 class TemplateClass : public StackCollector
 {
 private:
-    declareEBPF(template);
+    DECL_SKEL(template);
 
 protected:
     virtual double count_value(void *);
@@ -42,7 +42,7 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
-	virtual void activate(bool tf);
+    virtual void activate(bool tf);
 };
 // ========== C++ code end ==========
 #endif

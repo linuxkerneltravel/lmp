@@ -22,7 +22,7 @@
 
 double TemplateClass::count_value(void *data)
 {
-    return *(uint32_t*)data;
+    return *(uint32_t *)data;
 };
 
 int TemplateClass::load(void)
@@ -39,10 +39,11 @@ void TemplateClass::detach(void){};
 
 void TemplateClass::unload(void){};
 
-void TemplateClass::activate(bool tf){
-    defaultActivateBy(tf);
+void TemplateClass::activate(bool tf)
+{
+    ACTIVE_SET(tf);
 }
 
-// ========== other implementations ========== 
+// ========== other implementations ==========
 
 TemplateClass::TemplateClass(){};

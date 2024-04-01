@@ -41,18 +41,16 @@ static int handle_func(void *ctx)
         return 0;
 
     SAVE_TASK_INFO(pid, curr);
-    psid apsid = GET_COUNT_KEY(pid, ctx);
-
-    u32 *cnt = bpf_map_lookup_elem(&psid_count_map, &apsid);
+    
+    psid a_psid = GET_COUNT_KEY(pid, ctx);
+    u32 *cnt = bpf_map_lookup_elem(&psid_count_map, &a_psid);
     if (!cnt)
     {
         u32 ONE = 1;
-        bpf_map_update_elem(&psid_count_map, &apsid, &ONE, BPF_NOEXIST);
+        bpf_map_update_elem(&psid_count_map, &a_psid, &ONE, BPF_NOEXIST);
     }
     else
-    {
         (*cnt)++;
-    }
 
     return 0;
 }
