@@ -16,7 +16,7 @@
 //
 // probe ebpf 程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/probe.h"
+#include "bpf_wapper/probe.h"
 #include "uprobe_helpers.h"
 
 double StackCountStackCollector::count_value(void *data)
@@ -56,7 +56,7 @@ void StackCountStackCollector::setScale(std::string probe)
 
 int StackCountStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->bss->apid = pid;);
+    StackProgLoadOpen(skel->rodata->target_pid = pid;);
     return 0;
 };
 
