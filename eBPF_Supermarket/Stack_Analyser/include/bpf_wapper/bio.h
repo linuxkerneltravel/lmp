@@ -30,13 +30,13 @@ struct internal_rqinfo
 
 #ifdef __cplusplus
 // ========== C++ code part ==========
-#include "biostacks.skel.h"
+#include "bio.skel.h"
 #include "bpf_wapper/eBPFStackCollector.h"
 
 class BioStackCollector : public StackCollector
 {
 private:
-    declareEBPF(biostacks);
+    declareEBPF(bio);
 
 protected:
     virtual double count_value(void *);
