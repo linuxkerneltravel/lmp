@@ -1,6 +1,6 @@
 # kvm_exit
 
-考虑到频繁的虚拟机退出事件可能会导致性能问题，kvm_watcher中的kvm_exit子功能通过显示详细的退出原因和在一台主机上运行的所有vm的每个虚拟机的vcpu上的退出计数及处理时延，可以捕获和分析vm exit事件，该工具旨在定位频繁退出的原因（如EPT_VIOLATION、EPT_MISCONFIG、PML_FULL等）。
+考虑到频繁的虚拟机退出事件可能会导致性能问题，kvm_watcher中的kvm_exit子功能通过显示详细的退出原因和在一台主机上运行的所有vm的每个虚拟机的vcpu上的退出计数及处理时延，可以捕获和分析vm exit事件，该工具旨在定位频繁退出的原因（如EPT_VIOLATION、EPT_MISCONFIG、PML_FULL等）,在vm exit基础上，如果kvm这个时候因为某些原因，需要退出到用户态的hypervisor(比如qemu)，kvm就要设置KVM_EXIT_XXX，此工具包含了这两部分exit reason。
 
 ## 原理介绍
 
@@ -30,14 +30,18 @@
 
 ![VM entry 与 VM exit](https://ctf-wiki.org/pwn/virtualization/basic-knowledge/figure/vm-entry-and-exit.png)
 
+### kvm_exit与kvm_userspace_exit
 
+[vm exit和userspace exit](https://blog.csdn.net/weixin_46324627/article/details/136325212?spm=1001.2014.3001.5501)
 
 ## 挂载点
 
-| 类型       | 名称      |
-| ---------- | --------- |
-| tracepoint | kvm_exit  |
-| tracepoint | kvm_entry |
+| 类型       | 名称                    |
+| ---------- | ----------------------- |
+| tracepoint | kvm_exit                |
+| tracepoint | kvm_entry               |
+| fentry     | kvm_arch_vcpu_ioctl_run |
+| tracepoint | kvm_userspace_exit      |
 
 ## 示例输出
 
@@ -99,3 +103,4 @@ pid          tid          total_time   max_time     min_time     counts       re
 - **VM Exit 延时分析**：统计每次 VM Exit 处理的最大、最小和总共延时，为性能分析提供量化数据。
 - **VM Exit 次数计数**：计算每种类型的 VM Exit 发生的次数，帮助识别最频繁的性能瓶颈。
 - **PID、TID号**：其中PID为主机侧的虚拟机进程号，TID为虚拟机内部的vcpu**的进程号**
+  

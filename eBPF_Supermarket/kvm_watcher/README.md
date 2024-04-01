@@ -31,14 +31,13 @@
 **安装依赖：**
 
 ```
-sudo apt install clang libelf1 libelf-dev zlib1g-dev libbpf-dev linux-tools-$(uname -r) linux-cloud-tools-$(uname -r)
-sudo modprobe kvm && sudo modprobe kvm-intel //加载kvm模块
+make deps
 ```
+
 
 **编译运行：**
 
 ```
-make deps
 make bpf
 sudo ./kvm_watcher [options]
 make clean
@@ -56,7 +55,8 @@ BPF program used for monitoring KVM event
   -c, --kvm_irqchip          Monitor the irqchip setting information in KVM
                              VM.
   -d, --mark_page_dirty      Monitor virtual machine dirty page information.
-  -e, --vm_exit              Monitoring the event of vm exit.
+  -e, --vm_exit              Monitoring the event of vm exit(including exiting
+                             to KVM and user mode).
   -f, --kvmmmu_page_fault    Monitoring the data of kvmmmu page fault.
   -h, --hypercall            Monitor the hypercall information in KVM VM 
   -i, --irq_inject           Monitor the virq injection information in KVM VM 
@@ -93,6 +93,8 @@ BPF program used for monitoring KVM event
 
 `-w`：记录vcpu唤醒时的相关信息
 
+`-l`：记录kvm相关ioctl系统调用命令字
+
 `-p`：指定kvm虚拟机进程pid
 
 `-t`：监控时间
@@ -114,9 +116,6 @@ BPF program used for monitoring KVM event
 │   ├── kvm_mmu.h
 │   ├── kvm_vcpu.h
 │   └── kvm_watcher.h           //公共头文件
-├── kvm_exit_bcc                //bcc版本的vm exit实现
-│   ├── kvmexit_example.txt
-│   └── kvmexit.py
 ├── Makefile                    //编译脚本
 ├── README.md
 ├── src                         
@@ -147,7 +146,7 @@ graph TD;
   要运行测试，请执行以下命令：
 
   ```
-  make test
+  make deps test
   ```
 
   这将自动执行上述测试流程，并在结束后提供测试结果。

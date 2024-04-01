@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "dropreason.h"
 
 static volatile bool exiting = false;
 
@@ -39,7 +40,7 @@ static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,kfree_info = 0,addr_to_func=0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 
@@ -54,6 +55,8 @@ static const struct argp_option opts[] = {
     {"dport", 'd', "DPORT", 0, "trace this destination port only"},
     {"udp", 'u', 0, 0, "trace the udp message"},
     {"net_filter",'n',0,0,"trace ipv4 packget filter "},
+    {"kfree_info",'k',0,0,"trace kfree "},
+    {"addr_to_func",'T',0,0,"translation addr to func and offset"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -89,6 +92,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'n':
         net_filter = 1;
         break;
+    case 'k':
+        kfree_info = 1;
+        break;
+    case 'T':
+        addr_to_func = 1;
+        break;
     default:
         return ARGP_ERR_UNKNOWN;
     }
@@ -100,6 +109,54 @@ static const struct argp argp = {
     .parser = parse_arg,
     .doc = argp_program_doc,
 };
+
+struct SymbolEntry{
+    unsigned long addr;
+    char name[30];
+};
+struct SymbolEntry symbols[300000];
+int num_symbols = 0;
+struct SymbolEntry findfunc(unsigned long int addr)
+{
+    int low = 0, high = num_symbols - 1;
+    int result = -1;
+
+    while (low <= high) {
+        int mid = low + (high - low) / 2;
+        if (symbols[mid].addr < addr) {
+            result = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return symbols[result];
+};
+void readallsym()
+{
+    FILE *file = fopen("/proc/kallsyms", "r");
+    if (!file) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        unsigned long addr;
+        char type, name[30];
+        int ret = sscanf(line, "%lx %c %s", &addr, &type, name);
+        if (ret == 3) {       
+            symbols[num_symbols].addr = addr;
+            strncpy(symbols[num_symbols].name, name, 30);
+            num_symbols++;
+        }
+    }
+
+    fclose(file);
+}
+
+//数组存储获取到的全部时延
+// unsigned long delays[MAX_LAYERS] = {}
 
 static void sig_handler(int signo) { exiting = true; }
 
@@ -204,7 +261,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
-    if (udp_info || net_filter)
+    if (udp_info || net_filter || kfree_info)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->err) {
@@ -284,8 +341,6 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if(udp_info)
-    {
     printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d\n",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -297,12 +352,12 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
             pack_info->dport, pack_info->tran_time,pack_info->rx,pack_info->len);
-    //fseek(file, 0, SEEK_END); //指针移动到文件头部
-    }
+    
     
     fclose(file);
     return 0;
 }
+
 static int print_netfilter(void *ctx, void *packet_info, size_t size) {
     if(!net_filter)
         return 0;
@@ -311,17 +366,52 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
     const struct netfilter *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if(net_filter)
-    {
-    printf("%-20s %-20s %-20u %-20u %-20llu %-20llu  %-20llu  %-20llu %-20d\n",
-           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-           pack_info->sport,pack_info->dport,pack_info->local_input_time,pack_info->pre_routing_time,pack_info->local_out_time,
-           pack_info->post_routing_time,pack_info->flag);
-    }
+    printf("%-20s %-20s %-20d %-20d %-20lld %-20lld %-20lld  %-20lld %-20d\n",
+            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+            pack_info->sport,pack_info->dport,pack_info->local_input_time,pack_info->pre_routing_time,pack_info->local_out_time,
+            pack_info->post_routing_time,pack_info->rx);
+
     return 0;
 }
 
+static int print_kfree(void *ctx, void *packet_info, size_t size) {
+    if(!kfree_info)
+        return 0;
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN]; 
+    const struct reasonissue *pack_info = packet_info;
+    unsigned int saddr = pack_info->saddr;
+    unsigned int daddr = pack_info->daddr;
+    if(saddr == 0 && daddr ==0 )
+    {
+        return 0;
+    }
+    char prot[6];
+    if(pack_info->protocol==2048)
+    {
+        strcpy(prot, "ipv4");
+    }
+    else if(pack_info->protocol==34525)
+    {
+        strcpy(prot, "ipv6");
+    }
+    else {
+        // 其他协议
+        strcpy(prot, "other");
+    }
+    printf("%-20s %-20s %-10u %-10u %-10s", 
+    inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,pack_info->dport,prot);
+    if(!addr_to_func)
+        printf("%-20lx",pack_info->location);
+    else {
+        struct SymbolEntry data= findfunc(pack_info->location);
+        printf("%s+0x%-10lx",data.name,pack_info->location-data.addr);
+    }
+    printf("%s\n", SKB_Drop_Reason_Strings[pack_info->drop_reason]);
+    return 0;
+}
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -338,6 +428,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *rb = NULL;
     struct ring_buffer *udp_rb = NULL;
     struct ring_buffer *netfilter_rb = NULL;
+    struct ring_buffer *kfree_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -369,6 +460,10 @@ int main(int argc, char **argv) {
     skel->rodata->retrans_info = retrans_info;
     skel->rodata->udp_info = udp_info;
     skel->rodata->net_filter = net_filter;
+    skel->rodata->kfree_info = kfree_info;
+
+    if(addr_to_func)
+        readallsym();
 
     err = netwatcher_bpf__load(skel);
     if (err) {
@@ -390,9 +485,13 @@ int main(int argc, char **argv) {
     {
         printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr","dprot", "sprot","local_input","pre_routing","local_out","post_routing","flag");
     }
+    else if(kfree_info)
+    {
+        printf("%-20s %-20s %-10s %-10s %-9s %-24s %-25s\n", "saddr", "daddr","sprot", "dprot","prot","addr","reason");
+    }
     else{
           printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n", "SOCK", "SEQ",
-               "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
+            "ACK", "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
     }
     udp_rb =ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
     if (!udp_rb) {
@@ -402,6 +501,12 @@ int main(int argc, char **argv) {
     }
     netfilter_rb =ring_buffer__new(bpf_map__fd(skel->maps.netfilter_rb), print_netfilter, NULL, NULL);
     if (!netfilter_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+    kfree_rb =ring_buffer__new(bpf_map__fd(skel->maps.kfree_rb), print_kfree, NULL, NULL);
+    if (!kfree_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
@@ -437,6 +542,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(udp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(netfilter_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(kfree_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

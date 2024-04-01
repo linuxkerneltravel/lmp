@@ -22,6 +22,8 @@
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
 
+#define PAGE_SHIFT 12
+
 #define NS_TO_US_FACTOR 1000.0
 #define NS_TO_MS_FACTOR 1000000.0
 
@@ -30,7 +32,7 @@
 
 #define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
+#define OPTIONS_LIST "-w, -d, -f, -c, -i, -l , -o , -h or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -66,9 +68,6 @@
         }                                         \
     } while (0)
 
-// 定义清屏宏
-#define CLEAR_SCREEN() printf("\033[2J\033[H\n")
-
 #define RING_BUFFER_TIMEOUT_MS 100
 
 #define RESERVE_RINGBUF_ENTRY(rb, e)                             \
@@ -79,10 +78,9 @@
         e = _tmp;                                                \
     } while (0)
 
-#define CHECK_PID(vm_pid)                         \
-    __u32 pid = bpf_get_current_pid_tgid() >> 32; \
-    if ((vm_pid) > 0 && pid != (vm_pid)) {        \
-        return 0;                                 \
+#define CHECK_PID(vm_pid)                                                 \
+    if ((vm_pid) > 0 && (bpf_get_current_pid_tgid() >> 32) != (vm_pid)) { \
+        return 0;                                                         \
     }
 
 struct reason_info {
@@ -146,6 +144,13 @@ enum EventType {
     HYPERCALL,
     IOCTL,
 } event_type;
+
+enum NameType {
+    UNKNOWN_NAME_TYPE,
+    HYPERCALL_NR,
+    EXIT_NR,
+    EXIT_USERSPACE_NR,
+} name_type;
 
 struct common_event {
     struct process process;
