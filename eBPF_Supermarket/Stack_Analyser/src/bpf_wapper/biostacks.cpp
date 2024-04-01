@@ -16,26 +16,30 @@
 //
 // biostacks ebpf 程序的包装类，实现接口和一些自定义方法
 
-#include "bpf_wapper/bio.h"
+#include "bpf_wapper/biostacks.h"
 #include "trace_helpers.h"
 
-double BioStackCollector::count_value(void *data)
+double BioStackCollector::count_value(void *d)
 {
-    return *(uint32_t *)data;
+   auto data = (struct internal_rqinfo *)d;
+    return data->rqinfo.dev;
 }
 
 BioStackCollector::BioStackCollector()
 {
     Scale scale = {
         .Type = "BioStack",
-        .Unit = "Counts",
+        .Unit = "id",
         .Period = 1,
     };
 };
 
 int BioStackCollector::load(void)
 {
-    StackProgLoadOpen();
+    StackProgLoadOpen(skel->rodata->apid = pid;);
+    scale.Type = "BioStacks";
+    scale.Unit = "id";
+    scale.Period = 1;
     return 0;
 };
 

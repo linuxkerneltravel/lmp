@@ -12,26 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: luiyanbing@foxmail.com
+// author: GaoYiXiang
 //
 // ebpf程序的包装类的模板，声明接口和一些自定义方法，以及辅助结构
 
 #ifndef _SA_BIO_H__
 #define _SA_BIO_H__
-
+#include <asm/types.h>
+#include <sa_common.h>
 // ========== C code part ==========
-
+struct internal_rqinfo
+{
+    __u64 start_ts;
+    struct rqinfo rqinfo;
+};
 // ========== C code end ========== 
 
 #ifdef __cplusplus
 // ========== C++ code part ==========
-#include "bio.skel.h"
+#include "biostacks.skel.h"
 #include "bpf_wapper/eBPFStackCollector.h"
 
 class BioStackCollector : public StackCollector
 {
 private:
-    declareEBPF(bio);
+    declareEBPF(biostacks);
 
 protected:
     virtual double count_value(void *);

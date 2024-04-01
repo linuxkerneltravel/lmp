@@ -28,7 +28,6 @@
 
 
 #define DISK_NAME_LEN	32 //disk名字最大长度
-#define MAX_SLOTS	20    //槽数
 #define MINORBITS	20
 #define MINORMASK	((1U << MINORBITS) - 1)
 
@@ -61,11 +60,6 @@ struct rqinfo {
 	__u64 kern_stack[MAX_STACKS];
 	char comm[COMM_LEN];
 	__u32 dev;
-};
-
-/// @brief 存储各个槽位
-struct hist {
-	__u32 slots[MAX_SLOTS];
 };
 
 
