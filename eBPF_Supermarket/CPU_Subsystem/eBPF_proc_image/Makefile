@@ -37,14 +37,14 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(LIBBLAZESYM_INC) -I./include -I./hashmap.c
+INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(LIBBLAZESYM_INC) -I./include
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = resource_image lock_image syscall_image keytime_image schedule_image
 TARGETS = proc_image
 
-HASHMAP = ./hashmap.c/hashmap
+HASHMAP = ./include/hashmap
 COMMON_OBJ = \
 	$(OUTPUT)/hashmap.o \
 
