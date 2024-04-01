@@ -64,21 +64,21 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
             }
             
             bpf_map_update_elem(&proc_syscall, &pid, &syscall_seq, BPF_ANY);
-        }else if(syscall_seq->count < syscalls){
+        }else{
             syscall_seq->enter_time = current_time;
-
-            if(syscall_seq->count <= MAX_SYSCALL_COUNT-1 && syscall_seq->count > 0 && 
-                syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+(MAX_SYSCALL_COUNT-1)){
-                    // eBPF 的验证器存在问题，两个判断语句中间必须加一行操作代码才可通过验证器运行
-                    int count = syscall_seq->count;
-                    if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || 
-                       (target_tgid!=-1 && tgid == target_tgid)){
-                        syscall_seq->record_syscall[count] = (int)args->id;
-                    }
-                    syscall_seq->count ++;
+            if(syscall_seq->count == 0){
+                if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || (target_tgid!=-1 && tgid == target_tgid)){
+                    syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
+                }
+                syscall_seq->count ++;
+            }else if (syscall_seq->count <= MAX_SYSCALL_COUNT-1 && syscall_seq->count > 0 && 
+                      syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+(MAX_SYSCALL_COUNT-1)){
+                if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || 
+                    (target_tgid!=-1 && tgid == target_tgid)){
+                    syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
+                }
+                syscall_seq->count ++;
             }
-
-            bpf_map_update_elem(&proc_syscall, &pid, syscall_seq, BPF_ANY);
         }
     }
 

@@ -410,7 +410,7 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
     int sec = localTime->tm_sec;
 
 	if(prev_image != SYSCALL_IMAGE){
-        printf("SYSCALL -------------------------------------------------------------------------------------------------\n");
+        printf("SYSCALL ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 		printf("%-8s  ","TIME");
 		if(env.tgid != -1)	printf("%-6s  ","TGID");
         printf("%-6s  %-14s  %-14s  %-14s  %-103s  %-8s\n",
@@ -432,6 +432,7 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 	if(!env.enable_hashmap){
 		map = hashmap_new(sizeof(struct syscall_hash), 0, 0, 0, 
 						  user_hash, user_compare, NULL, NULL);
+		env.enable_hashmap = true;
 	}
 
 	if((env.pid==-1 && env.tgid==-1) || e->pid==env.pid || e->tgid==env.tgid){

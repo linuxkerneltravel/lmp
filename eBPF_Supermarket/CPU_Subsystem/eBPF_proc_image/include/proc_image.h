@@ -58,8 +58,8 @@ struct syscall_seq{
 	long long unsigned int proc_sd;
 	long long unsigned int max_delay;
 	long long unsigned int min_delay;
-	int count;
-	int proc_count;
+	unsigned int count;
+	unsigned int proc_count;
 	int record_syscall[MAX_SYSCALL_COUNT];
 };
 
