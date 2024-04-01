@@ -17,10 +17,11 @@
 // eBPF map for libbpf sar
 #include <asm/types.h>
 #include <linux/version.h>
-//#include <unordered_map>
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
+typedef __kernel_mqd_t	mqd_t;
+#define __user
 #define MAX_CPU_NR	128
 #define TASK_COMM_LEN 20
 #define SYSCALL_MIN_TIME 1E7
@@ -141,6 +142,49 @@ struct sum_schedule{
 	unsigned long long sum_delay;
 	unsigned long long max_delay;
 	unsigned long long min_delay;
+};
+
+/*----------------------------------------------*/
+/*         mq_delay相关结构体                     */
+/*----------------------------------------------*/
+struct mq_events {
+    int send_pid;
+    int rcv_pid;
+    mqd_t mqdes;
+        size_t msg_len;
+        unsigned int msg_prio;
+        
+        u64 send_enter_time;
+        u64 send_exit_time;
+        u64 send_delay;
+
+        u64 rcv_enter_time;
+        u64 rcv_exit_time;
+        u64 rcv_delay;
+        u64 delay;
+};
+struct send_events {
+    int send_pid;
+    u64 Key_msg_ptr;
+    
+    mqd_t mqdes;
+        size_t msg_len;
+        unsigned int msg_prio;
+        const char *u_msg_ptr;
+        const void  *src;
+        u64 send_enter_time;
+        u64 send_exit_time;
+};
+struct rcv_events {
+    int rcv_pid;
+    u64 Key_msg_ptr;
+    mqd_t mqdes;
+        size_t msg_len;
+        unsigned int msg_prio; 
+        const char *u_msg_ptr;
+        const void  *dest;
+        u64 rcv_enter_time;
+        u64 rcv_exit_time;
 };
 /*----------------------------------------------*/
 /*          cswch_args结构体                     */
