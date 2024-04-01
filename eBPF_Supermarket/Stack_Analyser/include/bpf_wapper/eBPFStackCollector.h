@@ -92,6 +92,10 @@ public:
     /// @param  无
     virtual void unload(void) = 0;
 
+    /// @brief 激活eBPF程序
+    /// @param  无
+    virtual void activate(bool) = 0;
+
 // 声明eBPF骨架
 #define declareEBPF(func) struct func##_bpf *skel = NULL;
 
@@ -134,5 +138,8 @@ public:
         skel = NULL;             \
     }
 };
+
+#define defaultActivateBy(_b) \
+    skel->bss->__active = _b;
 
 #endif

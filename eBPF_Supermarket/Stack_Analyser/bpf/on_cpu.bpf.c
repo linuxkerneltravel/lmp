@@ -34,6 +34,7 @@ const volatile unsigned long load_threshold = 0;
 SEC("perf_event") // 挂载点为perf_event
 int do_stack(void *ctx)
 {
+    CHECK_ACTIVE;
     struct task_struct *curr = (void *)bpf_get_current_task(); // curr指向当前进程的tsk
     RET_IF_KERN(curr);                                         // 忽略内核线程
     u32 pid = BPF_CORE_READ(curr, pid);                        // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid

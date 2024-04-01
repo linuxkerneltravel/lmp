@@ -142,3 +142,7 @@ void MemleakStackCollector::unload(void)
 {
     defaultUnload;
 }
+
+void MemleakStackCollector::activate(bool tf){
+    defaultActivateBy(tf);
+}

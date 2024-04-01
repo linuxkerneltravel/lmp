@@ -56,3 +56,7 @@ void OffCPUStackCollector::detach(void) {
 void OffCPUStackCollector::unload(void) {
     defaultUnload;
 }
+
+void OffCPUStackCollector::activate(bool tf){
+    defaultActivateBy(tf);
+}

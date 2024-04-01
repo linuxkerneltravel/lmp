@@ -72,3 +72,7 @@ void IOStackCollector::unload(void)
 {
     defaultUnload;
 }
+
+void IOStackCollector::activate(bool tf){
+    defaultActivateBy(tf);
+}

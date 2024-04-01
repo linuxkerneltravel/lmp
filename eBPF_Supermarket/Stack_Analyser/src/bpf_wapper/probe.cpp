@@ -19,12 +19,12 @@
 #include "bpf_wapper/probe.h"
 #include "uprobe_helpers.h"
 
-double StackCountStackCollector::count_value(void *data)
+double ProbeStackCollector::count_value(void *data)
 {
     return *(uint32_t *)data;
 }
 
-StackCountStackCollector::StackCountStackCollector()
+ProbeStackCollector::ProbeStackCollector()
 {
     scale = {
         .Type = "StackCounts",
@@ -47,20 +47,20 @@ void splitString(std::string symbol, const char split, std::vector<std::string> 
         pos = strs.find(split);
     }
 }
-void StackCountStackCollector::setScale(std::string probe)
+void ProbeStackCollector::setScale(std::string probe)
 {
     this->probe = probe;
     auto type = new std::string(probe+scale.Type);
     scale.Type = type->c_str();
 };
 
-int StackCountStackCollector::load(void)
+int ProbeStackCollector::load(void)
 {
     StackProgLoadOpen(skel->rodata->target_pid = pid;);
     return 0;
 };
 
-int StackCountStackCollector::attach(void)
+int ProbeStackCollector::attach(void)
 {
     std::vector<std::string> strList;
     splitString(probe, ':', strList);
@@ -125,12 +125,16 @@ int StackCountStackCollector::attach(void)
     return 0;
 };
 
-void StackCountStackCollector::detach(void)
+void ProbeStackCollector::detach(void)
 {
     defaultDetach;
 };
 
-void StackCountStackCollector::unload(void)
+void ProbeStackCollector::unload(void)
 {
     defaultUnload;
 };
+
+void ProbeStackCollector::activate(bool tf){
+    defaultActivateBy(tf);
+}

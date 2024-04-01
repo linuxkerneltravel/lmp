@@ -31,7 +31,7 @@
 class TemplateClass : public StackCollector
 {
 private:
-    declareEBPF(template_bpf);
+    declareEBPF(template);
 
 protected:
     virtual double count_value(void *);
@@ -42,6 +42,7 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+	virtual void activate(bool tf);
 };
 // ========== C++ code end ==========
 #endif

@@ -135,3 +135,7 @@ void OnCPUStackCollector::unload(void)
 {
     defaultUnload;
 };
+
+void OnCPUStackCollector::activate(bool tf){
+    defaultActivateBy(tf);
+}

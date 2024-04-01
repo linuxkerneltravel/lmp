@@ -75,6 +75,7 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+	virtual void activate(bool tf);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架

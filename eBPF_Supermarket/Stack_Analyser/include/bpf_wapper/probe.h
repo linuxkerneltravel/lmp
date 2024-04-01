@@ -19,7 +19,7 @@
 #include "bpf_wapper/eBPFStackCollector.h"
 #include "probe.skel.h"
 
-class StackCountStackCollector : public StackCollector
+class ProbeStackCollector : public StackCollector
 {
 private:
     struct probe_bpf *skel = __null;
@@ -32,9 +32,10 @@ protected:
 
 public:
     void setScale(std::string probe);
-    StackCountStackCollector();
+    ProbeStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+	virtual void activate(bool tf);
 };

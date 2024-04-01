@@ -48,6 +48,7 @@ void endCollect(void)
     signal(SIGINT, SIG_IGN);
     for (auto Item : StackCollectorList)
     {
+        Item->activate(false);
         if (MainConfig::run_time > 0)
         {
             std::cout << std::string(*Item) << std::endl;
@@ -89,13 +90,6 @@ int main(int argc, char *argv[])
                                        { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
                                              ->setScale(IntTmp); })) %
                                 "Set sampling frequency",
-                            // 设置触发条件
-                            // (clipp::option("-l") &
-                            //  clipp::value("load avg", IntTmp)
-                            //      .call([]
-                            //            { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
-                            //                  ->threshold = IntTmp; })) %
-                            //     "When load average come to the set val, start sampling.",
                             TraceOption);
 
         auto OffCpuOption = clipp::option("off_cpu")
@@ -148,12 +142,12 @@ int main(int argc, char *argv[])
 
         auto StackCountOption = clipp::option("probe")
                                         .call([]
-                                              { StackCollectorList.push_back(new StackCountStackCollector()); }) %
+                                              { StackCollectorList.push_back(new ProbeStackCollector()); }) %
                                     COLLECTOR_INFO("probe") &
                                 ((clipp::option("-b") &
                                   clipp::value("probe", StrTmp)
                                       .call([]
-                                            { static_cast<StackCountStackCollector *>(StackCollectorList.back())
+                                            { static_cast<ProbeStackCollector *>(StackCollectorList.back())
                                                   ->setScale(StrTmp); })) %
                                      "Sampling at a set probe string",
                                  TraceOption);
@@ -177,8 +171,7 @@ int main(int argc, char *argv[])
                               clipp::required("memory").set(MainConfig::trigger) |
                               clipp::required("io").set(MainConfig::trigger)) &
                              clipp::value("event", MainConfig::trig_event))) %
-                               "Set a trigger for monitoring. For example, "
-                               _ERED "-T cpu \"some 150000 100000\" " _RE
+                               "Set a trigger for monitoring. For example, " _ERED "-T cpu \"some 150000 100000\" " _RE
                                "means triggers when cpu partial stall "
                                "with 1s tracking window size * and 150ms threshold.");
 
@@ -257,12 +250,13 @@ int main(int argc, char *argv[])
         fprintf(stderr, _RED "Attach %dth collecotor %s.\n" _RE,
                 (int)(Item - StackCollectorList.begin()) + 1, (*Item)->scale.Type);
         (*Item)->pid = MainConfig::target_pid;
-        if ((*Item)->load())
+        if ((*Item)->load() || (*Item)->attach())
             goto err;
         Item++;
         continue;
     err:
         fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scale.Type);
+        (*Item)->detach();
         (*Item)->unload();
         Item = StackCollectorList.erase(Item);
     }
@@ -302,40 +296,13 @@ int main(int argc, char *argv[])
             CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
             if (fds.revents & POLLPRI)
                 fprintf(stderr, _RED "Event triggered!\n" _RE);
-        }
+        } // 引入了阻塞，时间系统待修复
         for (auto Item : StackCollectorList)
         {
-            Item->attach();
+            Item->activate(true);
             sleep(MainConfig::delay);
-            Item->detach();
+            Item->activate(false);
             std::cout << std::string(*Item);
         }
     }
-}
-
-void load_trigger(void)
-{
-    // unsigned long *load_a = NULL;
-    // unsigned long threshold = 0;
-
-    // if (load_a)
-    // {
-    //     FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
-    //     CHECK_ERR(!fp, "Failed to draw flame graph");
-    //     fscanf(fp, "%p", &load_a);
-    //     pclose(fp);
-    // }
-
-    // skel->rodata->load_a = load_a;
-
-    // if (load_a != NULL)
-    // {
-    //     unsigned long load;
-    //     bpf_core_read(&load, sizeof(unsigned long), load_a); // load为文件中读出的地址，则该地址开始读取unsigned long大小字节的数据保存到load
-    //     load >>= 11;                                         // load右移11
-    //     bpf_printk("%lu %lu", load, min);                    // 输出load 以及min
-    //     if (load < load_threshold)
-    //         return 0;
-    // }
-    // record data
 }

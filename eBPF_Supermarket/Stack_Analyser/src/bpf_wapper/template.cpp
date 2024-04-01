@@ -39,6 +39,10 @@ void TemplateClass::detach(void){};
 
 void TemplateClass::unload(void){};
 
+void TemplateClass::activate(bool tf){
+    defaultActivateBy(tf);
+}
+
 // ========== other implementations ========== 
 
 TemplateClass::TemplateClass(){};

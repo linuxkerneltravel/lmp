@@ -44,6 +44,7 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+	virtual void activate(bool tf);
 };
 #endif
 

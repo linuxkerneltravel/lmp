@@ -38,6 +38,7 @@ BPF_HASH(page_psid_map, struct page *, psid);
 SEC("fentry/page_cache_ra_unbounded") // fentry在内核函数page_cache_ra_unbounded进入时触发的挂载点
 int BPF_PROG(page_cache_ra_unbounded)
 {
+	CHECK_ACTIVE;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
     RET_IF_KERN(curr);
     u32 pid = get_task_ns_pid(curr); // 获取当前进程tgid，用户空间的pid即是tgid
@@ -61,6 +62,7 @@ int BPF_PROG(page_cache_ra_unbounded)
 SEC("fexit/alloc_pages") // fexit在内核函数alloc_pages退出时触发，挂载点为alloc_pages
 int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
 {
+	CHECK_ACTIVE;
     u32 pid = bpf_get_current_pid_tgid() >> 32; // pid为当前进程的pid
 
     if ((target_pid >= 0 && pid != target_pid) || !pid)
@@ -87,6 +89,7 @@ int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
 SEC("fexit/page_cache_ra_unbounded")
 int BPF_PROG(page_cache_ra_unbounded_ret) // fexit在内核函数page_cache_ra_unbounded退出时触发的挂载点
 {
+	CHECK_ACTIVE;
     u32 pid = bpf_get_current_pid_tgid() >> 32; // 获取当前进程的pid
 
     if ((target_pid >= 0 && pid != target_pid) || !pid)
@@ -99,6 +102,7 @@ int BPF_PROG(page_cache_ra_unbounded_ret) // fexit在内核函数page_cache_ra_u
 SEC("fentry/mark_page_accessed") // fentry在内核函数/mark_page_accessed进入时触发的挂载点，用于标记页面（page）已经被访问
 int BPF_PROG(mark_page_accessed, u64 page)
 {
+	CHECK_ACTIVE;
     u32 pid = bpf_get_current_pid_tgid() >> 32; // 获取当前进程的pid
 
     if ((target_pid >= 0 && pid != target_pid) || !pid)

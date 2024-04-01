@@ -35,6 +35,7 @@ const char LICENSE[] SEC("license") = "GPL";
 SEC("kprobe/finish_task_switch")                                     //动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
+    CHECK_ACTIVE;
     u32 pid = BPF_CORE_READ(curr, pid);                                        //利用帮助函数获取当前进程tsk的pid
     RET_IF_KERN(curr);
     if ((target_pid >= 0 && pid == target_pid) || (target_pid < 0 && pid && pid != self_pid))

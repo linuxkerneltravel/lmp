@@ -55,3 +55,7 @@ void ReadaheadStackCollector::unload(void)
 {
     defaultUnload;
 }
+
+void ReadaheadStackCollector::activate(bool tf){
+    defaultActivateBy(tf);
+}
