@@ -45,6 +45,13 @@ struct {
 } pthread_create_enable SEC(".maps");
 
 struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 10240);
+	__type(key, pid_t);
+	__type(value, unsigned int);
+} proc_state SEC(".maps");
+
+struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries,256 * 10240);
 } keytime_rb SEC(".maps");
@@ -214,7 +221,7 @@ int tracepoint__syscalls__sys_exit_clone3(struct trace_event_raw_sys_exit* ctx)
     pid_t current = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid && (current==target_pid || current==-1)){
+    if(tgid!=ignore_tgid && (current==target_pid || target_pid==-1)){
         // 判断是否是pthread_create函数触发的clone3系统调用
         bool *pthread_create_flag;
         pthread_create_flag = bpf_map_lookup_elem(&pthread_create_enable, &current);
@@ -283,6 +290,149 @@ int tracepoint__syscalls__sys_enter_exit(struct trace_event_raw_sys_enter* ctx)
 
         // 记录 pthread_create 新线程的退出时间，并输出
         child_exit(&child,&keytime_rb);
+    }
+
+    return 0;
+}
+
+// 记录进程 onCPU 和 offCPU 的相关信息
+SEC("kprobe/finish_task_switch.isra.0")
+int kprobe__finish_task_switch(struct pt_regs *ctx)
+{
+    struct task_struct *prev = (struct task_struct *)PT_REGS_PARM1(ctx);
+	pid_t prev_pid = BPF_CORE_READ(prev,pid);
+	int prev_tgid = BPF_CORE_READ(prev,tgid);
+	struct task_struct *next = (struct task_struct *)bpf_get_current_task();
+	pid_t next_pid = BPF_CORE_READ(next,pid);
+	int next_tgid = BPF_CORE_READ(next,tgid);
+	
+	// 记录 prev 进程的 offCPU 信息
+    if(prev_tgid!=ignore_tgid && prev_pid!=0 && (prev_pid==target_pid || target_pid==-1)){
+        unsigned int * old_state;
+        unsigned int new_state = BPF_CORE_READ(prev,__state);
+        struct keytime_event* event;
+
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        old_state = bpf_map_lookup_elem(&proc_state, &prev_pid);
+        if(old_state){
+            event->info_count = 2;
+            event->info[0] = *old_state;
+            event->info[1] = new_state;
+            bpf_map_update_elem(&proc_state, &prev_pid, &new_state, BPF_ANY);
+        } else {
+            event->info_count = 1;
+            event->info[0] = new_state;
+            bpf_map_update_elem(&proc_state, &prev_pid, &new_state, BPF_ANY);
+        }
+        event->type = 11;
+        event->pid = prev_pid;
+        event->enable_char_info = false;
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    // 记录 next 进程的 onCPU 信息
+    if(next_tgid!=ignore_tgid && next_pid!=0 && (next_pid==target_pid || target_pid==-1)){
+        unsigned int * old_state;
+        unsigned int new_state = BPF_CORE_READ(next,__state);
+        struct keytime_event* event;
+
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        old_state = bpf_map_lookup_elem(&proc_state, &next_pid);
+        if(old_state){
+            event->info_count = 2;
+            event->info[0] = *old_state;
+            event->info[1] = new_state;
+            bpf_map_update_elem(&proc_state, &next_pid, &new_state, BPF_ANY);
+        } else {
+            event->info_count = 1;
+            event->info[0] = new_state;
+            bpf_map_update_elem(&proc_state, &next_pid, &new_state, BPF_ANY);
+        }
+        event->type = 10;
+        event->pid = next_pid;
+        event->enable_char_info = false;
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    return 0;
+}
+
+// 记录唤醒进程的相关信息
+SEC("tp_btf/sched_wakeup")
+int BPF_PROG(sched_wakeup, struct task_struct *p)
+{
+    pid_t cur_pid = BPF_CORE_READ(p,pid);
+	int cur_tgid = BPF_CORE_READ(p,tgid);
+
+    if(cur_tgid!=ignore_tgid && cur_pid!=0 && (cur_pid==target_pid || target_pid==-1)){
+        unsigned int * old_state;
+        unsigned int new_state = BPF_CORE_READ(p,__state);
+        struct keytime_event* event;
+
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        old_state = bpf_map_lookup_elem(&proc_state, &cur_pid);
+        if(old_state){
+            event->info_count = 2;
+            event->info[0] = *old_state;
+            event->info[1] = new_state;
+            bpf_map_update_elem(&proc_state, &cur_pid, &new_state, BPF_ANY);
+        } else {
+            event->info_count = 1;
+            event->info[0] = new_state;
+            bpf_map_update_elem(&proc_state, &cur_pid, &new_state, BPF_ANY);
+        }
+        event->type = 12;
+        event->pid = cur_pid;
+        event->enable_char_info = false;
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    return 0;
+}
+
+SEC("tp_btf/sched_wakeup_new")
+int BPF_PROG(sched_wakeup_new, struct task_struct *p)
+{
+    pid_t cur_pid = BPF_CORE_READ(p,pid);
+	int cur_tgid = BPF_CORE_READ(p,tgid);
+
+    if(cur_tgid!=ignore_tgid && cur_pid!=0 && (cur_pid==target_pid || target_pid==-1)){
+        unsigned int * old_state;
+        unsigned int new_state = BPF_CORE_READ(p,__state);
+        struct keytime_event* event;
+
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        old_state = bpf_map_lookup_elem(&proc_state, &cur_pid);
+        if(old_state){
+            event->info_count = 2;
+            event->info[0] = *old_state;
+            event->info[1] = new_state;
+            bpf_map_update_elem(&proc_state, &cur_pid, &new_state, BPF_ANY);
+        } else {
+            event->info_count = 1;
+            event->info[0] = new_state;
+            bpf_map_update_elem(&proc_state, &cur_pid, &new_state, BPF_ANY);
+        }
+        event->type = 12;
+        event->pid = cur_pid;
+        event->enable_char_info = false;
+
+        bpf_ringbuf_submit(event, 0);
     }
 
     return 0;

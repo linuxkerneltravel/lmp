@@ -52,10 +52,14 @@ struct total_rsc{
 //syscall_image
 struct syscall_seq{
 	int pid;
+	int tgid;
 	long long unsigned int enter_time;
 	long long unsigned int sum_delay;
+	long long unsigned int proc_sd;
 	long long unsigned int max_delay;
+	long long unsigned int min_delay;
 	int count;
+	int proc_count;
 	int record_syscall[MAX_SYSCALL_COUNT];
 };
 
@@ -93,6 +97,8 @@ struct keytime_event{
 		4代表forkP_enter；5代表forkP_exit
 		6代表vforkP_enter；7代表vforkP_exit
 		8代表createT_enter；9代表createT_exit
+		10代表onCPU；11代表offCPU
+		12代表onrq
 	*/
 	int type;
 	int pid;

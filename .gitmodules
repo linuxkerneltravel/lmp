@@ -73,3 +73,6 @@
 [submodule "MagicEyes/libbpf"]
 	path = MagicEyes/libbpf
 	url = https://github.com/libbpf/libbpf.git
+[submodule "/home/zhang/lmp/eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/hashmap.c"]
+	path = /home/zhang/lmp/eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/hashmap.c
+	url = https://github.com/tidwall/hashmap.c.git

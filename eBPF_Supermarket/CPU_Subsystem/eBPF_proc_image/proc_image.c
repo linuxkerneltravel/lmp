@@ -34,6 +34,7 @@
 #include "lock_image.skel.h"
 #include "keytime_image.skel.h"
 #include "schedule_image.skel.h"
+#include "hashmap.h"
 #include "helpers.h"
 
 static int prev_image = 0;
@@ -53,12 +54,14 @@ static struct env {
     bool enable_resource;
 	bool first_rsc;
 	int syscalls;
-	int first_syscall;
+/*	int first_syscall;
 	int second_syscall;
-	int third_syscall;
+	int third_syscall; */
 	u64 sum_delay;
 	u64 sum_count;
 	u64 max_delay;
+	u64 min_delay;
+	bool enable_hashmap;
 	bool enable_syscall;
 	bool enable_lock;
 	bool quote;
@@ -78,12 +81,14 @@ static struct env {
     .enable_resource = false,
 	.first_rsc = true,
 	.syscalls = 0,
-	.first_syscall = 0,
+/*	.first_syscall = 0,
 	.second_syscall = 0,
-	.third_syscall = 0,
+	.third_syscall = 0, */
 	.sum_delay = 0,
 	.sum_count = 0,
 	.max_delay = 0,
+	.min_delay = 0,
+	.enable_hashmap = false,
 	.enable_syscall = false,
 	.enable_lock = false,
 	.quote = false,
@@ -91,6 +96,8 @@ static struct env {
 	.enable_keytime = false,
 	.enable_schedule = false,
 };
+
+struct hashmap *map = NULL;
 
 static struct timespec prevtime;
 static struct timespec currentime;
@@ -103,9 +110,16 @@ char *keytime_type[] = {"", "exec_enter", "exec_exit",
 						    "exit", 
 						    "forkP_enter", "forkP_exit",
 						    "vforkP_enter", "vforkP_exit",
-						    "createT_enter", "createT_exit"};
+						    "createT_enter", "createT_exit",
+							"onCPU", "offCPU",
+							"onrq"};
 
-u32 syscalls[NR_syscalls] = {};
+/*
+char *task_state[] = {"TASK_RUNNING", "TASK_INTERRUPTIBLE", "TASK_UNINTERRUPTIBLE", 
+                      "", "__TASK_STOPPED", "", "", "", "__TASK_TRACED"};
+*/
+
+//u32 syscalls[NR_syscalls] = {};
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
@@ -389,7 +403,6 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct syscall_seq *e = data;
 	u64 avg_delay;
-	int tmp;
 	time_t now = time(NULL);
 	struct tm *localTime = localtime(&now);
     int hour = localTime->tm_hour;
@@ -398,61 +411,61 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 
 	if(prev_image != SYSCALL_IMAGE){
         printf("SYSCALL -------------------------------------------------------------------------------------------------\n");
-        printf("%-8s  %-6s  %-14s  %-14s  %-14s  %-13s  %-13s  %-8s\n",
-				"TIME","PID","1st/num","2nd/num","3nd/num","AVG_DELAY(ns)","MAX_DELAY(ns)","SYSCALLS");
+		printf("%-8s  ","TIME");
+		if(env.tgid != -1)	printf("%-6s  ","TGID");
+        printf("%-6s  %-14s  %-14s  %-14s  %-103s  %-8s\n",
+				"PID","1st/num","2nd/num","3nd/num","| P_AVG_DELAY(ns) S_AVG_DELAY(ns) | P_MAX_DELAY(ns) S_MAX_DELAY(ns) | P_MIN_DELAY(ns) S_MIN_DELAY(ns) |","SYSCALLS");
 
 		prev_image = SYSCALL_IMAGE;
     }
 
-	for(int i=0; i<e->count; i++){
-		syscalls[e->record_syscall[i]] ++;
-
-		if(e->record_syscall[i]==env.first_syscall || e->record_syscall[i]==env.second_syscall || e->record_syscall[i]==env.third_syscall){
-			// 将前三名进行冒泡排序
-			if(syscalls[env.third_syscall] > syscalls[env.second_syscall]){
-				tmp = env.second_syscall;
-				env.second_syscall = env.third_syscall;
-				env.third_syscall = tmp;
-			}
-			if(syscalls[env.second_syscall] > syscalls[env.first_syscall]){
-				tmp = env.first_syscall;
-				env.first_syscall = env.second_syscall;
-				env.second_syscall = tmp;
-			}
-			if(syscalls[env.third_syscall] > syscalls[env.second_syscall]){
-				tmp = env.second_syscall;
-				env.second_syscall = env.third_syscall;
-				env.third_syscall = tmp;
-			}
-		}else if(syscalls[e->record_syscall[i]] > syscalls[env.third_syscall]){
-			if(syscalls[e->record_syscall[i]] > syscalls[env.second_syscall]){
-				if(syscalls[e->record_syscall[i]] > syscalls[env.first_syscall]){
-					env.third_syscall = env.second_syscall;
-					env.second_syscall = env.first_syscall;
-					env.first_syscall = e->record_syscall[i];
-					continue;
-				}
-				env.third_syscall = env.second_syscall;
-				env.second_syscall = e->record_syscall[i];
-				continue;
-			}
-			env.third_syscall = e->record_syscall[i];
-		}
-	}
-
+	// 更新系统的系统调用信息
+	// update_syscalls(syscalls, e, &env.first_syscall, &env.second_syscall, &env.third_syscall);
 	env.sum_delay += e->sum_delay;
 	if(e->max_delay > env.max_delay)
 		env.max_delay = e->max_delay;
+	if(env.min_delay==0 || e->min_delay<env.min_delay)
+		env.min_delay = e->min_delay;
 	env.sum_count += e->count;
 	avg_delay = env.sum_delay/env.sum_count;
 
-	printf("%02d:%02d:%02d  %-6d  %-3d/%-10d  %-3d/%-10d  %-3d/%-10d  %-13lld  %-13lld  ",hour,min,sec,e->pid,
-			env.first_syscall,syscalls[env.first_syscall],env.second_syscall,syscalls[env.second_syscall],
-			env.third_syscall,syscalls[env.third_syscall],avg_delay,env.max_delay);
-	
-	for(int i=0; i<e->count; i++){
-		if(i == e->count-1)	printf("%d\n",e->record_syscall[i]);
-		else	printf("%d,",e->record_syscall[i]);
+	if(!env.enable_hashmap){
+		map = hashmap_new(sizeof(struct syscall_hash), 0, 0, 0, 
+						  user_hash, user_compare, NULL, NULL);
+	}
+
+	if((env.pid==-1 && env.tgid==-1) || e->pid==env.pid || e->tgid==env.tgid){
+		printf("%02d:%02d:%02d  ",hour,min,sec);
+		if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+		printf("%-6d  ",e->pid);
+
+		struct syscall_hash *syscall_hash = (struct syscall_hash *)hashmap_get(map,&(struct syscall_hash){.key=e->pid});
+		if(syscall_hash){
+			// 若存在，则获取syscalls数组，更新这个value
+			update_syscalls(syscall_hash->value.syscalls, e, &syscall_hash->value.first_syscall, 
+							&syscall_hash->value.second_syscall, &syscall_hash->value.third_syscall);
+			printf("%-3d/%-10d  %-3d/%-10d  %-3d/%-10d  | %-15lld %-15lld | %-15lld %-15lld | %-15lld %-15lld |  ",
+					syscall_hash->value.first_syscall,syscall_hash->value.syscalls[syscall_hash->value.first_syscall],
+					syscall_hash->value.second_syscall,syscall_hash->value.syscalls[syscall_hash->value.second_syscall],
+					syscall_hash->value.third_syscall,syscall_hash->value.syscalls[syscall_hash->value.third_syscall],
+					e->proc_sd/e->proc_count,avg_delay,e->max_delay,env.max_delay,e->min_delay,env.min_delay);
+		} else {
+			// 若不存在，则新创建一个syscalls数组，初始化为0，更新这个value，以及更新哈希表
+			struct syscall_hash syscall_hash = {};
+			syscall_hash.key = e->pid;
+			update_syscalls(syscall_hash.value.syscalls, e, &syscall_hash.value.first_syscall, &syscall_hash.value.second_syscall, &syscall_hash.value.third_syscall);
+			hashmap_set(map, &syscall_hash);
+			printf("%-3d/%-10d  %-3d/%-10d  %-3d/%-10d  | %-15lld %-15lld | %-15lld %-15lld | %-15lld %-15lld |  ",
+					syscall_hash.value.first_syscall,syscall_hash.value.syscalls[syscall_hash.value.first_syscall],
+					syscall_hash.value.second_syscall,syscall_hash.value.syscalls[syscall_hash.value.second_syscall],
+					syscall_hash.value.third_syscall,syscall_hash.value.syscalls[syscall_hash.value.third_syscall],
+					e->proc_sd/e->proc_count,avg_delay,e->max_delay,env.max_delay,e->min_delay,env.min_delay);
+		}
+		
+		for(int i=0; i<e->count; i++){
+			if(i == e->count-1)	printf("%d\n",e->record_syscall[i]);
+			else	printf("%d,",e->record_syscall[i]);
+		}
 	}
 
 	return 0;
@@ -537,11 +550,21 @@ static void print_info1(const struct keytime_event *e)
 static void print_info2(const struct keytime_event *e)
 {
 	int i=0;
-	for(int tmp=e->info_count; tmp>0 ; tmp--){
-		if(env.quote){
-			printf("\"%llu\" ",e->info[i++]);
+	if(e->type==10 || e->type==11 || e->type==12){
+		if(e->info_count == 1){
+			if(env.quote)	printf("\"-> %llu\"",e->info[0]);
+			else	printf("-> %llu",e->info[0]);
 		}else{
-			printf("%llu ",e->info[i++]);
+			if(env.quote)	printf("\"%llu -> %llu\"",e->info[0],e->info[1]);
+			else	printf("%llu -> %llu",e->info[0],e->info[1]);
+		}
+	} else {
+		for(int tmp=e->info_count; tmp>0 ; tmp--){
+			if(env.quote){
+				printf("\"%llu\" ",e->info[i++]);
+			}else{
+				printf("%llu ",e->info[i++]);
+			}
 		}
 	}
 }
@@ -705,6 +728,7 @@ int main(int argc, char **argv)
 		}
 
 		syscall_skel->rodata->target_pid = env.pid;
+		syscall_skel->rodata->target_tgid = env.tgid;
 		syscall_skel->rodata->syscalls = env.syscalls;
 		if(!env.enable_myproc)	syscall_skel->rodata->ignore_tgid = env.ignore_tgid;
 
@@ -915,6 +939,7 @@ cleanup:
 	ring_buffer__free(keytime_rb);
 	keytime_image_bpf__destroy(keytime_skel);
 	schedule_image_bpf__destroy(schedule_skel);
+	hashmap_free(map);
 
 	return err < 0 ? -err : 0;
 }
