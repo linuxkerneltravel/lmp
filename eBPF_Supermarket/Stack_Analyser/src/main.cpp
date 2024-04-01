@@ -132,7 +132,8 @@ int main(int argc, char *argv[])
                                .call([]
                                      { static_cast<IOStackCollector *>(StackCollectorList.back())
                                            ->setScale(IOStackCollector::io_mod::SIZE); }))) %
-                         "Set the statistic mod\n");
+                         "Set the statistic mod",
+                         TraceOption);
 
         auto ReadaheadOption = clipp::option("readahead")
                                        .call([]

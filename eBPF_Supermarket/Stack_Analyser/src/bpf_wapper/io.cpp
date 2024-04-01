@@ -46,8 +46,6 @@ void IOStackCollector::setScale(io_mod mod)
 
 IOStackCollector::IOStackCollector()
 {
-    ustack = true;
-    kstack = false;
     setScale(DataType);
 };
 
