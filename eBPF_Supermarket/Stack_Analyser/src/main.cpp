@@ -291,11 +291,17 @@ int main(int argc, char *argv[])
     {
         if (fds.fd >= 0)
         {
-            int n = poll(&fds, 1, -1);
-            CHECK_ERR(n < 0, "Poll error");
-            CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
-            if (fds.revents & POLLPRI)
-                fprintf(stderr, _RED "Event triggered!\n" _RE);
+            while (true)
+            {
+                int n = poll(&fds, 1, -1);
+                CHECK_ERR(n < 0, "Poll error");
+                CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
+                if (fds.revents & POLLPRI)
+                {
+                    fprintf(stderr, _RED "Event triggered!\n" _RE);
+                    break;
+                }
+            }
         } // 引入了阻塞，时间系统待修复
         for (auto Item : StackCollectorList)
         {
