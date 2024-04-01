@@ -63,9 +63,8 @@ public:
     __u64 sample_rate = 1;
     bool wa_missing_free = false;
 
-
 protected:
-    virtual double count_value(void *d);
+    virtual uint64_t *count_values(void *d);
     int attach_uprobes(struct memleak_bpf *skel);
 
 public:
@@ -75,7 +74,7 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
-	virtual void activate(bool tf);
+    virtual void activate(bool tf);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架

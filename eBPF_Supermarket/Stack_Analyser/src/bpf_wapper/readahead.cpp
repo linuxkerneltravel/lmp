@@ -18,19 +18,22 @@
 
 #include "bpf_wapper/readahead.h"
 
-double ReadaheadStackCollector::count_value(void *data)
+uint64_t *ReadaheadStackCollector::count_values(void *data)
 {
     ra_tuple *p = (ra_tuple *)data;
-    return p->expect - p->truth;
+    return new uint64_t[scale_num]{
+        p->expect - p->truth,
+        p->truth,
+    };
 };
 
 ReadaheadStackCollector::ReadaheadStackCollector()
 {
     showDelta = false;
-    scale = {
-        .Type = "UnusedReadaheadPages",
-        .Unit = "pages",
-        .Period = 1,
+    scale_num = 2;
+    scales = new Scale[scale_num]{
+        {"UnusedReadaheadPages", 1, "pages"},
+        {"UsedReadaheadPages", 1, "pages"},
     };
 };
 

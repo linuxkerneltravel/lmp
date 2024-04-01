@@ -22,7 +22,6 @@
 #include "eBPFStackCollector.h"
 #include "on_cpu.skel.h"
 
-
 #ifdef __cplusplus
 class OnCPUStackCollector : public StackCollector
 {
@@ -35,15 +34,15 @@ private:
 	unsigned long long freq = 49;
 
 protected:
-	virtual double count_value(void *);
+	virtual uint64_t *count_values(void *);
 
 public:
 	void setScale(uint64_t freq);
 	OnCPUStackCollector();
-    virtual int load(void);
-    virtual int attach(void);
-    virtual void detach(void);
-    virtual void unload(void);
+	virtual int load(void);
+	virtual int attach(void);
+	virtual void detach(void);
+	virtual void unload(void);
 	virtual void activate(bool tf);
 };
 #endif

@@ -41,7 +41,7 @@ static int handle_func(void *ctx)
         return 0;
 
     SAVE_TASK_INFO(pid, curr);
-    
+
     psid a_psid = GET_COUNT_KEY(pid, ctx);
     u32 *cnt = bpf_map_lookup_elem(&psid_count_map, &a_psid);
     if (!cnt)

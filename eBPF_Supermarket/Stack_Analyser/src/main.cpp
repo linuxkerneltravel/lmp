@@ -119,21 +119,7 @@ int main(int argc, char *argv[])
                                 .call([]
                                       { StackCollectorList.push_back(new IOStackCollector()); }) %
                             COLLECTOR_INFO("io") &
-                        ((clipp::option("-M") &
-                          (clipp::required("count")
-                               .call([]
-                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
-                                           ->setScale(IOStackCollector::io_mod::COUNT); }) |
-                           clipp::required("aver")
-                               .call([]
-                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
-                                           ->setScale(IOStackCollector::io_mod::AVE); }) |
-                           clipp::required("size")
-                               .call([]
-                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
-                                           ->setScale(IOStackCollector::io_mod::SIZE); }))) %
-                         "Set the statistic mod",
-                         TraceOption);
+                        (TraceOption);
 
         auto ReadaheadOption = clipp::option("readahead")
                                        .call([]
@@ -145,13 +131,12 @@ int main(int argc, char *argv[])
                                         .call([]
                                               { StackCollectorList.push_back(new ProbeStackCollector()); }) %
                                     COLLECTOR_INFO("probe") &
-                                ((clipp::option("-b") &
-                                  clipp::value("probe", StrTmp)
-                                      .call([]
-                                            { static_cast<ProbeStackCollector *>(StackCollectorList.back())
-                                                  ->setScale(StrTmp); })) %
-                                     "Sampling at a set probe string",
-                                 TraceOption);
+                                (clipp::value("probe", StrTmp)
+                                     .call([]
+                                           { static_cast<ProbeStackCollector *>(StackCollectorList.back())
+                                                 ->setScale(StrTmp); }) %
+                                 "Set the probe string") &
+                                (TraceOption);
 
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
@@ -249,14 +234,14 @@ int main(int argc, char *argv[])
     for (auto Item = StackCollectorList.begin(); Item != StackCollectorList.end();)
     {
         fprintf(stderr, _RED "Attach %dth collecotor %s.\n" _RE,
-                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->scale.Type);
+                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->scales->Type.c_str());
         (*Item)->pid = MainConfig::target_pid;
         if ((*Item)->load() || (*Item)->attach())
             goto err;
         Item++;
         continue;
     err:
-        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scale.Type);
+        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scales->Type.c_str());
         (*Item)->detach();
         (*Item)->unload();
         Item = StackCollectorList.erase(Item);

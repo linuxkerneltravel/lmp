@@ -34,7 +34,7 @@ private:
     DECL_SKEL(template);
 
 protected:
-    virtual double count_value(void *);
+    virtual uint64_t *count_values(void *);
 
 public:
     TemplateClass();

@@ -36,7 +36,7 @@ VMLINUX := libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
 INCLUDES := -I./include -I$(OUTPUT) -I$(BPF_SKEL) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
-CFLAGS := -g -Wall -Wno-sign-compare -fpermissive
+CFLAGS := -Og -Wall -Wno-sign-compare
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 BIN = $(patsubst src/%.cpp, %, ${wildcard src/*.cpp})

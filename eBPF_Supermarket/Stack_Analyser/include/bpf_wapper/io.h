@@ -35,25 +35,16 @@ class IOStackCollector : public StackCollector
 private:
     DECL_SKEL(io);
 
-public:
-    enum io_mod
-    {
-        COUNT,
-        SIZE,
-        AVE,
-    } DataType = COUNT;
-
 protected:
-    virtual double count_value(void *);
+    virtual uint64_t *count_values(void *);
 
 public:
-    void setScale(io_mod mod);
     IOStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
-	virtual void activate(bool tf);
+    virtual void activate(bool tf);
 };
 #endif
 

@@ -19,17 +19,18 @@
 #include "bpf_wapper/probe.h"
 #include "uprobe_helpers.h"
 
-double ProbeStackCollector::count_value(void *data)
+uint64_t *ProbeStackCollector::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 }
 
 ProbeStackCollector::ProbeStackCollector()
 {
-    scale = {
-        .Type = "StackCounts",
-        .Unit = "Counts",
-        .Period = 1,
+    scale_num = 1;
+    scales = new Scale[scale_num]{
+        {"", 1, "counts"},
     };
 };
 
@@ -51,8 +52,7 @@ void splitString(std::string symbol, const char split, std::vector<std::string> 
 void ProbeStackCollector::setScale(std::string probe)
 {
     this->probe = probe;
-    auto type = new std::string(probe + scale.Type);
-    scale.Type = type->c_str();
+    scales->Type = probe + "Counts";
 };
 
 int ProbeStackCollector::load(void)
@@ -122,7 +122,6 @@ int ProbeStackCollector::attach(void)
         printf("Type must be 'p', 't', or 'u' or too any args");
     }
 
-    scale.Type = (probe + scale.Type).c_str();
     return 0;
 };
 

@@ -36,7 +36,7 @@ private:
     DECL_SKEL(readahead);
 
 protected:
-    virtual double count_value(void *data);
+    virtual uint64_t *count_values(void *data);
 
 public:
     ReadaheadStackCollector();

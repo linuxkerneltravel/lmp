@@ -21,14 +21,17 @@
 
 OffCPUStackCollector::OffCPUStackCollector()
 {
-    scale.Period = 1 << 20;
-    scale.Type = "OffCPUTime";
-    scale.Unit = "nanoseconds";
+    scale_num = 1;
+    scales = new Scale[scale_num]{
+        {"OffCPUTime", 1 << 20, "nanoseconds"},
+    };
 };
 
-double OffCPUStackCollector::count_value(void *data)
+uint64_t *OffCPUStackCollector::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 };
 
 int OffCPUStackCollector::load(void)

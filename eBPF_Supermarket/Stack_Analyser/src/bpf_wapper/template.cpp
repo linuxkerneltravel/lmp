@@ -20,9 +20,11 @@
 
 // ========== implement virtual func ==========
 
-double TemplateClass::count_value(void *data)
+uint64_t *TemplateClass::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 };
 
 int TemplateClass::load(void)

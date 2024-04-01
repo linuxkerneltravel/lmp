@@ -18,35 +18,22 @@
 
 #include "bpf_wapper/io.h"
 
-double IOStackCollector::count_value(void *data)
+uint64_t *IOStackCollector::count_values(void *data)
 {
     io_tuple *p = (io_tuple *)data;
-    switch (DataType)
-    {
-    case AVE:
-        return 1. * p->size / p->count;
-    case SIZE:
-        return p->size;
-    case COUNT:
-        return p->count;
-    default:
-        return 0;
-    }
-};
-
-void IOStackCollector::setScale(io_mod mod)
-{
-    DataType = mod;
-    static const char *Types[] = {"IOCount", "IOSize", "AverageIOSize"};
-    static const char *Units[] = {"counts", "bytes", "bytes"};
-    scale.Type = Types[mod];
-    scale.Unit = Units[mod];
-    scale.Period = 1;
+    return new uint64_t[scale_num]{
+        p->size,
+        p->count,
+    };
 };
 
 IOStackCollector::IOStackCollector()
 {
-    setScale(DataType);
+    scale_num = 2;
+    scales = new Scale[scale_num]{
+        {"IOSize", 1, "bytes"},
+        {"IOCount", 1, "counts"},
+    };
 };
 
 int IOStackCollector::load(void)

@@ -27,16 +27,17 @@
 
 struct Scale
 {
-    const char *Type, *Unit;
+    std::string Type;
     int64_t Period;
+    std::string Unit;
 };
 
 /// @brief count类，主要是为了重载比较运算，便于自动排序
 struct CountItem
 {
     psid k;
-    double v;
-    CountItem(psid k, double v) : k(k), v(v){};
+    uint64_t *v;
+    CountItem(psid k, uint64_t *v) : k(k), v(v){};
 
     /// @brief count对象的大小取决于val的大小
     /// @param b 要比较的对象
@@ -52,9 +53,10 @@ protected:
 
     // 默认显示计数的变化情况，即每次输出数据后清除计数
     bool showDelta = true;
+    int scale_num;
 
 public:
-    Scale scale = {0};
+    Scale *scales;
 
     int pid = -1; // 用于设置ebpf程序跟踪的pid
     int err = 0;  // 用于保存错误代码
@@ -68,7 +70,7 @@ protected:
     /// @brief 将缓冲区的数据解析为特定值
     /// @param  无
     /// @return 解析出的值
-    virtual double count_value(void *data) = 0;
+    virtual uint64_t *count_values(void *data) = 0;
 
 public:
     StackCollector();

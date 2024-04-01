@@ -40,20 +40,23 @@ extern "C"
 
 OnCPUStackCollector::OnCPUStackCollector()
 {
-    setScale(freq);
+    scale_num = 1;
+    scales = new Scale[scale_num]{
+        {"OnCPUTime", (int64_t)(1e9 / freq), "nanoseconds"},
+    };
 };
 
 void OnCPUStackCollector::setScale(uint64_t freq)
 {
     this->freq = freq;
-    scale.Period = 1e9 / freq;
-    scale.Type = "OnCPUTime";
-    scale.Unit = "nanoseconds";
+    scales->Period = 1e9 / freq;
 }
 
-double OnCPUStackCollector::count_value(void *data)
+uint64_t *OnCPUStackCollector::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 };
 
 int OnCPUStackCollector::load(void)

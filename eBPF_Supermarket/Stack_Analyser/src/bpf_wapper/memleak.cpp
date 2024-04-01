@@ -20,18 +20,23 @@
 #include "trace_helpers.h"
 #include <cmath>
 
-double MemleakStackCollector::count_value(void *d)
+uint64_t *MemleakStackCollector::count_values(void *d)
 {
     auto data = (combined_alloc_info *)d;
-    return data->total_size;
+    return new uint64_t[scale_num]{
+        data->total_size,
+        data->number_of_allocs,
+    };
 }
 
 MemleakStackCollector::MemleakStackCollector()
 {
     showDelta = false;
-    scale.Period = 1;
-    scale.Type = "LeakedMomery";
-    scale.Unit = "bytes";
+    scale_num = 2;
+    scales = new Scale[scale_num]{
+        {"LeakedSize", 1, "bytes"},
+        {"LeakedCount", 1, "counts"},
+    };
 };
 
 static bool has_kernel_node_tracepoints()
