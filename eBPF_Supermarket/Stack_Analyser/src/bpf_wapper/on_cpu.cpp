@@ -16,7 +16,7 @@
 //
 // on cpu ebpf程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/on_cpu.h"
+#include "bpf_wapper/on_cpu.h"
 #include <sys/syscall.h>
 #include <linux/perf_event.h>
 
@@ -58,12 +58,7 @@ double OnCPUStackCollector::count_value(void *data)
 
 int OnCPUStackCollector::load(void)
 {
-    FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
-    CHECK_ERR(!fp, "Failed to draw flame graph");
-    unsigned long *load_a;
-    fscanf(fp, "%p", &load_a);
-    pclose(fp);
-    StackProgLoadOpen(skel->bss->load_a = load_a;);
+    StackProgLoadOpen();
 
     return 0;
 };

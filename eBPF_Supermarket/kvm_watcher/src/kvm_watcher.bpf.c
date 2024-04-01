@@ -67,7 +67,7 @@ SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
-//记录VCPU调度的信息
+// 记录VCPU调度的信息
 SEC("kprobe/vmx_vcpu_load")
 int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
     return trace_vmx_vcpu_load(vcpu, cpu, &rb, e);
@@ -163,5 +163,16 @@ int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
 
 SEC("tp/syscalls/sys_enter_ioctl")
 int tp_ioctl(struct trace_event_raw_sys_enter *args) {
+    CHECK_PID(vm_pid);
     return trace_kvm_ioctl(args);
+}
+SEC("fentry/kvm_arch_vcpu_ioctl_run")
+int BPF_PROG(fentry_kvm_arch_vcpu_ioctl_run, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_kvm_userspace_entry(vcpu);
+}
+
+SEC("tp/kvm/kvm_userspace_exit")
+int tp_kvm_userspace_exit(struct userspace_exit *ctx) {
+    return trace_kvm_userspace_exit(ctx);
 }
