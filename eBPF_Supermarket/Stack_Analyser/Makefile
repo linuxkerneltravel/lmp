@@ -36,11 +36,11 @@ VMLINUX := libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
 INCLUDES := -I./include -I$(OUTPUT) -I$(BPF_SKEL) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
-CFLAGS := -g -Wall -Wno-sign-compare
+CFLAGS := -g -Wall -Wno-sign-compare -fpermissive
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 BIN = $(patsubst src/%.cpp, %, ${wildcard src/*.cpp})
-BPF_WAPPER = $(patsubst src/bpf/%.cpp, %, ${wildcard src/bpf/*.cpp})
+BPF_WAPPER = $(patsubst src/bpf_wapper/%.cpp, %, ${wildcard src/bpf_wapper/*.cpp})
 BPF = $(patsubst bpf/%.bpf.c, %, ${wildcard bpf/*.bpf.c})
 
 TARGETS = stack_analyzer
@@ -121,7 +121,7 @@ $(BPF): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL) $(BPF_SKEL)
 	$(call msg,GEN-SKEL,$@)
 	$(Q)$(BPFTOOL) gen skeleton $< > $(BPF_SKEL)/$@.skel.h
 
-$(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)): $(OUTPUT)/%.o: src/bpf/%.cpp $(BPF)
+$(patsubst %,$(OUTPUT)/%.o,$(BPF_WAPPER)): $(OUTPUT)/%.o: src/bpf_wapper/%.cpp $(BPF)
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 

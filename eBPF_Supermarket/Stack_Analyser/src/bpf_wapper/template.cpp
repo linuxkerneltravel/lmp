@@ -16,7 +16,7 @@
 //
 // ebpf程序包装类的模板，实现接口和一些自定义方法
 
-#include "bpf/template.h"
+#include "bpf_wapper/template.h"
 
 // ========== implement virtual func ==========
 

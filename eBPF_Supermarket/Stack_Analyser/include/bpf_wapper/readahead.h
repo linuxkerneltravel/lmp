@@ -14,41 +14,32 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// io ebpf程序的包装类，声明接口和一些自定义方法
+// readahead ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef _SA_IO_H__
-#define _SA_IO_H__
+#ifndef _SA_READAHEAD_H__
+#define _SA_READAHEAD_H__
 
 #include <asm/types.h>
 typedef struct
 {
-    __u64 size : 40;
-    __u64 count : 24;
-} io_tuple;
+    __u32 expect;
+    __u32 truth;
+} ra_tuple;
 
 #ifdef __cplusplus
-#include "io.skel.h"
-#include "bpf/eBPFStackCollector.h"
+#include "readahead.skel.h"
+#include "bpf_wapper/eBPFStackCollector.h"
 
-class IOStackCollector : public StackCollector
+class ReadaheadStackCollector : public StackCollector
 {
 private:
-    declareEBPF(io);
-
-public:
-    enum io_mod
-    {
-        COUNT,
-        SIZE,
-        AVE,
-    } DataType = COUNT;
+    declareEBPF(readahead);
 
 protected:
-    virtual double count_value(void *);
+    virtual double count_value(void *data);
 
 public:
-    void setScale(io_mod mod);
-    IOStackCollector();
+    ReadaheadStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);

@@ -55,7 +55,8 @@ BPF program used for monitoring KVM event
   -c, --kvm_irqchip          Monitor the irqchip setting information in KVM
                              VM.
   -d, --mark_page_dirty      Monitor virtual machine dirty page information.
-  -e, --vm_exit              Monitoring the event of vm exit.
+  -e, --vm_exit              Monitoring the event of vm exit(including exiting
+                             to KVM and user mode).
   -f, --kvmmmu_page_fault    Monitoring the data of kvmmmu page fault.
   -h, --hypercall            Monitor the hypercall information in KVM VM 
   -i, --irq_inject           Monitor the virq injection information in KVM VM 
@@ -145,7 +146,7 @@ graph TD;
   要运行测试，请执行以下命令：
 
   ```
-  make test
+  make deps test
   ```
 
   这将自动执行上述测试流程，并在结束后提供测试结果。
