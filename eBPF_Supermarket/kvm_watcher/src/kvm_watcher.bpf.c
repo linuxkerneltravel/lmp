@@ -168,5 +168,16 @@ int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
 
 SEC("tp/syscalls/sys_enter_ioctl")
 int tp_ioctl(struct trace_event_raw_sys_enter *args) {
+    CHECK_PID(vm_pid);
     return trace_kvm_ioctl(args);
+}
+SEC("fentry/kvm_arch_vcpu_ioctl_run")
+int BPF_PROG(fentry_kvm_arch_vcpu_ioctl_run, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_kvm_userspace_entry(vcpu);
+}
+
+SEC("tp/kvm/kvm_userspace_exit")
+int tp_kvm_userspace_exit(struct userspace_exit *ctx) {
+    return trace_kvm_userspace_exit(ctx);
 }

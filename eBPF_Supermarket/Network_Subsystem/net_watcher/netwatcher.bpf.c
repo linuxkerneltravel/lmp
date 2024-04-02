@@ -49,14 +49,13 @@ struct packet_tuple {
     unsigned int len;
 };
 struct filtertime {                
-    unsigned long long ip_rcv_time; 
-    unsigned long long ip_local_deliver_time;   
-    unsigned long long ip_local_deliver_finish_time;   
-    unsigned long long ip__forward_time;    
-    unsigned long long ip_local_out_time;   
-    unsigned long long ip_output_time; 
-    unsigned long long ip_finish_output_time;    
-    unsigned long long ipv6_rcv_time;
+    u64 ip_rcv_time; 
+    u64 ip_local_deliver_time;   
+    u64 ip_local_deliver_finish_time;   
+    u64 ip__forward_time;    
+    u64 ip_local_out_time;   
+    u64 ip_output_time; 
+    u64 ip_finish_output_time;    
 
 };
 // 操作BPF映射的一个辅助函数
@@ -134,12 +133,6 @@ struct {
     __type(value, struct packet_tuple);
 } pid_UDP SEC(".maps");
 
-struct {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, MAX_CONN *MAX_PACKET);
-    __type(key, int);
-    __type(value, struct packet_tuple);
-} pid_filter SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -154,6 +147,7 @@ struct {
     __type(key, int);
     __type(value, struct packet_tuple);
 } kfree  SEC(".maps");
+
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
@@ -1009,15 +1003,19 @@ int BPF_KPROBE(tcp_sendmsg, struct sock *sk, struct msghdr *msg, size_t size) {
             return 0;
         }
         tinfo->tran_time = bpf_ktime_get_ns() / 1000;
+    }else{
+        return 0;
     }
 
     CONN_INFO_TRANSFER
 
     CONN_ADD_EXTRA_INFO
 
+
     // TX HTTP info
     if (http_info) {
-        unsigned char *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
+        
+        u8 *user_data = (u8 *)BPF_CORE_READ(msg, msg_iter.iov, iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
@@ -1254,7 +1252,8 @@ int BPF_KPROBE(tcp_enter_loss, struct sock *sk) {
 
 /**** retrans end ****/
 
-/* new */
+
+/* udp */
 
 SEC("kprobe/udp_rcv")
 int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
@@ -1279,19 +1278,18 @@ int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
 SEC("kprobe/__udp_enqueue_schedule_skb")
 int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
                struct sk_buff *skb) {
-    if (!udp_info)
+  if (!udp_info)
         return 0;
     if (skb == NULL) // 判断是否为空
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
-    u16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
     pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
     pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
     pkt_tuple.dport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    pkt_tuple.sport = __bpf_ntohs(dport);
-    pkt_tuple.tran_flag = 2;
+    pkt_tuple.sport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
+    pkt_tuple.tran_flag = UDP ;
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -1300,88 +1298,75 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,
     struct udp_message *message;
     struct udp_message *udp_message =
         bpf_map_lookup_elem(&timestamps, &pkt_tuple);
-    ;
     message = bpf_ringbuf_reserve(&udp_rb, sizeof(*message), 0);
     if (!message) {
         return 0;
     }
+    message->saddr =  pkt_tuple.saddr;
+    message->daddr =  pkt_tuple.daddr;
+    message->dport =  pkt_tuple.sport;
+    message->sport =  pkt_tuple.dport;
     message->tran_time = bpf_ktime_get_ns() / 1000 - tinfo->tran_time;
-    message->saddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
-    message->daddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
-    message->sport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
-    message->dport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    message->rx=0;//收包
+    message->rx=1;//收包
     message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
     bpf_ringbuf_submit(message, 0);
     return 0;
 }
+
 SEC("kprobe/udp_send_skb")
-int BPF_KPROBE(udp_send_skb, struct sk_buff *skb,struct flowi4 *fl4) {
-     if (!udp_info)
+int BPF_KPROBE(udp_send_skb, struct sk_buff *skb, struct flowi4 *fl4,struct inet_cork *cork) {
+    if (!udp_info)
         return 0;
     if (skb == NULL) // 判断是否为空
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
-    
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-
-    struct sock *sk = BPF_CORE_READ(skb, sk);
-
-    u16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
-    pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
-    pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
-    pkt_tuple.dport = __bpf_ntohs(dport);
-    pkt_tuple.sport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    pkt_tuple.tran_flag = UDP;
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
-                                                            &pkt_tuple, &zero);
+                                                         &pkt_tuple, &zero);
     if (tinfo == NULL) {
         return 0;
     }
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
-
-    unsigned int pid = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&pid_UDP, &pid, &pkt_tuple, BPF_ANY);
-
+   
     return 0;
 }
 SEC("kprobe/ip_send_skb")
-int BPF_KPROBE(ip_send_skb, struct net *net,struct sk_buff *skb) {
-     if (!udp_info)
+int BPF_KPROBE(ip_send_skb,struct net *net, struct sk_buff *skb) {
+    if (!udp_info)
         return 0;
     if (skb == NULL) // 判断是否为空
         return 0;
-    unsigned int pid = bpf_get_current_pid_tgid();
-    struct packet_tuple *pt = bpf_map_lookup_elem(&pid_UDP, &pid);
-    if (!pt) {
-        return 0;
-    }
-
-    struct ktime_info *tinfo, zero = {0};
+    struct iphdr *ip = skb_to_iphdr(skb);
     struct udphdr *udp = skb_to_udphdr(skb);
-    tinfo = bpf_map_lookup_elem(&timestamps, pt);
+    struct packet_tuple pkt_tuple = {0};
+    get_udp_pkt_tuple(&pkt_tuple, ip, udp);
+  //  bpf_printk("%d %d",pkt_tuple.saddr,pkt_tuple.daddr);
+    struct sock *sk = BPF_CORE_READ(skb, sk);
+    pkt_tuple.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+    pkt_tuple.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+    pkt_tuple.sport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    pkt_tuple.dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
+    pkt_tuple.tran_flag = UDP;
+    struct ktime_info *tinfo, zero = {0};
+    tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
-
-    bpf_map_update_elem(&pid_filter, &pid, &pt, BPF_ANY); 
-
     struct udp_message *message;
-    struct udp_message *udp_message =
-        bpf_map_lookup_elem(&timestamps, pt);
+    struct udp_message *udp_message =bpf_map_lookup_elem(&timestamps,&pkt_tuple);
     message = bpf_ringbuf_reserve(&udp_rb, sizeof(*message), 0);
     if (!message) {
         return 0;
     }
     message->tran_time = bpf_ktime_get_ns() / 1000 - tinfo->tran_time;
-    message->saddr = pt->saddr;
-    message->daddr = pt->daddr;
-    message->sport = pt->sport;
-    message->dport = pt->dport;
-    message->rx=1;
+    message->saddr =  pkt_tuple.saddr;
+    message->daddr =  pkt_tuple.daddr;
+    message->sport =  pkt_tuple.sport;
+    message->dport =  pkt_tuple.dport;
+    message->rx=0;//发包
     message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
     bpf_ringbuf_submit(message, 0);
     return 0;
@@ -1389,18 +1374,21 @@ int BPF_KPROBE(ip_send_skb, struct net *net,struct sk_buff *skb) {
 
 //netfilter
 SEC("kprobe/ip_rcv")
-int BPF_KPROBE(ip_rcv, struct sk_buff *skb) {
+int BPF_KPROBE(ip_rcv, struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
+	   struct net_device *orig_dev) {
+    if (!net_filter)
+        return 0;
+  //  bpf_printk("ip_rcv");
     if (skb == NULL) // 判断是否为空
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
-    unsigned int pid = bpf_get_current_pid_tgid();
+  //  bpf_printk("%d %d",pkt_tuple.saddr,pkt_tuple.daddr);
     struct filtertime *tinfo, zero = {0};
     tinfo = (struct filtertime *)bpf_map_lookup_or_try_init(&netfilter_time,
-                                                            &pid, &zero);
-    bpf_map_update_elem(&pid_filter, &pid, &pkt_tuple, BPF_ANY);                                        
+                                                            &pkt_tuple, &zero);                                     
     if (tinfo == NULL) {
         return 0;
     }
@@ -1409,11 +1397,19 @@ int BPF_KPROBE(ip_rcv, struct sk_buff *skb) {
 }
 
 SEC("kprobe/ip_local_deliver")
-int BPF_KPROBE(ip_local_deliver) {
-    unsigned int pid = bpf_get_current_pid_tgid();
-    struct filtertime *tinfo, zero = {0};
-    tinfo = (struct filtertime *)bpf_map_lookup_or_try_init(&netfilter_time,
-                                                            &pid, &zero);
+int BPF_KPROBE(ip_local_deliver,struct sk_buff *skb) {
+   // bpf_printk("ip_local_deliver");
+    if (!net_filter)
+        return 0;
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+  //  bpf_printk("%d %d",pkt_tuple.saddr,pkt_tuple.daddr);
+    struct filtertime *tinfo = NULL;
+    tinfo = (struct filtertime *)bpf_map_lookup_elem(&netfilter_time, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
@@ -1422,42 +1418,60 @@ int BPF_KPROBE(ip_local_deliver) {
 }
 
 SEC("kprobe/ip_local_deliver_finish")
-int BPF_KPROBE(ip_local_deliver_finish) {
-    unsigned int pid = bpf_get_current_pid_tgid();
-    struct packet_tuple *pkt_tuple = bpf_map_lookup_elem(&pid_filter, &pid);
-    if (!pkt_tuple) {
+int BPF_KPROBE(ip_local_deliver_finish,struct net *net, struct sock *sk, struct sk_buff *skb) {
+ //   bpf_printk("ip_local_deliver_finish");
+  if (!net_filter)
         return 0;
-    }
-    struct filtertime *tinfo, zero = {0};
-    tinfo = (struct filtertime *)bpf_map_lookup_or_try_init(&netfilter_time,
-                                                            &pid, &zero);
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+   // bpf_printk("%d %d",pkt_tuple.saddr,pkt_tuple.daddr);
+
+    struct filtertime *tinfo = NULL;
+    tinfo = (struct filtertime *)bpf_map_lookup_elem(&netfilter_time, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
-    tinfo->ip_local_deliver_finish_time = bpf_ktime_get_ns() / 1000;
+     tinfo->ip_local_deliver_finish_time = bpf_ktime_get_ns() / 1000;
 
-    struct netfilter *message;
+    struct netfilter *message; 
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if (!message) {
         return 0;
     }
-    message->saddr = pkt_tuple->saddr;
-    message->daddr =pkt_tuple->daddr;
-    message->sport =pkt_tuple->sport;
-    message->dport = pkt_tuple->dport;
+    message->saddr = pkt_tuple.daddr;
+    message->daddr = pkt_tuple.saddr;
+    message->sport =  pkt_tuple.dport;
+    message->dport  = pkt_tuple.sport;
     message->local_input_time = tinfo->ip_local_deliver_finish_time - tinfo->ip_local_deliver_time;
     message->pre_routing_time = tinfo->ip_local_deliver_time - tinfo->ip_rcv_time;
-    message->flag=1;//收包
+    message->local_out_time=0;
+    message->post_routing_time=0; 
+    message->rx=1;//收包
     bpf_ringbuf_submit(message, 0);
+   // bpf_map_delete_elem(&netfilter_time, &pkt_tuple);
     return 0;
+   
 }
 
 SEC("kprobe/ip_local_out")
-int BPF_KPROBE(ip_local_out, struct sk_buff *skb) {
-    unsigned int pid = bpf_get_current_pid_tgid();
+int BPF_KPROBE(ip_local_out, struct net *net, struct sock *sk, struct sk_buff *skb) {
+    if (!net_filter)
+        return 0;
+  //  bpf_printk("ip_local_out\n");
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    bpf_printk("%d %d",pkt_tuple.saddr,pkt_tuple.daddr);
     struct filtertime *tinfo, zero = {0};
     tinfo = (struct filtertime *)bpf_map_lookup_or_try_init(&netfilter_time,
-                                                            &pid, &zero); 
+                                                            &pkt_tuple, &zero); 
     if (tinfo == NULL) {
         return 0;
     }    
@@ -1466,11 +1480,18 @@ int BPF_KPROBE(ip_local_out, struct sk_buff *skb) {
 }
 
 SEC("kprobe/ip_output")
-int BPF_KPROBE(ip_output) {
-    unsigned int pid = bpf_get_current_pid_tgid();
-    struct filtertime *tinfo, zero = {0};
-    tinfo = (struct filtertime *)bpf_map_lookup_or_try_init(&netfilter_time,
-                                                      &pid, &zero);
+int BPF_KPROBE(ip_output,struct net *net, struct sock *sk, struct sk_buff *skb) {
+    //bpf_printk("ip_out\n");
+     if (!net_filter)
+        return 0;
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    struct filtertime *tinfo = NULL;
+    tinfo = (struct filtertime *)bpf_map_lookup_elem(&netfilter_time, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
@@ -1478,16 +1499,19 @@ int BPF_KPROBE(ip_output) {
     return 0;
 }
 
-SEC("kprobe/ip_finish_output")
-int BPF_KPROBE(ip_finish_output) {
-    unsigned int pid = bpf_get_current_pid_tgid();
-    struct packet_tuple *pkt_tuple = bpf_map_lookup_elem(&pid_filter, &pid);
-    if (!pkt_tuple) {
+SEC("kprobe/__ip_finish_output")
+int BPF_KPROBE(__ip_finish_output,struct net *net, struct sock *sk, struct sk_buff *skb) {
+   // bpf_printk("ip_finish_output\n");
+    if (!net_filter)
         return 0;
-    }
-    struct filtertime *tinfo, zero = {0};
-    tinfo = (struct filtertime *)bpf_map_lookup_or_try_init(&netfilter_time,
-                                                      &pid, &zero);
+    if (skb == NULL) // 判断是否为空
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    struct filtertime *tinfo = NULL;
+    tinfo = (struct filtertime *)bpf_map_lookup_elem(&netfilter_time, &pkt_tuple);
     if (tinfo == NULL) {
         return 0;
     }
@@ -1497,13 +1521,15 @@ int BPF_KPROBE(ip_finish_output) {
     if(!message){
         return 0;
     }
-    message->saddr = pkt_tuple->saddr;
-    message->daddr =pkt_tuple->daddr;
-    message->sport =pkt_tuple->sport;
-    message->dport = pkt_tuple->dport;
+    message->saddr = pkt_tuple.saddr;
+    message->daddr =pkt_tuple.daddr;
+    message->sport =pkt_tuple.sport;
+    message->dport = pkt_tuple.dport;
+    message->local_input_time = 0;
+    message->pre_routing_time = 0;
     message->local_out_time=tinfo->ip_output_time-tinfo->ip_local_out_time;
     message->post_routing_time=tinfo->ip_finish_output_time-tinfo->ip_output_time; 
-    message->flag=2; 
+    message->rx=0; //发包
     bpf_ringbuf_submit(message,0);
     return 0;
 }

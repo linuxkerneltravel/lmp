@@ -16,7 +16,7 @@
 //
 // readahead ebpf程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/readahead.h"
+#include "bpf_wapper/readahead.h"
 
 double ReadaheadStackCollector::count_value(void *data)
 {
