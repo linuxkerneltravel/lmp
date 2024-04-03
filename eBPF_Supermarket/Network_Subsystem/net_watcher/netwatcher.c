@@ -154,6 +154,10 @@ void readallsym()
 
     fclose(file);
 }
+
+//数组存储获取到的全部时延
+// unsigned long delays[MAX_LAYERS] = {}
+
 static void sig_handler(int signo) { exiting = true; }
 
 static void bytes_to_str(char *str, unsigned long long num) {
@@ -337,8 +341,6 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if(udp_info)
-    {
     printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d\n",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -350,12 +352,12 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
             pack_info->dport, pack_info->tran_time,pack_info->rx,pack_info->len);
-    //fseek(file, 0, SEEK_END); //指针移动到文件头部
-    }
+    
     
     fclose(file);
     return 0;
 }
+
 static int print_netfilter(void *ctx, void *packet_info, size_t size) {
     if(!net_filter)
         return 0;
@@ -364,11 +366,12 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
     const struct netfilter *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    printf("%-20s %-20s %-20u %-20u %-20llu %-20llu  %-20llu  %-20llu %-20d\n",
-           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-           pack_info->sport,pack_info->dport,pack_info->local_input_time,pack_info->pre_routing_time,pack_info->local_out_time,
-           pack_info->post_routing_time,pack_info->flag);
+    printf("%-20s %-20s %-20d %-20d %-20lld %-20lld %-20lld  %-20lld %-20d\n",
+            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+            pack_info->sport,pack_info->dport,pack_info->local_input_time,pack_info->pre_routing_time,pack_info->local_out_time,
+            pack_info->post_routing_time,pack_info->rx);
+
     return 0;
 }
 

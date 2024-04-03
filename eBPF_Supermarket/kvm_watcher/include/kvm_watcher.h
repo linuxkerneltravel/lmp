@@ -32,7 +32,7 @@
 
 #define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
+#define OPTIONS_LIST "-w, -d, -f, -c, -i, -l , -o , -h or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -144,6 +144,13 @@ enum EventType {
     HYPERCALL,
     IOCTL,
 } event_type;
+
+enum NameType {
+    UNKNOWN_NAME_TYPE,
+    HYPERCALL_NR,
+    EXIT_NR,
+    EXIT_USERSPACE_NR,
+} name_type;
 
 struct common_event {
     struct process process;
