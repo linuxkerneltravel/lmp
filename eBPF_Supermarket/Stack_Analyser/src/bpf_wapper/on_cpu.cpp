@@ -143,3 +143,7 @@ void OnCPUStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
+
+const char *OnCPUStackCollector::getName(void) {
+    return "OnCPUStackCollector";
+}

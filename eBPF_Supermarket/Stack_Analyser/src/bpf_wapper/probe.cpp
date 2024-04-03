@@ -139,3 +139,7 @@ void ProbeStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
+
+const char *ProbeStackCollector::getName(void) {
+    return "ProbeStackCollector";
+}

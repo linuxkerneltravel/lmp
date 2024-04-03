@@ -63,3 +63,7 @@ void ReadaheadStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
+
+const char *ReadaheadStackCollector::getName(void) {
+    return "ReadaheadStackCollector";
+}

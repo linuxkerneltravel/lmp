@@ -62,3 +62,7 @@ void IOStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
+
+const char *IOStackCollector::getName(void) {
+    return "IOStackCollector";
+}

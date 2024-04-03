@@ -98,6 +98,8 @@ public:
     /// @param  无
     virtual void activate(bool) = 0;
 
+    virtual const char *getName(void) = 0;
+
 // 声明eBPF骨架
 #define DECL_SKEL(func) struct func##_bpf *skel = NULL;
 

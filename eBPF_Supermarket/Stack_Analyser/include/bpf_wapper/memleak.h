@@ -75,6 +75,7 @@ public:
     virtual void detach(void);
     virtual void unload(void);
     virtual void activate(bool tf);
+    virtual const char *getName(void);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架

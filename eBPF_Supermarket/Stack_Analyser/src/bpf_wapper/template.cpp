@@ -46,6 +46,10 @@ void TemplateClass::activate(bool tf)
     ACTIVE_SET(tf);
 }
 
+const char *TemplateClass::getName(void) {
+    return "TemplateClass";
+}
+
 // ========== other implementations ==========
 
 TemplateClass::TemplateClass(){};

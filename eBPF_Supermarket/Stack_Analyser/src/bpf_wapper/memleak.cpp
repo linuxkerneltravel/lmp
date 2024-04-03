@@ -151,3 +151,7 @@ void MemleakStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
+
+const char *MemleakStackCollector::getName(void) {
+    return "MemleakStackCollector";
+}

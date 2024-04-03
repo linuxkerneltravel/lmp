@@ -66,3 +66,7 @@ void OffCPUStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
+
+const char *OffCPUStackCollector::getName(void) {
+    return "OffCPUStackCollector";
+}

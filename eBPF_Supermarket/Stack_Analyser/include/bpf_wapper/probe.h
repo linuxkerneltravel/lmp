@@ -38,4 +38,5 @@ public:
     virtual void detach(void);
     virtual void unload(void);
     virtual void activate(bool tf);
+    virtual const char *getName(void);
 };

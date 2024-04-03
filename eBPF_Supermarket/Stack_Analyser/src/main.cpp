@@ -233,8 +233,8 @@ int main(int argc, char *argv[])
 
     for (auto Item = StackCollectorList.begin(); Item != StackCollectorList.end();)
     {
-        fprintf(stderr, _RED "Attach %dth collecotor %s.\n" _RE,
-                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->scales->Type.c_str());
+        fprintf(stderr, _RED "Attach collecotor%d %s.\n" _RE,
+                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->getName());
         (*Item)->pid = MainConfig::target_pid;
         if ((*Item)->load() || (*Item)->attach())
             goto err;
