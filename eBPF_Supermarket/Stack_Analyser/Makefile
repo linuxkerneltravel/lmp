@@ -35,7 +35,7 @@ VMLINUX := libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I./include -I$(OUTPUT) -I$(BPF_SKEL) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
+INCLUDES := -I./include -I./$(OUTPUT) -I./$(BPF_SKEL) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -Og -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
@@ -85,11 +85,7 @@ clean:
 	$(call msg,CLEAN)
 	$(Q)rm -rf $(OUTPUT) $(TARGETS) include/bpf/*.skel.h
 
-$(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
-	$(call msg,MKDIR,$@)
-	$(Q)mkdir -p $@
-
-$(BPF_SKEL):
+$(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT) $(BPF_SKEL):
 	$(call msg,MKDIR,$@)
 	$(Q)mkdir -p $@
 
@@ -129,12 +125,12 @@ $(patsubst %,$(OUTPUT)/%.o,$(BIN)): $(OUTPUT)/%.o: src/%.cpp
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(OUTPUT)/eBPFStackCollector.o: src/bpf_wapper/eBPFStackCollector.cpp include/bpf_wapper/eBPFStackCollector.h | $(OUTPUT)
+$(OUTPUT)/eBPFStackCollector.o: src/bpf_wapper/eBPFStackCollector.cpp include/bpf_wapper/eBPFStackCollector.h | $(LIBBPF_OBJ)
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build application binary
-$(TARGETS):  $(OUTPUT)/eBPFStackCollector.o $(patsubst %,$(OUTPUT)/%.o,$(BPF)) $(patsubst %,$(OUTPUT)/%.o,$(BIN)) $(LIBBPF_OBJ) | $(OUTPUT)
+$(TARGETS): $(OUTPUT)/eBPFStackCollector.o $(patsubst %,$(OUTPUT)/%.o,$(BPF)) $(patsubst %,$(OUTPUT)/%.o,$(BIN)) $(LIBBPF_OBJ)
 	$(call msg,BINARY,$@)
 	$(Q)$(CXX) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 
