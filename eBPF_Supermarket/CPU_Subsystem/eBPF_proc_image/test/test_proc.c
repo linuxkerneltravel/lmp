@@ -125,22 +125,6 @@ int main(int argc, char **argv){
    if(env.keytime_test){
       printf("KEYTIME_TEST-----------------------------------------------\n");
 
-      // 进程上下CPU逻辑: 利用sleep函数使进程睡眠3秒,即 offCPU 3秒
-      printf("进程上下CPU逻辑:\n");
-      time_t now = time(NULL);
-      struct tm *localTime = localtime(&now);
-      printf("sleep开始时间:%04d-%02d-%02d %02d:%02d:%02d\n",
-            localTime->tm_year + 1900, localTime->tm_mon + 1, localTime->tm_mday,
-            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-      sleep(3);
-      time_t afterSleep = time(NULL);
-      struct tm *localTimeAfterSleep = localtime(&afterSleep);
-      printf("sleep结束时间:%04d-%02d-%02d %02d:%02d:%02d\n",
-            localTimeAfterSleep->tm_year + 1900, localTimeAfterSleep->tm_mon + 1, localTimeAfterSleep->tm_mday,
-            localTimeAfterSleep->tm_hour, localTimeAfterSleep->tm_min, localTimeAfterSleep->tm_sec);
-      printf("程序睡眠3s!\n");
-      printf("\n");
-
       // fork、vfork逻辑: 创建子进程让子进程睡眠3秒，以表示它存在的时间
       printf("fork、vfork逻辑:\n");
       //fork
@@ -178,6 +162,22 @@ int main(int argc, char **argv){
       sleep(6);      // 等待新线程执行完毕
       printf("\n");
 
+      // 进程上下CPU逻辑: 利用sleep函数使进程睡眠3秒,即 offCPU 3秒
+      printf("进程上下CPU逻辑:\n");
+      time_t now = time(NULL);
+      struct tm *localTime = localtime(&now);
+      printf("sleep开始时间:%04d-%02d-%02d %02d:%02d:%02d\n",
+            localTime->tm_year + 1900, localTime->tm_mon + 1, localTime->tm_mday,
+            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+      sleep(3);
+      time_t afterSleep = time(NULL);
+      struct tm *localTimeAfterSleep = localtime(&afterSleep);
+      printf("sleep结束时间:%04d-%02d-%02d %02d:%02d:%02d\n",
+            localTimeAfterSleep->tm_year + 1900, localTimeAfterSleep->tm_mon + 1, localTimeAfterSleep->tm_mday,
+            localTimeAfterSleep->tm_hour, localTimeAfterSleep->tm_min, localTimeAfterSleep->tm_sec);
+      printf("程序睡眠3s!\n");
+      printf("\n");
+
       // execve逻辑: 替换当前进程，ARGV和ENVP以NULL指针结束
       // 若出错，返回-1；若成功，不返回
       char *argvv[] = { "ls", "-l", NULL };
@@ -199,6 +199,24 @@ int main(int argc, char **argv){
    if(env.lock_test){
       printf("LOCK_TEST--------------------------------------------------\n");
 
+      // 用户态自旋锁逻辑
+      printf("用户态自旋锁逻辑:\n");
+      pthread_spinlock_t spinlock;
+      // 经实验发现，pthread_spin_init() 函数内部会调用 pthread_spin_unlock() 函数
+      pthread_spin_init(&spinlock,PTHREAD_PROCESS_PRIVATE);
+      printf("spinlock_ptr:%llu\n",(long long unsigned int)&spinlock);
+      pthread_spin_lock(&spinlock);
+      printf("进程成功持有用户态自旋锁spinlock\n");
+      sleep(3);
+      pthread_spin_unlock(&spinlock);
+      printf("进程成功解锁spinlock\n");
+      pthread_spin_trylock(&spinlock);
+      printf("进程成功尝试持有用户态自旋锁spinlock\n");
+      sleep(3);
+      pthread_spin_unlock(&spinlock);
+      printf("进程成功解锁spinlock\n");
+      printf("\n");
+      
       // 用户态互斥锁逻辑: 为了应对复杂场景，模拟进程异常地递归加锁解锁
       printf("用户态互斥锁逻辑:\n");
       pthread_mutex_t mutex1;
@@ -242,7 +260,13 @@ int main(int argc, char **argv){
 
    if(env.resource_test){
       printf("RESOURSE_TEST----------------------------------------------\n");
-
+      
+      // 可以创建 3 个线程去分别执行这三条指令：
+      // sysbench --threads=4 --time=10 --report-interval=2 cpu run
+      // sysbench --threads=4 --time=10 --report-interval=1 memory --memory-block-size=8k --memory-access-mode=seq run
+      // sysbench --threads=4 --time=10 --report-interval=5 fileio --file-num=2 --file-total-size=10G --file-test-mode=seqwr prepare
+      
+      printf("\n");
    }
 
    if(env.syscall_test){

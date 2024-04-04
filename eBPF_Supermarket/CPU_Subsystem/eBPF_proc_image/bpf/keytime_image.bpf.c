@@ -29,6 +29,8 @@ const volatile int max_args = DEFAULT_MAXARGS;
 
 const volatile pid_t target_pid = -1;
 const volatile pid_t ignore_tgid = -1;
+const volatile pid_t target_tgid = -1;
+const volatile bool enable_cpu = false;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -62,7 +64,8 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx
     int pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
     
-    if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
+    if(tgid!=ignore_tgid && ((target_tgid==-1 && target_pid==-1) || (target_tgid!=-1 && tgid==target_tgid) ||
+       (target_pid!=-1 && pid==target_pid))){
         struct keytime_event* event;
         event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
         if(!event)
@@ -137,7 +140,8 @@ int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit* ctx)
     int pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid && (target_pid==-1 || pid==target_pid)){
+    if(tgid!=ignore_tgid && ((target_tgid==-1 && target_pid==-1) || (target_tgid!=-1 && tgid==target_tgid) ||
+       (target_pid!=-1 && pid==target_pid))){
         struct keytime_event* event;
         event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
         if(!event)
@@ -163,7 +167,7 @@ int BPF_KRETPROBE(fork_exit,int ret)
     int tgid = bpf_get_current_pid_tgid() >> 32;
     
     // 判断是否为父进程触发
-    if(tgid!=ignore_tgid && (ret!=0 && (pid==target_pid || target_pid==-1))){
+    if(tgid!=ignore_tgid && ret!=0 && (target_tgid==-1 || (target_tgid!=-1 && tgid==target_tgid))){
         pid_t child_pid = ret;
         child_create(4,child_pid,pid,&child,&keytime_rb);
     }
@@ -177,9 +181,11 @@ int BPF_KRETPROBE(vfork_exit,int ret)
 {
 	struct task_struct *current = (struct task_struct *)bpf_get_current_task();
     pid_t ppid = BPF_CORE_READ(current,real_parent,pid);
+    int ptgid = BPF_CORE_READ(current,real_parent,tgid);
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid && (ppid==target_pid || target_pid==-1)){
+    if(tgid!=ignore_tgid && ((target_pid==-1 && target_tgid==-1) || (target_pid!=-1 && ppid==target_pid)) ||
+       (target_tgid!=-1 && ptgid==target_tgid)){
         pid_t child_pid = BPF_CORE_READ(current,pid);
         child_create(6,child_pid,ppid,&child,&keytime_rb);
     }
@@ -193,7 +199,7 @@ int BPF_KPROBE(pthread_create_enter)
     int current = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
+    if(tgid!=ignore_tgid && (target_tgid==-1 || (target_tgid!=-1 && tgid==target_tgid))){
         bool pthread_create_flag = true;
         bpf_map_update_elem(&pthread_create_enable, &current, &pthread_create_flag, BPF_ANY);
     }
@@ -207,7 +213,7 @@ int BPF_KRETPROBE(pthread_create_exit,int ret)
     int current = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
     
-    if(tgid!=ignore_tgid){
+    if(tgid!=ignore_tgid && (target_tgid==-1 || (target_tgid!=-1 && tgid==target_tgid))){
         bpf_map_delete_elem(&pthread_create_enable, &current);
     }
 
@@ -221,7 +227,8 @@ int tracepoint__syscalls__sys_exit_clone3(struct trace_event_raw_sys_exit* ctx)
     pid_t current = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid && (current==target_pid || target_pid==-1)){
+    if(tgid!=ignore_tgid && ((target_tgid==-1 && target_pid==-1) || (target_tgid!=-1 && tgid==target_tgid) ||
+       (target_pid!=-1 && current==target_pid))){
         // 判断是否是pthread_create函数触发的clone3系统调用
         bool *pthread_create_flag;
         pthread_create_flag = bpf_map_lookup_elem(&pthread_create_enable, &current);
@@ -243,21 +250,21 @@ int tracepoint__syscalls__sys_enter_exit_group(struct trace_event_raw_sys_enter*
     int pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
-        if(target_pid==-1 || pid==target_pid){
-            struct keytime_event* event;
-            event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
-            if(!event)
-                return 0;
-            
-            event->type = 3;
-            event->pid = pid;
-            event->enable_char_info = false;
-            event->info_count = 1;
-            event->info[0] = ctx->args[0];
+    if(tgid!=ignore_tgid && ((target_tgid==-1 && target_pid==-1) || (target_tgid!=-1 && tgid==target_tgid) ||
+       (target_pid!=-1 && pid==target_pid))){
+        // 记录进程退出信息
+        struct keytime_event* event;
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+        
+        event->type = 3;
+        event->pid = pid;
+        event->enable_char_info = false;
+        event->info_count = 1;
+        event->info[0] = ctx->args[0];
 
-            bpf_ringbuf_submit(event, 0);
-        }
+        bpf_ringbuf_submit(event, 0);
 
         // 记录 fork 和 vfork 子进程的退出时间，并输出到 ringbuf 中
         child_exit(&child,&keytime_rb);
@@ -272,21 +279,21 @@ int tracepoint__syscalls__sys_enter_exit(struct trace_event_raw_sys_enter* ctx)
     int pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
-        if(target_pid==-1 || pid==target_pid){
-            struct keytime_event* event;
-            event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
-            if(!event)
-                return 0;
-            
-            event->type = 3;
-            event->pid = pid;
-            event->enable_char_info = false;
-            event->info_count = 1;
-            event->info[0] = ctx->args[0];
+    if(tgid!=ignore_tgid && ((target_tgid==-1 && target_pid==-1) || (target_tgid!=-1 && tgid==target_tgid) ||
+       (target_pid!=-1 && pid==target_pid))){
+        // 记录进程退出信息
+        struct keytime_event* event;
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+        
+        event->type = 3;
+        event->pid = pid;
+        event->enable_char_info = false;
+        event->info_count = 1;
+        event->info[0] = ctx->args[0];
 
-            bpf_ringbuf_submit(event, 0);
-        }
+        bpf_ringbuf_submit(event, 0);
 
         // 记录 pthread_create 新线程的退出时间，并输出
         child_exit(&child,&keytime_rb);
@@ -295,6 +302,57 @@ int tracepoint__syscalls__sys_enter_exit(struct trace_event_raw_sys_enter* ctx)
     return 0;
 }
 
+SEC("tp_btf/sched_switch")
+int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next)
+{
+    if(!enable_cpu)  return 0;
+
+    pid_t next_pid = BPF_CORE_READ(next,pid);
+    int next_tgid = BPF_CORE_READ(next,tgid);
+	pid_t prev_pid = BPF_CORE_READ(prev,pid);
+    int prev_tgid = BPF_CORE_READ(prev,tgid);
+	int cpu_id = bpf_get_smp_processor_id();
+
+    // 记录 prev 进程的下CPU时的信息
+    if(prev_tgid!=ignore_tgid && prev_pid!=0 && ((target_tgid==-1 && target_pid==-1) || 
+       (target_tgid!=-1 && prev_tgid==target_tgid) || (target_pid!=-1 && prev_pid==target_pid))){
+        struct offcpu_event* event;
+
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        event->type = 11;
+        event->pid = prev_pid;
+        event->offcpu_time = bpf_ktime_get_ns();
+        event->kstack_sz = bpf_get_stack(ctx, event->kstack, sizeof(event->kstack), 0);
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    // 记录 next 进程上CPU时的信息
+    if(next_tgid!=ignore_tgid && next_pid!=0 && ((target_tgid==-1 && target_pid==-1) || 
+       (target_tgid!=-1 && next_tgid==target_tgid) || (target_pid!=-1 && next_pid==target_pid))){
+        struct keytime_event* event;
+
+        event = bpf_ringbuf_reserve(&keytime_rb, sizeof(*event), 0);
+        if(!event)
+            return 0;
+
+        event->type = 10;
+        event->pid = next_pid;
+        event->enable_char_info = false;
+        event->info_count = 1;
+        event->info[0] = bpf_ktime_get_ns();
+
+        bpf_ringbuf_submit(event, 0);
+    }
+
+    return 0;
+
+}
+
+/* 暂时舍弃，后面会继续开发用作记录进程的状态变化
 // 记录进程 onCPU 和 offCPU 的相关信息
 SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
@@ -437,3 +495,4 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p)
 
     return 0;
 }
+*/

@@ -28,6 +28,9 @@
 
 #define TASK_RUNNING	0x00000000
 
+#define MAX_STACK_DEPTH 128
+typedef __u64 stack_trace_t[MAX_STACK_DEPTH];
+
 // resource_image
 struct proc_id{
 	int pid;
@@ -68,6 +71,7 @@ struct proc_flag{
     int pid;
     // 1代表用户态互斥锁
     // 2代表用户态读写锁
+	// 3代表用户态自旋锁
     int flag;
 };
 
@@ -76,6 +80,7 @@ struct lock_event{
         1代表mutex_req；2代表mutex_lock；3代表mutex_unlock
         4代表rdlock_req；5代表rdlock_lock；6代表rdlock_unlock
         7代表wrlock_req；8代表wrlock_lock；9代表wrlock_unlock
+		10代表spinlock_req；11代表spinlock_lock；12代表spinlock_unlock
     */
     int lock_status;
     int pid;
@@ -97,8 +102,7 @@ struct keytime_event{
 		4代表forkP_enter；5代表forkP_exit
 		6代表vforkP_enter；7代表vforkP_exit
 		8代表createT_enter；9代表createT_exit
-		10代表onCPU；11代表offCPU
-		12代表onrq
+		10代表onCPU；11代表offCPU(事件用offcpu_event结构体表示)
 	*/
 	int type;
 	int pid;
@@ -107,6 +111,16 @@ struct keytime_event{
 	long long unsigned int info[6];
 	unsigned int info_size;
 	char char_info[FULL_MAX_ARGS_ARR];
+};
+
+// offCPU
+struct offcpu_event{
+	// 为固定值 11，为了标识 offCPU事件
+	int type;
+	int pid;
+	long long unsigned int offcpu_time;
+	__s32 kstack_sz;
+	stack_trace_t kstack;
 };
 
 // schedule_image

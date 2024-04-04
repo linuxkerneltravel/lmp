@@ -36,6 +36,7 @@
 #include "schedule_image.skel.h"
 #include "hashmap.h"
 #include "helpers.h"
+#include "trace_helpers.h"
 
 static int prev_image = 0;
 static volatile bool exiting = false;
@@ -67,6 +68,8 @@ static struct env {
 	bool quote;
 	int max_args;
 	bool enable_keytime;
+	bool enable_cpu;
+	int stack_count;
 	bool enable_schedule;
 } env = {
     .pid = -1,
@@ -94,6 +97,8 @@ static struct env {
 	.quote = false,
 	.max_args = DEFAULT_MAXARGS,
 	.enable_keytime = false,
+	.enable_cpu = false,
+	.stack_count = 0,
 	.enable_schedule = false,
 };
 
@@ -104,15 +109,17 @@ static struct timespec currentime;
 
 char *lock_status[] = {"", "mutex_req", "mutex_lock", "mutex_unlock",
 						   "rdlock_req", "rdlock_lock", "rdlock_unlock",
-						   "wrlock_req", "wrlock_lock", "wrlock_unlock"};
+						   "wrlock_req", "wrlock_lock", "wrlock_unlock",
+						   "spinlock_req", "spinlock_lock", "spinlock_unlock"};
 
 char *keytime_type[] = {"", "exec_enter", "exec_exit", 
 						    "exit", 
 						    "forkP_enter", "forkP_exit",
 						    "vforkP_enter", "vforkP_exit",
 						    "createT_enter", "createT_exit",
-							"onCPU", "offCPU",
-							"onrq"};
+							"onCPU", "offCPU",};
+
+static struct ksyms *ksyms = NULL;
 
 /*
 char *task_state[] = {"TASK_RUNNING", "TASK_INTERRUPTIBLE", "TASK_UNINTERRUPTIBLE", 
@@ -134,7 +141,7 @@ static const struct argp_option opts[] = {
 	{ "syscall", 's', "SYSCALLS", 0, "Collects syscall sequence (1~50) information about processes" },
 	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
 	{ "quote", 'q', NULL, 0, "Add quotemarks (\") around arguments" },
-	{ "keytime", 'k', NULL, 0, "Collects keytime information about processes" },
+	{ "keytime", 'k', "ENABLE_CPU", 0, "Collects keytime information about processes(0:except CPU kt_info,1:all kt_info)" },
 	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes (trace tool process)" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
@@ -146,6 +153,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	long tgid;
 	long cpu_id;
 	long syscalls;
+	long enable_cpu;
 	switch (key) {
 		case 'p':
 				errno = 0;
@@ -188,6 +196,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.enable_syscall = true;
 				env.enable_lock = true;
 				env.enable_keytime = true;
+				env.enable_cpu = true;
 				env.enable_schedule = true;
 				break;
         case 'r':
@@ -209,6 +218,13 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.quote = true;
 				break;
 		case 'k':
+				errno = 0;
+				enable_cpu = strtol(arg, NULL, 10);
+				if(errno || (enable_cpu<0 && enable_cpu>1)){
+					warn("Invalid KEYTIME: %s\n", arg);
+					argp_usage(state);
+				}
+				env.enable_cpu = enable_cpu;
 				env.enable_keytime = true;
 				break;
 		case 'S':
@@ -248,7 +264,9 @@ static int print_resource(struct bpf_map *map)
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
 		if(prev_image != RESOURCE_IMAGE){
 			printf("RESOURCE ------------------------------------------------------------------------------------------------\n");
-			printf("%-8s  %-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","TIME","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
+			printf("%-8s  ","TIME");
+			if(env.tgid != -1)	printf("%-6s  ","TGID");
+			printf("%-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
 
@@ -271,8 +289,10 @@ static int print_resource(struct bpf_map *map)
 		}
 		
 		if(pcpu<=100 && pmem<=100){
-			printf("%02d:%02d:%02d  %-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
-					hour,min,sec,event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
+			printf("%02d:%02d:%02d  ",hour,min,sec);
+			if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+			printf("%-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
+					event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
 		}
 
 next_elem:
@@ -478,13 +498,16 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 	
 	if(prev_image != LOCK_IMAGE){
         printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
-        printf("%-14s  %-6s  %-15s  %s\n","TIME","PID","LockAddr","LockStatus");
-
+        printf("%-15s  ","TIME");
+		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		printf("%-6s  %-15s  %s\n","PID","LockAddr","LockStatus");
 		prev_image = LOCK_IMAGE;
     }
 
-	printf("%-14lld  %-6d  %-15lld  ",e->time,e->pid,e->lock_ptr);
-	if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8){
+	printf("%-15lld  ",e->time);
+	if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+	printf("%-6d  %-15lld  ",e->pid,e->lock_ptr);
+	if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8 || e->lock_status==11){
 		printf("%s-%d\n",lock_status[e->lock_status],e->ret);
 	}else{
 		printf("%s\n",lock_status[e->lock_status]);
@@ -551,49 +574,94 @@ static void print_info1(const struct keytime_event *e)
 static void print_info2(const struct keytime_event *e)
 {
 	int i=0;
-	if(e->type==10 || e->type==11 || e->type==12){
-		if(e->info_count == 1){
-			if(env.quote)	printf("\"-> %llu\"",e->info[0]);
-			else	printf("-> %llu",e->info[0]);
+
+	for(int tmp=e->info_count; tmp>0 ; tmp--){
+		if(env.quote){
+			printf("\"%llu\" ",e->info[i++]);
 		}else{
-			if(env.quote)	printf("\"%llu -> %llu\"",e->info[0],e->info[1]);
-			else	printf("%llu -> %llu",e->info[0],e->info[1]);
-		}
-	} else {
-		for(int tmp=e->info_count; tmp>0 ; tmp--){
-			if(env.quote){
-				printf("\"%llu\" ",e->info[i++]);
-			}else{
-				printf("%llu ",e->info[i++]);
-			}
+			printf("%llu ",e->info[i++]);
 		}
 	}
+}
+
+static void print_stack(unsigned long long address,FILE *file)
+{
+	const struct ksym *ksym;
+
+	ksym = ksyms__map_addr(ksyms, address);
+	if (ksym)
+		fprintf(file, "0x%llx %s+0x%llx\n", address, ksym->name, address - ksym->addr);
+	else
+		fprintf(file, "0x%llx [unknown]\n", address);
 }
 
 static int print_keytime(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct keytime_event *e = data;
+	const struct offcpu_event *offcpu_event = data;
+	bool is_offcpu = false;
 	time_t now = time(NULL);
     struct tm *localTime = localtime(&now);
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
+
+	if(e->type == 11){
+		is_offcpu = true;
+	}
 	
 	if(prev_image != KEYTIME_IMAGE){
         printf("KEYTIME -------------------------------------------------------------------------------------------------\n");
-        printf("%-8s  %-6s  %-15s  %s\n","TIME","PID","EVENT","ARGS/RET/OTHERS");
+        printf("%-8s  ","TIME");
+		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		printf("%-6s  %-15s  %s\n","PID","EVENT","ARGS/RET/OTHERS");
 
 		prev_image = KEYTIME_IMAGE;
     }
 
-	printf("%02d:%02d:%02d  %-6d  %-15s  ",hour,min,sec,e->pid,keytime_type[e->type]);
-	if(e->type==4 || e->type==5 || e->type==6 || e->type==7 || e->type==8 || e->type==9){
-		printf("child_pid:");
-	}
-	if(e->enable_char_info){
-		print_info1(e);
+	printf("%02d:%02d:%02d  ",hour,min,sec);
+	if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+	if(!is_offcpu){
+		printf("%-6d  %-15s  ",e->pid,keytime_type[e->type]);
+		if(e->type==4 || e->type==5 || e->type==6 || e->type==7 || e->type==8 || e->type==9){
+			printf("child_pid:");
+		}
+		if(e->type == 10){
+			printf("oncpu_time:");
+		}
+		if(e->enable_char_info){
+			print_info1(e);
+		}else{
+			print_info2(e);
+		}
 	}else{
-		print_info2(e);
+		printf("%-6d  %-15s  offcpu_time:%llu",offcpu_event->pid,keytime_type[offcpu_event->type],offcpu_event->offcpu_time);
+		// 将进程下CPU时的调用栈信息写入 .output/offcpu_stack.txt 中（包括时分秒时间、offcpu_time、pid、tgid、调用栈）
+		// 每写入100次清空一次然后重写
+		int count = offcpu_event->kstack_sz / sizeof(long long unsigned int);
+		if(env.stack_count < 100){
+			FILE *file = fopen("./.output/data/offcpu_stack.txt", "a");
+			fprintf(file, "TIME:%02d:%02d:%02d  ", hour,min,sec);
+			if(env.tgid != -1)	fprintf(file, "TGID:%-6d  ",env.tgid);
+			fprintf(file, "PID:%-6d  OFFCPU_TIME:%llu\n",offcpu_event->pid,offcpu_event->offcpu_time);
+			for(int i=0 ; i<count ; i++){
+				print_stack(offcpu_event->kstack[i],file);
+			}
+			fprintf(file, "\n");
+			fclose(file);
+			env.stack_count++;
+		}else{
+			FILE *file = fopen("./.output/data/offcpu_stack.txt", "w");
+			fprintf(file, "TIME:%02d:%02d:%02d  ", hour,min,sec);
+			if(env.tgid != -1)	fprintf(file, "TGID:%-6d  ",env.tgid);
+			fprintf(file, "PID:%-6d  OFFCPU_TIME:%llu\n",offcpu_event->pid,offcpu_event->offcpu_time);
+			for(int i=0 ; i<count ; i++){
+				print_stack(offcpu_event->kstack[i],file);
+			}
+			fprintf(file, "\n");
+			fclose(file);
+			env.stack_count = 1;
+		}
 	}
 
 	putchar('\n');
@@ -629,6 +697,13 @@ static int lock_attach(struct lock_image_bpf *skel)
 	
 	ATTACH_UPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_enter);
 	ATTACH_URETPROBE_CHECKED(skel,__pthread_rwlock_unlock,__pthread_rwlock_unlock_exit);
+
+	ATTACH_UPROBE_CHECKED(skel,pthread_spin_lock,pthread_spin_lock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_spin_lock,pthread_spin_lock_exit);
+	ATTACH_UPROBE_CHECKED(skel,pthread_spin_trylock,pthread_spin_trylock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_spin_trylock,pthread_spin_trylock_exit);
+	ATTACH_UPROBE_CHECKED(skel,pthread_spin_unlock,pthread_spin_unlock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_spin_unlock,pthread_spin_unlock_exit);
 	
 	err = lock_image_bpf__attach(skel);
 	CHECK_ERR(err, "Failed to attach BPF lock skeleton");
@@ -707,6 +782,7 @@ int main(int argc, char **argv)
 		resource_skel->rodata->target_pid = env.pid;
 		resource_skel->rodata->target_cpu_id = env.cpu_id;
 		if(!env.enable_myproc)	resource_skel->rodata->ignore_tgid = env.ignore_tgid;
+		resource_skel->rodata->target_tgid = env.tgid;
 
 		err = resource_image_bpf__load(resource_skel);
 		if (err) {
@@ -763,6 +839,7 @@ int main(int argc, char **argv)
 		}
 
 		if(!env.enable_myproc)	lock_skel->rodata->ignore_tgid = env.ignore_tgid;
+		lock_skel->rodata->target_tgid = env.tgid;
 
 		err = lock_image_bpf__load(lock_skel);
 		if (err) {
@@ -796,10 +873,18 @@ int main(int argc, char **argv)
 
 		keytime_skel->rodata->target_pid = env.pid;
 		if(!env.enable_myproc)	keytime_skel->rodata->ignore_tgid = env.ignore_tgid;
+		keytime_skel->rodata->target_tgid = env.tgid;
+		keytime_skel->rodata->enable_cpu = env.enable_cpu;
 
 		err = keytime_image_bpf__load(keytime_skel);
 		if (err) {
 			fprintf(stderr, "Failed to load and verify BPF keytime skeleton\n");
+			goto cleanup;
+		}
+
+		ksyms = ksyms__load();
+		if (!ksyms) {
+			fprintf(stderr, "failed to load kallsyms\n");
 			goto cleanup;
 		}
 		
@@ -941,6 +1026,7 @@ cleanup:
 	keytime_image_bpf__destroy(keytime_skel);
 	schedule_image_bpf__destroy(schedule_skel);
 	hashmap_free(map);
+	ksyms__free(ksyms);
 
 	return err < 0 ? -err : 0;
 }
