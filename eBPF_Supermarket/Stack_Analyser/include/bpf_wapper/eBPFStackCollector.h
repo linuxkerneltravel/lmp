@@ -28,7 +28,7 @@
 struct Scale
 {
     std::string Type;
-    int64_t Period;
+    uint64_t Period;
     std::string Unit;
 };
 

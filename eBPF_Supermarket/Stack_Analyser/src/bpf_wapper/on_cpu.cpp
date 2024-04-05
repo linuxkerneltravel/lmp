@@ -42,7 +42,7 @@ OnCPUStackCollector::OnCPUStackCollector()
 {
     scale_num = 1;
     scales = new Scale[scale_num]{
-        {"OnCPUTime", (int64_t)(1e9 / freq), "nanoseconds"},
+        {"OnCPUTime", (uint64_t)(1e9 / freq), "nanoseconds"},
     };
 };
 

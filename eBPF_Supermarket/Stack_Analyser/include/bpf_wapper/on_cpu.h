@@ -19,7 +19,7 @@
 #ifndef _SA_ON_CPU_H__
 #define _SA_ON_CPU_H__
 
-#include "eBPFStackCollector.h"
+#include "bpf_wapper/eBPFStackCollector.h"
 #include "on_cpu.skel.h"
 
 #ifdef __cplusplus
