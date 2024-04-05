@@ -119,7 +119,7 @@ int main(int argc, char **argv){
    pid = getpid();
    printf("test_proc进程的PID:%d\n", pid);
    printf("输入任意数字继续程序的运行:");
-   scanf("%d",&stop);                   // 使用时将其取消注释
+//   scanf("%d",&stop);                   // 使用时将其取消注释
    printf("程序开始执行...\n");
    printf("\n");
 
