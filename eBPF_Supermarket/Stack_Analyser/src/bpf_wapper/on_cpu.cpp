@@ -78,9 +78,9 @@ int OnCPUStackCollector::attach(void)
     CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
 
     struct perf_event_attr attr = {
-        .type = PERF_TYPE_SOFTWARE, // hardware event can't be used
+        .type = PERF_COUNT_HW_CPU_CYCLES,
         .size = sizeof(attr),
-        .config = PERF_COUNT_SW_CPU_CLOCK,
+        .config = PERF_COUNT_HW_CPU_CYCLES,
         .sample_freq = freq,
         .inherit = 1,
         .freq = 1, // use freq instead of period
