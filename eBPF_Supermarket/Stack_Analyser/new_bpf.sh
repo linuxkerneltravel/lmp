@@ -23,10 +23,10 @@ sed -i 's/TemplateClass/'$class_name'/g' src/bpf_wapper/$origin_name.cpp
 sed -i 's/template/'$origin_name'/g' src/bpf_wapper/$origin_name.cpp
 
 cp bpf/template.bpf.c bpf/$origin_name.bpf.c
-sed -i 's/TemplateClass/'$class_name'/g' bpf/$origin_name.bpf.c
+sed -i 's/template/'$origin_name'/g' bpf/$origin_name.bpf.c
 
 sed -i '/#include "bpf_wapper\/on_cpu.h"/a#include "bpf_wapper\/'$origin_name'.h"' src/main.cpp
 
-sed -i '/auto MainOption = _GREEN "Some overall options" _RE %/iauto '$name'Option = (clipp::option("'$origin_name'").call([]{ StackCollectorList.push_back(new '$class_name'()); }) % COLLECTOR_INFO("'$origin_name'") & (TraceOption);' src/main.cpp
+sed -i '/auto MainOption = _GREEN "Some overall options" _RE %/iauto '$name'Option = clipp::option("'$origin_name'").call([]{ StackCollectorList.push_back(new '$class_name'()); }) % COLLECTOR_INFO("'$origin_name'") & (TraceOption);' src/main.cpp
 
-sed -i '/OnCpuOption,/a'$name'Option,' src/main.cpp
+sed -i '/MainOption,/i'$name'Option,' src/main.cpp
