@@ -33,11 +33,16 @@
 #include "sa_user.h"
 #include "clipp.h"
 
+uint64_t stop_time = -1;
+bool timeout = false;
+uint64_t IntTmp;
+std::string StrTmp;
+clipp::man_page *man_page;
+
 namespace MainConfig
 {
     uint64_t run_time = -1; // 运行时间
-    uint64_t stop_time = -1;
-    unsigned delay = 5; // 设置输出间隔
+    unsigned delay = 5;     // 设置输出间隔
     std::string command = "";
     int32_t target_pid = -1;
     std::string trigger = "";    // 触发器
@@ -46,13 +51,13 @@ namespace MainConfig
 
 std::vector<StackCollector *> StackCollectorList;
 
-void endCollect(void)
+void end_handle(void)
 {
     signal(SIGINT, SIG_IGN);
     for (auto Item : StackCollectorList)
     {
         Item->activate(false);
-        if (MainConfig::stop_time < (uint64_t)time(NULL))
+        if (!timeout)
         {
             std::cout << std::string(*Item) << std::endl;
         }
@@ -64,10 +69,6 @@ void endCollect(void)
         kill(MainConfig::target_pid, SIGTERM);
     }
 }
-
-uint64_t IntTmp;
-std::string StrTmp;
-clipp::man_page *man_page;
 
 int main(int argc, char *argv[])
 {
@@ -166,7 +167,7 @@ int main(int argc, char *argv[])
                            (clipp::option("-t") &
                             clipp::value("duration", MainConfig::run_time)
                                 .call([]
-                                      { MainConfig::stop_time = time(NULL) + MainConfig::run_time; })) %
+                                      { stop_time = time(NULL) + MainConfig::run_time; })) %
                                "Set the total sampling time; default is __INT_MAX__",
                            (clipp::option("-T") &
                             ((clipp::required("cpu").set(MainConfig::trigger) |
@@ -276,7 +277,9 @@ int main(int argc, char *argv[])
         write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
     }
 
-    atexit(endCollect);
+    atexit(end_handle);
+    signal(SIGINT, [](int)
+           { exit(EXIT_SUCCESS); });
 
     struct pollfd fds = {.fd = -1};
     if (MainConfig::trigger != "" && MainConfig::trig_event != "")
@@ -291,7 +294,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, _RED "Waiting for events...\n" _RE);
     }
     fprintf(stderr, _RED "Running for %lus or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
-    for (; (uint64_t)time(NULL) < MainConfig::stop_time && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0));)
+    for (; (uint64_t)time(NULL) < stop_time && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0));)
     {
         if (fds.fd >= 0)
         {
@@ -315,4 +318,6 @@ int main(int argc, char *argv[])
             std::cout << std::string(*Item);
         }
     }
+    timeout = true;
+    return 0;
 }
