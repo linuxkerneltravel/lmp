@@ -20,6 +20,7 @@
 #include <iostream>
 #include <poll.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include "bpf_wapper/on_cpu.h"
 #include "bpf_wapper/llc_stat.h"
@@ -34,8 +35,9 @@
 
 namespace MainConfig
 {
-    int run_time = __INT_MAX__; // 运行时间
-    unsigned delay = 5;         // 设置输出间隔
+    uint64_t run_time = -1; // 运行时间
+    uint64_t stop_time = -1;
+    unsigned delay = 5; // 设置输出间隔
     std::string command = "";
     int32_t target_pid = -1;
     std::string trigger = "";    // 触发器
@@ -50,7 +52,7 @@ void endCollect(void)
     for (auto Item : StackCollectorList)
     {
         Item->activate(false);
-        if (MainConfig::run_time > 0)
+        if (MainConfig::stop_time < (uint64_t)time(NULL))
         {
             std::cout << std::string(*Item) << std::endl;
         }
@@ -162,7 +164,9 @@ int main(int argc, char *argv[])
                             clipp::value("interval", MainConfig::delay)) %
                                "Set the output delay time (seconds); default is 5",
                            (clipp::option("-t") &
-                            clipp::value("duration", MainConfig::run_time)) %
+                            clipp::value("duration", MainConfig::run_time)
+                                .call([]
+                                      { MainConfig::stop_time = time(NULL) + MainConfig::run_time; })) %
                                "Set the total sampling time; default is __INT_MAX__",
                            (clipp::option("-T") &
                             ((clipp::required("cpu").set(MainConfig::trigger) |
@@ -286,8 +290,8 @@ int main(int argc, char *argv[])
         CHECK_ERR(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
         fprintf(stderr, _RED "Waiting for events...\n" _RE);
     }
-    fprintf(stderr, _RED "Running for %ds or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
-    for (; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay)
+    fprintf(stderr, _RED "Running for %lus or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
+    for (; (uint64_t)time(NULL) < MainConfig::stop_time && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0));)
     {
         if (fds.fd >= 0)
         {
