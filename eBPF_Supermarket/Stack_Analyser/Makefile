@@ -83,7 +83,7 @@ all: $(TARGETS)
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS) include/bpf/*.skel.h
+	$(Q)rm -rf $(OUTPUT) $(TARGETS) $(BPF_SKEL)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT) $(BPF_SKEL):
 	$(call msg,MKDIR,$@)
@@ -103,7 +103,7 @@ $(BPFTOOL): | $(BPFTOOL_OUTPUT)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
 # Build BPF code
-$(OUTPUT)/%.bpf.o: bpf/%.bpf.c include/bpf_wapper/%.h include/sa_ebpf.h $(LIBBPF_OBJ) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
+$(OUTPUT)/%.bpf.o: bpf/%.bpf.c include/sa_ebpf.h $(LIBBPF_OBJ) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)		      \
 		     $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES)		      \
@@ -116,21 +116,23 @@ $(BPF_SKEL)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL) $(BPF_SKEL)
 	$(call msg,GEN-SKEL,$@)
 	$(Q)$(BPFTOOL) gen skeleton $< > $@
 
-$(patsubst %,$(OUTPUT)/%.o,$(BPF)): $(OUTPUT)/%.o: src/bpf_wapper/%.cpp include/bpf_wapper/%.h $(BPF_SKEL)/%.skel.h $(OUTPUT)/eBPFStackCollector.o
+$(patsubst %,include/bpf_wapper/%.h,$(BPF)): include/bpf_wapper/%.h: $(BPF_SKEL)/%.skel.h
+
+$(patsubst %,$(OUTPUT)/%.o,$(BPF)): $(OUTPUT)/%.o: src/bpf_wapper/%.cpp include/bpf_wapper/%.h $(OUTPUT)/eBPFStackCollector.o
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build depending library
-$(patsubst %,$(OUTPUT)/%.o,$(BIN)): $(OUTPUT)/%.o: src/%.cpp
+$(patsubst %,$(OUTPUT)/%.o,$(BIN)): $(OUTPUT)/%.o: src/%.cpp $(patsubst %,include/bpf_wapper/%.h,$(BPF))
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(OUTPUT)/eBPFStackCollector.o: src/bpf_wapper/eBPFStackCollector.cpp include/bpf_wapper/eBPFStackCollector.h | $(LIBBPF_OBJ)
+$(OUTPUT)/eBPFStackCollector.o: src/bpf_wapper/eBPFStackCollector.cpp | $(LIBBPF_OBJ)
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build application binary
-$(TARGETS): $(OUTPUT)/eBPFStackCollector.o $(patsubst %,$(OUTPUT)/%.o,$(BPF)) $(patsubst %,$(OUTPUT)/%.o,$(BIN)) $(LIBBPF_OBJ)
+$(TARGETS): $(OUTPUT)/eBPFStackCollector.o $(patsubst %,$(OUTPUT)/%.o,$(BIN)) $(patsubst %,$(OUTPUT)/%.o,$(BPF)) $(LIBBPF_OBJ)
 	$(call msg,BINARY,$@)
 	$(Q)$(CXX) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 
