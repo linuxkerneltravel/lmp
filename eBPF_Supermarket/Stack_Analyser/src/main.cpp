@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
 
     if (MainConfig::command.length())
     {
-        printf(_GREEN "Wake up child.\n" _RE);
+        fprintf(stderr, _GREEN "Wake up child.\n" _RE);
         write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
     }
 
@@ -273,6 +273,7 @@ int main(int argc, char *argv[])
         CHECK_ERR(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
         fprintf(stderr, _RED "Waiting for events...\n" _RE);
     }
+    fprintf(stderr, _RED "Running for %ds or Hit Ctrl-C to end." _RE, MainConfig::run_time);
     for (; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay)
     {
         if (fds.fd >= 0)
