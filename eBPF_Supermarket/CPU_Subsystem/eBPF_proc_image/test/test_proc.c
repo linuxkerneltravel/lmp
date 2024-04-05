@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #include <linux/fcntl.h>
+#include <string.h>
 
 #define gettid() syscall(__NR_gettid)
 
@@ -118,7 +119,7 @@ int main(int argc, char **argv){
    pid = getpid();
    printf("test_proc进程的PID:%d\n", pid);
    printf("输入任意数字继续程序的运行:");
-//   scanf("%d",&stop);                   // 使用时将其取消注释
+   scanf("%d",&stop);                   // 使用时将其取消注释
    printf("程序开始执行...\n");
    printf("\n");
 
@@ -261,10 +262,52 @@ int main(int argc, char **argv){
    if(env.resource_test){
       printf("RESOURSE_TEST----------------------------------------------\n");
       
-      // 可以创建 3 个线程去分别执行这三条指令：
-      // sysbench --threads=4 --time=10 --report-interval=2 cpu run
-      // sysbench --threads=4 --time=10 --report-interval=1 memory --memory-block-size=8k --memory-access-mode=seq run
-      // sysbench --threads=4 --time=10 --report-interval=5 fileio --file-num=2 --file-total-size=10G --file-test-mode=seqwr prepare
+      clock_t start_time;
+      printf("CPU 密集型任务的模拟：\n");
+      time_t now = time(NULL);
+      struct tm *localTime = localtime(&now);
+      printf("%02d:%02d:%02d  空循环5秒钟\n",
+            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+      start_time = clock();
+      while ((clock() - start_time) < 5 * CLOCKS_PER_SEC) {}
+      now = time(NULL);
+      localTime = localtime(&now);
+      printf("%02d:%02d:%02d  空循环结束\n\n",
+            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+      
+      printf("内存密集型任务的模拟：\n");
+      printf("分配给进程3GB的内存,并赋初值\n");
+      long long int total_memory = 3LL * 1024 * 1024 * 1024;
+      char *memory = (char *)malloc(total_memory);
+      if (memory == NULL) {
+         printf("内存分配失败！\n");
+         return 1;
+      }
+      memset(memory, 'A', total_memory);
+      printf("空循环5秒钟以代表占有时间\n\n");
+      start_time = clock();
+      while ((clock() - start_time) < 5 * CLOCKS_PER_SEC) {}
+
+      printf("IO 密集型任务的模拟：\n");
+      const char *command = "rm io_test.txt";
+      printf("每秒向文件读和写2MB,持续5s\n");
+      for(int i = 0; i < 5; i++){
+         FILE *file = fopen("./io_test.txt", "w");
+         if (file == NULL) {
+            break;
+         }
+         fwrite(memory, 1, 2*1024*1024, file);
+         fclose(file);
+         file = fopen("./io_test.txt", "r");
+         if (file == NULL) {
+            break;
+         }
+         fread(memory, 1, 2*1024*1024, file);
+         fclose(file);
+         sleep(1);
+      }
+      free(memory);
+      system(command);
       
       printf("\n");
    }
