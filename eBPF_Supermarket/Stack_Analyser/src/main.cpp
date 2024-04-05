@@ -22,6 +22,7 @@
 #include <fcntl.h>
 
 #include "bpf_wapper/on_cpu.h"
+#include "bpf_wapper/llc_stat.h"
 #include "bpf_wapper/off_cpu.h"
 #include "bpf_wapper/memleak.h"
 #include "bpf_wapper/io.h"
@@ -127,16 +128,27 @@ int main(int argc, char *argv[])
                                    COLLECTOR_INFO("readahead") &
                                (TraceOption);
 
-        auto StackCountOption = clipp::option("probe")
-                                        .call([]
-                                              { StackCollectorList.push_back(new ProbeStackCollector()); }) %
-                                    COLLECTOR_INFO("probe") &
-                                (clipp::value("probe", StrTmp)
-                                     .call([]
-                                           { static_cast<ProbeStackCollector *>(StackCollectorList.back())
-                                                 ->setScale(StrTmp); }) %
-                                 "Set the probe string") &
-                                (TraceOption);
+        auto ProbeOption = clipp::option("probe")
+                                   .call([]
+                                         { StackCollectorList.push_back(new ProbeStackCollector()); }) %
+                               COLLECTOR_INFO("probe") &
+                           (clipp::value("probe", StrTmp)
+                                    .call([]
+                                          { static_cast<ProbeStackCollector *>(StackCollectorList.back())
+                                                ->setScale(StrTmp); }) %
+                                "Set the probe string" &
+                            TraceOption);
+
+        auto LlcStatOption = clipp::option("llc_stat").call([]
+                                                            { StackCollectorList.push_back(new LlcStatStackCollector()); }) %
+                                 COLLECTOR_INFO("llc_stat") &
+                             ((clipp::option("-i") &
+                               clipp::value("period", IntTmp)
+                                   .call([]
+                                         { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
+                                               ->setScale(IntTmp); })) %
+                                  "Set sampling period",
+                              TraceOption);
 
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
@@ -176,7 +188,8 @@ int main(int argc, char *argv[])
                MemleakOption,
                IOOption,
                ReadaheadOption,
-               StackCountOption,
+               ProbeOption,
+               LlcStatOption,
                MainOption,
                Info);
     }
@@ -273,7 +286,7 @@ int main(int argc, char *argv[])
         CHECK_ERR(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
         fprintf(stderr, _RED "Waiting for events...\n" _RE);
     }
-    fprintf(stderr, _RED "Running for %ds or Hit Ctrl-C to end." _RE, MainConfig::run_time);
+    fprintf(stderr, _RED "Running for %ds or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
     for (; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay)
     {
         if (fds.fd >= 0)
