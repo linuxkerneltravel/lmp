@@ -70,6 +70,7 @@ int tp_entry(struct exit *ctx) {
 //记录VCPU调度的信息--进入
 SEC("kprobe/vmx_vcpu_load")
 int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
     return trace_vmx_vcpu_load(vcpu, cpu);
 }
 //记录VCPU调度的信息--退出
