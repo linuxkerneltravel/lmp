@@ -309,14 +309,14 @@ int main(int argc, char *argv[])
                     break;
                 }
             }
-        } // 引入了阻塞，时间系统待修复
-        for (auto Item : StackCollectorList)
-        {
-            Item->activate(true);
-            sleep(MainConfig::delay);
-            Item->activate(false);
-            std::cout << std::string(*Item);
         }
+        for (auto Item : StackCollectorList)
+            Item->activate(true);
+        sleep(MainConfig::delay);
+        for (auto Item : StackCollectorList)
+            Item->activate(false);
+        for (auto Item : StackCollectorList)
+            std::cout << std::string(*Item);
     }
     timeout = true;
     return 0;
