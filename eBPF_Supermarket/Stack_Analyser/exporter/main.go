@@ -291,7 +291,6 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 		group_trace := lo.Reverse(append(base, trace...))
 		for i, s := range scales {
 			target := sd.NewTarget("", k.pid, sd.DiscoveryTarget{
-				"__process_pid__":  fmt.Sprintf("%d", k.pid),
 				"__container_id__": info[k.pid].cid,
 				labels.MetricName:  s.Type,
 			})
