@@ -42,6 +42,43 @@ static size_t g_stacks_size = 0;
 
 static struct blaze_symbolizer *symbolizer;
 
+static int attach_pid;
+static char binary_path[128] = {0};
+ 
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe) \
+    do { \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, \
+                .func_name = #sym_name, \
+                .retprobe = is_retprobe); \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
+                skel->progs.prog_name, \
+                attach_pid, \
+                binary_path, \
+                0, \
+                &uprobe_opts); \
+    } while (false)
+ 
+#define __CHECK_PROGRAM(skel, prog_name) \
+    do { \
+        if (!skel->links.prog_name) { \
+            perror("no program attached for " #prog_name); \
+            return -errno; \
+        } \
+    } while (false)
+ 
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do { \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe); \
+        __CHECK_PROGRAM(skel, prog_name); \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+ 
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
+
 static struct env {
 	int time;
 	bool paf;
@@ -136,28 +173,32 @@ static const struct argp argp = {
 	.doc = argp_program_doc,
 };
 
-static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, uint64_t offset, const blaze_symbolize_code_info* code_info)
-{
-    // If we have an input address  we have a new symbol.
-    if (input_addr != 0) {
-      printf("%016lx: %s @ 0x%lx+0x%lx", input_addr, name, addr, offset);
-			if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL) {
-				printf(" %s/%s:%u\n", code_info->dir, code_info->file, code_info->line);
-      } else if (code_info != NULL && code_info->file != NULL) {
-				printf(" %s:%u\n", code_info->file, code_info->line);
-      } else {
-				printf("\n");
-      }
-    } else {
-      printf("%16s  %s", "", name);
-			if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL) {
-				printf("@ %s/%s:%u [inlined]\n", code_info->dir, code_info->file, code_info->line);
-      } else if (code_info != NULL && code_info->file != NULL) {
-				printf("@ %s:%u [inlined]\n", code_info->file, code_info->line);
-      } else {
-				printf("[inlined]\n");
-      }
-    }
+static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, uint64_t offset, const blaze_symbolize_code_info *code_info) {
+	// If we have an input address  we have a new symbol.
+	if (input_addr != 0) {
+		printf("%016lx: %s @ 0x%lx+0x%lx", input_addr, name, addr, offset);
+		if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL) {
+			printf(" %s/%s:%u\n", code_info->dir, code_info->file, code_info->line);
+		}
+		else if (code_info != NULL && code_info->file != NULL) {
+			printf(" %s:%u\n", code_info->file, code_info->line);
+		}
+		else {
+			printf("\n");
+		}
+	}
+	else {
+		printf("%16s  %s", "", name);
+		if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL) {
+			printf("@ %s/%s:%u [inlined]\n", code_info->dir, code_info->file, code_info->line);
+		}
+		else if (code_info != NULL && code_info->file != NULL) {
+			printf("@ %s:%u [inlined]\n", code_info->file, code_info->line);
+		}
+		else {
+			printf("[inlined]\n");
+		}
+	}
 }
 
 static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
@@ -372,6 +413,14 @@ static int handle_event_sysstat(void *ctx, void *data, size_t data_sz) {
 
 pid_t own_pid;
 
+int attach_uprobes(struct memleak_bpf *skel) {
+	ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
+	ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
+	ATTACH_UPROBE_CHECKED(skel, free, free_enter);
+
+	return 0;
+}
+
 int main(int argc, char **argv) {
 	struct ring_buffer *rb = NULL;
 	struct paf_bpf *skel_paf;
@@ -382,8 +431,6 @@ int main(int argc, char **argv) {
 
 	int err, i;
 	LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts);
-	int attach_pid;
-	char binary_path[128] = { 0 };
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
@@ -582,43 +629,9 @@ int main(int argc, char **argv) {
 			goto memleak_cleanup;
 		}
 
-		/* Attach tracepoint handler */
-		uprobe_opts.func_name = "malloc";
-		uprobe_opts.retprobe = false;
-		/* uprobe/uretprobe expects relative offset of the function to attach
-		 * to. libbpf will automatically find the offset for us if we provide the
-		 * function name. If the function name is not specified, libbpf will try
-		 * to use the function offset instead.
-		 */
-		skel->links.malloc_enter = bpf_program__attach_uprobe_opts(skel->progs.malloc_enter,
-			attach_pid /* self pid */, binary_path,
-			0 /* offset for function */,
-			&uprobe_opts /* opts */);
-		if (!skel->links.malloc_enter) {
-			err = -errno;
-			fprintf(stderr, "Failed to attach uprobe: %d\n", err);
-			goto memleak_cleanup;
-		}
-
-		uprobe_opts.func_name = "malloc";
-		uprobe_opts.retprobe = true;
-		skel->links.malloc_exit = bpf_program__attach_uprobe_opts(skel->progs.malloc_exit,
-			attach_pid, binary_path,
-			0, &uprobe_opts);
-		if (!skel->links.malloc_exit) {
-			err = -errno;
-			fprintf(stderr, "Failed to attach uprobe: %d\n", err);
-			goto memleak_cleanup;
-		}
-
-		uprobe_opts.func_name = "free";
-		uprobe_opts.retprobe = false;
-		skel->links.free_enter = bpf_program__attach_uprobe_opts(skel->progs.free_enter,
-			attach_pid, binary_path,
-			0, &uprobe_opts);
-		if (!skel->links.free_enter) {
-			err = -errno;
-			fprintf(stderr, "Failed to attach uprobe: %d\n", err);
+		err = attach_uprobes(skel);
+		if (err) {
+			fprintf(stderr, "failed to attach uprobes\n");
 			goto memleak_cleanup;
 		}
 

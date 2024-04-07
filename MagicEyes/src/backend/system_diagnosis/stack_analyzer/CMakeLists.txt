@@ -14,7 +14,7 @@ set(TOOL_NAME stack_analyzer)
 set(TOOL_BELONG_TO_MODULE system_diagnosis)
 
 file(GLOB STACK_ANALYZER_SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
-file(GLOB STACK_ANALYZER_WAPPER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/bpf/*.cpp)
+file(GLOB STACK_ANALYZER_WAPPER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/bpf_wapper/*.cpp)
 file(GLOB apps ${CMAKE_CURRENT_SOURCE_DIR}/bpf/*.bpf.c)
 
 # 若不用Rust，则排除 profile.bpf.c

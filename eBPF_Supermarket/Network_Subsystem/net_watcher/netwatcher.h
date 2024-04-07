@@ -71,6 +71,7 @@ struct conn_t {
 
 #define MAX_PACKET 1000
 #define MAX_HTTP_HEADER 256
+//#define MAX_LAYERS 10 
 
 struct pack_t {
     int err;                     // no err(0) invalid seq(1) invalid checksum(2)
@@ -105,7 +106,7 @@ struct netfilter
     unsigned long long forward_time;
     unsigned long long local_out_time;
     unsigned long long post_routing_time;
-    unsigned int flag;
+    unsigned int rx;
 };
 struct  reasonissue
 {
@@ -116,6 +117,12 @@ struct  reasonissue
     long location;
     unsigned short protocol;
     int  drop_reason;
+};
+struct icmptime{
+    unsigned int saddr;
+    unsigned int daddr;
+    unsigned long long icmp_tran_time;
+    unsigned int flag; //0 send 1 rcv
 };
 
 #endif /* __NETWATCHER_H */
