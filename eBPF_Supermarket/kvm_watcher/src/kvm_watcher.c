@@ -515,9 +515,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case VCPU_LOAD: {
-            printf("%-20.6f %-15s %-6d/%-8d %-10d\n", timestamp_ms,
-                   e->process.comm, e->process.pid, e->process.tid,
-                   e->vcpu_load_data.vcpu_id);
             break;
         }
         case HALT_POLL: {
@@ -716,6 +713,9 @@ static int print_event_head(struct env *env) {
         case EXIT:
             printf("Waiting vm_exit ... \n");
             break;
+        case VCPU_LOAD:
+            printf("Waiting vm_vcpu_load ... \n");
+            break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
                    "COMM", "PID/TID", "TYPE", "VCPU_ID", "OLD(ns)", "NEW(ns)");
@@ -772,6 +772,8 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
     bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load,
+                              env.execute_vcpu_load ? true : false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put,
                               env.execute_vcpu_load ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
                               env.execute_vcpu_wakeup ? true : false);
@@ -927,6 +929,54 @@ int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
     }
     return count;
 }
+
+int print_vcpu_load_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.load_map);
+    int err;
+    struct load_key lookup_key = {};
+    struct load_key next_key = {};
+    struct load_value load_value = {};
+    int first = 1;
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first) {
+            first = 0;
+            printf("\nTIME:%s\n", getCurrentTimeFormatted());
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid",
+                   "tid", "total_time", "max_time", "min_time", "counts",
+                   "vcpuid", "pcpuid");
+            printf(
+                "------------ ------------ ------------ ------------ "
+                "------------ "
+                "------------ "
+                "------------ "
+                "------------\n");
+        }
+        err = bpf_map_lookup_elem(fd, &next_key, &load_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup vcpu_load_value: %d\n", err);
+            return -1;
+        }
+        printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u %-12d %-12d\n",
+               next_key.pid, next_key.tid,
+               NS_TO_MS_WITH_DECIMAL(load_value.total_time),
+               NS_TO_MS_WITH_DECIMAL(load_value.max_time),
+               NS_TO_MS_WITH_DECIMAL(load_value.min_time), load_value.count,
+               load_value.vcpu_id, load_value.pcpu_id);
+        lookup_key = next_key;
+    }
+    // clear the maps
+    memset(&lookup_key, 0, sizeof(struct load_key));
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        err = bpf_map_delete_elem(fd, &next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup counters: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    return 0;
+}
+
 void __print_exit_map(int fd, enum NameType name_type) {
     if (name_type == EXIT_NR) {
         printf(
@@ -1082,6 +1132,10 @@ int main(int argc, char **argv) {
         }
         if (env.execute_exit) {
             print_map_and_check_error(print_exit_map, skel, "exit", err);
+        }
+        if (env.execute_vcpu_load) {
+            print_map_and_check_error(print_vcpu_load_map, skel, "vcpu_load",
+                                      err);
         }
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {

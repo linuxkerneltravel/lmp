@@ -93,6 +93,24 @@ struct exit_key {
     __u32 tid;
 };
 
+struct load_key {
+    __u32 pid;
+    __u32 tid;
+};
+struct load_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
+    __u32 count;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+};
+struct time_value {
+    __u32 pad;
+    __u64 time;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+};
 struct exit_value {
     __u64 max_time;
     __u64 total_time;
@@ -165,11 +183,6 @@ struct common_event {
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
-
-        struct {
-            __u32 vcpu_id;
-            // VCPU_LOAD 特有成员
-        } vcpu_load_data;
 
         struct {
             __u32 reason_number;
