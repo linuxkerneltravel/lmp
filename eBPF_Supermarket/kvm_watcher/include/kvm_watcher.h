@@ -109,6 +109,7 @@ struct load_value {
     __u32 count;
     __u32 vcpu_id;
     __u32 pcpu_id;
+    __u32 pad;
 };
 struct time_value {
     __u32 pad;
