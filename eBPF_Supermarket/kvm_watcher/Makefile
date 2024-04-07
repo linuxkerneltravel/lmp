@@ -40,9 +40,9 @@ default: bpf
 .PHONY: deps
 deps:
 	sudo apt-get update
-	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev lolcat \
-		linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) qemu-kvm wget
-
+	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
+		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) 
+	sudo apt-get install -y  lolcat qemu-kvm wget
 # 生成 vmlinux.h
 .PHONY: vmlinux
 vmlinux:
