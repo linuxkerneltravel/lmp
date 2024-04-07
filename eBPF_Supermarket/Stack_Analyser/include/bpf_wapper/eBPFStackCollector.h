@@ -27,16 +27,17 @@
 
 struct Scale
 {
-    const char *Type, *Unit;
-    int64_t Period;
+    std::string Type;
+    uint64_t Period;
+    std::string Unit;
 };
 
 /// @brief count类，主要是为了重载比较运算，便于自动排序
 struct CountItem
 {
     psid k;
-    double v;
-    CountItem(psid k, double v) : k(k), v(v){};
+    uint64_t *v;
+    CountItem(psid k, uint64_t *v) : k(k), v(v){};
 
     /// @brief count对象的大小取决于val的大小
     /// @param b 要比较的对象
@@ -47,23 +48,21 @@ struct CountItem
 class StackCollector
 {
 protected:
+    int self_pid = -1;
     struct bpf_object *obj = NULL;
 
     // 默认显示计数的变化情况，即每次输出数据后清除计数
     bool showDelta = true;
+    int scale_num;
 
 public:
-    Scale scale = {0};
+    Scale *scales;
 
     int pid = -1; // 用于设置ebpf程序跟踪的pid
     int err = 0;  // 用于保存错误代码
 
-    bool ustack = true; // 是否跟踪用户栈
-    bool kstack = true; // 是否跟踪内核栈
-    uint64_t min = 0;
-    uint64_t max = __UINT64_MAX__; // 设置采集指标最大值，最小值
-
-    int self_pid = -1;
+    bool ustack = false; // 是否跟踪用户栈
+    bool kstack = false; // 是否跟踪内核栈
 
 protected:
     std::vector<CountItem> *sortedCountList(void);
@@ -71,7 +70,7 @@ protected:
     /// @brief 将缓冲区的数据解析为特定值
     /// @param  无
     /// @return 解析出的值
-    virtual double count_value(void *data) = 0;
+    virtual uint64_t *count_values(void *data) = 0;
 
 public:
     StackCollector();
@@ -95,34 +94,38 @@ public:
     /// @param  无
     virtual void unload(void) = 0;
 
+    /// @brief 激活eBPF程序
+    /// @param  无
+    virtual void activate(bool) = 0;
+
+    virtual const char *getName(void) = 0;
+
 // 声明eBPF骨架
-#define declareEBPF(func) struct func##_bpf *skel = NULL;
+#define DECL_SKEL(func) struct func##_bpf *skel = NULL;
 
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define StackProgLoadOpen(...)                         \
+#define EBPF_LOAD_OPEN_INIT(...)                       \
     {                                                  \
         skel = skel->open(NULL);                       \
         CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
-        skel->bss->min = min;                          \
-        skel->bss->max = max;                          \
-        skel->bss->u = ustack;                         \
-        skel->bss->k = kstack;                         \
-        skel->bss->self_pid = self_pid;                \
         __VA_ARGS__;                                   \
+        skel->rodata->trace_user = ustack;             \
+        skel->rodata->trace_kernel = kstack;           \
+        skel->rodata->self_pid = self_pid;             \
         err = skel->load(skel);                        \
         CHECK_ERR(err, "Fail to load BPF skeleton");   \
         obj = skel->obj;                               \
     }
 
-#define defaultAttach                                    \
+#define ATTACH_PROTO                                     \
     {                                                    \
         err = skel->attach(skel);                        \
         CHECK_ERR(err, "Failed to attach BPF skeleton"); \
     }
 
-#define defaultDetach           \
+#define DETACH_PROTO            \
     {                           \
         if (skel)               \
         {                       \
@@ -130,7 +133,7 @@ public:
         }                       \
     }
 
-#define defaultUnload            \
+#define UNLOAD_PROTO             \
     {                            \
         if (skel)                \
         {                        \
@@ -139,5 +142,8 @@ public:
         skel = NULL;             \
     }
 };
+
+#define ACTIVE_SET(_b) \
+    skel->bss->__active = _b;
 
 #endif

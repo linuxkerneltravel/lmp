@@ -14,37 +14,38 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// on cpu ebpf程序的包装类，声明接口和一些自定义方法
+// ebpf程序的包装类的模板，声明接口和一些自定义方法，以及辅助结构
 
-#ifndef _SA_ON_CPU_H__
-#define _SA_ON_CPU_H__
+#ifndef _TEMPLATE_H__
+#define _TEMPLATE_H__
 
-#include "eBPFStackCollector.h"
-#include "on_cpu.skel.h"
+// ========== C code part ==========
 
+// ========== C code end ==========
 
 #ifdef __cplusplus
-class OnCPUStackCollector : public StackCollector
+// ========== C++ code part ==========
+#include "template.skel.h"
+#include "bpf_wapper/eBPFStackCollector.h"
+
+class TemplateClass : public StackCollector
 {
 private:
-	struct on_cpu_bpf *skel = __null;
-
-	int *pefds = NULL;
-	int num_cpus = 0;
-	struct bpf_link **links = NULL;
-	unsigned long long freq = 49;
+    DECL_SKEL(template);
 
 protected:
-	virtual double count_value(void *);
+    virtual uint64_t *count_values(void *);
 
 public:
-	void setScale(uint64_t freq);
-	OnCPUStackCollector();
+    TemplateClass();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
+// ========== C++ code end ==========
 #endif
 
 #endif

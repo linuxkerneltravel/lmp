@@ -462,7 +462,6 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
             pack_info->flag);    
     return 0;
 }
-
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -585,6 +584,12 @@ int main(int argc, char **argv) {
     if (!tcp_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
+        goto cleanup;
+    }
+    icmp_rb =ring_buffer__new(bpf_map__fd(skel->maps.icmp_rb), print_icmptime, NULL, NULL);
+    if (!icmp_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(icmp)\n");
         goto cleanup;
     }
     /* Set up ring buffer polling */

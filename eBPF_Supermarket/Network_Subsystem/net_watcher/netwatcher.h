@@ -122,6 +122,12 @@ struct  reasonissue
     u16 protocol;
     int  drop_reason;
 };
+struct icmptime{
+    unsigned int saddr;
+    unsigned int daddr;
+    unsigned long long icmp_tran_time;
+    unsigned int flag; //0 send 1 rcv
+};
 
 struct icmptime{
     unsigned int saddr;

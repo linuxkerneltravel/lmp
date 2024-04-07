@@ -16,20 +16,21 @@
 //
 // probe ebpf 程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/probe.h"
+#include "bpf_wapper/probe.h"
 #include "uprobe_helpers.h"
 
-double StackCountStackCollector::count_value(void *data)
+uint64_t *ProbeStackCollector::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 }
 
-StackCountStackCollector::StackCountStackCollector()
+ProbeStackCollector::ProbeStackCollector()
 {
-    scale = {
-        .Type = "StackCounts",
-        .Unit = "Counts",
-        .Period = 1,
+    scale_num = 1;
+    scales = new Scale[scale_num]{
+        {"", 1, "counts"},
     };
 };
 
@@ -47,20 +48,20 @@ void splitString(std::string symbol, const char split, std::vector<std::string> 
         pos = strs.find(split);
     }
 }
-void StackCountStackCollector::setScale(std::string probe)
+
+void ProbeStackCollector::setScale(std::string probe)
 {
     this->probe = probe;
-    auto type = new std::string(probe+scale.Type);
-    scale.Type = type->c_str();
+    scales->Type = probe + "Counts";
 };
 
-int StackCountStackCollector::load(void)
+int ProbeStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->bss->apid = pid;);
+    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
     return 0;
 };
 
-int StackCountStackCollector::attach(void)
+int ProbeStackCollector::attach(void)
 {
     std::vector<std::string> strList;
     splitString(probe, ':', strList);
@@ -121,16 +122,24 @@ int StackCountStackCollector::attach(void)
         printf("Type must be 'p', 't', or 'u' or too any args");
     }
 
-    scale.Type = (probe + scale.Type).c_str();
     return 0;
 };
 
-void StackCountStackCollector::detach(void)
+void ProbeStackCollector::detach(void)
 {
-    defaultDetach;
+    DETACH_PROTO;
 };
 
-void StackCountStackCollector::unload(void)
+void ProbeStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 };
+
+void ProbeStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
+}
+
+const char *ProbeStackCollector::getName(void) {
+    return "ProbeStackCollector";
+}
