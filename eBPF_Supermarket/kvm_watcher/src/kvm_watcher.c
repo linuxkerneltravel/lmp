@@ -1137,17 +1137,7 @@ void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
 }
 
 void print_logo() {
-    char *logo =
-        " _  ____     ____  __  __        ___  _____ ____ _   _ "
-        "_____ ____  \n"
-        "| |/ /\\ \\   / /  \\/  | \\ \\      / / \\|_   _/ "
-        "___| | | | ____|  _ \\ \n"
-        "| ' /  \\ \\ / /| |\\/| |  \\ \\ /\\ / / _ \\ | || |   "
-        "| |_| |  _| | |_) |\n"
-        "| . \\   \\ V / | |  | |   \\ V  V / ___ \\| || "
-        "|___|  _  | |___|  _ < \n"
-        "|_|\\_\\   \\_/  |_|  |_|    \\_/\\_/_/   \\_\\_| \\____|_| "
-        "|_|_____|_| \\_|\\\n";
+    char *logo = LOGO_STRING;
     char command[512];
     sprintf(command, "echo \"%s\" | /usr/games/lolcat", logo);
     system(command);
