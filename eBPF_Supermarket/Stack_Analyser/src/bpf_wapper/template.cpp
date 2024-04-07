@@ -14,18 +14,42 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 内核态bpf程序的模板代码
+// ebpf程序包装类的模板，实现接口和一些自定义方法
 
-#include "vmlinux.h"
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
-
-#include "sa_ebpf.h"
 #include "bpf_wapper/template.h"
-#include "task.h"
 
-COMMON_MAPS(__u32);
-COMMON_VALS;
+// ========== implement virtual func ==========
 
-const char LICENSE[] SEC("license") = "GPL";
+uint64_t *TemplateClass::count_values(void *data)
+{
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
+};
+
+int TemplateClass::load(void)
+{
+    return 0;
+};
+
+int TemplateClass::attach(void)
+{
+    return 0;
+};
+
+void TemplateClass::detach(void){};
+
+void TemplateClass::unload(void){};
+
+void TemplateClass::activate(bool tf)
+{
+    ACTIVE_SET(tf);
+}
+
+const char *TemplateClass::getName(void) {
+    return "TemplateClass";
+}
+
+// ========== other implementations ==========
+
+TemplateClass::TemplateClass(){};

@@ -14,31 +14,39 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// ebpf程序包装类的模板，实现接口和一些自定义方法
+// io ebpf程序的包装类，声明接口和一些自定义方法
 
-#include "bpf/template.h"
+#ifndef _SA_IO_H__
+#define _SA_IO_H__
 
-// ========== implement virtual func ==========
-
-double TemplateClass::count_value(void *data)
+#include <asm/types.h>
+typedef struct
 {
-    return *(uint32_t*)data;
-};
+    __u64 size;
+    __u64 count;
+} io_tuple;
 
-int TemplateClass::load(void)
+#ifdef __cplusplus
+#include "io.skel.h"
+#include "bpf_wapper/eBPFStackCollector.h"
+
+class IOStackCollector : public StackCollector
 {
-    return 0;
+private:
+    DECL_SKEL(io);
+
+protected:
+    virtual uint64_t *count_values(void *);
+
+public:
+    IOStackCollector();
+    virtual int load(void);
+    virtual int attach(void);
+    virtual void detach(void);
+    virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
+#endif
 
-int TemplateClass::attach(void)
-{
-    return 0;
-};
-
-void TemplateClass::detach(void){};
-
-void TemplateClass::unload(void){};
-
-// ========== other implementations ========== 
-
-TemplateClass::TemplateClass(){};
+#endif

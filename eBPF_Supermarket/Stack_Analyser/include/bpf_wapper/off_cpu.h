@@ -14,46 +14,30 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// io ebpf程序的包装类，声明接口和一些自定义方法
+// off cpu ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef _SA_IO_H__
-#define _SA_IO_H__
+#ifndef _SA_OFF_CPU_H__
+#define _SA_OFF_CPU_H__
 
-#include <asm/types.h>
-typedef struct
-{
-    __u64 size : 40;
-    __u64 count : 24;
-} io_tuple;
+#include "bpf_wapper/eBPFStackCollector.h"
+#include "off_cpu.skel.h"
 
-#ifdef __cplusplus
-#include "io.skel.h"
-#include "bpf/eBPFStackCollector.h"
-
-class IOStackCollector : public StackCollector
+class OffCPUStackCollector : public StackCollector
 {
 private:
-    declareEBPF(io);
-
-public:
-    enum io_mod
-    {
-        COUNT,
-        SIZE,
-        AVE,
-    } DataType = COUNT;
+    struct off_cpu_bpf *skel = __null;
 
 protected:
-    virtual double count_value(void *);
+    virtual uint64_t *count_values(void *);
 
 public:
-    void setScale(io_mod mod);
-    IOStackCollector();
+    OffCPUStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
-#endif
 
 #endif

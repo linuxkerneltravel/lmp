@@ -14,36 +14,29 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// ebpf程序的包装类的模板，声明接口和一些自定义方法，以及辅助结构
+// probe ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef _TEMPLATE_H__
-#define _TEMPLATE_H__
+#include "bpf_wapper/eBPFStackCollector.h"
+#include "probe.skel.h"
 
-// ========== C code part ==========
-
-// ========== C code end ========== 
-
-#ifdef __cplusplus
-// ========== C++ code part ==========
-#include "template.skel.h"
-#include "bpf/eBPFStackCollector.h"
-
-class TemplateClass : public StackCollector
+class ProbeStackCollector : public StackCollector
 {
 private:
-    declareEBPF(template_bpf);
-
-protected:
-    virtual double count_value(void *);
+    struct probe_bpf *skel = __null;
 
 public:
-    TemplateClass();
+    std::string probe;
+
+protected:
+    virtual uint64_t *count_values(void *);
+
+public:
+    void setScale(std::string probe);
+    ProbeStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
-// ========== C++ code end ==========
-#endif
-
-#endif

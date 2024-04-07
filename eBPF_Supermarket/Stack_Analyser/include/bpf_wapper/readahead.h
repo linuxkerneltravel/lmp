@@ -14,27 +14,39 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// probe ebpf程序的包装类，声明接口和一些自定义方法
+// readahead ebpf程序的包装类，声明接口和一些自定义方法
 
-#include "bpf/eBPFStackCollector.h"
-#include "probe.skel.h"
+#ifndef _SA_READAHEAD_H__
+#define _SA_READAHEAD_H__
 
-class StackCountStackCollector : public StackCollector
+#include <asm/types.h>
+typedef struct
+{
+    __u32 expect;
+    __u32 truth;
+} ra_tuple;
+
+#ifdef __cplusplus
+#include "readahead.skel.h"
+#include "bpf_wapper/eBPFStackCollector.h"
+
+class ReadaheadStackCollector : public StackCollector
 {
 private:
-    struct probe_bpf *skel = __null;
-
-public:
-    std::string probe;
+    DECL_SKEL(readahead);
 
 protected:
-    virtual double count_value(void *);
+    virtual uint64_t *count_values(void *data);
 
 public:
-    void setScale(std::string probe);
-    StackCountStackCollector();
+    ReadaheadStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
+#endif
+
+#endif

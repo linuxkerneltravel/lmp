@@ -14,36 +14,37 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// readahead ebpf程序的包装类，声明接口和一些自定义方法
+// on cpu ebpf程序的包装类，声明接口和一些自定义方法
 
-#ifndef _SA_READAHEAD_H__
-#define _SA_READAHEAD_H__
+#ifndef _SA_ON_CPU_H__
+#define _SA_ON_CPU_H__
 
-#include <asm/types.h>
-typedef struct
-{
-    __u32 expect;
-    __u32 truth;
-} ra_tuple;
+#include "bpf_wapper/eBPFStackCollector.h"
+#include "on_cpu.skel.h"
 
 #ifdef __cplusplus
-#include "readahead.skel.h"
-#include "bpf/eBPFStackCollector.h"
-
-class ReadaheadStackCollector : public StackCollector
+class OnCPUStackCollector : public StackCollector
 {
 private:
-    declareEBPF(readahead);
+	struct on_cpu_bpf *skel = __null;
+
+	int *pefds = NULL;
+	int num_cpus = 0;
+	struct bpf_link **links = NULL;
+	unsigned long long freq = 49;
 
 protected:
-    virtual double count_value(void *data);
+	virtual uint64_t *count_values(void *);
 
 public:
-    ReadaheadStackCollector();
-    virtual int load(void);
-    virtual int attach(void);
-    virtual void detach(void);
-    virtual void unload(void);
+	void setScale(uint64_t freq);
+	OnCPUStackCollector();
+	virtual int load(void);
+	virtual int attach(void);
+	virtual void detach(void);
+	virtual void unload(void);
+	virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
 #endif
 

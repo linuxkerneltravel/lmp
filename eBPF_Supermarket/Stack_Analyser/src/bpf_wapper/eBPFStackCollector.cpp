@@ -16,7 +16,7 @@
 //
 // 包装用于采集调用栈数据的eBPF程序，规定一些抽象接口和通用变量
 
-#include "bpf/eBPFStackCollector.h"
+#include "bpf_wapper/eBPFStackCollector.h"
 #include "sa_user.h"
 #include "dt_symbol.h"
 
@@ -36,7 +36,7 @@ std::string getLocalDateTime(void)
 
 bool operator<(const CountItem a, const CountItem b)
 {
-    if (a.v < b.v || (a.v == b.v && a.k.pid < b.k.pid))
+    if (a.v[0] < b.v[0] || (a.v[0] == b.v[0] && a.k.pid < b.k.pid))
         return true;
     else
         return false;
@@ -49,9 +49,9 @@ StackCollector::StackCollector()
 
 std::vector<CountItem> *StackCollector::sortedCountList(void)
 {
-    auto psid_count = bpf_object__find_map_by_name(obj, "psid_count");
-    auto val_size = bpf_map__value_size(psid_count);
-    auto value_fd = bpf_object__find_map_fd_by_name(obj, "psid_count");
+    auto psid_count_map = bpf_object__find_map_by_name(obj, "psid_count_map");
+    auto val_size = bpf_map__value_size(psid_count_map);
+    auto value_fd = bpf_object__find_map_fd_by_name(obj, "psid_count_map");
 
     auto keys = new psid[MAX_ENTRIES];
     auto vals = new char[MAX_ENTRIES * val_size];
@@ -74,7 +74,7 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
     auto D = new std::vector<CountItem>();
     for (uint32_t i = 0; i < count; i++)
     {
-        CountItem d(keys[i], count_value(vals + val_size * i));
+        CountItem d(keys[i], count_values(vals + val_size * i));
         D->insert(std::lower_bound(D->begin(), D->end(), d), d);
     }
     delete[] keys;
@@ -85,23 +85,31 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
 StackCollector::operator std::string()
 {
     std::ostringstream oss;
-    oss << "Type:" << scale.Type << " Unit:" << scale.Unit << " Period:" << scale.Period << '\n';
-    oss << "time:" << getLocalDateTime() << '\n';
+    oss << _RED "time:" << getLocalDateTime() << _RE "\n";
     std::map<int32_t, std::vector<std::string>> traces;
 
-    oss << "counts:\n";
+    oss << _BLUE "counts:" _RE "\n";
     {
         auto D = sortedCountList();
         if (!D)
             return oss.str();
-        oss << "pid\tusid\tksid\tcount\n";
+        oss << _GREEN "pid\tusid\tksid";
+        for (int i = 0; i < scale_num; i++)
+            oss << '\t' << scales[i].Type << "/" << scales[i].Period << scales[i].Unit;
+        oss << _RE "\n";
         uint64_t trace[MAX_STACKS], *p;
-        for (auto i : *D)
+        for (auto &i : *D)
         {
             auto &id = i.k;
-            auto &v = i.v;
-            auto trace_fd = bpf_object__find_map_fd_by_name(obj, "stack_trace");
-            oss << id.pid << '\t' << id.usid << '\t' << id.ksid << '\t' << v << '\n';
+            oss << id.pid << '\t' << id.usid << '\t' << id.ksid;
+            {
+                auto &v = i.v;
+                for (int i = 0; i < scale_num; i++)
+                    oss << '\t' << v[i];
+                delete v;
+            }
+            oss << '\n';
+            auto trace_fd = bpf_object__find_map_fd_by_name(obj, "sid_trace_map");
             if (id.usid > 0 && traces.find(id.usid) == traces.end())
             {
                 bpf_map_lookup_elem(trace_fd, &id.usid, trace);
@@ -165,72 +173,51 @@ StackCollector::operator std::string()
         delete D;
     }
 
-    oss << "traces:\n";
+    oss << _BLUE "traces:" _RE "\n";
     {
-        oss << "sid\ttrace\n";
+        oss << _GREEN "sid\ttrace" _RE "\n";
         for (auto i : traces)
         {
             oss << i.first << "\t";
             for (auto s : i.second)
-            {
                 oss << s << ';';
-            }
             oss << "\n";
         }
     }
 
-    oss << "groups:\n";
+    oss << _BLUE "info:" _RE "\n";
     {
-        auto tgid_fd = bpf_object__find_map_fd_by_name(obj, "pid_tgid");
-        if (tgid_fd < 0)
+        auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
+        if (info_fd < 0)
         {
             return oss.str();
         }
         auto keys = new uint32_t[MAX_ENTRIES];
-        auto vals = new uint32_t[MAX_ENTRIES];
+        auto vals = new task_info[MAX_ENTRIES];
         uint32_t count = MAX_ENTRIES;
         uint32_t next_key;
-        int err = bpf_map_lookup_batch(tgid_fd, NULL, &next_key, keys, vals,
-                                       &count, NULL);
-        if (err == EFAULT)
         {
-            return oss.str();
+            int err;
+            if (showDelta)
+                err = bpf_map_lookup_and_delete_batch(info_fd, NULL, &next_key,
+                                                      keys, vals, &count, NULL);
+            else
+                err = bpf_map_lookup_batch(info_fd, NULL, &next_key,
+                                           keys, vals, &count, NULL);
+            if (err == EFAULT)
+                return oss.str();
         }
-        oss << "pid\ttgid\n";
+        oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup" _RE "\n";
         for (uint32_t i = 0; i < count; i++)
-        {
-            oss << keys[i] << '\t' << vals[i] << '\n';
-        }
+            oss << keys[i] << '\t'
+                << vals[i].pid << '\t'
+                << vals[i].comm << '\t'
+                << vals[i].tgid << '\t'
+                << vals[i].cid << '\n';
         delete[] keys;
         delete[] vals;
     }
 
-    oss << "commands:\n";
-    {
-        auto comm_fd = bpf_object__find_map_fd_by_name(obj, "pid_comm");
-        if (comm_fd < 0)
-        {
-            return oss.str();
-        }
-        auto keys = new uint32_t[MAX_ENTRIES];
-        auto vals = new char[MAX_ENTRIES][16];
-        uint32_t count = MAX_ENTRIES;
-        uint32_t next_key;
-        int err = bpf_map_lookup_batch(comm_fd, NULL, &next_key, keys, vals,
-                                       &count, NULL);
-        if (err == EFAULT)
-        {
-            return oss.str();
-        }
-        oss << "pid\tcommand\n";
-        for (uint32_t i = 0; i < count; i++)
-        {
-            oss << keys[i] << '\t' << vals[i] << '\n';
-        }
-        delete[] keys;
-        delete[] vals;
-    }
-
-    oss << "OK\n";
+    oss << _BLUE "OK" _RE "\n";
     return oss.str();
 }

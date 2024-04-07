@@ -16,42 +16,54 @@
 //
 // readahead ebpf程序的包装类，实现接口和一些自定义方法
 
-#include "bpf/readahead.h"
+#include "bpf_wapper/readahead.h"
 
-double ReadaheadStackCollector::count_value(void *data)
+uint64_t *ReadaheadStackCollector::count_values(void *data)
 {
     ra_tuple *p = (ra_tuple *)data;
-    return p->expect - p->truth;
+    return new uint64_t[scale_num]{
+        p->expect - p->truth,
+        p->truth,
+    };
 };
 
 ReadaheadStackCollector::ReadaheadStackCollector()
 {
     showDelta = false;
-    scale = {
-        .Type = "UnusedReadaheadPages",
-        .Unit = "pages",
-        .Period = 1,
+    scale_num = 2;
+    scales = new Scale[scale_num]{
+        {"UnusedReadaheadPages", 1, "pages"},
+        {"UsedReadaheadPages", 1, "pages"},
     };
 };
 
 int ReadaheadStackCollector::load(void)
 {
-    StackProgLoadOpen();
+    EBPF_LOAD_OPEN_INIT();
     return 0;
 }
 
 int ReadaheadStackCollector::attach(void)
 {
-    defaultAttach;
+    ATTACH_PROTO;
     return 0;
 }
 
 void ReadaheadStackCollector::detach(void)
 {
-    defaultDetach;
+    DETACH_PROTO;
 }
 
 void ReadaheadStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
+}
+
+void ReadaheadStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
+}
+
+const char *ReadaheadStackCollector::getName(void) {
+    return "ReadaheadStackCollector";
 }
