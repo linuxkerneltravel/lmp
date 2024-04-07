@@ -225,6 +225,8 @@ static int update_timer_map(struct kvm_timer *ktimer) {
         tm = PERIODIC;
     } else if (timer_mode == APIC_LVT_TIMER_TSCDEADLINE) {
         tm = TSCDEADLINE;
+    } else {
+        return 0;
     }
 
     struct timer_key timer_key = {
