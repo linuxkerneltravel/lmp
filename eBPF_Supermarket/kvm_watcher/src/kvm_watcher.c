@@ -1064,6 +1064,7 @@ void __print_exit_map(int fd, enum NameType name_type) {
     for (int i = 0; i < count; i++) {
         if (first_run) {
             first_run = 0;
+            printf("\nTIME:%s\n", getCurrentTimeFormatted());
             if (name_type == EXIT_NR) {
                 printf(
                     "============================================KVM_EXIT======"
@@ -1121,7 +1122,6 @@ void __print_exit_map(int fd, enum NameType name_type) {
 int print_exit_map(struct kvm_watcher_bpf *skel) {
     int exit_fd = bpf_map__fd(skel->maps.exit_map);
     int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
-    printf("\nTIME:%s\n", getCurrentTimeFormatted());
     __print_exit_map(exit_fd, EXIT_NR);
     __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
