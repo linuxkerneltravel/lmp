@@ -58,6 +58,11 @@ struct filtertime {
     u64 ip_finish_output_time;    
 
 };
+struct ip_packet
+{
+    unsigned int saddr;         // 源地址
+    unsigned int daddr;         // 目的地址
+};
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -109,6 +114,10 @@ struct {
     __uint(max_entries, 256 * 1024);
 } kfree_rb SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} icmp_rb SEC(".maps");
 // 存储每个tcp连接所对应的conn_t
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -148,11 +157,17 @@ struct {
     __type(value, struct packet_tuple);
 } kfree  SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, MAX_CONN * MAX_PACKET);
+    __type(key, struct ip_packet);
+    __type(value,unsigned long long);
+} icmp_time SEC(".maps");
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,kfree_info = 0;
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,kfree_info = 0,icmp_info = 0 ;
 
 /* help macro */
 
@@ -327,7 +342,11 @@ static inline struct ipv6hdr *skb_to_ipv6hdr(const struct sk_buff *skb) {
     return (struct ipv6hdr *)(BPF_CORE_READ(skb, head) +
                               BPF_CORE_READ(skb, network_header));
 }
-
+// 初始化ip_packet
+static void get_ip_pkt_tuple(struct ip_packet *ipk, struct iphdr *ip) {
+    ipk->saddr = BPF_CORE_READ(ip, saddr);
+    ipk->daddr = BPF_CORE_READ(ip, daddr);
+}
 // 初始化packet_tuple结构指针pkt_tuple
 static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
                           struct tcphdr *tcp) {
@@ -1560,6 +1579,71 @@ int tp_kfree(struct trace_event_raw_kfree_skb *ctx) {
     message->protocol = ctx->protocol;
     message->location = (long)ctx->location;
     message->drop_reason = ctx->reason;
+    bpf_ringbuf_submit(message,0);
+    return 0;
+}
+SEC("kprobe/icmp_rcv")
+int BPF_KPROBE(icmp_rcv,struct sk_buff *skb) {
+    if(!icmp_info||skb==NULL)
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct ip_packet ipk = {0};
+    get_ip_pkt_tuple(&ipk, ip);
+    unsigned long long time= bpf_ktime_get_ns() / 1000;
+    bpf_map_update_elem(&icmp_time, &ipk, &time, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kprobe/__sock_queue_rcv_skb")
+int BPF_KPROBE(__sock_queue_rcv_skb,struct sock *sk, struct sk_buff *skb) {
+   if(!icmp_info||skb==NULL)
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct ip_packet ipk = {0};
+    get_ip_pkt_tuple(&ipk, ip);
+    unsigned long long *pre_time = bpf_map_lookup_elem(&icmp_time, &ipk);
+    if(pre_time==NULL)
+        return 0;
+    
+    unsigned long long new_time= bpf_ktime_get_ns() / 1000;
+    unsigned long long time=new_time-*pre_time;
+    struct icmptime *message;
+    message = bpf_ringbuf_reserve(&icmp_rb, sizeof(*message), 0);
+    if(!message){
+        return 0;
+    }
+
+    message->saddr = ipk.saddr;
+    message->daddr =ipk.daddr;
+    message->icmp_tran_time =time; 
+    message->flag =0; 
+    bpf_ringbuf_submit(message,0);
+    return 0;
+}
+
+SEC("kprobe/icmp_reply")
+int BPF_KPROBE(icmp_reply,struct icmp_bxm *icmp_param, struct sk_buff *skb) {
+   if(!icmp_info||skb==NULL)
+        return 0;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct ip_packet ipk = {0};
+    get_ip_pkt_tuple(&ipk, ip);
+    unsigned long long *pre_time = bpf_map_lookup_elem(&icmp_time, &ipk);
+    if(pre_time==NULL)
+        return 0;
+    unsigned long long new_time= bpf_ktime_get_ns() / 1000;
+    unsigned long long time=new_time-*pre_time;
+    struct icmptime *message;
+    message = bpf_ringbuf_reserve(&icmp_rb, sizeof(*message), 0);
+    if(!message){
+        return 0;
+    }
+
+    message->saddr = ipk.saddr;
+    message->daddr =ipk.daddr;
+    message->icmp_tran_time =time; 
+    message->flag =1; 
     bpf_ringbuf_submit(message,0);
     return 0;
 }
