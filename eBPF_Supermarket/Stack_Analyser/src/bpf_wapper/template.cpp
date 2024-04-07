@@ -20,9 +20,11 @@
 
 // ========== implement virtual func ==========
 
-double TemplateClass::count_value(void *data)
+uint64_t *TemplateClass::count_values(void *data)
 {
-    return *(uint32_t*)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 };
 
 int TemplateClass::load(void)
@@ -39,6 +41,15 @@ void TemplateClass::detach(void){};
 
 void TemplateClass::unload(void){};
 
-// ========== other implementations ========== 
+void TemplateClass::activate(bool tf)
+{
+    ACTIVE_SET(tf);
+}
+
+const char *TemplateClass::getName(void) {
+    return "TemplateClass";
+}
+
+// ========== other implementations ==========
 
 TemplateClass::TemplateClass(){};

@@ -14,29 +14,52 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// probe ebpf程序的包装类，声明接口和一些自定义方法
+// ebpf程序的包装类的模板，声明接口和一些自定义方法，以及辅助结构
 
+#ifndef _SA_LLC_STAT_H__
+#define _SA_LLC_STAT_H__
+
+// ========== C code part ==========
+
+#include <asm/types.h>
+
+typedef struct
+{
+    __u64 miss;
+    __u64 ref;
+} llc_stat;
+
+// ========== C code end ==========
+
+#ifdef __cplusplus
+// ========== C++ code part ==========
 #include "bpf_wapper/eBPFStackCollector.h"
-#include "probe.skel.h"
+#include "llc_stat.skel.h"
 
-class ProbeStackCollector : public StackCollector
+class LlcStatStackCollector : public StackCollector
 {
 private:
-    struct probe_bpf *skel = __null;
-
-public:
-    std::string probe;
+    DECL_SKEL(llc_stat);
+    int *mpefds = NULL;
+    int *rpefds = NULL;
+    int num_cpus = 0;
+    struct bpf_link **mlinks = NULL;
+    struct bpf_link **rlinks = NULL;
 
 protected:
     virtual uint64_t *count_values(void *);
 
 public:
-    void setScale(std::string probe);
-    ProbeStackCollector();
+    LlcStatStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
     virtual void activate(bool tf);
     virtual const char *getName(void);
+    void setScale(uint64_t period);
 };
+// ========== C++ code end ==========
+#endif
+
+#endif
