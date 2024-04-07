@@ -3,9 +3,7 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <limits.h>
-#include <string.h>
-#include <errno.h> 
+#include <stdlib.h>
 #include "write.h"
 #include "write.skel.h"
 
