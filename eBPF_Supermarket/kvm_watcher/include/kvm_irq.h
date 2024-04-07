@@ -38,6 +38,13 @@ struct {
     __type(value, u64);
 } irq_inject_delay SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, struct timer_key);
+    __type(value, struct timer_value);
+} timer_map SEC(".maps");
+
 static int entry_kvm_pic_set_irq(int irq) {
     if (irq < 0 || irq >= PIC_NUM_PINS) {
         return 0;
@@ -198,4 +205,54 @@ static int exit_vmx_inject_irq(struct kvm_vcpu *vcpu, void *rb,
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
+
+static int update_timer_map(struct kvm_timer *ktimer) {
+    enum TimerMode {
+        ONESHOT,
+        PERIODIC,
+        TSCDEADLINE,
+    };
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 timer_mode;
+    struct timer_value timer_value = {.counts = 1};
+
+    bpf_probe_read_kernel(&timer_mode, sizeof(u32), &ktimer->timer_mode);
+    enum TimerMode tm;
+    if (timer_mode == APIC_LVT_TIMER_ONESHOT) {
+        tm = ONESHOT;
+    } else if (timer_mode == APIC_LVT_TIMER_PERIODIC) {
+        tm = PERIODIC;
+    } else if (timer_mode == APIC_LVT_TIMER_TSCDEADLINE) {
+        tm = TSCDEADLINE;
+    }
+
+    struct timer_key timer_key = {
+        .pid = pid, .hv = ktimer->hv_timer_in_use, .timer_mode = tm};
+    struct timer_value *tv_p;
+    tv_p = bpf_map_lookup_elem(&timer_map, &timer_key);
+    if (tv_p) {
+        __sync_fetch_and_add(&tv_p->counts, 1);
+    } else {
+        bpf_map_update_elem(&timer_map, &timer_key, &timer_value, BPF_NOEXIST);
+    }
+    return 0;
+}
+
+static int trace_start_hv_timer(struct kvm_lapic *apic) {
+    struct kvm_timer ktimer;
+    bpf_probe_read_kernel(&ktimer, sizeof(struct kvm_timer),
+                          &apic->lapic_timer);
+    if (!ktimer.tscdeadline)  // 检查tscdeadline模式定时器是否过期
+        return 0;
+    return update_timer_map(&ktimer);
+}
+
+static int trace_start_sw_timer(struct kvm_lapic *apic) {
+    struct kvm_timer ktimer;
+    bpf_probe_read_kernel(&ktimer, sizeof(struct kvm_timer),
+                          &apic->lapic_timer);
+    return update_timer_map(&ktimer);
+}
+
 #endif /* __KVM_IRQ_H */
