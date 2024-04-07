@@ -102,11 +102,11 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
-//记录VCPU调度的信息
+// 记录VCPU调度的信息
 static int trace_vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu, void *rb,
                                struct common_event *e) {
     RESERVE_RINGBUF_ENTRY(rb, e);
-    //获取pid&tid
+    // 获取pid&tid
     pid_t pid, tid;
     u64 id;
     id = bpf_get_current_pid_tgid();

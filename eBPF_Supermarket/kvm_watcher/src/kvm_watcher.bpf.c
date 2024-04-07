@@ -176,3 +176,15 @@ SEC("tp/kvm/kvm_userspace_exit")
 int tp_kvm_userspace_exit(struct userspace_exit *ctx) {
     return trace_kvm_userspace_exit(ctx);
 }
+
+SEC("fentry/start_hv_timer")
+int BPF_PROG(fentry_start_hv_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_hv_timer(apic);
+}
+
+SEC("fentry/start_sw_timer")
+int BPF_PROG(fentry_start_sw_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_sw_timer(apic);
+}
