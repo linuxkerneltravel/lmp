@@ -129,14 +129,6 @@ struct icmptime{
     unsigned int flag; //0 send 1 rcv
 };
 
-struct icmptime{
-    unsigned int saddr;
-    unsigned int daddr;
-    unsigned long long icmp_tran_time;
-    unsigned int flag; //0 send 1 rcv
-};
-
-
 struct tcp_state {
     u32 saddr;       
     u32 daddr;   
