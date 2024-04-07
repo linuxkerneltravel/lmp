@@ -137,7 +137,7 @@ LlcStatStackCollector::LlcStatStackCollector()
 	scales = new Scale[3]{
 		{"CacheMissingCount", DefaultPeriod, "counts"},
 		{"CacheReferenceCount", DefaultPeriod, "counts"},
-		{"CacheHitPercentage", 1, "%"},
+		{"CacheHitPercentage", 1, "percent"},
 	};
 };
 
