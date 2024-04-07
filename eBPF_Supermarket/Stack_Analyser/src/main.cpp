@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
                                  .call([]
                                        { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
                                              ->setScale(IntTmp); })) %
-                                "Set sampling frequency",
+                                "Set sampling frequency; default is 49",
                             TraceOption);
 
         auto OffCpuOption = clipp::option("off_cpu")
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
                                    .call([]
                                          { static_cast<MemleakStackCollector *>(StackCollectorList.back())
                                                ->sample_rate = IntTmp; })) %
-                                  "Set the sampling interval",
+                                  "Set the sampling interval; default is 1",
                               clipp::option("-w")
                                       .call([]
                                             { static_cast<MemleakStackCollector *>(StackCollectorList.back())
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
                                    .call([]
                                          { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
                                                ->setScale(IntTmp); })) %
-                                  "Set sampling period",
+                                  "Set sampling period; default is 100",
                               TraceOption);
 
         auto MainOption = _GREEN "Some overall options" _RE %
