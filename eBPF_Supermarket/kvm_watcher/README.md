@@ -48,9 +48,13 @@ make clean
 `kvm_watcher`通过一系列命令参数来控制其具体行为：
 
 ```
+ _  ____     ____  __  __        ___  _____ ____ _   _ _____ ____  
+| |/ /\ \   / /  \/  | \ \      / / \|_   _/ ___| | | | ____|  _ \ 
+| ' /  \ \ / /| |\/| |  \ \ /\ / / _ \ | || |   | |_| |  _| | |_) |
+| . \   \ V / | |  | |   \ V  V / ___ \| || |___|  _  | |___|  _ < 
+|_|\_\   \_/  |_|  |_|    \_/\_/_/   \_\_| \____|_| |_|_____|_| \_|
 Usage: kvm_watcher [OPTION...]
 BPF program used for monitoring KVM event
-
 
   -c, --kvm_irqchip          Monitor the irqchip setting information in KVM
                              VM.
@@ -65,12 +69,20 @@ BPF program used for monitoring KVM event
                              option must be specified.)
   -n, --halt_poll_ns         Monitoring the variation in vCPU halt-polling
                              time.
+  -o, --vcpu_load            Monitoring the load of vcpu.
   -p, --vm_pid=PID           Specify the virtual machine pid to monitor.
   -t, --monitoring_time=SEC  Time for monitoring.
+  -T, --kvm_timer            Monitoring the KVM hv or software timer.
+  -v, --verbose              Verbose debug output.
   -w, --vcpu_wakeup          Monitoring the wakeup of vcpu.
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
+
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
+
+Report bugs to <nanshuaibo811@163.com>.
 ```
 
 `-H`：输出帮助信息
@@ -94,6 +106,8 @@ BPF program used for monitoring KVM event
 `-w`：记录vcpu唤醒时的相关信息
 
 `-l`：记录kvm相关ioctl系统调用命令字
+
+`-o`：统计VCPU在PCPU上的运行时间及相关信息
 
 `-p`：指定kvm虚拟机进程pid
 
