@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
                                     .call([]
                                           { static_cast<ProbeStackCollector *>(StackCollectorList.back())
                                                 ->setScale(StrTmp); }) %
-                                "Set the probe string" &
+                                "Set the probe string; necessary probe string is a kernel function" &
                             TraceOption);
 
         auto LlcStatOption = clipp::option("llc_stat").call([]
