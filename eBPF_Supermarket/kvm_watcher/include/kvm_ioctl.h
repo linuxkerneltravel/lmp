@@ -42,7 +42,7 @@ static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
     int fd = (int)args->args[0];
     unsigned int cmd = (unsigned int)args->args[1];
     unsigned long arg = (unsigned long)args->args[2];
-    char buf[256]; // 创建一个缓冲区来存储格式化后的字符串
+    char buf[256];  // 创建一个缓冲区来存储格式化后的字符串
     switch (cmd) {
         case KVM_CREATE_VM:
             bpf_printk("KVM_CREATE_VM: fd=%d\n", fd);
@@ -57,13 +57,13 @@ static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
             struct kvm_userspace_memory_region region;
             bpf_probe_read(&region, sizeof(region), (void *)arg);
             // 打印或处理 region 数据
+            bpf_printk("KVM_SET_USER_MEMORY_REGION: fd=%d, slot=%u,flags=%u\n",
+                       fd, region.slot, region.flags);
             bpf_printk(
-                "KVM_SET_USER_MEMORY_REGION: fd=%d, slot=%u,flags=%u\n",
-                fd, region.slot, region.flags);
-            bpf_printk(
-                "KVM_SET_USER_MEMORY_REGION: guest_phys_addr=%llx, memory_size=%lluK,userspace_addr=%llx\n",
-                region.guest_phys_addr,
-                region.memory_size / 1024, region.userspace_addr);
+                "KVM_SET_USER_MEMORY_REGION: guest_phys_addr=%llx, "
+                "memory_size=%lluK,userspace_addr=%llx\n",
+                region.guest_phys_addr, region.memory_size / 1024,
+                region.userspace_addr);
             break;
         }
         case KVM_GET_VCPU_EVENTS:

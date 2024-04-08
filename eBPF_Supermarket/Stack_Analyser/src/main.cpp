@@ -20,8 +20,10 @@
 #include <iostream>
 #include <poll.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include "bpf_wapper/on_cpu.h"
+#include "bpf_wapper/llc_stat.h"
 #include "bpf_wapper/off_cpu.h"
 #include "bpf_wapper/memleak.h"
 #include "bpf_wapper/io.h"
@@ -31,10 +33,16 @@
 #include "sa_user.h"
 #include "clipp.h"
 
+uint64_t stop_time = -1;
+bool timeout = false;
+uint64_t IntTmp;
+std::string StrTmp;
+clipp::man_page *man_page;
+
 namespace MainConfig
 {
-    int run_time = __INT_MAX__; // 运行时间
-    unsigned delay = 5;         // 设置输出间隔
+    uint64_t run_time = -1; // 运行时间
+    unsigned delay = 5;     // 设置输出间隔
     std::string command = "";
     int32_t target_pid = -1;
     std::string trigger = "";    // 触发器
@@ -43,12 +51,13 @@ namespace MainConfig
 
 std::vector<StackCollector *> StackCollectorList;
 
-void endCollect(void)
+void end_handle(void)
 {
     signal(SIGINT, SIG_IGN);
     for (auto Item : StackCollectorList)
     {
-        if (MainConfig::run_time > 0)
+        Item->activate(false);
+        if (!timeout)
         {
             std::cout << std::string(*Item) << std::endl;
         }
@@ -60,10 +69,6 @@ void endCollect(void)
         kill(MainConfig::target_pid, SIGTERM);
     }
 }
-
-uint64_t IntTmp;
-std::string StrTmp;
-clipp::man_page *man_page;
 
 int main(int argc, char *argv[])
 {
@@ -88,14 +93,7 @@ int main(int argc, char *argv[])
                                  .call([]
                                        { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
                                              ->setScale(IntTmp); })) %
-                                "Set sampling frequency",
-                            // 设置触发条件
-                            // (clipp::option("-l") &
-                            //  clipp::value("load avg", IntTmp)
-                            //      .call([]
-                            //            { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
-                            //                  ->threshold = IntTmp; })) %
-                            //     "When load average come to the set val, start sampling.",
+                                "Set sampling frequency; default is 49",
                             TraceOption);
 
         auto OffCpuOption = clipp::option("off_cpu")
@@ -113,7 +111,7 @@ int main(int argc, char *argv[])
                                    .call([]
                                          { static_cast<MemleakStackCollector *>(StackCollectorList.back())
                                                ->sample_rate = IntTmp; })) %
-                                  "Set the sampling interval",
+                                  "Set the sampling interval; default is 1",
                               clipp::option("-w")
                                       .call([]
                                             { static_cast<MemleakStackCollector *>(StackCollectorList.back())
@@ -125,20 +123,7 @@ int main(int argc, char *argv[])
                                 .call([]
                                       { StackCollectorList.push_back(new IOStackCollector()); }) %
                             COLLECTOR_INFO("io") &
-                        ((clipp::option("-M") &
-                          (clipp::required("count")
-                               .call([]
-                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
-                                           ->setScale(IOStackCollector::io_mod::COUNT); }) |
-                           clipp::required("aver")
-                               .call([]
-                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
-                                           ->setScale(IOStackCollector::io_mod::AVE); }) |
-                           clipp::required("size")
-                               .call([]
-                                     { static_cast<IOStackCollector *>(StackCollectorList.back())
-                                           ->setScale(IOStackCollector::io_mod::SIZE); }))) %
-                         "Set the statistic mod\n");
+                        (TraceOption);
 
         auto ReadaheadOption = clipp::option("readahead")
                                        .call([]
@@ -146,17 +131,27 @@ int main(int argc, char *argv[])
                                    COLLECTOR_INFO("readahead") &
                                (TraceOption);
 
-        auto StackCountOption = clipp::option("probe")
-                                        .call([]
-                                              { StackCollectorList.push_back(new StackCountStackCollector()); }) %
-                                    COLLECTOR_INFO("probe") &
-                                ((clipp::option("-b") &
-                                  clipp::value("probe", StrTmp)
-                                      .call([]
-                                            { static_cast<StackCountStackCollector *>(StackCollectorList.back())
-                                                  ->setScale(StrTmp); })) %
-                                     "Sampling at a set probe string",
-                                 TraceOption);
+        auto ProbeOption = clipp::option("probe")
+                                   .call([]
+                                         { StackCollectorList.push_back(new ProbeStackCollector()); }) %
+                               COLLECTOR_INFO("probe") &
+                           (clipp::value("probe", StrTmp)
+                                    .call([]
+                                          { static_cast<ProbeStackCollector *>(StackCollectorList.back())
+                                                ->setScale(StrTmp); }) %
+                                "Set the probe string" &
+                            TraceOption);
+
+        auto LlcStatOption = clipp::option("llc_stat").call([]
+                                                            { StackCollectorList.push_back(new LlcStatStackCollector()); }) %
+                                 COLLECTOR_INFO("llc_stat") &
+                             ((clipp::option("-i") &
+                               clipp::value("period", IntTmp)
+                                   .call([]
+                                         { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
+                                               ->setScale(IntTmp); })) %
+                                  "Set sampling period; default is 100",
+                              TraceOption);
 
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
@@ -170,15 +165,16 @@ int main(int argc, char *argv[])
                             clipp::value("interval", MainConfig::delay)) %
                                "Set the output delay time (seconds); default is 5",
                            (clipp::option("-t") &
-                            clipp::value("duration", MainConfig::run_time)) %
+                            clipp::value("duration", MainConfig::run_time)
+                                .call([]
+                                      { stop_time = time(NULL) + MainConfig::run_time; })) %
                                "Set the total sampling time; default is __INT_MAX__",
                            (clipp::option("-T") &
                             ((clipp::required("cpu").set(MainConfig::trigger) |
                               clipp::required("memory").set(MainConfig::trigger) |
                               clipp::required("io").set(MainConfig::trigger)) &
                              clipp::value("event", MainConfig::trig_event))) %
-                               "Set a trigger for monitoring. For example, "
-                               _ERED "-T cpu \"some 150000 100000\" " _RE
+                               "Set a trigger for monitoring. For example, " _ERED "-T cpu \"some 150000 100000\" " _RE
                                "means triggers when cpu partial stall "
                                "with 1s tracking window size * and 150ms threshold.");
 
@@ -197,7 +193,8 @@ int main(int argc, char *argv[])
                MemleakOption,
                IOOption,
                ReadaheadOption,
-               StackCountOption,
+               ProbeOption,
+               LlcStatOption,
                MainOption,
                Info);
     }
@@ -254,15 +251,16 @@ int main(int argc, char *argv[])
 
     for (auto Item = StackCollectorList.begin(); Item != StackCollectorList.end();)
     {
-        fprintf(stderr, _RED "Attach %dth collecotor %s.\n" _RE,
-                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->scale.Type);
+        fprintf(stderr, _RED "Attach collecotor%d %s.\n" _RE,
+                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->getName());
         (*Item)->pid = MainConfig::target_pid;
-        if ((*Item)->load())
+        if ((*Item)->load() || (*Item)->attach())
             goto err;
         Item++;
         continue;
     err:
-        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scale.Type);
+        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scales->Type.c_str());
+        (*Item)->detach();
         (*Item)->unload();
         Item = StackCollectorList.erase(Item);
     }
@@ -275,11 +273,13 @@ int main(int argc, char *argv[])
 
     if (MainConfig::command.length())
     {
-        printf(_GREEN "Wake up child.\n" _RE);
+        fprintf(stderr, _GREEN "Wake up child.\n" _RE);
         write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
     }
 
-    atexit(endCollect);
+    atexit(end_handle);
+    signal(SIGINT, [](int)
+           { exit(EXIT_SUCCESS); });
 
     struct pollfd fds = {.fd = -1};
     if (MainConfig::trigger != "" && MainConfig::trig_event != "")
@@ -293,49 +293,31 @@ int main(int argc, char *argv[])
         CHECK_ERR(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
         fprintf(stderr, _RED "Waiting for events...\n" _RE);
     }
-    for (; MainConfig::run_time > 0 && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0)); MainConfig::run_time -= MainConfig::delay)
+    fprintf(stderr, _RED "Running for %lus or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
+    for (; (uint64_t)time(NULL) < stop_time && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0));)
     {
         if (fds.fd >= 0)
         {
-            int n = poll(&fds, 1, -1);
-            CHECK_ERR(n < 0, "Poll error");
-            CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
-            if (fds.revents & POLLPRI)
-                fprintf(stderr, _RED "Event triggered!\n" _RE);
+            while (true)
+            {
+                int n = poll(&fds, 1, -1);
+                CHECK_ERR(n < 0, "Poll error");
+                CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
+                if (fds.revents & POLLPRI)
+                {
+                    fprintf(stderr, _RED "Event triggered!\n" _RE);
+                    break;
+                }
+            }
         }
         for (auto Item : StackCollectorList)
-        {
-            Item->attach();
-            sleep(MainConfig::delay);
-            Item->detach();
+            Item->activate(true);
+        sleep(MainConfig::delay);
+        for (auto Item : StackCollectorList)
+            Item->activate(false);
+        for (auto Item : StackCollectorList)
             std::cout << std::string(*Item);
-        }
     }
-}
-
-void load_trigger(void)
-{
-    // unsigned long *load_a = NULL;
-    // unsigned long threshold = 0;
-
-    // if (load_a)
-    // {
-    //     FILE *fp = popen("cat /proc/kallsyms | grep \" avenrun\"", "r");
-    //     CHECK_ERR(!fp, "Failed to draw flame graph");
-    //     fscanf(fp, "%p", &load_a);
-    //     pclose(fp);
-    // }
-
-    // skel->rodata->load_a = load_a;
-
-    // if (load_a != NULL)
-    // {
-    //     unsigned long load;
-    //     bpf_core_read(&load, sizeof(unsigned long), load_a); // load为文件中读出的地址，则该地址开始读取unsigned long大小字节的数据保存到load
-    //     load >>= 11;                                         // load右移11
-    //     bpf_printk("%lu %lu", load, min);                    // 输出load 以及min
-    //     if (load < load_threshold)
-    //         return 0;
-    // }
-    // record data
+    timeout = true;
+    return 0;
 }

@@ -14,7 +14,7 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 内核态bpf的on-cpu模块代码
+// 内核态bpf程序的模板代码
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -22,33 +22,48 @@
 #include <bpf/bpf_core_read.h>
 
 #include "sa_ebpf.h"
+#include "bpf_wapper/llc_stat.h"
 #include "task.h"
 
-const char LICENSE[] SEC("license") = "GPL";
-
-COMMON_MAPS(u32);
+COMMON_MAPS(llc_stat);
 COMMON_VALS;
 
-SEC("perf_event") // 挂载点为perf_event
-int do_stack(void *ctx)
+static __always_inline int trace_event(__u64 sample_period, bool miss, struct bpf_perf_event_data *ctx)
 {
     CHECK_ACTIVE;
-    struct task_struct *curr = (void *)bpf_get_current_task(); // curr指向当前进程的tsk
-    RET_IF_KERN(curr);                                         // 忽略内核线程
-    u32 pid = BPF_CORE_READ(curr, pid);                        // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
+    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
+    RET_IF_KERN(curr);
+    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
     if (!pid || pid == self_pid)
         return 0;
     SAVE_TASK_INFO(pid, curr);
     psid apsid = GET_COUNT_KEY(pid, ctx);
-
-    // add cosunt
-    u32 *count = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count对应的apsid的值
-    if (count)
-        (*count)++; // count不为空，则psid_count对应的apsid的值+1
+    llc_stat *infop = bpf_map_lookup_elem(&psid_count_map, &apsid);
+    if (!infop)
+    {
+        llc_stat tmp = {miss, !miss};
+        bpf_map_update_elem(&psid_count_map, &apsid, &tmp, BPF_NOEXIST);
+    }
     else
     {
-        u32 orig = 1;
-        bpf_map_update_elem(&psid_count_map, &apsid, &orig, BPF_ANY); // 否则psid_count对应的apsid的值=1
+        if (miss)
+            infop->miss++;
+        else
+            infop->ref++;
     }
     return 0;
 }
+
+SEC("perf_event")
+int on_cache_miss(struct bpf_perf_event_data *ctx)
+{
+    return trace_event(ctx->sample_period, true, ctx);
+}
+
+SEC("perf_event")
+int on_cache_ref(struct bpf_perf_event_data *ctx)
+{
+    return trace_event(ctx->sample_period, false, ctx);
+}
+
+const char LICENSE[] SEC("license") = "GPL";

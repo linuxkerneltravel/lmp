@@ -30,4 +30,22 @@ jobs:
         run: |
           cd eBPF_Supermarket/Stack_Analyser
           make
-          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead -t 5
+          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe vfs_open -t 5
+
+  magic-eyes-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install native lib dependencies
+        run: |
+          git submodule update --init --recursive
+          sudo apt install clang libelf1 libelf-dev zlib1g-dev
+        
+      - name: Run app with native lib
+        run: |
+          mkdir -p MagicEyes/build
+          cd MagicEyes/build
+          cmake -DBUILD_STACK_ANALYZER=ON ..
+          make
+          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe vfs_open -t 5
