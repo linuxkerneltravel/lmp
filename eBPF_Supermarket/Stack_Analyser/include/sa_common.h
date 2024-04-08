@@ -26,13 +26,6 @@
 #define MAX_ENTRIES 102400 // map容量
 #define CONTAINER_ID_LEN (128)
 
-
-#define DISK_NAME_LEN	32 //disk名字最大长度
-#define MINORBITS	20
-#define MINORMASK	((1U << MINORBITS) - 1)
-
-#define MKDEV(ma, mi)	(((ma) << MINORBITS) | (mi))
-
 /// @brief 栈计数的键，可以唯一标识一个用户内核栈
 typedef struct {
     __u32 pid;
@@ -52,15 +45,5 @@ typedef struct {
 #define _RED _COL_PREFIX "1;35m"
 #define _ERED _COL_PREFIX "1;31m"
 #define _RE _COL_PREFIX "0m"
-
-/// @brief 记录请求的结构体
-struct rqinfo {
-	__u32 pid;
-	int kern_stack_size;
-	__u64 kern_stack[MAX_STACKS];
-	char comm[COMM_LEN];
-	__u32 dev;
-};
-
 
 #endif
