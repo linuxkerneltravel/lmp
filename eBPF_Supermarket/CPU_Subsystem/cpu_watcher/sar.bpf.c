@@ -16,7 +16,7 @@ BPF_ARRAY(countMap,int,u64,3);
 // 记录开始的时间
 BPF_ARRAY(procStartTime,pid_t,u64,4096);
 //存储运行队列长度
-BPF_ARRAY(runqlen,u32,int,4096);
+BPF_ARRAY(runqlen,u32,int,1);
 //记录软中断开始时间
 BPF_HASH(softirqCpuEnterTime,u32,u64,4096);
 //记录软中断结束时间
