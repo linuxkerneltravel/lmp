@@ -72,3 +72,71 @@ typedef unsigned int u32;
 #define LOCK_IMAGE 3
 #define KEYTIME_IMAGE 4
 #define SCHEDULE_IMAGE 5
+
+struct proc_syscall_info {
+    int first_syscall;
+    int second_syscall;
+    int third_syscall;
+    u32 syscalls [NR_syscalls];
+};
+
+struct syscall_hash {
+	int key;    // pid
+    struct proc_syscall_info value;
+};
+
+int user_compare(const void *a, const void *b, void *udata) {
+    const struct syscall_hash *ua = a;
+    const struct syscall_hash *ub = b;
+    int ret = ua->key - ub->key;
+    return ret;
+}
+
+uint64_t user_hash(const void *item, uint64_t seed0, uint64_t seed1) {
+    const struct syscall_hash *user = item;
+    char key_str[20];
+    sprintf(key_str, "%d", user->key);
+    return hashmap_sip(key_str, strlen(key_str), seed0, seed1);
+}
+
+void update_syscalls(u32 *syscalls, const struct syscall_seq *e, int *first_syscall,
+                     int *second_syscall, int *third_syscall){
+    int tmp;
+    
+    for(int i=0; i<e->count; i++){
+		syscalls[e->record_syscall[i]] ++;
+
+		if(e->record_syscall[i]==*first_syscall || e->record_syscall[i]==*second_syscall || e->record_syscall[i]==*third_syscall){
+			// 将前三名进行冒泡排序
+			if(syscalls[*third_syscall] > syscalls[*second_syscall]){
+				tmp = *second_syscall;
+				*second_syscall = *third_syscall;
+				*third_syscall = tmp;
+			}
+			if(syscalls[*second_syscall] > syscalls[*first_syscall]){
+				tmp = *first_syscall;
+				*first_syscall = *second_syscall;
+				*second_syscall = tmp;
+			}
+			if(syscalls[*third_syscall] > syscalls[*second_syscall]){
+				tmp = *second_syscall;
+				*second_syscall = *third_syscall;
+				*third_syscall = tmp;
+			}
+		}else if(syscalls[e->record_syscall[i]] > syscalls[*third_syscall]){
+			if(syscalls[e->record_syscall[i]] > syscalls[*second_syscall]){
+				if(syscalls[e->record_syscall[i]] > syscalls[*first_syscall]){
+					*third_syscall = *second_syscall;
+					*second_syscall = *first_syscall;
+					*first_syscall = e->record_syscall[i];
+					continue;
+				}
+				*third_syscall = *second_syscall;
+				*second_syscall = e->record_syscall[i];
+				continue;
+			}
+			*third_syscall = e->record_syscall[i];
+		}
+	}
+
+}
