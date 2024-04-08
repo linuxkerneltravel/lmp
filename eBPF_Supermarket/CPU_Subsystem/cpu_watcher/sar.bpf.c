@@ -15,10 +15,8 @@ const volatile long long unsigned int forks_addr = 0;
 BPF_ARRAY(countMap,int,u64,3);
 // 记录开始的时间
 BPF_ARRAY(procStartTime,pid_t,u64,4096);
-// 储存运行队列rq的全局变量
-BPF_ARRAY(rq_map,u32,struct rq,1);
 //存储运行队列长度
-BPF_PERCPU_ARRAY(runqlen,u32,int,1);
+BPF_ARRAY(runqlen,u32,int,4096);
 //记录软中断开始时间
 BPF_HASH(softirqCpuEnterTime,u32,u64,4096);
 //记录软中断结束时间
@@ -109,17 +107,9 @@ int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 
 //统计运行队列长度
 SEC("kprobe/update_rq_clock")
-int kprobe_update_rq_clock(struct pt_regs *ctx){
+int BPF_KPROBE(update_rq_clock,struct rq *rq){
     u32 key = 0;
-    u32 rqkey = 0;
-    struct rq *p_rq = 0;
-    p_rq = (struct rq *)bpf_map_lookup_elem(&rq_map, &rqkey);
-    if (!p_rq) {
-        return 0;
-    }
-    bpf_probe_read_kernel(p_rq, sizeof(struct rq), (void *)PT_REGS_PARM1(ctx));
-    //使用bpf_probe_read_kernel函数将内核空间中的数据复制到p_rq所指向的内存区域中，以便后续对该数据进行访问和操作。
-    u64 val = p_rq->nr_running;
+    u64 val = BPF_CORE_READ(rq,nr_running);
     bpf_map_update_elem(&runqlen,&key,&val,BPF_ANY);
     return 0;
 }
