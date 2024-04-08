@@ -116,7 +116,8 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
-//记录VCPU调度的信息--进调度
+
+// 记录VCPU调度的信息--进调度
 static int trace_vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 tid = bpf_get_current_pid_tgid();
@@ -138,7 +139,7 @@ static int trace_vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu) {
     bpf_map_update_elem(&load_time, &curr_load_key, &time_value, BPF_ANY);
     return 0;
 }
-//记录VCPU调度的信息--出调度
+// 记录VCPU调度的信息--出调度
 static int trace_vmx_vcpu_put() {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 tid = bpf_get_current_pid_tgid();
