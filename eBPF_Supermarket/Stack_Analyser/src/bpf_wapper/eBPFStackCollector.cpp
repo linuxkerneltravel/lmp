@@ -36,7 +36,7 @@ std::string getLocalDateTime(void)
 
 bool operator<(const CountItem a, const CountItem b)
 {
-    if (a.v < b.v || (a.v == b.v && a.k.pid < b.k.pid))
+    if (a.v[0] < b.v[0] || (a.v[0] == b.v[0] && a.k.pid < b.k.pid))
         return true;
     else
         return false;
@@ -74,7 +74,7 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
     auto D = new std::vector<CountItem>();
     for (uint32_t i = 0; i < count; i++)
     {
-        CountItem d(keys[i], count_value(vals + val_size * i));
+        CountItem d(keys[i], count_values(vals + val_size * i));
         D->insert(std::lower_bound(D->begin(), D->end(), d), d);
     }
     delete[] keys;
@@ -86,7 +86,6 @@ StackCollector::operator std::string()
 {
     std::ostringstream oss;
     oss << _RED "time:" << getLocalDateTime() << _RE "\n";
-    oss << "Type:" << scale.Type << " Unit:" << scale.Unit << " Period:" << scale.Period << '\n';
     std::map<int32_t, std::vector<std::string>> traces;
 
     oss << _BLUE "counts:" _RE "\n";
@@ -94,14 +93,23 @@ StackCollector::operator std::string()
         auto D = sortedCountList();
         if (!D)
             return oss.str();
-        oss << _GREEN "pid\tusid\tksid\tcount" _RE "\n";
+        oss << _GREEN "pid\tusid\tksid";
+        for (int i = 0; i < scale_num; i++)
+            oss << '\t' << scales[i].Type << "/" << scales[i].Period << scales[i].Unit;
+        oss << _RE "\n";
         uint64_t trace[MAX_STACKS], *p;
-        for (auto i : *D)
+        for (auto &i : *D)
         {
             auto &id = i.k;
-            auto &v = i.v;
+            oss << id.pid << '\t' << id.usid << '\t' << id.ksid;
+            {
+                auto &v = i.v;
+                for (int i = 0; i < scale_num; i++)
+                    oss << '\t' << v[i];
+                delete v;
+            }
+            oss << '\n';
             auto trace_fd = bpf_object__find_map_fd_by_name(obj, "sid_trace_map");
-            oss << id.pid << '\t' << id.usid << '\t' << id.ksid << '\t' << v << '\n';
             if (id.usid > 0 && traces.find(id.usid) == traces.end())
             {
                 bpf_map_lookup_elem(trace_fd, &id.usid, trace);
@@ -172,9 +180,7 @@ StackCollector::operator std::string()
         {
             oss << i.first << "\t";
             for (auto s : i.second)
-            {
                 oss << s << ';';
-            }
             oss << "\n";
         }
     }
@@ -190,17 +196,24 @@ StackCollector::operator std::string()
         auto vals = new task_info[MAX_ENTRIES];
         uint32_t count = MAX_ENTRIES;
         uint32_t next_key;
-        int err = bpf_map_lookup_batch(info_fd, NULL, &next_key, keys, vals,
-                                       &count, NULL);
-        if (err == EFAULT)
         {
-            return oss.str();
+            int err;
+            if (showDelta)
+                err = bpf_map_lookup_and_delete_batch(info_fd, NULL, &next_key,
+                                                      keys, vals, &count, NULL);
+            else
+                err = bpf_map_lookup_batch(info_fd, NULL, &next_key,
+                                           keys, vals, &count, NULL);
+            if (err == EFAULT)
+                return oss.str();
         }
         oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup" _RE "\n";
         for (uint32_t i = 0; i < count; i++)
-        {
-            oss << keys[i] << '\t' << vals[i].pid << '\t' << vals[i].comm << '\t' << vals[i].tgid << '\t' << vals[i].cid << '\n';
-        }
+            oss << keys[i] << '\t'
+                << vals[i].pid << '\t'
+                << vals[i].comm << '\t'
+                << vals[i].tgid << '\t'
+                << vals[i].cid << '\n';
         delete[] keys;
         delete[] vals;
     }

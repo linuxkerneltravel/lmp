@@ -32,7 +32,7 @@
 
 #define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
+#define OPTIONS_LIST "-w, -d, -f, -c, -i, -l , -o , -h or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -93,6 +93,24 @@ struct exit_key {
     __u32 tid;
 };
 
+struct load_key {
+    __u32 pid;
+    __u32 tid;
+};
+struct load_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
+    __u32 count;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+};
+struct time_value {
+    __u32 pad;
+    __u64 time;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+};
 struct exit_value {
     __u64 max_time;
     __u64 total_time;
@@ -145,6 +163,13 @@ enum EventType {
     IOCTL,
 } event_type;
 
+enum NameType {
+    UNKNOWN_NAME_TYPE,
+    HYPERCALL_NR,
+    EXIT_NR,
+    EXIT_USERSPACE_NR,
+} name_type;
+
 struct common_event {
     struct process process;
     __u64 time;
@@ -158,11 +183,6 @@ struct common_event {
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
-
-        struct {
-            __u32 vcpu_id;
-            // VCPU_LOAD 特有成员
-        } vcpu_load_data;
 
         struct {
             __u32 reason_number;

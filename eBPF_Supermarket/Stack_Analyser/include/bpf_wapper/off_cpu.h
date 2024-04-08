@@ -28,7 +28,7 @@ private:
     struct off_cpu_bpf *skel = __null;
 
 protected:
-    virtual double count_value(void*);
+    virtual uint64_t *count_values(void *);
 
 public:
     OffCPUStackCollector();
@@ -36,6 +36,8 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
 
 #endif

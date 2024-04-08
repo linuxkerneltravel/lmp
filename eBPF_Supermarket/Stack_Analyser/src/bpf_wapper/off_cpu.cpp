@@ -21,19 +21,22 @@
 
 OffCPUStackCollector::OffCPUStackCollector()
 {
-    scale.Period = 1 << 20;
-    scale.Type = "OffCPUTime";
-    scale.Unit = "nanoseconds";
+    scale_num = 1;
+    scales = new Scale[scale_num]{
+        {"OffCPUTime", 1 << 20, "nanoseconds"},
+    };
 };
 
-double OffCPUStackCollector::count_value(void *data)
+uint64_t *OffCPUStackCollector::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 };
 
 int OffCPUStackCollector::load(void)
 {
-    StackProgLoadOpen(skel->rodata->apid = pid;);
+    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
     return 0;
 }
 
@@ -41,7 +44,7 @@ int OffCPUStackCollector::attach(void)
 {
     symbol sym;
     sym.name = "finish_task_switch";
-    if(!g_symbol_parser.complete_kernel_symbol(sym))
+    if (!g_symbol_parser.complete_kernel_symbol(sym))
     {
         return -1;
     }
@@ -49,10 +52,21 @@ int OffCPUStackCollector::attach(void)
     return 0;
 }
 
-void OffCPUStackCollector::detach(void) {
-    defaultDetach;
+void OffCPUStackCollector::detach(void)
+{
+    DETACH_PROTO;
 }
 
-void OffCPUStackCollector::unload(void) {
-    defaultUnload;
+void OffCPUStackCollector::unload(void)
+{
+    UNLOAD_PROTO;
+}
+
+void OffCPUStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
+}
+
+const char *OffCPUStackCollector::getName(void) {
+    return "OffCPUStackCollector";
 }

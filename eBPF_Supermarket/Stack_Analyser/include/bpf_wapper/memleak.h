@@ -26,7 +26,7 @@ typedef struct
 {
     __u64 addr;
     __u32 pid;
-    __u32 o;
+    __u32 _pad;
 } piddr;
 
 /// @brief 内存分配信息，可溯源的一次内存分配
@@ -62,10 +62,9 @@ public:
     bool percpu = false;
     __u64 sample_rate = 1;
     bool wa_missing_free = false;
-    bool trace_all = false;
 
 protected:
-    virtual double count_value(void *d);
+    virtual uint64_t *count_values(void *d);
     int attach_uprobes(struct memleak_bpf *skel);
 
 public:
@@ -75,6 +74,8 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 
 /// @brief 向指定用户函数附加一个ebpf处理函数
 /// @param skel ebpf程序骨架

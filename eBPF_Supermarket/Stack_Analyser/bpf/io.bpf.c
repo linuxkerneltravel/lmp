@@ -27,30 +27,30 @@
 
 COMMON_MAPS(io_tuple);
 COMMON_VALS;
-const volatile int apid = 0;
+const volatile int target_pid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
 
 static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
+    CHECK_ACTIVE;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
     RET_IF_KERN(curr);
     u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if ((apid >= 0 && pid != apid) || !pid || pid == self_pid)
+    if ((target_pid >= 0 && pid != target_pid) || !pid || pid == self_pid)
         return 0;
-    u64 len = BPF_CORE_READ(ctx, args[2]); // 读取系统调用的第三个参数
-    if (len <= min || len > max)
-        return 0;
+
     SAVE_TASK_INFO(pid, curr);
-    psid apsid = GET_COUNT_KEY(pid, ctx);
 
     // record time delta
+    psid apsid = GET_COUNT_KEY(pid, ctx);
     io_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count表当中的apsid表项，即size
+    u64 len = BPF_CORE_READ(ctx, args[2]);                      // 读取系统调用的第三个参数
 
     if (!d)
     {
-        io_tuple nd = {.count = 1, .size = len};
-        bpf_map_update_elem(&psid_count_map, &apsid, &nd, BPF_NOEXIST);
+        io_tuple tmp = {.count = 1, .size = len};
+        bpf_map_update_elem(&psid_count_map, &apsid, &tmp, BPF_NOEXIST);
     }
     else
     {
