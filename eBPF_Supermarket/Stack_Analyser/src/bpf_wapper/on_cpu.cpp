@@ -40,25 +40,28 @@ extern "C"
 
 OnCPUStackCollector::OnCPUStackCollector()
 {
-    setScale(freq);
+    scale_num = 1;
+    scales = new Scale[scale_num]{
+        {"OnCPUTime", (uint64_t)(1e9 / freq), "nanoseconds"},
+    };
 };
 
 void OnCPUStackCollector::setScale(uint64_t freq)
 {
     this->freq = freq;
-    scale.Period = 1e9 / freq;
-    scale.Type = "OnCPUTime";
-    scale.Unit = "nanoseconds";
+    scales->Period = 1e9 / freq;
 }
 
-double OnCPUStackCollector::count_value(void *data)
+uint64_t *OnCPUStackCollector::count_values(void *data)
 {
-    return *(uint32_t *)data;
+    return new uint64_t[scale_num]{
+        *(uint32_t *)data,
+    };
 };
 
 int OnCPUStackCollector::load(void)
 {
-    StackProgLoadOpen();
+    EBPF_LOAD_OPEN_INIT();
 
     return 0;
 };
@@ -75,9 +78,9 @@ int OnCPUStackCollector::attach(void)
     CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
 
     struct perf_event_attr attr = {
-        .type = PERF_TYPE_SOFTWARE, // hardware event can't be used
+        .type = PERF_COUNT_HW_CPU_CYCLES,
         .size = sizeof(attr),
-        .config = PERF_COUNT_SW_CPU_CLOCK,
+        .config = PERF_COUNT_HW_CPU_CYCLES,
         .sample_freq = freq,
         .inherit = 1,
         .freq = 1, // use freq instead of period
@@ -133,5 +136,14 @@ void OnCPUStackCollector::detach(void)
 
 void OnCPUStackCollector::unload(void)
 {
-    defaultUnload;
+    UNLOAD_PROTO;
 };
+
+void OnCPUStackCollector::activate(bool tf)
+{
+    ACTIVE_SET(tf);
+}
+
+const char *OnCPUStackCollector::getName(void) {
+    return "OnCPUStackCollector";
+}

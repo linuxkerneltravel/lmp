@@ -32,7 +32,7 @@
 
 #define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
-#define OPTIONS_LIST "-w, -d, -f, -c, -i, -l , -o , -h or -e"
+#define OPTIONS_LIST "-w, -d, -f, -c, -i, -l , -o , -h , -T or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -50,6 +50,11 @@
 #define IOAPIC_NUM_PINS 24
 
 #define PFERR_RSVD_MASK (1UL << 3)  // mmio
+
+// 定时器模式
+#define APIC_LVT_TIMER_ONESHOT (0 << 17)      // 单次触发
+#define APIC_LVT_TIMER_PERIODIC (1 << 17)     // 周期性触发模式
+#define APIC_LVT_TIMER_TSCDEADLINE (2 << 17)  // TSC 截止模式
 
 #define PRINT_USAGE_ERR()                                               \
     do {                                                                \
@@ -82,6 +87,17 @@
     if ((vm_pid) > 0 && (bpf_get_current_pid_tgid() >> 32) != (vm_pid)) { \
         return 0;                                                         \
     }
+#define LOGO_STRING                                                \
+    " _  ____     ____  __  __        ___  _____ ____ _   _ "      \
+    "_____ ____  \n"                                               \
+    "| |/ /\\ \\   / /  \\/  | \\ \\      / / \\|_   _/ "          \
+    "___| | | | ____|  _ \\ \n"                                    \
+    "| ' /  \\ \\ / /| |\\/| |  \\ \\ /\\ / / _ \\ | || |   "      \
+    "| |_| |  _| | |_) |\n"                                        \
+    "| . \\   \\ V / | |  | |   \\ V  V / ___ \\| || "             \
+    "|___|  _  | |___|  _ < \n"                                    \
+    "|_|\\_\\   \\_/  |_|  |_|    \\_/\\_/_/   \\_\\_| \\____|_| " \
+    "|_|_____|_| \\_|\\\n"
 
 struct reason_info {
     __u64 time;
@@ -93,6 +109,24 @@ struct exit_key {
     __u32 tid;
 };
 
+struct load_key {
+    __u32 pid;
+    __u32 tid;
+};
+struct load_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
+    __u32 count;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+    __u32 pad;
+};
+struct time_value {
+    __u64 time;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+};
 struct exit_value {
     __u64 max_time;
     __u64 total_time;
@@ -125,6 +159,17 @@ struct hc_key {
     __u32 vcpu_id;
 };
 
+struct timer_key {
+    pid_t pid;
+    __u32 timer_mode;
+    bool hv;
+    bool pad[3];
+};
+
+struct timer_value {
+    __u32 counts;
+};
+
 struct process {
     __u32 pid;
     __u32 tid;
@@ -143,6 +188,7 @@ enum EventType {
     IRQ_INJECT,
     HYPERCALL,
     IOCTL,
+    TIMER,
 } event_type;
 
 enum NameType {
@@ -150,6 +196,7 @@ enum NameType {
     HYPERCALL_NR,
     EXIT_NR,
     EXIT_USERSPACE_NR,
+    TIMER_MODE_NR,
 } name_type;
 
 struct common_event {
@@ -165,11 +212,6 @@ struct common_event {
             bool valid;
             // VCPU_WAKEUP 特有成员
         } vcpu_wakeup_data;
-
-        struct {
-            __u32 vcpu_id;
-            // VCPU_LOAD 特有成员
-        } vcpu_load_data;
 
         struct {
             __u32 reason_number;

@@ -33,10 +33,10 @@ typedef struct
 class ReadaheadStackCollector : public StackCollector
 {
 private:
-    declareEBPF(readahead);
+    DECL_SKEL(readahead);
 
 protected:
-    virtual double count_value(void *data);
+    virtual uint64_t *count_values(void *data);
 
 public:
     ReadaheadStackCollector();
@@ -44,6 +44,8 @@ public:
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
 #endif
 

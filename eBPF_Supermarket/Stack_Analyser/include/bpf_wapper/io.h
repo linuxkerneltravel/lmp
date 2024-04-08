@@ -33,26 +33,19 @@ typedef struct
 class IOStackCollector : public StackCollector
 {
 private:
-    declareEBPF(io);
-
-public:
-    enum io_mod
-    {
-        COUNT,
-        SIZE,
-        AVE,
-    } DataType = COUNT;
+    DECL_SKEL(io);
 
 protected:
-    virtual double count_value(void *);
+    virtual uint64_t *count_values(void *);
 
 public:
-    void setScale(io_mod mod);
     IOStackCollector();
     virtual int load(void);
     virtual int attach(void);
     virtual void detach(void);
     virtual void unload(void);
+    virtual void activate(bool tf);
+    virtual const char *getName(void);
 };
 #endif
 
