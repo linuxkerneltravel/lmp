@@ -24,10 +24,15 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const volatile pid_t target_pid = -1;
-const volatile pid_t target_tgid = -1;
-const volatile int syscalls = 0;
 const volatile pid_t ignore_tgid = -1;
+const volatile int key = 0;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 1);
+	__type(key, int);
+	__type(value, struct sc_ctrl);
+} sc_ctrl_map SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -44,10 +49,15 @@ struct {
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct trace_event_raw_sys_enter *args)
 {
+    struct sc_ctrl *sc_ctrl;
+	sc_ctrl = bpf_map_lookup_elem(&sc_ctrl_map,&key);
+	if(!sc_ctrl || !sc_ctrl->sc_func)
+		return 0;
+    
     pid_t pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid/* && (target_pid==-1 || pid==target_pid)*/){
+    if(sc_ctrl->enable_myproc || tgid!=ignore_tgid){
         u64 current_time = bpf_ktime_get_ns();
         struct syscall_seq * syscall_seq;
 
@@ -58,8 +68,8 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
             syscall_seq.pid = pid;
             syscall_seq.enter_time = current_time;
             syscall_seq.count = 1;
-            if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || 
-               (target_tgid!=-1 && tgid == target_tgid)){
+            if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || 
+               (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                 syscall_seq.record_syscall[0] = (int)args->id;
             }
             
@@ -67,14 +77,14 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
         }else{
             syscall_seq->enter_time = current_time;
             if(syscall_seq->count == 0){
-                if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || (target_tgid!=-1 && tgid == target_tgid)){
+                if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                     syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
                 }
                 syscall_seq->count ++;
             }else if (syscall_seq->count <= MAX_SYSCALL_COUNT-1 && syscall_seq->count > 0 && 
                       syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+(MAX_SYSCALL_COUNT-1)){
-                if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || 
-                    (target_tgid!=-1 && tgid == target_tgid)){
+                if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || 
+                    (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                     syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
                 }
                 syscall_seq->count ++;
@@ -88,10 +98,15 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
 SEC("tracepoint/raw_syscalls/sys_exit")
 int sys_exit(struct trace_event_raw_sys_exit *args)
 {
+    struct sc_ctrl *sc_ctrl;
+	sc_ctrl = bpf_map_lookup_elem(&sc_ctrl_map,&key);
+	if(!sc_ctrl || !sc_ctrl->sc_func)
+		return 0;
+    
     pid_t pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid/* && (target_pid==-1 || pid==target_pid)*/){
+    if(sc_ctrl->enable_myproc || tgid!=ignore_tgid){
         u64 current_time = bpf_ktime_get_ns();
         long long unsigned int this_delay;
         struct syscall_seq * syscall_seq;
@@ -103,7 +118,7 @@ int sys_exit(struct trace_event_raw_sys_exit *args)
         
         this_delay = current_time-syscall_seq->enter_time;
 
-        if(syscall_seq->count < syscalls){
+        if(syscall_seq->count < sc_ctrl->syscalls){
             syscall_seq->sum_delay += this_delay;
             if(this_delay > syscall_seq->max_delay)
                 syscall_seq->max_delay = this_delay;
@@ -117,8 +132,8 @@ int sys_exit(struct trace_event_raw_sys_exit *args)
                 syscall_seq->max_delay = this_delay;
             if(syscall_seq->min_delay==0 || this_delay<syscall_seq->min_delay)
                 syscall_seq->min_delay = this_delay;
-            if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || 
-               (target_tgid!=-1 && tgid == target_tgid)){
+            if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || 
+               (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                 syscall_seq->proc_count += syscall_seq->count;
                 syscall_seq->proc_sd += syscall_seq->sum_delay;
             }
@@ -136,8 +151,8 @@ int sys_exit(struct trace_event_raw_sys_exit *args)
             e->count = syscall_seq->count;
             for(int i=0; i<=syscall_seq->count-1 && i<=MAX_SYSCALL_COUNT-1; i++)
                 e->record_syscall[i] = syscall_seq->record_syscall[i];
-            if((target_tgid==-1 && (target_pid==-1 || pid==target_pid)) || 
-               (target_tgid!=-1 && tgid == target_tgid)){
+            if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || 
+               (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                 e->proc_count = syscall_seq->proc_count;
                 e->proc_sd = syscall_seq->proc_sd;
             }
@@ -156,6 +171,11 @@ int sys_exit(struct trace_event_raw_sys_exit *args)
 SEC("tracepoint/sched/sched_process_exit")
 int sched_process_exit(void *ctx)
 {
+    struct sc_ctrl *sc_ctrl;
+	sc_ctrl = bpf_map_lookup_elem(&sc_ctrl_map,&key);
+	if(!sc_ctrl || !sc_ctrl->sc_func)
+		return 0;
+    
     struct task_struct *p = (struct task_struct *)bpf_get_current_task();
     pid_t pid = BPF_CORE_READ(p,pid);
 

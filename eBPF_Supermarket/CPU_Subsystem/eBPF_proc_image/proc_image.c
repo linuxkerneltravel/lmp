@@ -42,22 +42,13 @@ static int prev_image = 0;
 static volatile bool exiting = false;
 static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
 static struct env {
-    int pid;
-	int tgid;
 	int ignore_tgid;
-    int cpu_id;
-    int time;
-	bool enable_myproc;
 	bool output_resourse;
 	bool output_schedule;
 	bool create_thread;
 	bool exit_thread;
     bool enable_resource;
 	bool first_rsc;
-	int syscalls;
-/*	int first_syscall;
-	int second_syscall;
-	int third_syscall; */
 	u64 sum_delay;
 	u64 sum_count;
 	u64 max_delay;
@@ -65,28 +56,17 @@ static struct env {
 	bool enable_hashmap;
 	bool enable_syscall;
 	bool enable_lock;
-	bool quote;
 	int max_args;
 	bool enable_keytime;
-	bool enable_cpu;
 	int stack_count;
 	bool enable_schedule;
 } env = {
-    .pid = -1,
-	.tgid = -1,
-    .cpu_id = -1,
-    .time = 0,
-	.enable_myproc = false,
 	.output_resourse = false,
 	.output_schedule = false,
 	.create_thread = false,
 	.exit_thread = false,
     .enable_resource = false,
 	.first_rsc = true,
-	.syscalls = 0,
-/*	.first_syscall = 0,
-	.second_syscall = 0,
-	.third_syscall = 0, */
 	.sum_delay = 0,
 	.sum_count = 0,
 	.max_delay = 0,
@@ -94,15 +74,19 @@ static struct env {
 	.enable_hashmap = false,
 	.enable_syscall = false,
 	.enable_lock = false,
-	.quote = false,
 	.max_args = DEFAULT_MAXARGS,
 	.enable_keytime = false,
-	.enable_cpu = false,
 	.stack_count = 0,
 	.enable_schedule = false,
 };
 
 struct hashmap *map = NULL;
+
+static int scmap_fd;
+static int rscmap_fd;
+static int lockmap_fd;
+static int ktmap_fd;
+static int schedmap_fd;
 
 static struct timespec prevtime;
 static struct timespec currentime;
@@ -131,100 +115,36 @@ char *task_state[] = {"TASK_RUNNING", "TASK_INTERRUPTIBLE", "TASK_UNINTERRUPTIBL
 const char argp_program_doc[] ="Trace process to get process image.\n";
 
 static const struct argp_option opts[] = {
-	{ "pid", 'p', "PID", 0, "Process ID to trace" },
-	{ "tgid", 'P', "TGID", 0, "Thread group to trace" },
-    { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
-    { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
-	{ "myproc", 'm', NULL, 0, "Trace the process of the tool itself (not tracked by default)" },
-	{ "all", 'a', NULL, 0, "Start all functions(but not track tool progress)" },
-    { "resource", 'r', NULL, 0, "Collects resource usage information about processes" },
-	{ "syscall", 's', "SYSCALLS", 0, "Collects syscall sequence (1~50) information about processes" },
-	{ "lock", 'l', NULL, 0, "Collects lock information about processes" },
-	{ "quote", 'q', NULL, 0, "Add quotemarks (\") around arguments" },
-	{ "keytime", 'k', "ENABLE_CPU", 0, "Collects keytime information about processes(0:except CPU kt_info,1:all kt_info)" },
-	{ "schedule", 'S', NULL, 0, "Collects schedule information about processes (trace tool process)" },
+	{ "all", 'a', NULL, 0, "Attach all eBPF functions(but do not start)" },
+    { "resource", 'r', NULL, 0, "Attach eBPF functions about resource usage(but do not start)" },
+	{ "syscall", 's', NULL, 0, "Attach eBPF functions about syscall sequence(but do not start)" },
+	{ "lock", 'l', NULL, 0, "Attach eBPF functions about lock(but do not start)" },
+	{ "keytime", 'k', NULL, 0, "Attach eBPF functions about keytime(but do not start)" },
+	{ "schedule", 'S', NULL, 0, "Attach eBPF functions about schedule (but do not start)" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
-	long pid;
-	long tgid;
-	long cpu_id;
-	long syscalls;
-	long enable_cpu;
 	switch (key) {
-		case 'p':
-				errno = 0;
-				pid = strtol(arg, NULL, 10);
-				if (errno || pid < 0) {
-					warn("Invalid PID: %s\n", arg);
-					// 调用argp_usage函数，用于打印用法信息并退出程序
-					argp_usage(state);
-				}
-				env.pid = pid;
-				break;
-        case 'P':
-				errno = 0;
-				tgid = strtol(arg, NULL, 10);
-				if (errno || tgid < 0) {
-					warn("Invalid TGID: %s\n", arg);
-					// 调用argp_usage函数，用于打印用法信息并退出程序
-					argp_usage(state);
-				}
-				env.tgid = tgid;
-				break;
-		case 'c':
-				cpu_id = strtol(arg, NULL, 10);
-				if(cpu_id < 0){
-					warn("Invalid CPUID: %s\n", arg);
-					argp_usage(state);
-				}
-				env.cpu_id = cpu_id;
-				break;
-		case 't':
-				env.time = strtol(arg, NULL, 10);
-				if(env.time) alarm(env.time);
-				break;
-		case 'm':
-				env.enable_myproc = true;
-				break;
 		case 'a':
 				env.enable_resource = true;
-				env.syscalls = 10;
 				env.enable_syscall = true;
 				env.enable_lock = true;
 				env.enable_keytime = true;
-				env.enable_cpu = true;
 				env.enable_schedule = true;
 				break;
         case 'r':
                 env.enable_resource = true;
                 break;
 		case 's':
-                syscalls = strtol(arg, NULL, 10);
-				if(syscalls<=0 && syscalls>50){
-					warn("Invalid SYSCALLS: %s\n", arg);
-					argp_usage(state);
-				}
-				env.syscalls = syscalls;
 				env.enable_syscall = true;
                 break;
 		case 'l':
                 env.enable_lock = true;
                 break;
-		case 'q':
-				env.quote = true;
-				break;
 		case 'k':
-				errno = 0;
-				enable_cpu = strtol(arg, NULL, 10);
-				if(errno || (enable_cpu<0 && enable_cpu>1)){
-					warn("Invalid KEYTIME: %s\n", arg);
-					argp_usage(state);
-				}
-				env.enable_cpu = enable_cpu;
 				env.enable_keytime = true;
 				break;
 		case 'S':
@@ -240,16 +160,25 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static int print_resource(struct bpf_map *map)
+static int print_resource(struct bpf_map *map,int rscmap_fd)
 {
-	struct proc_id lookup_key = {-1}, next_key;
-	int err, fd = bpf_map__fd(map);
+	int err,key = 0;
+	struct rsc_ctrl rsc_ctrl ={};
 
+	err = bpf_map_lookup_elem(rscmap_fd,&key,&rsc_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!rsc_ctrl.rsc_func)
+		return 0;
 	if(env.first_rsc){
 		env.first_rsc = false;
 		goto delete_elem;
 	}
-
+	
+	struct proc_id lookup_key = {-1,-1}, next_key;
+	int fd = bpf_map__fd(map);
 	struct total_rsc event;
 	float pcpu,pmem;
 	double read_rate,write_rate;
@@ -262,14 +191,28 @@ static int print_resource(struct bpf_map *map)
 	long long unsigned int interval;
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+		err = bpf_map_lookup_elem(fd, &next_key, &event);
+		if (err < 0) {
+			fprintf(stderr, "failed to lookup infos: %d\n", err);
+			return -1;
+		}
+
 		if(prev_image != RESOURCE_IMAGE){
 			printf("RESOURCE ------------------------------------------------------------------------------------------------\n");
 			printf("%-8s  ","TIME");
-			if(env.tgid != -1)	printf("%-6s  ","TGID");
+			if(event.tgid != -1)	printf("%-6s  ","TGID");
 			printf("%-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
 
+
+		err = bpf_map_lookup_elem(fd, &next_key, &event);
+		if (err < 0) {
+			fprintf(stderr, "failed to lookup infos: %d\n", err);
+			return -1;
+		}
+		
+		
 		err = bpf_map_lookup_elem(fd, &next_key, &event);
 		if (err < 0) {
 			fprintf(stderr, "failed to lookup infos: %d\n", err);
@@ -290,7 +233,7 @@ static int print_resource(struct bpf_map *map)
 		
 		if(pcpu<=100 && pmem<=100){
 			printf("%02d:%02d:%02d  ",hour,min,sec);
-			if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+			if(event.tgid != -1)	printf("%-6d  ",event.tgid);
 			printf("%-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
 					event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
 		}
@@ -318,11 +261,20 @@ delete_elem:
 	return 0;
 }
 
-static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,struct bpf_map *tg_map,struct bpf_map *sys_map)
+static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,struct bpf_map *tg_map,struct bpf_map *sys_map,int schedmap_fd)
 {
+	int err,key = 0;
+	struct sched_ctrl sched_ctrl ={};
+
+	err = bpf_map_lookup_elem(schedmap_fd,&key,&sched_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!sched_ctrl.sched_func)	return 0;
+	
 	struct proc_id lookup_key = {-1}, next_key;
 	int l_key = -1, n_key;
-	int err;
 	int proc_fd = bpf_map__fd(proc_map);
 	int target_fd = bpf_map__fd(target_map);
 	int tg_fd = bpf_map__fd(tg_map);
@@ -337,17 +289,16 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 	u64 proc_avg_delay;
 	u64 target_avg_delay;
 	u64 sys_avg_delay;
-	int key = 0;
-
+	
 	if(prev_image != SCHEDULE_IMAGE){
 		printf("SCHEDULE ----------------------------------------------------------------------------------------------------------------------\n");
 		printf("%-8s  ","TIME");
-		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		if(sched_ctrl.target_tgid != -1)	printf("%-6s  ","TGID");
 		printf("%-6s  %-4s  %s\n","PID","PRIO","| P_AVG_DELAY(ms) S_AVG_DELAY(ms) | P_MAX_DELAY(ms) S_MAX_DELAY(ms) | P_MIN_DELAY(ms) S_MIN_DELAY(ms) |");
 		prev_image = SCHEDULE_IMAGE;
 	}
 
-	if(env.pid==-1 && env.tgid==-1){
+	if(sched_ctrl.target_pid==-1 && sched_ctrl.target_tgid==-1){
 		while (!bpf_map_get_next_key(proc_fd, &lookup_key, &next_key)) {
 			err = bpf_map_lookup_elem(proc_fd, &next_key, &proc_event);
 			if (err < 0) {
@@ -369,7 +320,7 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 			
 			lookup_key = next_key;
 		}
-	}else if(env.pid!=-1 && env.tgid==-1){
+	}else if(sched_ctrl.target_pid!=-1 && sched_ctrl.target_tgid==-1){
 		err = bpf_map_lookup_elem(target_fd, &key, &proc_event);
 		if (err < 0) {
 			fprintf(stderr, "failed to lookup infos: %d\n", err);
@@ -390,7 +341,7 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 					hour,min,sec,proc_event.pid,proc_event.prio,target_avg_delay/1000000.0,sys_avg_delay/1000000.0,
 					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
 		}
-	}else if(env.pid==-1 && env.tgid!=-1){
+	}else if(sched_ctrl.target_pid==-1 && sched_ctrl.target_tgid!=-1){
 		while (!bpf_map_get_next_key(tg_fd, &l_key, &n_key)) {
 			err = bpf_map_lookup_elem(tg_fd, &n_key, &proc_event);
 			if (err < 0) {
@@ -407,7 +358,7 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 			sys_avg_delay = sys_event.sum_delay/sys_event.sum_count;
 
 			printf("%02d:%02d:%02d  %-6d  %-6d  %-4d  | %-15lf %-15lf | %-15lf %-15lf | %-15lf %-15lf |\n",
-					hour,min,sec,env.tgid,proc_event.pid,proc_event.prio,proc_avg_delay/1000000.0,sys_avg_delay/1000000.0,
+					hour,min,sec,proc_event.tgid,proc_event.pid,proc_event.prio,proc_avg_delay/1000000.0,sys_avg_delay/1000000.0,
 					proc_event.max_delay/1000000.0,sys_event.max_delay/1000000.0,proc_event.min_delay/1000000.0,sys_event.min_delay/1000000.0);
 			
 			l_key = n_key;
@@ -428,11 +379,19 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
+	int err,key = 0;
+	struct sc_ctrl sc_ctrl ={};
+
+	err = bpf_map_lookup_elem(scmap_fd,&key,&sc_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
 
 	if(prev_image != SYSCALL_IMAGE){
         printf("SYSCALL ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 		printf("%-8s  ","TIME");
-		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		if(sc_ctrl.target_tgid != -1)	printf("%-6s  ","TGID");
         printf("%-6s  %-14s  %-14s  %-14s  %-103s  %-8s\n",
 				"PID","1st/num","2nd/num","3nd/num","| P_AVG_DELAY(ns) S_AVG_DELAY(ns) | P_MAX_DELAY(ns) S_MAX_DELAY(ns) | P_MIN_DELAY(ns) S_MIN_DELAY(ns) |","SYSCALLS");
 
@@ -455,9 +414,9 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 		env.enable_hashmap = true;
 	}
 
-	if((env.pid==-1 && env.tgid==-1) || e->pid==env.pid || e->tgid==env.tgid){
+	if((sc_ctrl.target_pid==-1 && sc_ctrl.target_tgid==-1) || e->pid==sc_ctrl.target_pid || e->tgid==sc_ctrl.target_tgid){
 		printf("%02d:%02d:%02d  ",hour,min,sec);
-		if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+		if(sc_ctrl.target_tgid != -1)	printf("%-6d  ",e->tgid);
 		printf("%-6d  ",e->pid);
 
 		struct syscall_hash *syscall_hash = (struct syscall_hash *)hashmap_get(map,&(struct syscall_hash){.key=e->pid});
@@ -499,13 +458,13 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 	if(prev_image != LOCK_IMAGE){
         printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
         printf("%-15s  ","TIME");
-		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		if(e->tgid != -1)	printf("%-6s  ","TGID");
 		printf("%-6s  %-15s  %s\n","PID","LockAddr","LockStatus");
 		prev_image = LOCK_IMAGE;
     }
 
 	printf("%-15lld  ",e->time);
-	if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+	if(e->tgid != -1)	printf("%-6d  ",e->tgid);
 	printf("%-6d  %-15lld  ",e->pid,e->lock_ptr);
 	if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8 || e->lock_status==11){
 		printf("%s-%d\n",lock_status[e->lock_status],e->ret);
@@ -540,30 +499,13 @@ static void print_info1(const struct keytime_event *e)
 {
 	int i, args_counter = 0;
 
-	if (env.quote)
-		putchar('"');
-
 	for (i = 0; i < e->info_size && args_counter < e->info_count; i++) {
 		char c = e->char_info[i];
-
-		if (env.quote) {
-			if (c == '\0') {
-				args_counter++;
-				putchar('"');
-				putchar(' ');
-				if (args_counter < e->info_count) {
-					putchar('"');
-				}
-			} else {
-				quoted_symbol(c);
-			}
+		if (c == '\0') {
+			args_counter++;
+			putchar(' ');
 		} else {
-			if (c == '\0') {
-				args_counter++;
-				putchar(' ');
-			} else {
-				putchar(c);
-			}
+			putchar(c);
 		}
 	}
 	if (e->info_count == env.max_args + 1) {
@@ -576,11 +518,7 @@ static void print_info2(const struct keytime_event *e)
 	int i=0;
 
 	for(int tmp=e->info_count; tmp>0 ; tmp--){
-		if(env.quote){
-			printf("\"%llu\" ",e->info[i++]);
-		}else{
-			printf("%llu ",e->info[i++]);
-		}
+		printf("%llu ",e->info[i++]);
 	}
 }
 
@@ -613,14 +551,14 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
 	if(prev_image != KEYTIME_IMAGE){
         printf("KEYTIME -------------------------------------------------------------------------------------------------\n");
         printf("%-8s  ","TIME");
-		if(env.tgid != -1)	printf("%-6s  ","TGID");
+		if(e->tgid != -1)	printf("%-6s  ","TGID");
 		printf("%-6s  %-15s  %s\n","PID","EVENT","ARGS/RET/OTHERS");
 
 		prev_image = KEYTIME_IMAGE;
     }
 
 	printf("%02d:%02d:%02d  ",hour,min,sec);
-	if(env.tgid != -1)	printf("%-6d  ",env.tgid);
+	if(e->tgid != -1)	printf("%-6d  ",e->tgid);
 	if(!is_offcpu){
 		printf("%-6d  %-15s  ",e->pid,keytime_type[e->type]);
 		if(e->type==4 || e->type==5 || e->type==6 || e->type==7 || e->type==8 || e->type==9){
@@ -642,7 +580,7 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
 		if(env.stack_count < 100){
 			FILE *file = fopen("./.output/data/offcpu_stack.txt", "a");
 			fprintf(file, "TIME:%02d:%02d:%02d  ", hour,min,sec);
-			if(env.tgid != -1)	fprintf(file, "TGID:%-6d  ",env.tgid);
+			if(offcpu_event->tgid != -1)	fprintf(file, "TGID:%-6d  ",offcpu_event->tgid);
 			fprintf(file, "PID:%-6d  OFFCPU_TIME:%llu\n",offcpu_event->pid,offcpu_event->offcpu_time);
 			for(int i=0 ; i<count ; i++){
 				print_stack(offcpu_event->kstack[i],file);
@@ -653,7 +591,7 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
 		}else{
 			FILE *file = fopen("./.output/data/offcpu_stack.txt", "w");
 			fprintf(file, "TIME:%02d:%02d:%02d  ", hour,min,sec);
-			if(env.tgid != -1)	fprintf(file, "TGID:%-6d  ",env.tgid);
+			if(offcpu_event->tgid != -1)	fprintf(file, "TGID:%-6d  ",offcpu_event->tgid);
 			fprintf(file, "PID:%-6d  OFFCPU_TIME:%llu\n",offcpu_event->pid,offcpu_event->offcpu_time);
 			for(int i=0 ; i<count ; i++){
 				print_stack(offcpu_event->kstack[i],file);
@@ -745,14 +683,20 @@ static void sig_handler(int signo)
 int main(int argc, char **argv)
 {
 	struct resource_image_bpf *resource_skel = NULL;
+	struct bpf_map *rsc_ctrl_map = NULL;
 	struct syscall_image_bpf *syscall_skel = NULL;
 	struct ring_buffer *syscall_rb = NULL;
+	struct bpf_map *sc_ctrl_map = NULL;
 	struct lock_image_bpf *lock_skel = NULL;
 	struct ring_buffer *lock_rb = NULL;
+	struct bpf_map *lock_ctrl_map = NULL;
 	struct keytime_image_bpf *keytime_skel = NULL;
 	struct ring_buffer *keytime_rb = NULL;
+	struct bpf_map *kt_ctrl_map = NULL;
 	struct schedule_image_bpf *schedule_skel = NULL;
+	struct bpf_map *sched_ctrl_map = NULL;
 	pthread_t thread_enable;
+	int key = 0;
 	int err;
 	static const struct argp argp = {
 		.options = opts,
@@ -770,7 +714,8 @@ int main(int argc, char **argv)
 	/* 设置libbpf错误和调试信息回调 */
 	libbpf_set_print(libbpf_print_fn);
 
-	signal(SIGALRM,sig_handler);
+	signal(SIGINT, sig_handler);
+	//signal(SIGTERM, sig_handler);
 
 	if(env.enable_resource){
 		resource_skel = resource_image_bpf__open();
@@ -779,14 +724,23 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		resource_skel->rodata->target_pid = env.pid;
-		resource_skel->rodata->target_cpu_id = env.cpu_id;
-		if(!env.enable_myproc)	resource_skel->rodata->ignore_tgid = env.ignore_tgid;
-		resource_skel->rodata->target_tgid = env.tgid;
+		resource_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = resource_image_bpf__load(resource_skel);
 		if (err) {
 			fprintf(stderr, "Failed to load and verify BPF resource skeleton\n");
+			goto cleanup;
+		}
+
+		err = common_pin_map(&rsc_ctrl_map,resource_skel->obj,"rsc_ctrl_map",rsc_ctrl_path);
+		if(err < 0){
+			goto cleanup;
+		}
+		rscmap_fd = bpf_map__fd(rsc_ctrl_map);
+		struct rsc_ctrl init_value= {false,-1,-1,false,-1};
+		err = bpf_map_update_elem(rscmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
 			goto cleanup;
 		}
 
@@ -804,14 +758,23 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		syscall_skel->rodata->target_pid = env.pid;
-		syscall_skel->rodata->target_tgid = env.tgid;
-		syscall_skel->rodata->syscalls = env.syscalls;
-		if(!env.enable_myproc)	syscall_skel->rodata->ignore_tgid = env.ignore_tgid;
+		syscall_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = syscall_image_bpf__load(syscall_skel);
 		if (err) {
 			fprintf(stderr, "Failed to load and verify BPF syscall skeleton\n");
+			goto cleanup;
+		}
+
+		err = common_pin_map(&sc_ctrl_map,syscall_skel->obj,"sc_ctrl_map",sc_ctrl_path);
+		if(err < 0){
+			goto cleanup;
+		}
+		scmap_fd = bpf_map__fd(sc_ctrl_map);
+		struct sc_ctrl init_value= {false,false,-1,-1,0};
+		err = bpf_map_update_elem(scmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
 			goto cleanup;
 		}
 
@@ -838,8 +801,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		if(!env.enable_myproc)	lock_skel->rodata->ignore_tgid = env.ignore_tgid;
-		lock_skel->rodata->target_tgid = env.tgid;
+		lock_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = lock_image_bpf__load(lock_skel);
 		if (err) {
@@ -847,6 +809,18 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 		
+		err = common_pin_map(&lock_ctrl_map,lock_skel->obj,"lock_ctrl_map",lock_ctrl_path);
+		if(err < 0){
+			goto cleanup;
+		}
+		lockmap_fd = bpf_map__fd(lock_ctrl_map);
+		struct lock_ctrl init_value = {false,false,-1,-1};
+		err = bpf_map_update_elem(lockmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto cleanup;
+		}
+
 		/* 附加跟踪点处理程序 */
 		err = lock_attach(lock_skel);
 		if (err) {
@@ -871,10 +845,7 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		keytime_skel->rodata->target_pid = env.pid;
-		if(!env.enable_myproc)	keytime_skel->rodata->ignore_tgid = env.ignore_tgid;
-		keytime_skel->rodata->target_tgid = env.tgid;
-		keytime_skel->rodata->enable_cpu = env.enable_cpu;
+		keytime_skel->rodata->ignore_tgid = env.ignore_tgid;
 
 		err = keytime_image_bpf__load(keytime_skel);
 		if (err) {
@@ -885,6 +856,18 @@ int main(int argc, char **argv)
 		ksyms = ksyms__load();
 		if (!ksyms) {
 			fprintf(stderr, "failed to load kallsyms\n");
+			goto cleanup;
+		}
+
+		err = common_pin_map(&kt_ctrl_map,keytime_skel->obj,"kt_ctrl_map",kt_ctrl_path);
+		if(err < 0){
+			goto cleanup;
+		}
+		ktmap_fd = bpf_map__fd(kt_ctrl_map);
+		struct kt_ctrl init_value = {false,false,false,-1,-1};
+		err = bpf_map_update_elem(ktmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
 			goto cleanup;
 		}
 		
@@ -912,13 +895,21 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		schedule_skel->rodata->target_pid = env.pid;
-		schedule_skel->rodata->target_tgid = env.tgid;
-		schedule_skel->rodata->target_cpu_id = env.cpu_id;
-
 		err = schedule_image_bpf__load(schedule_skel);
 		if (err) {
 			fprintf(stderr, "Failed to load and verify BPF schedule skeleton\n");
+			goto cleanup;
+		}
+
+		err = common_pin_map(&sched_ctrl_map,schedule_skel->obj,"sched_ctrl_map",sched_ctrl_path);
+		if(err < 0){
+			goto cleanup;
+		}
+		schedmap_fd = bpf_map__fd(sched_ctrl_map);
+		struct sched_ctrl init_value= {false,-1,-1,-1};
+		err = bpf_map_update_elem(schedmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
 			goto cleanup;
 		}
 
@@ -951,7 +942,7 @@ int main(int argc, char **argv)
 		}
 
 		if(env.enable_resource && env.output_resourse){
-			err = print_resource(resource_skel->maps.total);
+			err = print_resource(resource_skel->maps.total,rscmap_fd);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
 				err = 0;
@@ -1003,7 +994,7 @@ int main(int argc, char **argv)
 
 		if(env.enable_schedule && env.output_schedule){
 			err = print_schedule(schedule_skel->maps.proc_schedule,schedule_skel->maps.target_schedule,
-								 schedule_skel->maps.tg_schedule,schedule_skel->maps.sys_schedule);
+								 schedule_skel->maps.tg_schedule,schedule_skel->maps.sys_schedule,schedmap_fd);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
 				err = 0;
@@ -1017,16 +1008,31 @@ int main(int argc, char **argv)
 
 /* 卸载BPF程序 */
 cleanup:
-	resource_image_bpf__destroy(resource_skel);
-	ring_buffer__free(syscall_rb);
-	syscall_image_bpf__destroy(syscall_skel);
-	ring_buffer__free(lock_rb);
-	lock_image_bpf__destroy(lock_skel);
-	ring_buffer__free(keytime_rb);
-	keytime_image_bpf__destroy(keytime_skel);
-	schedule_image_bpf__destroy(schedule_skel);
-	hashmap_free(map);
-	ksyms__free(ksyms);
+	if(env.enable_resource){
+		bpf_map__unpin(rsc_ctrl_map, rsc_ctrl_path);
+		resource_image_bpf__destroy(resource_skel);
+	}
+	if(env.enable_syscall){
+		bpf_map__unpin(sc_ctrl_map, sc_ctrl_path);
+		ring_buffer__free(syscall_rb);
+		hashmap_free(map);
+		syscall_image_bpf__destroy(syscall_skel);
+	}
+	if(env.enable_lock){
+		bpf_map__unpin(lock_ctrl_map, lock_ctrl_path);
+		ring_buffer__free(lock_rb);
+		lock_image_bpf__destroy(lock_skel);
+	}
+	if(env.enable_keytime){
+		bpf_map__unpin(kt_ctrl_map, kt_ctrl_path);
+		ksyms__free(ksyms);
+		ring_buffer__free(keytime_rb);
+		keytime_image_bpf__destroy(keytime_skel);
+	}
+	if(env.enable_schedule){
+		bpf_map__unpin(sched_ctrl_map, sched_ctrl_path);
+		schedule_image_bpf__destroy(schedule_skel);
+	}
 
 	return err < 0 ? -err : 0;
 }

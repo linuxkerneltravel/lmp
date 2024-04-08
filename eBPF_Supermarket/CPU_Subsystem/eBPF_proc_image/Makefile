@@ -42,7 +42,8 @@ CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = resource_image lock_image syscall_image keytime_image schedule_image
-TARGETS = proc_image
+WORKTOOL := proc_image
+CONTROLLER := controller
 
 SRC_DIR = ./include
 COMMON_OBJ = \
@@ -83,12 +84,12 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(TARGETS)
+all: $(WORKTOOL) $(CONTROLLER)
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS)
+	$(Q)rm -rf $(OUTPUT) $(WORKTOOL) $(CONTROLLER)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -126,12 +127,20 @@ $(OUTPUT)/%.o: $(SRC_DIR)/%.c | $(OUTPUT)
 	$(call msg,CC,$@)
 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(OUTPUT)/$(TARGETS).o: $(TARGETS).c $(APPS) | $(OUTPUT)
+$(OUTPUT)/%.o: $(CONTROLLER).c | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(OUTPUT)/$(WORKTOOL).o: $(WORKTOOL).c $(APPS) | $(OUTPUT)
 	$(call msg,CC,$@)
 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
 # Build application binary and Create a file for storing data
-$(TARGETS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+$(CONTROLLER): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+	$(call msg,BINARY,$@)
+	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+
+$(WORKTOOL): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 	@mkdir -p $(OUTPUT)/data
