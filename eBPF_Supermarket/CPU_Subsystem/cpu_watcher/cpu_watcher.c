@@ -250,11 +250,11 @@ static int print_all()
 	sched = sched_total;
 
 	 /*runqlen:*/ 
-	int key_runqlen = 0;// 设置要查找的键值为0
-	int err_runqlen, fd_runqlen = bpf_map__fd(sar_skel->maps.runqlen);// 获取映射文件描述符
-	int runqlen;// 用于存储从映射中查找到的值
-	err_runqlen = bpf_map_lookup_elem(fd_runqlen, &key_runqlen, &runqlen); // 从映射中查找键为1的值
-	if (err_runqlen < 0) {//没找到
+	int key_runqlen = 0;
+	int err_runqlen, fd_runqlen = bpf_map__fd(sar_skel->maps.runqlen);
+	int runqlen;
+	err_runqlen = bpf_map_lookup_elem(fd_runqlen, &key_runqlen, &runqlen);
+	if (err_runqlen < 0) {
 		fprintf(stderr, "failed to lookup infos of runqlen: %d\n", err_runqlen);
 		return -1;
 	}
@@ -338,10 +338,6 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		//printf("%02d:%02d:%02d %8llu %8llu %8llu %10llu  %8llu  %8llu  %8llu %8lu %8lu\n",
-		//		localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
-		//		__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
-		//		dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
 		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10llu  %8llu %8lu %8lu\n",
 				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
 				__proc,__sched,runqlen,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
@@ -654,7 +650,6 @@ int main(int argc, char **argv)
 			goto sar_cleanup;
 		}
 		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
-		//printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms\n");
 	}else if(env.MQ_DELAY){
 		/* Load and verify BPF application */
 		mq_skel = mq_delay_bpf__open();
