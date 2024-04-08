@@ -112,6 +112,7 @@ StackCollector::operator std::string()
             auto trace_fd = bpf_object__find_map_fd_by_name(obj, "sid_trace_map");
             if (id.usid > 0 && traces.find(id.usid) == traces.end())
             {
+                std::vector<std::string> sym_trace;
                 bpf_map_lookup_elem(trace_fd, &id.usid, trace);
                 for (p = trace + MAX_STACKS - 1; !*p; p--)
                     ;
@@ -143,11 +144,13 @@ StackCollector::operator std::string()
                         g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
                     }
                     clearSpace(sym.name);
-                    traces[id.usid].push_back(sym.name);
+                    sym_trace.push_back(sym.name);
                 }
+                traces[id.usid] = sym_trace;
             }
             if (id.ksid > 0 && traces.find(id.ksid) == traces.end())
             {
+                std::vector<std::string> sym_trace;
                 bpf_map_lookup_elem(trace_fd, &id.ksid, trace);
                 for (p = trace + MAX_STACKS - 1; !*p; p--)
                     ;
@@ -166,8 +169,9 @@ StackCollector::operator std::string()
                         g_symbol_parser.putin_symbol_cache(pid, addr, sym.name);
                     }
                     clearSpace(sym.name);
-                    traces[id.ksid].push_back(sym.name);
+                    sym_trace.push_back(sym.name);
                 }
+                traces[id.ksid] = sym_trace;
             }
         }
         delete D;
