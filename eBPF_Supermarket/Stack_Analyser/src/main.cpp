@@ -154,12 +154,6 @@ int main(int argc, char *argv[])
                                   "Set sampling period; default is 100",
                               TraceOption);
 
-        auto BioStackOption = clipp::option("bio")
-                                      .call([]
-                                            { StackCollectorList.push_back(new BioStackCollector()); }) %
-                                  COLLECTOR_INFO("bio") &
-                              (TraceOption);
-
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
                                ((clipp::option("-p") &
@@ -202,7 +196,6 @@ int main(int argc, char *argv[])
                ReadaheadOption,
                ProbeOption,
                LlcStatOption,
-               BioStackOption,
                MainOption,
                Info);
     }
