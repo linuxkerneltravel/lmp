@@ -30,7 +30,7 @@ CIRROS_IMG_FILE=cirros-0.5.2-x86_64-disk.img
 CHECK_VIRT_SUPPORT = [ $$(grep -Eoc '(vmx|svm)' /proc/cpuinfo) -eq 0 ]
 
 # 定义检查 qemu-system-x86_64 进程是否存在的命令
-CHECK_QEMU_RUNNING = [ -z "$$(pgrep -f qemu-system-x86_64)" ]
+CHECK_QEMU_RUNNING = [ "$$(pgrep -f qemu-system-x86_64)" ]
 
 # 默认目标
 .PHONY: default
@@ -41,8 +41,8 @@ default: bpf
 deps:
 	sudo apt-get update
 	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
-		linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) qemu-kvm wget
-
+		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) 
+	sudo apt-get install -y  lolcat qemu-kvm wget
 # 生成 vmlinux.h
 .PHONY: vmlinux
 vmlinux:
@@ -96,6 +96,6 @@ test: bpf
 
 clean:
 	cd src && rm -f *.o *.skel.h *.bpf.o
-	rm -rf $(notdir $(APP)) include/vmlinux.h temp
+	sudo rm -rf $(notdir $(APP)) include/vmlinux.h temp
 
 

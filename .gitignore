@@ -68,6 +68,7 @@ eBPF_Supermarket/kvm_watcher/**/temp*
 # eBPF_proc_image
 eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/.output/*
 eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test/test_proc
 
 # libbpf_bootstrap
 .output
