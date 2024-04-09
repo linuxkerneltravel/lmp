@@ -30,8 +30,8 @@ jobs:
         run: |
           cd eBPF_Supermarket/Stack_Analyser
           make
-          gcc -o usdt_pthread eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread.c
-          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "../../eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread" -t 5
+          gcc -o ./testdir/usdt_pthread ./testdir/usdt_pthread.c
+          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "./testdir/usdt_pthread" -t 5
 
   magic-eyes-build-and-test:
     runs-on: ubuntu-22.04
