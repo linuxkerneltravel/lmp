@@ -32,105 +32,110 @@ const volatile bool wa_missing_free = false;
 const volatile size_t page_size = 4096;
 const volatile bool trace_all = false;
 
-BPF_HASH(pid_size, u32, u64);             // 记录了对应进程使用malloc,calloc等函数申请内存的大小
-BPF_HASH(piddr_meminfo, piddr, mem_info); // 记录了每次申请的内存空间的起始地址等信息
-BPF_HASH(memptrs, u32, u64);
+BPF_HASH(pid_size_map, u32, u64);             // 记录了对应进程使用malloc,calloc等函数申请内存的大小
+BPF_HASH(piddr_meminfo_map, piddr, mem_info); // 记录了每次申请的内存空间的起始地址等信息
+BPF_HASH(memptrs_map, u32, u64);
 
 const char LICENSE[] SEC("license") = "GPL";
 
 static int gen_alloc_enter(size_t size)
 {
+    CHECK_ACTIVE;
     if (!size)
         return 0;
-	if (sample_rate > 1) {
-		if (bpf_ktime_get_ns() % sample_rate != 0)
-			return 0;
-	}
+    if (sample_rate > 1)
+    {
+        if (bpf_ktime_get_ns() % sample_rate != 0)
+            return 0;
+    }
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
     RET_IF_KERN(curr);
     // update group
-	// group share memory
+    // group share memory
     u32 tgid = BPF_CORE_READ(curr, tgid);
     if (tgid == self_pid)
         return 0;
-	SAVE_TASK_INFO(tgid, curr);
-	if (trace_all)
-		bpf_printk("alloc entered, size = %lu\n", size);
+    SAVE_TASK_INFO(tgid, curr);
+    if (trace_all)
+        bpf_printk("alloc entered, size = %lu\n", size);
     // record size
-    return bpf_map_update_elem(&pid_size, &tgid, &size, BPF_ANY);
+    return bpf_map_update_elem(&pid_size_map, &tgid, &size, BPF_ANY);
 }
 
 static int gen_alloc_exit2(void *ctx, u64 addr)
 {
+    CHECK_ACTIVE;
     if (!addr)
         return 0;
     u32 tgid = bpf_get_current_pid_tgid();
-    u64 *size = bpf_map_lookup_elem(&pid_size, &tgid);
+    u64 *size = bpf_map_lookup_elem(&pid_size_map, &tgid);
     if (!size)
         return 0;
     // record counts
     psid apsid = GET_COUNT_KEY(tgid, ctx);
     union combined_alloc_info *count = bpf_map_lookup_elem(&psid_count_map, &apsid);
-	union combined_alloc_info cur = {
-		.number_of_allocs = 1,
-		.total_size = *size,
-	};
+    union combined_alloc_info cur = {
+        .number_of_allocs = 1,
+        .total_size = *size,
+    };
     if (!count)
         bpf_map_update_elem(&psid_count_map, &apsid, &cur, BPF_NOEXIST);
     else
         __sync_fetch_and_add(&(count->bits), cur.bits);
-	if (trace_all)
-		bpf_printk("alloc exited, size = %lu, result = %lx\n", *size, addr);
+    if (trace_all)
+        bpf_printk("alloc exited, size = %lu, result = %lx\n", *size, addr);
     // record pid_addr-info
     piddr a = {
         .addr = addr,
         .pid = tgid,
-		.o = 0,
+        ._pad = 0,
     };
     mem_info info = {
         .size = *size,
         .usid = apsid.usid,
         .ksid = apsid.ksid,
     };
-    return bpf_map_update_elem(&piddr_meminfo, &a, &info, BPF_NOEXIST);
+    return bpf_map_update_elem(&piddr_meminfo_map, &a, &info, BPF_NOEXIST);
 }
 
 static int gen_alloc_exit(struct pt_regs *ctx)
 {
-	return gen_alloc_exit2(ctx, PT_REGS_RC(ctx));
+    CHECK_ACTIVE;
+    return gen_alloc_exit2(ctx, PT_REGS_RC(ctx));
 }
 
 static int gen_free_enter(const void *addr)
 {
+    CHECK_ACTIVE;
     u32 tgid = bpf_get_current_pid_tgid();
-    piddr a = {.addr = (u64)addr, .pid = tgid, .o = 0};
-    mem_info *info = bpf_map_lookup_elem(&piddr_meminfo, &a);
+    piddr a = {.addr = (u64)addr, .pid = tgid, ._pad = 0};
+    mem_info *info = bpf_map_lookup_elem(&piddr_meminfo_map, &a);
     if (!info)
         return -1;
 
     // get allocated size
     psid apsid = {
         .pid = tgid,
-		.ksid = info->ksid,
+        .ksid = info->ksid,
         .usid = info->usid,
     };
 
     union combined_alloc_info *size = bpf_map_lookup_elem(&psid_count_map, &apsid);
     if (!size)
         return -1;
-	union combined_alloc_info cur = {
-		.number_of_allocs = 1,
-		.total_size = info->size,
-	};
+    union combined_alloc_info cur = {
+        .number_of_allocs = 1,
+        .total_size = info->size,
+    };
     // sub the freeing size
-	__sync_fetch_and_sub(&(size->bits), cur.bits);
+    __sync_fetch_and_sub(&(size->bits), cur.bits);
 
     if (size->total_size == 0)
         bpf_map_delete_elem(&psid_count_map, &apsid);
-	if (trace_all)
-		bpf_printk("free entered, address = %lx, size = %lu\n", addr, info->size);
+    if (trace_all)
+        bpf_printk("free entered, address = %lx, size = %lu\n", addr, info->size);
     // del freeing addr info
-    return bpf_map_delete_elem(&piddr_meminfo, &a);
+    return bpf_map_delete_elem(&piddr_meminfo_map, &a);
 }
 
 SEC("uprobe")
@@ -145,7 +150,6 @@ int BPF_KRETPROBE(malloc_exit)
     return gen_alloc_exit(ctx);
 }
 
-
 SEC("uprobe")
 int BPF_KPROBE(calloc_enter, size_t nmemb, size_t size)
 {
@@ -157,7 +161,6 @@ int BPF_KRETPROBE(calloc_exit)
 {
     return gen_alloc_exit(ctx);
 }
-
 
 SEC("uprobe")
 int BPF_KPROBE(realloc_enter, void *ptr, size_t size)
@@ -172,91 +175,83 @@ int BPF_KRETPROBE(realloc_exit)
     return gen_alloc_exit(ctx);
 }
 
-
 SEC("uprobe")
 int BPF_KPROBE(posix_memalign_enter, void **memptr, size_t alignment, size_t size)
 {
-	const u64 memptr64 = (u64)(size_t)memptr;
-	const u32 tgid = bpf_get_current_pid_tgid();
-	bpf_map_update_elem(&memptrs, &tgid, &memptr64, BPF_ANY);
-	return gen_alloc_enter(size);
+    const u64 memptr64 = (u64)(size_t)memptr;
+    const u32 tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&memptrs_map, &tgid, &memptr64, BPF_ANY);
+    return gen_alloc_enter(size);
 }
 
 SEC("uretprobe")
 int BPF_KRETPROBE(posix_memalign_exit)
 {
-	const u32 tgid = bpf_get_current_pid_tgid();
-	u64 *memptr64 = bpf_map_lookup_elem(&memptrs, &tgid);
-	if (!memptr64)
-		return 0;
-	bpf_map_delete_elem(&memptrs, &tgid);
-	void *addr;
-	if (bpf_probe_read_user(&addr, sizeof(void*), (void*)(size_t)*memptr64))
-		return 0;
-	const u64 addr64 = (u64)(size_t)addr;
-	return gen_alloc_exit2(ctx, addr64);
+    const u32 tgid = bpf_get_current_pid_tgid();
+    u64 *memptr64 = bpf_map_lookup_elem(&memptrs_map, &tgid);
+    if (!memptr64)
+        return 0;
+    bpf_map_delete_elem(&memptrs_map, &tgid);
+    void *addr;
+    if (bpf_probe_read_user(&addr, sizeof(void *), (void *)(size_t)*memptr64))
+        return 0;
+    const u64 addr64 = (u64)(size_t)addr;
+    return gen_alloc_exit2(ctx, addr64);
 }
-
 
 SEC("uprobe")
 int BPF_KPROBE(aligned_alloc_enter, size_t alignment, size_t size)
 {
-	return gen_alloc_enter(size);
+    return gen_alloc_enter(size);
 }
 
 SEC("uretprobe")
 int BPF_KRETPROBE(aligned_alloc_exit)
 {
-	return gen_alloc_exit(ctx);
+    return gen_alloc_exit(ctx);
 }
-
 
 SEC("uprobe")
 int BPF_KPROBE(valloc_enter, size_t size)
 {
-	return gen_alloc_enter(size);
+    return gen_alloc_enter(size);
 }
 
 SEC("uretprobe")
 int BPF_KRETPROBE(valloc_exit)
 {
-	return gen_alloc_exit(ctx);
+    return gen_alloc_exit(ctx);
 }
-
 
 SEC("uprobe")
 int BPF_KPROBE(memalign_enter, size_t alignment, size_t size)
 {
-	return gen_alloc_enter(size);
+    return gen_alloc_enter(size);
 }
 
 SEC("uretprobe")
 int BPF_KRETPROBE(memalign_exit)
 {
-	return gen_alloc_exit(ctx);
+    return gen_alloc_exit(ctx);
 }
-
 
 SEC("uprobe")
 int BPF_KPROBE(pvalloc_enter, size_t size)
 {
-	return gen_alloc_enter(size);
+    return gen_alloc_enter(size);
 }
 
 SEC("uretprobe")
 int BPF_KRETPROBE(pvalloc_exit)
 {
-	return gen_alloc_exit(ctx);
+    return gen_alloc_exit(ctx);
 }
-
 
 SEC("uprobe")
 int BPF_KPROBE(free_enter, void *addr)
 {
     return gen_free_enter(addr);
 }
-
-
 
 SEC("uprobe")
 int BPF_KPROBE(mmap_enter)
@@ -277,214 +272,233 @@ int BPF_KPROBE(munmap_enter, void *addr)
     return gen_free_enter(addr);
 }
 
-
-
-struct trace_event_raw_kmem_alloc___x {
-	const void *ptr;
-	size_t bytes_alloc;
+struct trace_event_raw_kmem_alloc___x
+{
+    const void *ptr;
+    size_t bytes_alloc;
 } __attribute__((preserve_access_index));
-struct trace_event_raw_kmalloc___x {
-	const void *ptr;
-	size_t bytes_alloc;
+struct trace_event_raw_kmalloc___x
+{
+    const void *ptr;
+    size_t bytes_alloc;
 } __attribute__((preserve_access_index));
 static __always_inline bool has_kmem_alloc(void)
 {
-	if (bpf_core_type_exists(struct trace_event_raw_kmem_alloc___x))
-		return true;
-	return false;
+    if (bpf_core_type_exists(struct trace_event_raw_kmem_alloc___x))
+        return true;
+    return false;
 }
 
 SEC("tracepoint/kmem/kmalloc")
 int memleak__kmalloc(void *ctx)
 {
-	const void *ptr;
-	size_t bytes_alloc;
+    const void *ptr;
+    size_t bytes_alloc;
 
-	if (has_kmem_alloc()) {
-		struct trace_event_raw_kmem_alloc___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-		bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
-	} else {
-		struct trace_event_raw_kmalloc___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-		bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
-	}
+    if (has_kmem_alloc())
+    {
+        struct trace_event_raw_kmem_alloc___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+        bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
+    }
+    else
+    {
+        struct trace_event_raw_kmalloc___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+        bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
+    }
 
-	if (wa_missing_free)
-		gen_free_enter(ptr);
+    if (wa_missing_free)
+        gen_free_enter(ptr);
 
-	gen_alloc_enter(bytes_alloc);
+    gen_alloc_enter(bytes_alloc);
 
-	return gen_alloc_exit2(ctx, (u64)ptr);
+    return gen_alloc_exit2(ctx, (u64)ptr);
 }
 
-
-struct trace_event_raw_kmem_alloc_node___x {
-	const void *ptr;
-	size_t bytes_alloc;
+struct trace_event_raw_kmem_alloc_node___x
+{
+    const void *ptr;
+    size_t bytes_alloc;
 } __attribute__((preserve_access_index));
 static __always_inline bool has_kmem_alloc_node(void)
 {
-	if (bpf_core_type_exists(struct trace_event_raw_kmem_alloc_node___x))
-		return true;
-	return false;
+    if (bpf_core_type_exists(struct trace_event_raw_kmem_alloc_node___x))
+        return true;
+    return false;
 }
 
 SEC("tracepoint/kmem/kmalloc_node")
 int memleak__kmalloc_node(void *ctx)
 {
-	const void *ptr;
-	size_t bytes_alloc;
+    const void *ptr;
+    size_t bytes_alloc;
 
-	if (has_kmem_alloc_node()) {
-		struct trace_event_raw_kmem_alloc_node___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-		bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
+    if (has_kmem_alloc_node())
+    {
+        struct trace_event_raw_kmem_alloc_node___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+        bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
 
-		if (wa_missing_free)
-			gen_free_enter(ptr);
+        if (wa_missing_free)
+            gen_free_enter(ptr);
 
-		gen_alloc_enter( bytes_alloc);
+        gen_alloc_enter(bytes_alloc);
 
-		return gen_alloc_exit2(ctx, (u64)ptr);
-	} else {
-		/* tracepoint is disabled if not exist, avoid compile warning */
-		return 0;
-	}
+        return gen_alloc_exit2(ctx, (u64)ptr);
+    }
+    else
+    {
+        /* tracepoint is disabled if not exist, avoid compile warning */
+        return 0;
+    }
 }
 
-struct trace_event_raw_kfree___x {
-	const void *ptr;
+struct trace_event_raw_kfree___x
+{
+    const void *ptr;
 } __attribute__((preserve_access_index));
-struct trace_event_raw_kmem_free___x {
-	const void *ptr;
+struct trace_event_raw_kmem_free___x
+{
+    const void *ptr;
 } __attribute__((preserve_access_index));
 static __always_inline bool has_kfree()
 {
-	if (bpf_core_type_exists(struct trace_event_raw_kfree___x))
-		return true;
-	return false;
+    if (bpf_core_type_exists(struct trace_event_raw_kfree___x))
+        return true;
+    return false;
 }
 SEC("tracepoint/kmem/kfree")
 int memleak__kfree(void *ctx)
 {
-	const void *ptr;
+    const void *ptr;
 
-	if (has_kfree()) {
-		struct trace_event_raw_kfree___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-	} else {
-		struct trace_event_raw_kmem_free___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-	}
+    if (has_kfree())
+    {
+        struct trace_event_raw_kfree___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+    }
+    else
+    {
+        struct trace_event_raw_kmem_free___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+    }
 
-	return gen_free_enter(ptr);
+    return gen_free_enter(ptr);
 }
 
-
-struct trace_event_raw_kmem_cache_alloc___x {
-	const void *ptr;
-	size_t bytes_alloc;
+struct trace_event_raw_kmem_cache_alloc___x
+{
+    const void *ptr;
+    size_t bytes_alloc;
 } __attribute__((preserve_access_index));
 
 SEC("tracepoint/kmem/kmem_cache_alloc")
 int memleak__kmem_cache_alloc(void *ctx)
 {
-	const void *ptr;
-	size_t bytes_alloc;
+    const void *ptr;
+    size_t bytes_alloc;
 
-	if (has_kmem_alloc()) {
-		struct trace_event_raw_kmem_alloc___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-		bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
-	} else {
-		struct trace_event_raw_kmem_cache_alloc___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-		bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
-	}
+    if (has_kmem_alloc())
+    {
+        struct trace_event_raw_kmem_alloc___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+        bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
+    }
+    else
+    {
+        struct trace_event_raw_kmem_cache_alloc___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+        bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
+    }
 
-	if (wa_missing_free)
-		gen_free_enter(ptr);
+    if (wa_missing_free)
+        gen_free_enter(ptr);
 
-	gen_alloc_enter(bytes_alloc);
+    gen_alloc_enter(bytes_alloc);
 
-	return gen_alloc_exit2(ctx, (u64)ptr);
+    return gen_alloc_exit2(ctx, (u64)ptr);
 }
 
 SEC("tracepoint/kmem/kmem_cache_alloc_node")
 int memleak__kmem_cache_alloc_node(void *ctx)
 {
-	const void *ptr;
-	size_t bytes_alloc;
+    const void *ptr;
+    size_t bytes_alloc;
 
-	if (has_kmem_alloc_node()) {
-		struct trace_event_raw_kmem_alloc_node___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-		bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
+    if (has_kmem_alloc_node())
+    {
+        struct trace_event_raw_kmem_alloc_node___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+        bytes_alloc = BPF_CORE_READ(args, bytes_alloc);
 
-		if (wa_missing_free)
-			gen_free_enter(ptr);
+        if (wa_missing_free)
+            gen_free_enter(ptr);
 
-		gen_alloc_enter(bytes_alloc);
+        gen_alloc_enter(bytes_alloc);
 
-		return gen_alloc_exit2(ctx, (u64)ptr);
-	} else {
-		/* tracepoint is disabled if not exist, avoid compile warning */
-		return 0;
-	}
+        return gen_alloc_exit2(ctx, (u64)ptr);
+    }
+    else
+    {
+        /* tracepoint is disabled if not exist, avoid compile warning */
+        return 0;
+    }
 }
 
-struct trace_event_raw_kmem_cache_free___x {
-	const void *ptr;
+struct trace_event_raw_kmem_cache_free___x
+{
+    const void *ptr;
 } __attribute__((preserve_access_index));
 static __always_inline bool has_kmem_cache_free()
 {
-	if (bpf_core_type_exists(struct trace_event_raw_kmem_cache_free___x))
-		return true;
-	return false;
+    if (bpf_core_type_exists(struct trace_event_raw_kmem_cache_free___x))
+        return true;
+    return false;
 }
 SEC("tracepoint/kmem/kmem_cache_free")
 int memleak__kmem_cache_free(void *ctx)
 {
-	const void *ptr;
+    const void *ptr;
 
-	if (has_kmem_cache_free()) {
-		struct trace_event_raw_kmem_cache_free___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-	} else {
-		struct trace_event_raw_kmem_free___x *args = ctx;
-		ptr = BPF_CORE_READ(args, ptr);
-	}
+    if (has_kmem_cache_free())
+    {
+        struct trace_event_raw_kmem_cache_free___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+    }
+    else
+    {
+        struct trace_event_raw_kmem_free___x *args = ctx;
+        ptr = BPF_CORE_READ(args, ptr);
+    }
 
-	return gen_free_enter(ptr);
+    return gen_free_enter(ptr);
 }
-
 
 SEC("tracepoint/kmem/mm_page_alloc")
 int memleak__mm_page_alloc(struct trace_event_raw_mm_page_alloc *ctx)
 {
-	gen_alloc_enter(page_size << ctx->order);
+    gen_alloc_enter(page_size << ctx->order);
 
-	return gen_alloc_exit2(ctx, ctx->pfn);
+    return gen_alloc_exit2(ctx, ctx->pfn);
 }
 
 SEC("tracepoint/kmem/mm_page_free")
 int memleak__mm_page_free(struct trace_event_raw_mm_page_free *ctx)
 {
-	return gen_free_enter((void*)(ctx->pfn));
+    return gen_free_enter((void *)(ctx->pfn));
 }
-
 
 SEC("tracepoint/percpu/percpu_alloc_percpu")
 int memleak__percpu_alloc_percpu(struct trace_event_raw_percpu_alloc_percpu *ctx)
 {
-	gen_alloc_enter(ctx->bytes_alloc);
+    gen_alloc_enter(ctx->bytes_alloc);
 
-	return gen_alloc_exit2(ctx, (u64)(ctx->ptr));
+    return gen_alloc_exit2(ctx, (u64)(ctx->ptr));
 }
 
 SEC("tracepoint/percpu/percpu_free_percpu")
 int memleak__percpu_free_percpu(struct trace_event_raw_percpu_free_percpu *ctx)
 {
-	return gen_free_enter(ctx->ptr);
+    return gen_free_enter(ctx->ptr);
 }

@@ -54,6 +54,20 @@ struct {
     __type(value, u32);
 } vcpu_tid SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, struct load_key);
+    __type(value, struct load_value);
+} load_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, struct load_key);
+    __type(value, struct time_value);
+} load_time SEC(".maps");
+
 // 记录vcpu_halt的id信息
 static int trace_kvm_vcpu_halt(struct kvm_vcpu *vcpu) {
     u32 tid = bpf_get_current_pid_tgid();
@@ -102,26 +116,67 @@ static int trace_kvm_halt_poll_ns(struct halt_poll_ns *ctx, void *rb,
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
-//记录VCPU调度的信息
-static int trace_vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu, void *rb,
-                               struct common_event *e) {
-    RESERVE_RINGBUF_ENTRY(rb, e);
-    //获取pid&tid
-    pid_t pid, tid;
-    u64 id;
-    id = bpf_get_current_pid_tgid();
-    pid = id >> 32;
-    tid = (u32)id;
-    // //获取时间
-    u64 ts = bpf_ktime_get_ns();
-    e->process.pid = pid;
-    e->process.tid = tid;
-    e->time = ts;
-    bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));
-    bpf_probe_read_kernel(&e->vcpu_load_data.vcpu_id,
-                          sizeof(e->vcpu_load_data.vcpu_id), &vcpu->vcpu_id);
-    bpf_ringbuf_submit(e, 0);
-    return 1;
+
+// 记录VCPU调度的信息--进调度
+static int trace_vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 tid = bpf_get_current_pid_tgid();
+    u64 time = bpf_ktime_get_ns();
+    u32 vcpu_id;
+    if (!vcpu) {
+        return 0;
+    }
+    bpf_probe_read_kernel(&vcpu_id, sizeof(u32), &vcpu->vcpu_id);
+    struct time_value time_value;
+    __builtin_memset(&time_value, 0, sizeof(struct time_value));
+    time_value.time = time;
+    time_value.vcpu_id = vcpu_id;
+    time_value.pcpu_id = cpu;
+    struct load_key curr_load_key;
+    __builtin_memset(&curr_load_key, 0, sizeof(struct load_key));
+    curr_load_key.pid = pid;
+    curr_load_key.tid = tid;
+    bpf_map_update_elem(&load_time, &curr_load_key, &time_value, BPF_ANY);
+    return 0;
+}
+// 记录VCPU调度的信息--出调度
+static int trace_vmx_vcpu_put() {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 tid = bpf_get_current_pid_tgid();
+    struct load_key load_key;
+    __builtin_memset(&load_key, 0, sizeof(struct load_key));
+    load_key.pid = pid;
+    load_key.tid = tid;
+    struct time_value *t_value;
+    t_value = bpf_map_lookup_elem(&load_time, &load_key);
+    if (!t_value) {
+        return 0;
+    }
+    u64 duration = bpf_ktime_get_ns() - t_value->time;
+    bpf_map_delete_elem(&load_time, &load_key);
+    struct load_value *load_value;
+    load_value = bpf_map_lookup_elem(&load_map, &load_key);
+    if (load_value) {
+        load_value->count++;
+        load_value->total_time += duration;
+        if (load_value->max_time < duration) {
+            load_value->max_time = duration;
+        }
+        if (load_value->min_time > duration) {
+            load_value->min_time = duration;
+        }
+        load_value->pcpu_id = t_value->pcpu_id;
+        load_value->vcpu_id = t_value->vcpu_id;
+    } else {
+        struct load_value new_load_value = {.count = 1,
+                                            .max_time = duration,
+                                            .total_time = duration,
+                                            .min_time = duration,
+                                            .vcpu_id = t_value->vcpu_id,
+                                            .pcpu_id = t_value->pcpu_id};
+        bpf_map_update_elem(&load_map, &load_key, &new_load_value, BPF_ANY);
+    }
+    return 0;
 }
 static int trace_mark_page_dirty_in_slot(struct kvm *kvm,
                                          const struct kvm_memory_slot *memslot,

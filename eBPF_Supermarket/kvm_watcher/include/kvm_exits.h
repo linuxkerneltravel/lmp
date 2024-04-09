@@ -69,9 +69,9 @@ struct exit {
     unsigned int vcpu_id;
 };
 struct userspace_exit {
-	u64 pad;
-	u32 reason;
-	int errno;
+    u64 pad;
+    u32 reason;
+    int errno;
 };
 
 static int trace_kvm_exit(struct exit *ctx) {
@@ -113,7 +113,6 @@ static void update_exit_map(void *map, struct exit_key *key, u64 duration_ns) {
     }
 }
 
-
 static int trace_kvm_entry() {
     struct reason_info *reas;
     pid_t pid, tid;
@@ -136,17 +135,17 @@ static int trace_kvm_entry() {
     return 0;
 }
 
-static int trace_kvm_userspace_entry(struct kvm_vcpu *vcpu){
+static int trace_kvm_userspace_entry(struct kvm_vcpu *vcpu) {
     pid_t tid = (u32)bpf_get_current_pid_tgid();
     u64 ts = bpf_ktime_get_ns();
-    bpf_map_update_elem(&userspace_exit_times,&tid,&ts,BPF_ANY);
+    bpf_map_update_elem(&userspace_exit_times, &tid, &ts, BPF_ANY);
     return 0;
 }
-static int trace_kvm_userspace_exit(struct userspace_exit *ctx){
+static int trace_kvm_userspace_exit(struct userspace_exit *ctx) {
     pid_t tid = (u32)bpf_get_current_pid_tgid();
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
-    u64 *start_ts,ts,duration_ns;
-    start_ts=bpf_map_lookup_elem(&userspace_exit_times, &tid);
+    u64 *start_ts, ts, duration_ns;
+    start_ts = bpf_map_lookup_elem(&userspace_exit_times, &tid);
     if (!start_ts || ctx->errno < 0) {
         return 0;
     }
