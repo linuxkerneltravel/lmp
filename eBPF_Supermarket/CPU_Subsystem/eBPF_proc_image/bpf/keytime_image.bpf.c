@@ -27,11 +27,8 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const volatile int max_args = DEFAULT_MAXARGS;
 
-// const volatile pid_t target_pid = -1;
 const volatile pid_t ignore_tgid = -1;
-const volatile int key = 0;
-// const volatile pid_t target_tgid = -1;
-// const volatile bool enable_cpu = false;
+const int key = 0;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
@@ -194,8 +191,8 @@ int BPF_KRETPROBE(fork_exit,int ret)
     int tgid = bpf_get_current_pid_tgid() >> 32;
     
     // 判断是否为父进程触发
-    if((kt_ctrl->enable_myproc || tgid!=ignore_tgid) && ret!=0 && (kt_ctrl->target_tgid==-1 || 
-       (kt_ctrl->target_tgid!=-1 && tgid==kt_ctrl->target_tgid))){
+    if((kt_ctrl->enable_myproc || tgid!=ignore_tgid) && ret!=0 && ((kt_ctrl->target_pid ==-1 && kt_ctrl->target_tgid==-1) || 
+       (kt_ctrl->target_tgid!=-1 && tgid==kt_ctrl->target_tgid) || (kt_ctrl->target_pid!=-1 && pid==kt_ctrl->target_pid))){
         pid_t child_pid = ret;
         child_create(4,child_pid,pid,&child,&keytime_rb,tgid,kt_ctrl->target_tgid);
     }
@@ -237,7 +234,8 @@ int BPF_KPROBE(pthread_create_enter)
     int current = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if((kt_ctrl->enable_myproc || tgid!=ignore_tgid) && (kt_ctrl->target_tgid==-1 || (kt_ctrl->target_tgid!=-1 && tgid==kt_ctrl->target_tgid))){
+    if((kt_ctrl->enable_myproc || tgid!=ignore_tgid) && ((kt_ctrl->target_tgid==-1 && kt_ctrl->target_pid==-1) || 
+    (kt_ctrl->target_tgid!=-1 && tgid==kt_ctrl->target_tgid) || (kt_ctrl->target_pid!=-1 && current==kt_ctrl->target_pid))){
         bool pthread_create_flag = true;
         bpf_map_update_elem(&pthread_create_enable, &current, &pthread_create_flag, BPF_ANY);
     }
@@ -256,7 +254,8 @@ int BPF_KRETPROBE(pthread_create_exit,int ret)
     int current = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
     
-    if((kt_ctrl->enable_myproc || tgid!=ignore_tgid) && (kt_ctrl->target_tgid==-1 || (kt_ctrl->target_tgid!=-1 && tgid==kt_ctrl->target_tgid))){
+    if((kt_ctrl->enable_myproc || tgid!=ignore_tgid) && ((kt_ctrl->target_tgid==-1 && kt_ctrl->target_pid==-1) || 
+    (kt_ctrl->target_tgid!=-1 && tgid==kt_ctrl->target_tgid) || (kt_ctrl->target_pid!=-1 && current==kt_ctrl->target_pid))){
         bpf_map_delete_elem(&pthread_create_enable, &current);
     }
 
@@ -320,10 +319,10 @@ int tracepoint__syscalls__sys_enter_exit_group(struct trace_event_raw_sys_enter*
         event->info[0] = ctx->args[0];
 
         bpf_ringbuf_submit(event, 0);
-
-        // 记录 fork 和 vfork 子进程的退出时间，并输出到 ringbuf 中
-        child_exit(&child,&keytime_rb);
     }
+
+    // 记录 fork 和 vfork 子进程的退出时间，并输出到 ringbuf 中
+    child_exit(&child,&keytime_rb);
 
     return 0;
 }
@@ -356,10 +355,10 @@ int tracepoint__syscalls__sys_enter_exit(struct trace_event_raw_sys_enter* ctx)
         event->info[0] = ctx->args[0];
 
         bpf_ringbuf_submit(event, 0);
-
-        // 记录 pthread_create 新线程的退出时间，并输出
-        child_exit(&child,&keytime_rb);
     }
+
+    // 记录 pthread_create 新线程的退出时间，并输出
+    child_exit(&child,&keytime_rb);
 
     return 0;
 }

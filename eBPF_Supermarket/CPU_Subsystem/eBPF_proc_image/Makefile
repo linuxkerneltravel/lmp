@@ -145,6 +145,16 @@ $(WORKTOOL): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 	@mkdir -p $(OUTPUT)/data
 	@[ -f $(OUTPUT)/data/offcpu_stack.txt ] || touch $(OUTPUT)/data/offcpu_stack.txt
+	@echo "        ____  ____  ______   ____                     ____                         "
+	@echo "  ___  / __ )/ __ \/ ____/  / __ \_________  _____   /  _/___ ___  ____ _____ ____ "
+	@echo " / _ \/ __  / /_/ / /_     / /_/ / ___/ __ \/ ___/   / // __ \`__ \/ __ \`/ __ \`/ _ \\"
+	@echo "/  __/ /_/ / ____/ __/    / ____/ /  / /_/ / /__   _/ // / / / / / /_/ / /_/ /  __/"
+	@echo "\___/_____/_/   /_/      /_/   /_/   \____/\___/  /___/_/ /_/ /_/\__,_/\__, /\___/ "
+	@echo "                                                                      /____/        "
+	@echo "Successful to compile eBPF_proc_image tools:"
+	@echo "proc_image ——— Pre-attach to eBPF program, data is collected and output after activation"
+	@echo "controller ——— Controller for proc_image tool"
+	@echo "Please start your use ~"
 
 # delete failed targets
 .DELETE_ON_ERROR:

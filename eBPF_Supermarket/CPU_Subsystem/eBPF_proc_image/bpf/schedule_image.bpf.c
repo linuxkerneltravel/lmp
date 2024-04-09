@@ -24,7 +24,7 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const volatile int key = 0;
+const int key = 0;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
