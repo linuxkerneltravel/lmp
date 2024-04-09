@@ -54,7 +54,14 @@ struct {
     __type(key, u32); /* stack id */
     //__type(value, xxx);       memleak_bpf__open 之后再动态设置
 } stack_traces SEC(".maps");
- 
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 10240);
+    __type(key, u64); // pid
+    __type(value, u64); // 用户态指针变量 memptr
+} memptrs SEC(".maps");
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 static int gen_alloc_enter(size_t size) {
@@ -144,4 +151,111 @@ int BPF_KRETPROBE(malloc_exit) {
 SEC("uprobe")
 int BPF_KPROBE(free_enter, void *address) {
     return gen_free_enter(address);
+}
+
+SEC("uprobe")
+int BPF_KPROBE(posix_memalign_enter, void **memptr, size_t alignment, size_t size) {
+    const u64 memptr64 = (u64)(size_t)memptr;
+    const u64 pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_map_update_elem(&memptrs, &pid, &memptr64, BPF_ANY);
+
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(posix_memalign_exit) {
+    const u64 pid = bpf_get_current_pid_tgid() >> 32;
+    u64 *memptr64;
+    void *addr;
+
+    memptr64 = bpf_map_lookup_elem(&memptrs, &pid);
+    if (!memptr64)
+        return 0;
+
+    bpf_map_delete_elem(&memptrs, &pid);
+
+    //通过 bpf_probe_read_user 读取保存在用户态指针变量(memptr64)中的分配的内存指针
+    if (bpf_probe_read_user(&addr, sizeof(void *), (void *)(size_t)*memptr64))
+        return 0;
+
+    const u64 addr64 = (u64)(size_t)addr;
+
+    return gen_alloc_exit2(ctx, addr64);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(calloc_enter, size_t nmemb, size_t size) {
+    return gen_alloc_enter(nmemb * size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(calloc_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(realloc_enter, void *ptr, size_t size) {
+    gen_free_enter(ptr);
+
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(realloc_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(mmap_enter, void *address, size_t size) {
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(mmap_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(munmap_enter, void *address) {
+    return gen_free_enter(address);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(aligned_alloc_enter, size_t alignment, size_t size) {
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(aligned_alloc_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(valloc_enter, size_t size) {
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(valloc_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(memalign_enter, size_t alignment, size_t size) {
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(memalign_exit) {
+    return gen_alloc_exit(ctx);
+}
+ 
+SEC("uprobe")
+int BPF_KPROBE(pvalloc_enter, size_t size) {
+    return gen_alloc_enter(size);
+}
+ 
+SEC("uretprobe")
+int BPF_KRETPROBE(pvalloc_exit) {
+    return gen_alloc_exit(ctx);
 }
