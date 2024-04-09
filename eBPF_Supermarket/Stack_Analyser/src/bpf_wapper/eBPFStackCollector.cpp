@@ -132,7 +132,7 @@ StackCollector::operator std::string()
                             sym.name = demangleCppSym(sym.name);
                         }
                         std::stringstream ss("");
-                        ss << "+0x" << std::hex << (addr - sym.start);
+                        ss << "+0x" << std::hex << (sym.ip - sym.start);
                         sym.name += ss.str();
                         g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
                     }
@@ -160,7 +160,11 @@ StackCollector::operator std::string()
                     symbol sym;
                     sym.reset(addr);
                     if (g_symbol_parser.find_kernel_symbol(sym))
-                        ;
+		    {
+                        std::stringstream ss("");
+                        ss << "+0x" << std::hex << (sym.ip - sym.start);
+                        sym.name += ss.str();
+		    }
                     else
                     {
                         std::stringstream ss("");
