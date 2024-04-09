@@ -60,6 +60,11 @@ static struct env {
 	bool enable_keytime;
 	int stack_count;
 	bool enable_schedule;
+	int rsc_prev_tgid;
+	int kt_prev_tgid;
+	int lock_prev_tgid;
+	int sched_prev_tgid;
+	int sc_prev_tgid;
 } env = {
 	.output_resourse = false,
 	.output_schedule = false,
@@ -78,6 +83,11 @@ static struct env {
 	.enable_keytime = false,
 	.stack_count = 0,
 	.enable_schedule = false,
+	.rsc_prev_tgid = 0,
+	.kt_prev_tgid = 0,
+	.lock_prev_tgid = 0,
+	.sched_prev_tgid = 0,
+	.sc_prev_tgid = 0,
 };
 
 struct hashmap *map = NULL;
@@ -189,30 +199,25 @@ static int print_resource(struct bpf_map *map,int rscmap_fd)
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
 	long long unsigned int interval;
+	int rsc_cur_tgid = 0;
+
+	if(rsc_ctrl.target_tgid != -1)	rsc_cur_tgid = 2;
+	else	rsc_cur_tgid = 1;
     
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-		err = bpf_map_lookup_elem(fd, &next_key, &event);
-		if (err < 0) {
-			fprintf(stderr, "failed to lookup infos: %d\n", err);
-			return -1;
-		}
-
-		if(prev_image != RESOURCE_IMAGE){
+		if(prev_image != RESOURCE_IMAGE || env.rsc_prev_tgid != rsc_cur_tgid){
 			printf("RESOURCE ------------------------------------------------------------------------------------------------\n");
 			printf("%-8s  ","TIME");
-			if(event.tgid != -1)	printf("%-6s  ","TGID");
+			if(rsc_ctrl.target_tgid != -1){
+				printf("%-6s  ","TGID");
+				env.rsc_prev_tgid = 2;
+			}else{
+				env.rsc_prev_tgid = 1;
+			}
 			printf("%-6s  %-6s  %-6s  %-6s  %-12s  %-12s\n","PID","CPU-ID","CPU(%)","MEM(%)","READ(kb/s)","WRITE(kb/s)");
 			prev_image = RESOURCE_IMAGE;
 		}
-
-
-		err = bpf_map_lookup_elem(fd, &next_key, &event);
-		if (err < 0) {
-			fprintf(stderr, "failed to lookup infos: %d\n", err);
-			return -1;
-		}
-		
-		
+			
 		err = bpf_map_lookup_elem(fd, &next_key, &event);
 		if (err < 0) {
 			fprintf(stderr, "failed to lookup infos: %d\n", err);
@@ -233,7 +238,7 @@ static int print_resource(struct bpf_map *map,int rscmap_fd)
 		
 		if(pcpu<=100 && pmem<=100){
 			printf("%02d:%02d:%02d  ",hour,min,sec);
-			if(event.tgid != -1)	printf("%-6d  ",event.tgid);
+			if(rsc_ctrl.target_tgid != -1)	printf("%-6d  ",event.tgid);
 			printf("%-6d  %-6d  %-6.3f  %-6.3f  %-12.2lf  %-12.2lf\n",
 					event.pid,event.cpu_id,pcpu,pmem,read_rate,write_rate);
 		}
@@ -289,11 +294,20 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 	u64 proc_avg_delay;
 	u64 target_avg_delay;
 	u64 sys_avg_delay;
+	int sched_cur_tgid = 0;
+
+	if(sched_ctrl.target_tgid != -1)	sched_cur_tgid = 2;
+	else	sched_cur_tgid = 1;
 	
-	if(prev_image != SCHEDULE_IMAGE){
+	if(prev_image != SCHEDULE_IMAGE || env.sched_prev_tgid != sched_cur_tgid){
 		printf("SCHEDULE ----------------------------------------------------------------------------------------------------------------------\n");
 		printf("%-8s  ","TIME");
-		if(sched_ctrl.target_tgid != -1)	printf("%-6s  ","TGID");
+		if(sched_ctrl.target_tgid != -1){
+			printf("%-6s  ","TGID");
+			env.sched_prev_tgid = 2;
+		}else{
+			env.sched_prev_tgid = 1;
+		}
 		printf("%-6s  %-4s  %s\n","PID","PRIO","| P_AVG_DELAY(ms) S_AVG_DELAY(ms) | P_MAX_DELAY(ms) S_MAX_DELAY(ms) | P_MIN_DELAY(ms) S_MIN_DELAY(ms) |");
 		prev_image = SCHEDULE_IMAGE;
 	}
@@ -372,13 +386,6 @@ static int print_schedule(struct bpf_map *proc_map,struct bpf_map *target_map,st
 
 static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 {
-	const struct syscall_seq *e = data;
-	u64 avg_delay;
-	time_t now = time(NULL);
-	struct tm *localTime = localtime(&now);
-    int hour = localTime->tm_hour;
-    int min = localTime->tm_min;
-    int sec = localTime->tm_sec;
 	int err,key = 0;
 	struct sc_ctrl sc_ctrl ={};
 
@@ -387,11 +394,29 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 		fprintf(stderr, "failed to lookup infos: %d\n", err);
 		return -1;
 	}
+	if(!sc_ctrl.sc_func)	return 0;
+	
+	const struct syscall_seq *e = data;
+	u64 avg_delay;
+	time_t now = time(NULL);
+	struct tm *localTime = localtime(&now);
+    int hour = localTime->tm_hour;
+    int min = localTime->tm_min;
+    int sec = localTime->tm_sec;
+	int sc_cur_tgid = 0;
 
-	if(prev_image != SYSCALL_IMAGE){
+	if(sc_ctrl.target_tgid != -1)	sc_cur_tgid = 2;
+	else	sc_cur_tgid = 1;
+
+	if(prev_image != SYSCALL_IMAGE || env.sc_prev_tgid != sc_cur_tgid){
         printf("SYSCALL ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 		printf("%-8s  ","TIME");
-		if(sc_ctrl.target_tgid != -1)	printf("%-6s  ","TGID");
+		if(sc_ctrl.target_tgid != -1){
+			printf("%-6s  ","TGID");
+			env.sc_prev_tgid = 2;
+		}else{
+			env.sc_prev_tgid = 1;
+		}
         printf("%-6s  %-14s  %-14s  %-14s  %-103s  %-8s\n",
 				"PID","1st/num","2nd/num","3nd/num","| P_AVG_DELAY(ns) S_AVG_DELAY(ns) | P_MAX_DELAY(ns) S_MAX_DELAY(ns) | P_MIN_DELAY(ns) S_MIN_DELAY(ns) |","SYSCALLS");
 
@@ -454,11 +479,20 @@ static int print_syscall(void *ctx, void *data,unsigned long data_sz)
 static int print_lock(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct lock_event *e = data;
+	int lock_cur_tgid = 0;
+
+	if(e->tgid != -1)	lock_cur_tgid = 2;
+	else	lock_cur_tgid = 1;
 	
-	if(prev_image != LOCK_IMAGE){
+	if(prev_image != LOCK_IMAGE || env.lock_prev_tgid != lock_cur_tgid){
         printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
         printf("%-15s  ","TIME");
-		if(e->tgid != -1)	printf("%-6s  ","TGID");
+		if(e->tgid != -1){
+			printf("%-6s  ","TGID");
+			env.lock_prev_tgid = 2;
+		} else {
+			env.lock_prev_tgid = 1;
+		}
 		printf("%-6s  %-15s  %s\n","PID","LockAddr","LockStatus");
 		prev_image = LOCK_IMAGE;
     }
@@ -543,15 +577,24 @@ static int print_keytime(void *ctx, void *data,unsigned long data_sz)
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
+	int kt_cur_tgid = 0;
+
+	if(e->tgid != -1)	kt_cur_tgid = 2;
+	else	kt_cur_tgid = 1;
 
 	if(e->type == 11){
 		is_offcpu = true;
 	}
 	
-	if(prev_image != KEYTIME_IMAGE){
+	if(prev_image != KEYTIME_IMAGE || env.kt_prev_tgid != kt_cur_tgid){
         printf("KEYTIME -------------------------------------------------------------------------------------------------\n");
         printf("%-8s  ","TIME");
-		if(e->tgid != -1)	printf("%-6s  ","TGID");
+		if(e->tgid != -1){
+			printf("%-6s  ","TGID");
+			env.kt_prev_tgid = 2;
+		} else {
+			env.kt_prev_tgid = 1;
+		}
 		printf("%-6s  %-15s  %s\n","PID","EVENT","ARGS/RET/OTHERS");
 
 		prev_image = KEYTIME_IMAGE;

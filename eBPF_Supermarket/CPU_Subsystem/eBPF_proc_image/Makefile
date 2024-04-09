@@ -84,7 +84,7 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(WORKTOOL) $(CONTROLLER)
+all: $(CONTROLLER) $(WORKTOOL) SUCCESS_MESSAGE
 
 .PHONY: clean
 clean:
@@ -145,6 +145,8 @@ $(WORKTOOL): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 	@mkdir -p $(OUTPUT)/data
 	@[ -f $(OUTPUT)/data/offcpu_stack.txt ] || touch $(OUTPUT)/data/offcpu_stack.txt
+
+SUCCESS_MESSAGE:
 	@echo "        ____  ____  ______   ____                     ____                         "
 	@echo "  ___  / __ )/ __ \/ ____/  / __ \_________  _____   /  _/___ ___  ____ _____ ____ "
 	@echo " / _ \/ __  / /_/ / /_     / /_/ / ___/ __ \/ ___/   / // __ \`__ \/ __ \`/ __ \`/ _ \\"
