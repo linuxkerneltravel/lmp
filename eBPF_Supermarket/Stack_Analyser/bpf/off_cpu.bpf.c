@@ -27,7 +27,6 @@
 COMMON_MAPS(u32);
 COMMON_VALS;
 
-const volatile int target_pid = 0;
 BPF_HASH(pid_offTs_map, u32, u64); // 记录进程运行的起始时间
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -36,9 +35,20 @@ SEC("kprobe/finish_task_switch") // 动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     CHECK_ACTIVE;
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获取换出进程tsk的pid
-    RET_IF_KERN(curr);
-    if ((target_pid >= 0 && pid == target_pid) || (target_pid < 0 && pid && pid != self_pid))
+    bool record = true;
+    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
+        record = false;
+    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
+    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
+        record = false;
+    if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
+        record = false;
+    {
+        SET_KNODE(curr, knode);
+        if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
+            record = false;
+    }
+    if (record)
     {
         // record curr block time
         u64 ts = bpf_ktime_get_ns();                                 // ts=当前的时间戳（ns）
@@ -57,7 +67,10 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
         return 0;
 
     // record data
-    SAVE_TASK_INFO(pid, next);
+    {
+        SET_KNODE(next, knode);
+        SAVE_TASK_INFO(pid, next, knode);
+    }
     psid apsid = GET_COUNT_KEY(pid, ctx);
 
     // record time delta
