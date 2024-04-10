@@ -58,8 +58,11 @@ protected:
 public:
     Scale *scales;
 
-    int pid = -1; // 用于设置ebpf程序跟踪的pid
-    int err = 0;  // 用于保存错误代码
+    short top = 10;
+    uint64_t cgroup = 0;
+    uint32_t tgid = 0;
+    uint32_t pid = 0; // 用于设置ebpf程序跟踪的pid
+    int err = 0;      // 用于保存错误代码
 
     bool ustack = false; // 是否跟踪用户栈
     bool kstack = false; // 是否跟踪内核栈
@@ -114,6 +117,9 @@ public:
         skel->rodata->trace_user = ustack;             \
         skel->rodata->trace_kernel = kstack;           \
         skel->rodata->self_pid = self_pid;             \
+        skel->rodata->target_pid = pid;                \
+        skel->rodata->target_tgid = tgid;              \
+        skel->rodata->target_cgroupid = cgroup;        \
         err = skel->load(skel);                        \
         CHECK_ERR(err, "Fail to load BPF skeleton");   \
         obj = skel->obj;                               \
