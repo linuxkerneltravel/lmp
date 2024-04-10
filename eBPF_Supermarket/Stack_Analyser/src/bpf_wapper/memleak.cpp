@@ -119,9 +119,7 @@ int MemleakStackCollector::load(void)
                 disable_kernel_node_tracepoints(skel);
             if (!percpu)
                 disable_kernel_percpu_tracepoints(skel);
-        } else {
-            disable_kernel_tracepoints(skel);
-        };
+        } else disable_kernel_tracepoints(skel);
         skel->rodata->sample_rate = sample_rate;
         skel->rodata->wa_missing_free = wa_missing_free;
         skel->rodata->page_size = sysconf(_SC_PAGE_SIZE););
@@ -152,6 +150,7 @@ void MemleakStackCollector::activate(bool tf)
     ACTIVE_SET(tf);
 }
 
-const char *MemleakStackCollector::getName(void) {
+const char *MemleakStackCollector::getName(void)
+{
     return "MemleakStackCollector";
 }
