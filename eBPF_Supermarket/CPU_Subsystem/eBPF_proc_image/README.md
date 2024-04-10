@@ -6,7 +6,7 @@
 
 eBPF_proc_image 工具的框架图：
 
-<div align='center'><img src="./images/eBPF_proc_image.png"></div>
+<div align='center'><img src="./docs/images/eBPF_proc_image.png"></div>
 
 ## 二、安装工具
 
@@ -73,6 +73,6 @@ tools文件夹中的eBPF程序是按照进程生命周期中数据的类型分�
 
 基于 Prometheus 和 Grafana 的可视化平台框架图：
 
-<div align='center'><img src="./images/visualization_platform.png"></div>
+<div align='center'><img src="./docs/images/visualization_platform.png"></div>
 
 具体可视化操作可以参考：[进程画像可视化指南](docs/proc_image_vis_guide.md)
