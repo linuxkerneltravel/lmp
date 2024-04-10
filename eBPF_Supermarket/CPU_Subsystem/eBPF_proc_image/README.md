@@ -75,4 +75,4 @@ tools文件夹中的eBPF程序是按照进程生命周期中数据的类型分�
 
 <div align='center'><img src="./docs/images/visualization_platform.png"></div>
 
-具体可视化操作可以参考：[进程画像可视化指南](docs/proc_image_vis_guide.md)
+eBPF_proc_image 工具的可视化操作可以参考：[进程画像可视化指南](docs/proc_image_vis_guide.md)
