@@ -93,6 +93,11 @@ StackCollector::operator std::string()
         auto D = sortedCountList();
         if (!D)
             return oss.str();
+        if ((*D).size() > top)
+        {
+            auto end = (*D).end();
+            (*D).assign(end - top, end);
+        }
         oss << _GREEN "pid\tusid\tksid";
         for (int i = 0; i < scale_num; i++)
             oss << '\t' << scales[i].Type << "/" << scales[i].Period << scales[i].Unit;
@@ -112,11 +117,11 @@ StackCollector::operator std::string()
             auto trace_fd = bpf_object__find_map_fd_by_name(obj, "sid_trace_map");
             if (id.usid > 0 && traces.find(id.usid) == traces.end())
             {
-                std::vector<std::string> sym_trace;
                 bpf_map_lookup_elem(trace_fd, &id.usid, trace);
                 for (p = trace + MAX_STACKS - 1; !*p; p--)
                     ;
-                for (; p >= trace; p--)
+                std::vector<std::string> sym_trace(p - trace + 1);
+                for (int i = 0; p >= trace; p--)
                 {
                     uint64_t &addr = *p;
                     symbol sym;
@@ -127,10 +132,8 @@ StackCollector::operator std::string()
                     else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) && g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
                     {
                         if (sym.name[0] == '_' && sym.name[1] == 'Z')
-                        // 代表是C++符号，则调用demangle解析
-                        {
+                            // 代表是C++符号，则调用demangle解析
                             sym.name = demangleCppSym(sym.name);
-                        }
                         std::stringstream ss("");
                         ss << "+0x" << std::hex << (sym.ip - sym.start);
                         sym.name += ss.str();
@@ -144,36 +147,35 @@ StackCollector::operator std::string()
                         g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
                     }
                     clearSpace(sym.name);
-                    sym_trace.push_back(sym.name);
+                    sym_trace[i++] = sym.name;
                 }
                 traces[id.usid] = sym_trace;
             }
             if (id.ksid > 0 && traces.find(id.ksid) == traces.end())
             {
-                std::vector<std::string> sym_trace;
                 bpf_map_lookup_elem(trace_fd, &id.ksid, trace);
                 for (p = trace + MAX_STACKS - 1; !*p; p--)
                     ;
-                for (; p >= trace; p--)
+                std::vector<std::string> sym_trace(p - trace + 1);
+                for (int i = 0; p >= trace; p--)
                 {
                     uint64_t &addr = *p;
                     symbol sym;
                     sym.reset(addr);
+                    std::stringstream ss("");
                     if (g_symbol_parser.find_kernel_symbol(sym))
-		    {
-                        std::stringstream ss("");
+                    {
                         ss << "+0x" << std::hex << (sym.ip - sym.start);
                         sym.name += ss.str();
-		    }
+                    }
                     else
                     {
-                        std::stringstream ss("");
                         ss << "0x" << std::hex << addr;
                         sym.name = ss.str();
                         g_symbol_parser.putin_symbol_cache(pid, addr, sym.name);
                     }
                     clearSpace(sym.name);
-                    sym_trace.push_back(sym.name);
+                    sym_trace[i++] = sym.name;
                 }
                 traces[id.ksid] = sym_trace;
             }
@@ -195,16 +197,29 @@ StackCollector::operator std::string()
 
     oss << _BLUE "info:" _RE "\n";
     {
-        auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
-        if (info_fd < 0)
+        std::map<uint32_t, char *> tgid_cgroup_map;
+        auto cgroups = new char[MAX_ENTRIES][CONTAINER_ID_LEN];
+        uint32_t count = MAX_ENTRIES;
         {
-            return oss.str();
+            auto tgids = new uint32_t[MAX_ENTRIES];
+            auto cgroup_fd = bpf_object__find_map_fd_by_name(obj, "tgid_cgroup_map");
+            if (cgroup_fd < 0)
+                return oss.str();
+            uint32_t next_key;
+            err = bpf_map_lookup_batch(cgroup_fd, NULL, &next_key, tgids, cgroups, &count, NULL);
+            for (auto i = 0; i < count; i++)
+                tgid_cgroup_map[tgids[i]] = cgroups[i];
+            delete[] tgids;
         }
+        
         auto keys = new uint32_t[MAX_ENTRIES];
         auto vals = new task_info[MAX_ENTRIES];
-        uint32_t count = MAX_ENTRIES;
-        uint32_t next_key;
+        count = MAX_ENTRIES;
         {
+            auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
+            if (info_fd < 0)
+                return oss.str();
+            uint32_t next_key;
             int err;
             if (showDelta)
                 err = bpf_map_lookup_and_delete_batch(info_fd, NULL, &next_key,
@@ -215,15 +230,16 @@ StackCollector::operator std::string()
             if (err == EFAULT)
                 return oss.str();
         }
-        oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup" _RE "\n";
+        oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup\t" _RE "\n";
         for (uint32_t i = 0; i < count; i++)
             oss << keys[i] << '\t'
                 << vals[i].pid << '\t'
                 << vals[i].comm << '\t'
                 << vals[i].tgid << '\t'
-                << vals[i].cid << '\n';
+                << tgid_cgroup_map[vals[i].tgid] << '\n';
         delete[] keys;
         delete[] vals;
+        delete[] cgroups;
     }
 
     oss << _BLUE "OK" _RE "\n";
