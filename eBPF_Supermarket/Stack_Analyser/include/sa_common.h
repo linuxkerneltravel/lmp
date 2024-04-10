@@ -35,7 +35,6 @@ typedef struct {
 typedef struct {
     __u32 pid;
     __u32 tgid;
-    char cid[CONTAINER_ID_LEN];
     char comm[COMM_LEN];
 } task_info;
 
