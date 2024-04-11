@@ -38,6 +38,7 @@ SEC("fentry/page_cache_ra_unbounded") // fentry在内核函数page_cache_ra_unbo
 int BPF_PROG(page_cache_ra_unbounded)
 {
     CHECK_ACTIVE;
+    CHECK_FREQ;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
 
     if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)

@@ -50,7 +50,8 @@ namespace MainConfig
     uint64_t target_cgroup = 0;
     std::string trigger = "";    // 触发器
     std::string trig_event = ""; // 触发事件
-    short top = 10;
+    uint32_t top = 10;
+    uint32_t freq = 49;
     bool trace_user = false;
     bool trace_kernel = false;
 }
@@ -142,13 +143,7 @@ int main(int argc, char *argv[])
         auto OnCpuOption = (clipp::option("on_cpu")
                                 .call([]
                                       { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
-                            COLLECTOR_INFO("on-cpu")) &
-                           ((clipp::option("-f") &
-                             clipp::value("freq", IntTmp)
-                                 .call([]
-                                       { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
-                                             ->setScale(IntTmp); })) %
-                            "Set sampling frequency; default is 49");
+                            COLLECTOR_INFO("on-cpu"));
 
         auto OffCpuOption = clipp::option("off_cpu")
                                 .call([]
@@ -220,6 +215,9 @@ int main(int argc, char *argv[])
                            (clipp::option("-O") &
                             clipp::value("top", MainConfig::top)) %
                                "Set the top number; default is 10",
+                           (clipp::option("-f") &
+                            clipp::value("freq", MainConfig::freq)) %
+                               "Set sampling frequency, 0 for close; default is 49",
                            (clipp::option("-d") &
                             clipp::value("interval", MainConfig::delay)) %
                                "Set the output delay time (seconds); default is 5",
@@ -324,6 +322,7 @@ int main(int argc, char *argv[])
         (*Item)->tgid = MainConfig::target_tgid;
         (*Item)->cgroup = MainConfig::target_cgroup;
         (*Item)->top = MainConfig::top;
+        (*Item)->freq = MainConfig::freq;
         (*Item)->kstack = MainConfig::trace_kernel;
         (*Item)->ustack = MainConfig::trace_user;
         if ((*Item)->load() || (*Item)->attach())

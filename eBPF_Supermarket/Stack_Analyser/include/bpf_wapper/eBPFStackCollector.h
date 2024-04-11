@@ -58,7 +58,8 @@ protected:
 public:
     Scale *scales;
 
-    short top = 10;
+    uint32_t top = 10;
+    uint32_t freq = 49;
     uint64_t cgroup = 0;
     uint32_t tgid = 0;
     uint32_t pid = 0; // 用于设置ebpf程序跟踪的pid
@@ -120,6 +121,7 @@ public:
         skel->rodata->target_pid = pid;                \
         skel->rodata->target_tgid = tgid;              \
         skel->rodata->target_cgroupid = cgroup;        \
+        skel->rodata->freq = freq;                     \
         err = skel->load(skel);                        \
         CHECK_ERR(err, "Fail to load BPF skeleton");   \
         obj = skel->obj;                               \

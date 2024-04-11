@@ -27,7 +27,6 @@
 
 COMMON_MAPS(union combined_alloc_info);
 COMMON_VALS;
-const volatile __u64 sample_rate = 1;
 const volatile bool wa_missing_free = false;
 const volatile size_t page_size = 4096;
 const volatile bool trace_all = false;
@@ -41,8 +40,7 @@ const char LICENSE[] SEC("license") = "GPL";
 static int gen_alloc_enter(size_t size)
 {
     CHECK_ACTIVE;
-    if (!size || (sample_rate > 1 && bpf_ktime_get_ns() % sample_rate != 0))
-        return 0;
+    CHECK_FREQ;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
 
     if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)

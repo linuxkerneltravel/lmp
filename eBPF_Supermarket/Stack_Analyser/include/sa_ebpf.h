@@ -69,11 +69,28 @@
     const volatile __u32 target_tgid = 0;     \
     const volatile __u32 target_pid = 0;      \
     const volatile __u32 self_pid = 0;        \
-    bool __active = false;
+    const volatile __u32 freq = 0;            \
+    bool __active = false;                    \
+    __u32 __last_n = 0;                       \
+    __u32 __next_n = 0;                       \
+    bool __recorded = false;
 
 #define CHECK_ACTIVE \
     if (!__active)   \
         return 0;
+
+#define CHECK_FREQ                                                          \
+    if (freq)                                                               \
+    {                                                                       \
+        __next_n = ((bpf_ktime_get_ns() & ((1ul << 30) - 1)) * freq) >> 30; \
+        if ((__last_n == __next_n) && __recorded)                           \
+            return 0;                                                       \
+        else                                                                \
+        {                                                                   \
+            __recorded == true;                                             \
+            __last_n = __next_n;                                            \
+        }                                                                   \
+    }
 
 #define SET_KNODE(_task, _knode) \
     struct kernfs_node *_knode = BPF_CORE_READ(_task, cgroups, dfl_cgrp, kn);
@@ -84,7 +101,7 @@
         task_info info = {0};                                          \
         info.pid = get_task_ns_pid(_task);                             \
         bpf_get_current_comm(info.comm, COMM_LEN);                     \
-        info.tgid = get_task_ns_tgid(_task);                           \
+        info.tgid = BPF_CORE_READ(_task, tgid);                        \
         bpf_map_update_elem(&pid_info_map, &_pid, &info, BPF_NOEXIST); \
                                                                        \
         char cgroup_name[CONTAINER_ID_LEN] = {0};                      \

@@ -31,6 +31,7 @@ COMMON_VALS;
 static __always_inline int trace_event(__u64 sample_period, bool miss, struct bpf_perf_event_data *ctx)
 {
     CHECK_ACTIVE;
+    CHECK_FREQ;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
 
     if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)

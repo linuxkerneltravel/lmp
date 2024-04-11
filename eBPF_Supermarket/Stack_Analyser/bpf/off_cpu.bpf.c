@@ -35,6 +35,7 @@ SEC("kprobe/finish_task_switch") // 动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     CHECK_ACTIVE;
+    CHECK_FREQ;
     bool record = true;
     if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
         record = false;
