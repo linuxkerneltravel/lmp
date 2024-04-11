@@ -202,41 +202,44 @@ static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, 
 }
 
 static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
-    const struct blaze_symbolize_inlined_fn *inlined;
-    const struct blaze_result *result;
-    const struct blaze_sym *sym;
-    int i, j;
+	const struct blaze_symbolize_inlined_fn *inlined;
+	const struct blaze_result *result;
+	const struct blaze_sym *sym;
+	int i, j;
 
-    assert(sizeof(uintptr_t) == sizeof(uint64_t));
+	assert(sizeof(uintptr_t) == sizeof(uint64_t));
 
-    if (pid) {
-        struct blaze_symbolize_src_process src = {
-            .pid = pid,
-        };
-        result = blaze_symbolize_process(symbolizer, &src, (const uintptr_t *)stack, stack_sz);
-    }
-    else {
-        struct blaze_symbolize_src_kernel src = {};
-        result = blaze_symbolize_kernel(symbolizer, &src, (const uintptr_t *)stack, stack_sz);
-    }
+	if (pid) {
+		struct blaze_symbolize_src_process src = {
+			.type_size = sizeof(src),
+			.pid = pid,
+		};
+		result = blaze_symbolize_process_abs_addrs(symbolizer, &src, (const uintptr_t *)stack, stack_sz);
+	}
+	else {
+		struct blaze_symbolize_src_kernel src = {
+			.type_size = sizeof(src),
+		};
+		result = blaze_symbolize_kernel_abs_addrs(symbolizer, &src, (const uintptr_t *)stack, stack_sz);
+	}
 
 
-    for (i = 0; i < stack_sz; i++) {
-        if (!result || result->cnt <= i || result->syms[i].name == NULL) {
-            printf(" %2d [<%016llx>]\n", i, stack[i]);
-            continue;
-        }
+	for (i = 0; i < stack_sz; i++) {
+		if (!result || result->cnt <= i || result->syms[i].name == NULL) {
+			printf("%016llx: <no-symbol>\n", stack[i]);
+			continue;
+		}
 
-        sym = &result->syms[i];
-        print_frame(sym->name, stack[i], sym->addr, sym->offset, &sym->code_info);
+		sym = &result->syms[i];
+		print_frame(sym->name, stack[i], sym->addr, sym->offset, &sym->code_info);
 
-        for (j = 0; j < sym->inlined_cnt; j++) {
-            inlined = &sym->inlined[j];
-            print_frame(sym->name, 0, 0, 0, &inlined->code_info);
-        }
-    }
+		for (j = 0; j < sym->inlined_cnt; j++) {
+			inlined = &sym->inlined[j];
+			print_frame(sym->name, 0, 0, 0, &inlined->code_info);
+		}
+	}
 
-    blaze_result_free(result);
+	blaze_result_free(result);
 }
 
 int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid) {
