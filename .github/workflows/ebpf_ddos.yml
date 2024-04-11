@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/eBPF_DDoS/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/eBPF_DDoS/**'
       - '.github/workflows/ebpf_ddos.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/eBPF_DDoS/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/eBPF_DDoS/**'
       - '.github/workflows/ebpf_ddos.yml'
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
 
     - name: test
       run: |
-        cd eBPF_Supermarket/Network_Subsystem/eBPF_DDoS/bpf/dns-ddos
+        cd eBPF_Supermarket/Network_Subsystem/old_project/eBPF_DDoS/bpf/dns-ddos
         make builder
         docker run -d -m 128m -v `pwd`/test/config:/etc/coredns --name dwq-coredns burkeazbill/docker-coredns -conf /etc/coredns/Corefile
         docker run --privileged -d --name dwq-ddos-test --network=container:dwq-coredns \

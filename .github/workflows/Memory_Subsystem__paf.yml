@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Memory_Subsystem/applications/paf/**'
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project//paf/**'
       - '.github/workflows/Memory_Subsystem__paf.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Memory_Subsystem/applications/paf/**'
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project//paf/**'
       - '.github/workflows/Memory_Subsystem__paf.yml'
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
       - name: Run paf
         continue-on-error: true
         run: |
-          cd eBPF_Supermarket/Memory_Subsystem/applications/paf/
+          cd eBPF_Supermarket/Memory_Subsystem/old_project//paf/
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           make paf
           sudo timeout 20 ./paf

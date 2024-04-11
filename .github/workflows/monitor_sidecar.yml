@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/sidecar/**'
+      - 'eBPF_Supermarket/old_project/sidecar/**'
       - '.github/workflows/monitor_sidecar.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/sidecar/**'
+      - 'eBPF_Supermarket/old_project/sidecar/**'
       - '.github/workflows/monitor_sidecar.yml'
 
 jobs:
@@ -87,13 +87,13 @@ jobs:
 
       - name: Build
         run: |
-          cd eBPF_Supermarket/sidecar/
+          cd eBPF_Supermarket/old_project/sidecar/
           go build -o pmoas .
           go build -v ./...
 
       - name: Test
         run: |
-          cd eBPF_Supermarket/sidecar/
+          cd eBPF_Supermarket/old_project/sidecar/
           sudo go test ./...
 
   integration-test-with-minikube-and-istio:
@@ -139,7 +139,7 @@ jobs:
 
       - name: Build PMOAS
         run: |
-          cd eBPF_Supermarket/sidecar/
+          cd eBPF_Supermarket/old_project/sidecar/
           go build -o pmoas .
           ./pmoas version
           ./pmoas monitor
@@ -167,7 +167,7 @@ jobs:
 
       - name: Run
         run: |
-          cd eBPF_Supermarket/sidecar
+          cd eBPF_Supermarket/old_project/sidecar
           docker ps -a
           export MINIKUBE_ROOT_PID=$(docker inspect $(docker ps | grep minikube | awk -F ' ' '{print $1}') -f '{{.State.Pid}}')
           export MINIKUBE_STARTED=TRUE
@@ -210,7 +210,7 @@ jobs:
 
       - name: Build Sidecar
         run: |
-          cd eBPF_Supermarket/sidecar/dev
+          cd eBPF_Supermarket/old_project/sidecar/dev
           eval $(minikube -p minikube docker-env)
           make
           kubectl label nodes minikube sidecar-demo-node=dev
@@ -223,7 +223,7 @@ jobs:
 
       - name: Build PMOAS
         run: |
-          cd eBPF_Supermarket/sidecar
+          cd eBPF_Supermarket/old_project/sidecar
           go build -o pmoas .
           ./pmoas version
           ./pmoas monitor
@@ -231,7 +231,7 @@ jobs:
 
       - name: Run
         run: |
-          cd eBPF_Supermarket/sidecar
+          cd eBPF_Supermarket/old_project/sidecar
           kubectl get pods -A
           docker ps -a
           export MINIKUBE_ROOT_PID=$(docker inspect $(docker ps | grep minikube | awk -F ' ' '{print $1}') -f '{{.State.Pid}}')

@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/cilium_ebpf_probe/**'
+      - 'eBPF_Supermarket/old_project/cilium_ebpf_probe/**'
       - '.github/workflows/monitor_pod_user.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/cilium_ebpf_probe/**'
+      - 'eBPF_Supermarket/old_project/cilium_ebpf_probe/**'
       - '.github/workflows/monitor_pod_user.yml'
 
 jobs:
@@ -31,8 +31,8 @@ jobs:
     - name: pod start
       run: |
         kubectl create namespace wyw
-        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml
-        kubectl create -f eBPF_Supermarket/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml
+        kubectl create -f eBPF_Supermarket/old_project/cilium_ebpf_probe/k8s_yaml/http_server_pod.yaml
+        kubectl create -f eBPF_Supermarket/old_project/cilium_ebpf_probe/k8s_yaml/g_server_pod.yaml
         test_pod() {
                 while [[ $(kubectl get pods -n $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True True" ]]
                   do 
@@ -63,5 +63,5 @@ jobs:
           
     - name: build main
       run: |
-        cd eBPF_Supermarket/cilium_ebpf_probe
+        cd eBPF_Supermarket/old_project/cilium_ebpf_probe
         go build main.go

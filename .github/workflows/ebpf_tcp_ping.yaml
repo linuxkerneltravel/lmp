@@ -4,12 +4,12 @@ on:
   push:
     branches: [ "*" ]
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/eBPF_TCP_Ping/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/eBPF_TCP_Ping/**'
       - '.github/workflows/ebpf_tcp_ping.yml'
   pull_request:
     branches: [ "*" ]
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/eBPF_TCP_Ping/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/eBPF_TCP_Ping/**'
       - '.github/workflows/ebpf_tcp_ping.yml'
 
 jobs:
@@ -56,12 +56,12 @@ jobs:
 
     - name: Compile and install xdp
       run: |
-        cd eBPF_Supermarket/eBPF_TCP_Ping
+        cd eBPF_Supermarket/old_project/eBPF_TCP_Ping
         make && sudo make install
 
     - name: Test run ebpf ping
       run: |
-        cd eBPF_Supermarket/eBPF_TCP_Ping
+        cd eBPF_Supermarket/old_project/eBPF_TCP_Ping
         go build -o tcp_ping tcp_ping.go
         # help
         ./tcp_ping -h

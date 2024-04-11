@@ -5,14 +5,14 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/tools/xdp_ping/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/tools/xdp_ping/**'
       - '.github/workflows/ebpf_xdp_libxdp.yml'
       
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/tools/xdp_ping/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/tools/xdp_ping/**'
       - '.github/workflows/ebpf_xdp_libxdp.yml'
     
 jobs:
@@ -29,7 +29,7 @@ jobs:
       - name: Build and Run
         run: |
           pushd ./
-          cd eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/tools/
+          cd eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/tools/
           ./configure 
           make
           cd ./xdp_ping

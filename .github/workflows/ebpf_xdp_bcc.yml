@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/**'
       - '.github/workflows/ebpf_xdp_bcc.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/**'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/**'
       - '.github/workflows/ebpf_xdp_bcc.yml'
       
 
@@ -59,10 +59,10 @@ jobs:
          
       - name: Run xdp_filter
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/
+          cd eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/
           sudo python3 tools/xdp_filter/filter.py -t 5 -i lo -m 0
 
       - name: Run xdp_fast_forward
         run: |
-          cd eBPF_Supermarket/Network_Subsystem/XDP_Res-Application/
+          cd eBPF_Supermarket/Network_Subsystem/old_project/XDP_Res-Application/
           sudo python3 tools/xdp_fast_forward/forward.py -t 5 -i lo -m 0

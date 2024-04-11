@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/CPU_Subsystem/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/old_project/**'
       - '.github/workflows/system_cpu.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/CPU_Subsystem/**'
+      - 'eBPF_Supermarket/CPU_Subsystem/old_project/**'
       - '.github/workflows/system_cpu.yml'
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           sudo pip install psutil==5.9.1
           pip install flake8 pytest
-          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/BCC_sar
           sudo apt-get install bpfcc-tools linux-headers-$(uname -r) # install BCC
       
       # - name: Build BCC
@@ -55,7 +55,7 @@ jobs:
 
       - name: Run BCC_sar
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src/sar
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/BCC_sar/src/sar
           sudo python3 sar.py -h
           sudo python3 sar.py -t time -c 3
           sudo python3 sar.py -t percent -c 5
@@ -63,7 +63,7 @@ jobs:
 
       - name: Run BCC_sar(Per Process)
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/BCC_sar/src/sar
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/BCC_sar/src/sar
           # find the process which runs for the longest time
           TARGET=$(ps -eo pid --sort -time | sed -n "2p" | awk '{print $1}')
           echo target=$TARGET
@@ -89,13 +89,13 @@ jobs:
           # 可能会覆盖原有仓库的文件，有问题
           # sudo apt install linux-tools-$(uname -r)
           # sudo apt install linux-tools-generic
-          # sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > cd eBPF_Supermarket/CPU_Subsystem/vmlinux.h
+          # sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > cd eBPF_Supermarket/CPU_Subsystem/old_project/vmlinux.h
           # echo 'Already produce own vmlinux.h'
 
           # 查看目标平台CPU信息
           cat /proc/cpuinfo
 
-          cd eBPF_Supermarket/CPU_Subsystem/go_sar
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/go_sar
 
           # download cilium-eBPF package
           go mod tidy
@@ -117,6 +117,6 @@ jobs:
 
       - name: Run cpu_watcher
         run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/cpu_watcher
           make 
           sudo ./cpu_watcher

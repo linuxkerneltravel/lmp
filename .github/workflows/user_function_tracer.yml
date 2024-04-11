@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths:
-      - "eBPF_Supermarket/User_Function_Tracer/**"
+      - "eBPF_Supermarket/old_project/User_Function_Tracer/**"
       - ".github/workflows/user_function_tracer.yml"
   pull_request:
     branches:
       - "*"
     paths:
-      - "eBPF_Supermarket/User_Function_Tracer/**"
+      - "eBPF_Supermarket/old_project/User_Function_Tracer/**"
       - ".github/workflows/user_function_tracer.yml"
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build and run
         run: |
-          cd eBPF_Supermarket/User_Function_Tracer
+          cd eBPF_Supermarket/old_project/User_Function_Tracer
           mkdir -p vmlinux
           bash tools/gen_vmlinux_h.sh > vmlinux/vmlinux.h
           cmake -B build -S . -G Ninja

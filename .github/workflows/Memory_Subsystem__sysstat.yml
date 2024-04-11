@@ -5,13 +5,13 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Memory_Subsystem/applications/sysstat/**'
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project//sysstat/**'
       - '.github/workflows/Memory_Subsystem__sysstat.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Memory_Subsystem/applications/sysstat/**'
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project//sysstat/**'
       - '.github/workflows/Memory_Subsystem__sysstat.yml'
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
       - name: Run sysstat
         continue-on-error: true
         run: |
-          cd eBPF_Supermarket/Memory_Subsystem/applications/sysstat/
+          cd eBPF_Supermarket/Memory_Subsystem/old_project//sysstat/
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           sudo make sysstat
           sudo timeout 20 ./sysstat
