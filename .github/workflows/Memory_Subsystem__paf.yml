@@ -15,7 +15,7 @@ on:
       - '.github/workflows/Memory_Subsystem__paf.yml'
 
 jobs:
-  libbpf-project-build-and-test:
+  paf-project-build-and-test:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3

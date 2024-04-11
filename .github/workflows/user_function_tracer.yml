@@ -15,7 +15,7 @@ on:
       - ".github/workflows/user_function_tracer.yml"
 
 jobs:
-  build-and-run-tracer:
+  User_Function_Tracer_build-and-run-tracer:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

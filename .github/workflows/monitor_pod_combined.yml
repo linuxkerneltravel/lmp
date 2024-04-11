@@ -17,7 +17,7 @@ on:
       - '.github/workflows/monitor_pod_combined.yml'
 
 jobs:
-  build-and-test:
+  sidecar_build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3

@@ -16,7 +16,7 @@ on:
       - '.github/workflows/ebpf_xdp_libxdp.yml'
     
 jobs:
-  libbpf-libxdp-project-build-and-test:
+  xdp_ping-libxdp-project-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3

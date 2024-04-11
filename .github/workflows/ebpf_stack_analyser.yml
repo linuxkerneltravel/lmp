@@ -16,7 +16,7 @@ on:
       
 
 jobs:
-  libbpf-build-and-test:
+  Stack_Analyser-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3

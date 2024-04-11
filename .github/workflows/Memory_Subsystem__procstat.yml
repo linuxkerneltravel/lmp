@@ -5,17 +5,17 @@ on:
     branches:
       - "*"
     paths: 
-      - 'eBPF_Supermarket/Memory_Subsystem/old_project//procstat/**'
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project/procstat/**'
       - '.github/workflows/Memory_Subsystem__procstat.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Memory_Subsystem/old_project//procstat/**'
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project/procstat/**'
       - '.github/workflows/Memory_Subsystem__procstat.yml'
 
 jobs:
-  libbpf-project-build-and-test:
+  procstat-project-build-and-test:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3

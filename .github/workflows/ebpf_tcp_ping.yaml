@@ -13,7 +13,7 @@ on:
       - '.github/workflows/ebpf_tcp_ping.yml'
 
 jobs:
-  run-test:
+  eBPF_TCP_Ping_run-test:
     name: Build and run
     runs-on: ubuntu-20.04
 

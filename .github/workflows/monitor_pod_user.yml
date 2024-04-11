@@ -15,7 +15,7 @@ on:
       - '.github/workflows/monitor_pod_user.yml'
 
 jobs:
-   build:
+   cilium_ebpf_probe_build:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3    
