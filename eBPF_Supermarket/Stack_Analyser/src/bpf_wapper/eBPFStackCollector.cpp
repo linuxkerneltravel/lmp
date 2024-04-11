@@ -87,6 +87,7 @@ StackCollector::operator std::string()
     std::ostringstream oss;
     oss << _RED "time:" << getLocalDateTime() << _RE "\n";
     std::map<int32_t, std::vector<std::string>> traces;
+    std::map<uint32_t, task_info> infos;
 
     oss << _BLUE "counts:" _RE "\n";
     {
@@ -96,7 +97,10 @@ StackCollector::operator std::string()
         if ((*D).size() > top)
         {
             auto end = (*D).end();
-            (*D).assign(end - top, end);
+            auto begin = end - top;
+            for (auto i = (*D).begin(); i < begin; i++)
+                delete i->v;
+            (*D).assign(begin, end);
         }
         oss << _GREEN "pid\tusid\tksid";
         for (int i = 0; i < scale_num; i++)
@@ -179,6 +183,10 @@ StackCollector::operator std::string()
                 }
                 traces[id.ksid] = sym_trace;
             }
+            auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
+            task_info info;
+            bpf_map_lookup_elem(info_fd, &id.pid, &info);
+            infos[id.pid] = info;
         }
         delete D;
     }
@@ -197,49 +205,18 @@ StackCollector::operator std::string()
 
     oss << _BLUE "info:" _RE "\n";
     {
-        std::map<uint32_t, char *> tgid_cgroup_map;
-        auto cgroups = new char[MAX_ENTRIES][CONTAINER_ID_LEN];
-        uint32_t count = MAX_ENTRIES;
-        {
-            auto tgids = new uint32_t[MAX_ENTRIES];
-            auto cgroup_fd = bpf_object__find_map_fd_by_name(obj, "tgid_cgroup_map");
-            if (cgroup_fd < 0)
-                return oss.str();
-            uint32_t next_key;
-            err = bpf_map_lookup_batch(cgroup_fd, NULL, &next_key, tgids, cgroups, &count, NULL);
-            for (auto i = 0; i < count; i++)
-                tgid_cgroup_map[tgids[i]] = cgroups[i];
-            delete[] tgids;
-        }
-        
-        auto keys = new uint32_t[MAX_ENTRIES];
-        auto vals = new task_info[MAX_ENTRIES];
-        count = MAX_ENTRIES;
-        {
-            auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
-            if (info_fd < 0)
-                return oss.str();
-            uint32_t next_key;
-            int err;
-            if (showDelta)
-                err = bpf_map_lookup_and_delete_batch(info_fd, NULL, &next_key,
-                                                      keys, vals, &count, NULL);
-            else
-                err = bpf_map_lookup_batch(info_fd, NULL, &next_key,
-                                           keys, vals, &count, NULL);
-            if (err == EFAULT)
-                return oss.str();
-        }
         oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup\t" _RE "\n";
-        for (uint32_t i = 0; i < count; i++)
-            oss << keys[i] << '\t'
-                << vals[i].pid << '\t'
-                << vals[i].comm << '\t'
-                << vals[i].tgid << '\t'
-                << tgid_cgroup_map[vals[i].tgid] << '\n';
-        delete[] keys;
-        delete[] vals;
-        delete[] cgroups;
+        for (auto i : infos)
+        {
+            auto cgroup_fd = bpf_object__find_map_fd_by_name(obj, "tgid_cgroup_map");
+            char group[CONTAINER_ID_LEN];
+            bpf_map_lookup_elem(cgroup_fd, &(i.second.tgid), &group);
+            oss << i.first << '\t'
+                << i.second.pid << '\t'
+                << i.second.comm << '\t'
+                << i.second.tgid << '\t'
+                << group << '\n';
+        }
     }
 
     oss << _BLUE "OK" _RE "\n";
