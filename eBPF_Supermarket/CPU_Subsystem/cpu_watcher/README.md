@@ -222,4 +222,4 @@ per_len = 1000
 
 如果你也对cpu_watcher或ebpf感兴趣，欢迎加入我们一起开发cpu_watcher工具，希望我们可以共同成长。
 
-**cpu_watcher负责人：**albert_xuu@163.com  zhangxy1016304@163.com  zhangziheng0525@163.com
+**cpu_watcher负责人：** albert_xuu@163.com       zhangxy1016304@163.com      zhangziheng0525@163.com
