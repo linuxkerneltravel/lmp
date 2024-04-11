@@ -89,6 +89,8 @@ kworker/u256:1   15144   13516    1131
 node             14221   2589     3355   
 ```
 
+原理介绍：https://github.com/vvzxy/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/preempt_time%E4%BB%8B%E7%BB%8D.md
+
 ### 3.**统计调度延迟：**
 
 ​	分析系统中进程调度的延迟情况，提供相关统计数据，输出包括当前系统的最大调度延迟、最小调度延迟、平均调度延迟。
@@ -108,6 +110,7 @@ node             14221   2589     3355
 17:31:36  373.751000      217053.545000     6.462000
 ```
 
+原理介绍：https://github.com/vvzxy/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/schedule_delay%E4%BB%8B%E7%BB%8D.md
 ### 4.**统计系统调用响应时间：**
 
 ​	记录系统调用的响应时间，帮助用户评估系统对外部请求的处理效率， 其输出包括发起本次系统调用的进程的进程名、pid、系统调用号以及响应时间。
