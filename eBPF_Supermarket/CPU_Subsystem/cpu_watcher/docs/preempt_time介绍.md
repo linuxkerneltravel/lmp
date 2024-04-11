@@ -26,7 +26,7 @@ SEC("kprobe/finish_task_switch")
 
 ### 输出效果
 
-可以获取到抢占进程的`pid`与进程名，以及被强占进程的`pid`，和本次抢占时间，单位纳秒
+可以获取到抢占进程的`pid`与进程名，以及被抢占进程的`pid`，和本次抢占时间，单位纳秒
 
 ```
 COMM           prev_pid next_pid duration_ns
