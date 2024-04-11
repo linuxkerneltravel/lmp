@@ -20,6 +20,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
+#include <bpf/usdt.bpf.h>
 
 #include "sa_ebpf.h"
 #include "task.h"
@@ -66,4 +67,9 @@ int handle_tp(void *ctx)
 {
     handle_func(ctx);
     return 0;
+}
+SEC("usdt")
+int handle_usdt(void *ctx)
+{
+    return handle_func(ctx);
 }

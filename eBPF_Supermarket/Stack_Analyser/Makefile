@@ -111,7 +111,6 @@ $(OUTPUT)/%.bpf.o: bpf/%.bpf.c include/sa_ebpf.h $(LIBBPF_OBJ) $(VMLINUX) | $(OU
 	$(Q)$(BPFTOOL) gen object $@ $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
 
 # Generate BPF skeletons
-.PHONY: $(BPF)
 $(BPF_SKEL)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL) $(BPF_SKEL)
 	$(call msg,GEN-SKEL,$@)
 	$(Q)$(BPFTOOL) gen skeleton $< > $@
