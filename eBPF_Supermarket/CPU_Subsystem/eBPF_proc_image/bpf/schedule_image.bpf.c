@@ -24,9 +24,14 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const volatile pid_t target_pid = -1;
-const volatile int target_cpu_id = -1;
-const volatile int target_tgid = -1;
+const int key = 0;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 1);
+	__type(key, int);
+	__type(value, struct sched_ctrl);
+} sched_ctrl_map SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -66,7 +71,13 @@ struct {
 SEC("tp_btf/sched_wakeup")
 int BPF_PROG(sched_wakeup, struct task_struct *p)
 {
+    struct sched_ctrl *sched_ctrl;
+	sched_ctrl = bpf_map_lookup_elem(&sched_ctrl_map,&key);
+	if(!sched_ctrl || !sched_ctrl->sched_func)
+		return 0;
+    
     pid_t pid = BPF_CORE_READ(p,pid);
+    int tgid = BPF_CORE_READ(p,tgid);
     int cpu = bpf_get_smp_processor_id();
     struct schedule_event *schedule_event;
     struct proc_id pd = {};
@@ -80,6 +91,7 @@ int BPF_PROG(sched_wakeup, struct task_struct *p)
         bool e_add = false;
         
         schedule_event.pid = pid;
+        schedule_event.tgid = tgid;
         // 提前将 count 值赋值为 1，避免输出时进程还没有被调度，导致除数出现 0 的情况
         schedule_event.count = 1;
         schedule_event.enter_time = current_time;
@@ -96,7 +108,13 @@ int BPF_PROG(sched_wakeup, struct task_struct *p)
 SEC("tp_btf/sched_wakeup_new")
 int BPF_PROG(sched_wakeup_new, struct task_struct *p)
 {
+    struct sched_ctrl *sched_ctrl;
+	sched_ctrl = bpf_map_lookup_elem(&sched_ctrl_map,&key);
+	if(!sched_ctrl || !sched_ctrl->sched_func)
+		return 0;
+    
     pid_t pid = BPF_CORE_READ(p,pid);
+    int tgid = BPF_CORE_READ(p,tgid);
     int cpu = bpf_get_smp_processor_id();
     struct schedule_event *schedule_event;
     struct proc_id pd = {};
@@ -110,6 +128,7 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p)
         bool e_add = false;
         
         schedule_event.pid = pid;
+        schedule_event.tgid = tgid;
         schedule_event.count = 1;
         schedule_event.enter_time = current_time;
 
@@ -125,7 +144,13 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p)
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next)
 {
+    struct sched_ctrl *sched_ctrl;
+	sched_ctrl = bpf_map_lookup_elem(&sched_ctrl_map,&key);
+	if(!sched_ctrl || !sched_ctrl->sched_func)
+		return 0;
+    
     pid_t prev_pid = BPF_CORE_READ(prev,pid);
+    int prev_tgid = BPF_CORE_READ(prev,tgid);
     int prev_cpu = bpf_get_smp_processor_id();
     unsigned int prev_state = BPF_CORE_READ(prev,__state);
     pid_t next_pid = BPF_CORE_READ(next,pid);
@@ -152,6 +177,7 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
             bool e_add = false;
             
             schedule_event.pid = prev_pid;
+            schedule_event.tgid = prev_tgid;
             schedule_event.count = 1;
             schedule_event.enter_time = current_time;
 
@@ -184,13 +210,13 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
         schedule_event->min_delay = this_delay;
     
     /* 若指定 target 进程，则单独记录 target 进程的调度信息 */
-    if(target_pid!=-1 && ((target_pid!=0 && next_pid==target_pid) || 
-        (target_pid==0 && next_pid==target_pid && next_cpu==target_cpu_id))){
+    if(sched_ctrl->target_pid!=-1 && ((sched_ctrl->target_pid!=0 && next_pid==sched_ctrl->target_pid) || 
+        (sched_ctrl->target_pid==0 && next_pid==sched_ctrl->target_pid && next_cpu==sched_ctrl->target_cpu_id))){
         bpf_map_update_elem(&target_schedule,&key,schedule_event,BPF_ANY);
     }
 
     /* 记录指定的线程组调度信息 */
-    if(next_tgid == target_tgid){
+    if(next_tgid == sched_ctrl->target_tgid){
         bpf_map_update_elem(&tg_schedule,&next_pid,schedule_event,BPF_ANY);
     }
     
@@ -221,6 +247,11 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 SEC("tracepoint/sched/sched_process_exit")
 int sched_process_exit(void *ctx)
 {
+    struct sched_ctrl *sched_ctrl;
+	sched_ctrl = bpf_map_lookup_elem(&sched_ctrl_map,&key);
+	if(!sched_ctrl || !sched_ctrl->sched_func)
+		return 0;
+    
     struct task_struct *p = (struct task_struct *)bpf_get_current_task();
     pid_t pid = BPF_CORE_READ(p,pid);
     int tgid = BPF_CORE_READ(p,tgid);
@@ -244,8 +275,8 @@ int sched_process_exit(void *ctx)
     }
 
     // 若目标进程退出，删除 target_schedule map 中的数据
-    if(target_pid!=-1 && ((target_pid!=0 && pid==target_pid) || 
-        (target_pid==0 && pid==target_pid && cpu==target_cpu_id))){
+    if(sched_ctrl->target_pid!=-1 && ((sched_ctrl->target_pid!=0 && pid==sched_ctrl->target_pid) || 
+        (sched_ctrl->target_pid==0 && pid==sched_ctrl->target_pid && cpu==sched_ctrl->target_cpu_id))){
         schedule_event = bpf_map_lookup_elem(&target_schedule,&key);
         if(schedule_event){
             // 将 count 设置成 0 即可实现目标进程退出标志
@@ -254,7 +285,7 @@ int sched_process_exit(void *ctx)
     }
 
     // 若目标进程中的线程退出，删除 tg_schedule map 中的数据
-    if(tgid == target_tgid){
+    if(tgid == sched_ctrl->target_tgid){
         bpf_map_delete_elem(&tg_schedule,&pid);
     }
 
