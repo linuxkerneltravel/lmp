@@ -149,7 +149,7 @@ Time        Pid       comm                syscall_id         delay/us
 
 原理介绍：
 
-[lmp/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md at develop · albertxu216/lmp (github.com)](https://github.com/albertxu216/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md)
+[消息队列延迟原理分析](https://github.com/albertxu216/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md)
 
 ### 6.对内核函数schedule()的执行时长进行测试
 
