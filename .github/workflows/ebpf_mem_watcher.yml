@@ -15,7 +15,7 @@ on:
       - '.github/workflows/Memory_Subsystem__mem_watcher.yml'
 
 jobs:
-  libbpf-project-build-and-test:
+  mem_watcher-project-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
