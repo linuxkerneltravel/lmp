@@ -166,6 +166,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				}
 				env.syscalls = syscalls;
 				env.enable_syscall = true;
+                break;
         case 'S':
                 env.enable_schedule = true;
                 break;
