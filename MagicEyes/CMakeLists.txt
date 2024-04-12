@@ -138,3 +138,4 @@ endif ()
 
 add_subdirectory(src/backend)
 add_subdirectory(src/bridge)
+add_subdirectory(src/magic_eyes_cli)
