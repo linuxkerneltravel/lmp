@@ -480,16 +480,22 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 	time_t now = time(NULL);// 获取当前时间
 	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
 	printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-	printf("-----------------------------------------------------------------------------------------------------------\n");
+	printf("-----------------------------------------------------------------------------------------------------------------------\n");
 	const struct mq_events *e = data;
+	
 	printf("Mqdes: %-8llu msg_len: %-8llu msg_prio: %-8llu\n",e->mqdes,e->msg_len,e->msg_prio);
-	printf("SND_PID: %-8lu SND_enter_time: %-16llu\n",
-		e->send_pid,e->send_enter_time);
-	printf("-----------------------------------------------------------------------------------------------------------\n");
+	printf("SND_PID: %-8lu SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
+		e->send_pid,e->send_enter_time,e->send_exit_time);
 	printf("RCV_PID: %-8lu RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
 		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
-	printf("RCV_Delay: %-8.2fms\nDelay: %-8.2fms\n\n",(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,e->delay/1000000.0);
-	
+	printf("-------------------------------------------------------------------------------\n");
+
+	printf("SND_Delay/ms: %-8.2f  RCV_Delay/ms: %-8.2f  Delay/ms: %-8.5f\n",
+		(e->send_exit_time - e->send_enter_time)/1000000.0,
+		(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,
+		(e->rcv_exit_time - e->send_enter_time)/1000000.0);
+	printf("-----------------------------------------------------------------------------------------------------------------------\n\n");
+
 	return 0;
 }
 
