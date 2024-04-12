@@ -91,7 +91,7 @@ node             14221   2589     3355
 
 原理介绍：
 
-[抢占调度原理分析](https://github.com/vvzxy/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/preempt_time.md)
+[抢占调度原理分析](https://github.com/lmp/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/preempt_time.md)
 
 ### 3.**统计调度延迟：**
 
@@ -113,7 +113,7 @@ node             14221   2589     3355
 ```
 原理介绍：
 
-[调度延迟原理分析](https://github.com/vvzxy/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/schedule_delay.md)
+[调度延迟原理分析](https://github.com/lmp/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/schedule_delay.md)
 
 ### 4.**统计系统调用响应时间：**
 
@@ -149,7 +149,7 @@ Time        Pid       comm                syscall_id         delay/us
 
 原理介绍：
 
-[消息队列延迟原理分析](https://github.com/albertxu216/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md)
+[消息队列延迟原理分析](https://github.com/lmp/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md)
 
 ### 6.对内核函数schedule()的执行时长进行测试
 
