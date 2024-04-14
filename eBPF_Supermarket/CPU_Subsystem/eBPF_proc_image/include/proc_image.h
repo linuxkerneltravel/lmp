@@ -32,6 +32,14 @@
 typedef __u64 stack_trace_t[MAX_STACK_DEPTH];
 
 // resource_image
+struct rsc_ctrl{
+	bool rsc_func;
+	pid_t target_pid;
+	int target_cpu_id;
+	bool enable_myproc;
+	pid_t target_tgid;
+};
+
 struct proc_id{
 	int pid;
 	int cpu_id;
@@ -45,6 +53,7 @@ struct start_rsc{
 
 struct total_rsc{
     int pid;
+	int tgid;
 	int cpu_id;
 	long long unsigned int time;
 	long unsigned int memused;
@@ -53,6 +62,14 @@ struct total_rsc{
 };
 
 //syscall_image
+struct sc_ctrl {
+    bool sc_func;
+    bool enable_myproc;
+    pid_t target_pid;
+    pid_t target_tgid;
+    int syscalls;
+};
+
 struct syscall_seq{
 	int pid;
 	int tgid;
@@ -67,6 +84,13 @@ struct syscall_seq{
 };
 
 // lock_image
+struct lock_ctrl{
+    bool lock_func;
+    bool enable_myproc;
+	pid_t target_pid;
+	pid_t target_tgid;
+};
+
 struct proc_flag{
     int pid;
     // 1代表用户态互斥锁
@@ -84,15 +108,25 @@ struct lock_event{
     */
     int lock_status;
     int pid;
+	int tgid;
 	int ret;
     long long unsigned int lock_ptr;
     long long unsigned int time;
 };
 
 // keytime_image
+struct kt_ctrl{
+	bool kt_func;
+	bool kt_cpu_func;
+	bool enable_myproc;
+	pid_t target_pid;
+	pid_t target_tgid;
+};
+
 struct child_info{
 	int type;
 	int ppid;
+	int ptgid;
 };
 
 struct keytime_event{
@@ -106,6 +140,7 @@ struct keytime_event{
 	*/
 	int type;
 	int pid;
+	int tgid;
 	bool enable_char_info;
 	int info_count;
 	long long unsigned int info[6];
@@ -118,14 +153,23 @@ struct offcpu_event{
 	// 为固定值 11，为了标识 offCPU事件
 	int type;
 	int pid;
+	int tgid;
 	long long unsigned int offcpu_time;
 	__s32 kstack_sz;
 	stack_trace_t kstack;
 };
 
 // schedule_image
+struct sched_ctrl {
+    bool sched_func;
+    pid_t target_pid;
+    int target_cpu_id;
+    int target_tgid;
+};
+
 struct schedule_event{
 	int pid;
+	int tgid;
 	int prio;
 	int count;
 	long long unsigned int enter_time;

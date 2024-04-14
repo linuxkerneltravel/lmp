@@ -15,7 +15,7 @@ on:
       - '.github/workflows/system_filesystem.yml'
 
 jobs:
-  bcc-project-build-and-test:
+  Filesystem_Subsystem-project-build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3

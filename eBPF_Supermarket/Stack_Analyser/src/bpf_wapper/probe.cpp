@@ -49,6 +49,32 @@ void splitString(std::string symbol, const char split, std::vector<std::string> 
     }
 }
 
+static int get_path(char *path,int pid)
+{
+    char mode[16], line[128], buf[64];
+    size_t seg_start, seg_end, seg_off;
+    FILE *f;
+    int i = 0;
+
+    sprintf(buf, "/proc/%d/maps", pid);
+    f = fopen(buf, "r");
+    if (!f)
+        return -1;
+
+    while (fscanf(f, "%zx-%zx %s %zx %*s %*d%[^\n]\n",
+            &seg_start, &seg_end, mode, &seg_off, line) == 5) {
+        i = 0;
+        while (isblank(line[i]))
+            i++;
+        if (strstr(line + i, "libc.so.6")) {
+            break;
+        }
+    }
+
+    strcpy(path, line + i);
+    fclose(f);
+    return 0;
+}
 void ProbeStackCollector::setScale(std::string probe)
 {
     this->probe = probe;
@@ -115,6 +141,13 @@ int ProbeStackCollector::attach(void)
     else if (strList.size() == 3 && strList[0] == "u")
     {
         // probe a USDT tracepoint
+        char bin_path[128];
+        std::string func = probe;
+        int err = get_path(bin_path,pid);
+        CHECK_ERR(err, "Fail to get lib path");
+        skel->links.handle_usdt  =
+            bpf_program__attach_usdt(skel->progs.handle_usdt,pid,bin_path,"libc",strList[2].c_str(),NULL);
+        CHECK_ERR(!skel->links.handle_usdt, "Fail to attach usdt");
         return 0;
     }
     else

@@ -17,11 +17,13 @@
 // Variable definitions and help functions for keytime in the process
 
 // 记录开始时间，并输出
-static int child_create(int type, pid_t child_pid, pid_t pid, void *child, void *keytime_rb)
+static int child_create(int type, pid_t child_pid, pid_t pid, void *child, void *keytime_rb, int tgid, int target_tgid)
 {
 	struct child_info child_info = {};
     child_info.type = type;
     child_info.ppid = pid;
+    if(target_tgid != -1)   child_info.ptgid = tgid;
+    else    child_info.ptgid = -1;
     if(bpf_map_update_elem(child, &child_pid, &child_info, BPF_ANY))
         return 0;
     
@@ -32,6 +34,8 @@ static int child_create(int type, pid_t child_pid, pid_t pid, void *child, void 
 
     e->type = type;
     e->pid = pid;
+    if(target_tgid != -1)	e->tgid = tgid;
+	else	e->tgid = -1;
     e->enable_char_info = false;
     e->info_count = 1;
     e->info[0] = child_pid;
@@ -54,6 +58,7 @@ static int child_exit(void *child, void *keytime_rb)
 
         e->type = child_info->type + 1;
         e->pid = child_info->ppid;
+        e->tgid = child_info->ptgid;
         e->enable_char_info = false;
         e->info_count = 1;
         e->info[0] = child_pid;

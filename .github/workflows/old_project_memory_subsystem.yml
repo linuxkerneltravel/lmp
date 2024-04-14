@@ -1,0 +1,92 @@
+name: Memory_Subsystem
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project/**'
+      - '.github/workflows/old_project_Memory_Subsystem.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Memory_Subsystem/old_project/**'
+      - '.github/workflows/old_project_Memory_Subsystem.yml'
+
+jobs:
+  paf-project-build-and-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential linux-tools-$(uname -r)
+          git submodule update --init --recursive
+
+      - name: Run paf
+        continue-on-error: true
+        run: |
+          cd eBPF_Supermarket/Memory_Subsystem/old_project//paf/
+          bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+          make paf
+          sudo timeout 20 ./paf
+
+  pr-project-build-and-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential linux-tools-$(uname -r)
+          git submodule update --init --recursive
+
+      - name: Run pr
+        continue-on-error: true
+        run: |
+          cd eBPF_Supermarket/Memory_Subsystem/old_project//pr/
+          bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+          sudo make pr
+          sudo timeout 20 ./pr
+
+  procstat-project-build-and-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential linux-tools-$(uname -r)
+          git submodule update --init --recursive
+
+      - name: Run procstat
+        continue-on-error: true
+        run: |
+          cd eBPF_Supermarket/Memory_Subsystem/old_project//procstat/
+          bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+          sudo make procstat
+          sudo timeout 20 ./procstat
+
+  sysstat-project-build-and-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential linux-tools-$(uname -r)
+          git submodule update --init --recursive
+
+      - name: Run sysstat
+        continue-on-error: true
+        run: |
+          cd eBPF_Supermarket/Memory_Subsystem/old_project//sysstat/
+          bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+          sudo make sysstat
+          sudo timeout 20 ./sysstat
