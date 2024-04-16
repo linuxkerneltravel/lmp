@@ -6,13 +6,13 @@ on:
       - "*"
     paths: 
       - 'eBPF_Supermarket/CPU_Subsystem/**'
-      - '.github/workflows/system_cpu.yml'
+      - '.github/workflows/old_project_cpu_subsystem.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'eBPF_Supermarket/CPU_Subsystem/**'
-      - '.github/workflows/system_cpu.yml'
+      - '.github/workflows/old_project_cpu_subsystem.yml'
 
 jobs:
   CPU-Subsystem-build-and-test:
@@ -83,20 +83,3 @@ jobs:
           chmod +x run.sh
           uname -r
           ./run.sh
-
-  cpu_watcher-project-build-and-test:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install dependencies and Init Env
-        run: |
-          sudo apt update
-          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
-          git submodule update --init --recursive
-
-      - name: Run cpu_watcher
-        run: |
-          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher
-          make 
-          sudo ./cpu_watcher

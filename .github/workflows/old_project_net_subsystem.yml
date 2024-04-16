@@ -1,18 +1,18 @@
-name: dns_cache
+name: Network_Subsystem
 
 on:
   push:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/old_project/ebpf_dns_cache/**'
-      - '.github/workflows/dns_cache.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/**'
+      - '.github/workflows/old_project_net_subsystem.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/Network_Subsystem/old_project/ebpf_dns_cache/**'
-      - '.github/workflows/dns_cache.yml'
+      - 'eBPF_Supermarket/Network_Subsystem/old_project/**'
+      - '.github/workflows/old_project_net_subsystem.yml'
 
 jobs:
   ebpf_dns_cache_build-and-test:

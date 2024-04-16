@@ -53,8 +53,9 @@ jobs:
       - name: Run proc_image
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image
-          make proc_image
-          sudo ./proc_image -a -p 1 -t 1
+          make
+          sudo ./proc_image -a &
+          sudo ./controller -f
 
       - name: Run test_proc
         run: |

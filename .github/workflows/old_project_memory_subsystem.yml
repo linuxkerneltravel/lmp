@@ -1,4 +1,4 @@
-name: paf
+name: Memory_Subsystem
 
 on:
   push:
@@ -71,7 +71,7 @@ jobs:
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           sudo make procstat
           sudo timeout 20 ./procstat
-          
+
   sysstat-project-build-and-test:
     runs-on: ubuntu-20.04
     steps:

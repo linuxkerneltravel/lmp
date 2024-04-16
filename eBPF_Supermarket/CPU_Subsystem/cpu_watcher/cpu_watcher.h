@@ -156,12 +156,8 @@ struct mq_events {
         
         u64 send_enter_time;
         u64 send_exit_time;
-        u64 send_delay;
-
         u64 rcv_enter_time;
         u64 rcv_exit_time;
-        u64 rcv_delay;
-        u64 delay;
 };
 struct send_events {
     int send_pid;
