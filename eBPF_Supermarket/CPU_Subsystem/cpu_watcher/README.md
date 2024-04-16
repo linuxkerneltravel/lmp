@@ -149,7 +149,7 @@ Time        Pid       comm                syscall_id         delay/us
 
 原理介绍：
 
-[消息队列延迟原理分析](docs/mq_delay功能介绍.md)
+[消息队列延迟原理分析](docs/mq_delay.md)
 
 ### 6.对内核函数schedule()的执行时长进行测试
 
