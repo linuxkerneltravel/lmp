@@ -89,6 +89,10 @@ kworker/u256:1   15144   13516    1131
 node             14221   2589     3355   
 ```
 
+原理介绍：
+
+[抢占调度原理分析](docs/preempt_time.md)
+
 ### 3.**统计调度延迟：**
 
 ​	分析系统中进程调度的延迟情况，提供相关统计数据，输出包括当前系统的最大调度延迟、最小调度延迟、平均调度延迟。
@@ -107,6 +111,9 @@ node             14221   2589     3355
 17:31:35  362.039000      217053.545000     6.462000        
 17:31:36  373.751000      217053.545000     6.462000
 ```
+原理介绍：
+
+[调度延迟原理分析](docs/schedule_delay.md)
 
 ### 4.**统计系统调用响应时间：**
 
@@ -142,7 +149,7 @@ Time        Pid       comm                syscall_id         delay/us
 
 原理介绍：
 
-[lmp/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md at develop · albertxu216/lmp (github.com)](https://github.com/albertxu216/lmp/blob/develop/eBPF_Supermarket/CPU_Subsystem/cpu_watcher/docs/mq_delay功能介绍.md)
+[消息队列延迟原理分析](docs/mq_delay.md)
 
 ### 6.对内核函数schedule()的执行时长进行测试
 
@@ -222,4 +229,4 @@ per_len = 1000
 
 如果你也对cpu_watcher或ebpf感兴趣，欢迎加入我们一起开发cpu_watcher工具，希望我们可以共同成长。
 
-**cpu_watcher负责人：**albert_xuu@163.com  zhangxy1016304@163.com  zhangziheng0525@163.com
+**cpu_watcher负责人：**  albert_xuu@163.com    zhangxy1016304@163.com    zhangziheng0525@163.com
