@@ -86,10 +86,7 @@
         if ((__last_n == __next_n) && __recorded)                           \
             return 0;                                                       \
         else                                                                \
-        {                                                                   \
-            __recorded == true;                                             \
             __last_n = __next_n;                                            \
-        }                                                                   \
     }
 
 #define SET_KNODE(_task, _knode) \
@@ -110,11 +107,12 @@
                             &cgroup_name, BPF_NOEXIST);                \
     }
 
-#define GET_COUNT_KEY(_pid, _ctx)                                                                                 \
-    ((psid){                                                                                                      \
-        .pid = _pid,                                                                                              \
-        .usid = trace_user ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK) : -1, \
-        .ksid = trace_kernel ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP) : -1,                  \
-    })
+#define GET_COUNT_KEY(_pid, _ctx)                                                                                  \
+    (__recorded == true,                                                                                           \
+     (psid){                                                                                                       \
+         .pid = _pid,                                                                                              \
+         .usid = trace_user ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK) : -1, \
+         .ksid = trace_kernel ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP) : -1,                  \
+     })
 
 #endif

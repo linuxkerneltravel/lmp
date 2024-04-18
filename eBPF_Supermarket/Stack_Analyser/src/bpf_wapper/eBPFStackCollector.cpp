@@ -146,7 +146,7 @@ StackCollector::operator std::string()
                     else
                     {
                         std::stringstream ss("");
-                        ss << "0x" << std::hex << addr;
+                        ss << "0x" << std::hex << sym.ip;
                         sym.name = ss.str();
                         g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
                     }

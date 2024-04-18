@@ -154,17 +154,11 @@ int main(int argc, char *argv[])
                                   .call([]
                                         { StackCollectorList.push_back(new MemleakStackCollector()); }) %
                               COLLECTOR_INFO("memleak")) &
-                             ((clipp::option("-i") &
-                               clipp::value("interval", IntTmp)
-                                   .call([]
-                                         { static_cast<MemleakStackCollector *>(StackCollectorList.back())
-                                               ->sample_rate = IntTmp; })) %
-                                  "Set the sampling interval; default is 1",
-                              clipp::option("-w")
-                                      .call([]
-                                            { static_cast<MemleakStackCollector *>(StackCollectorList.back())
-                                                  ->wa_missing_free = true; }) %
-                                  "Free when missing in kernel to alleviate misjudgments");
+                             (clipp::option("-W")
+                                  .call([]
+                                        { static_cast<MemleakStackCollector *>(StackCollectorList.back())
+                                              ->wa_missing_free = true; }) %
+                              "Free when missing in kernel to alleviate misjudgments");
 
         auto IOOption = clipp::option("io")
                             .call([]
@@ -189,7 +183,7 @@ int main(int argc, char *argv[])
         auto LlcStatOption = clipp::option("llc_stat").call([]
                                                             { StackCollectorList.push_back(new LlcStatStackCollector()); }) %
                                  COLLECTOR_INFO("llc_stat") &
-                             ((clipp::option("-i") &
+                             ((clipp::option("-P") &
                                clipp::value("period", IntTmp)
                                    .call([]
                                          { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
@@ -198,30 +192,30 @@ int main(int argc, char *argv[])
 
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
-                               ((clipp::option("-G") &
+                               ((clipp::option("-g") &
                                  clipp::value("cgroup path", StrTmp)
                                      .call([]
                                            { MainConfig::target_cgroup = helper::get_cgroupid(StrTmp.c_str()); printf("Trace cgroup %ld\n", MainConfig::target_cgroup); })) %
                                 "Set the cgroup of the process to be tracked; default is -1, which keeps track of all cgroups") |
-                               ((clipp::option("-P") &
+                               ((clipp::option("-p") &
                                  clipp::value("pid", MainConfig::target_tgid)) %
                                 "Set the pid of the process to be tracked; default is -1, which keeps track of all processes") |
-                               ((clipp::option("-T") &
+                               ((clipp::option("-t") &
                                  clipp::value("tid", MainConfig::target_pid)) %
                                 "Set the tid of the thread to be tracked; default is -1, which keeps track of all threads") |
-                               ((clipp::option("-C") &
+                               ((clipp::option("-c") &
                                  clipp::value("command", MainConfig::command)) %
                                 "Set the command to be run and sampled; defaults is none")),
-                           (clipp::option("-O") &
+                           (clipp::option("-o") &
                             clipp::value("top", MainConfig::top)) %
                                "Set the top number; default is 10",
                            (clipp::option("-f") &
                             clipp::value("freq", MainConfig::freq)) %
                                "Set sampling frequency, 0 for close; default is 49",
-                           (clipp::option("-d") &
+                           (clipp::option("-i") &
                             clipp::value("interval", MainConfig::delay)) %
                                "Set the output delay time (seconds); default is 5",
-                           (clipp::option("-t") &
+                           (clipp::option("-d") &
                             clipp::value("duration", MainConfig::run_time)
                                 .call([]
                                       { stop_time = time(NULL) + MainConfig::run_time; })) %

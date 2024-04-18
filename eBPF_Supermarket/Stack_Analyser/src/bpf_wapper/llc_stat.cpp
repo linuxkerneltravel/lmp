@@ -78,7 +78,7 @@ int LlcStatStackCollector::attach(void)
 		}
 		/* Set up performance monitoring on a CPU/Core */
 		attr.config = PERF_COUNT_HW_CACHE_MISSES;
-		int pefd = syscall(SYS_perf_event_open, &attr, pid ? pid : -1, cpu, -1, 0);
+		int pefd = syscall(SYS_perf_event_open, &attr, tgid ? tgid : -1, cpu, -1, 0);
 		CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
 		mpefds[cpu] = pefd;
 		/* Attach a BPF program on a CPU */
@@ -86,7 +86,7 @@ int LlcStatStackCollector::attach(void)
 		CHECK_ERR(!mlinks[cpu], "Fail to attach bpf program");
 
 		attr.config = PERF_COUNT_HW_CACHE_REFERENCES;
-		pefd = syscall(SYS_perf_event_open, &attr, pid ? pid : -1, cpu, -1, 0);
+		pefd = syscall(SYS_perf_event_open, &attr, tgid ? tgid : -1, cpu, -1, 0);
 		CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
 		rpefds[cpu] = pefd;
 		/* Attach a BPF program on a CPU */

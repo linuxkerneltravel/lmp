@@ -98,7 +98,7 @@ int OnCPUStackCollector::attach(void)
             continue;
         }
         /* Set up performance monitoring on a CPU/Core */
-        int pefd = perf_event_open(&attr, pid ? pid : -1, cpu, -1, 0);
+        int pefd = perf_event_open(&attr, tgid ? tgid : -1, cpu, -1, 0);
         CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
         pefds[cpu] = pefd;
         /* Attach a BPF program on a CPU */
