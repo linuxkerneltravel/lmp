@@ -142,19 +142,20 @@ else()
   message(FATAL_ERROR "Failed to determine BPF system includes: ${CLANG_SYSTEM_INCLUDES_error}")
 endif()
 
-# Get target arch
-execute_process(COMMAND uname -m
-  COMMAND sed -e "s/x86_64/x86/" -e "s/aarch64/arm64/" -e "s/ppc64le/powerpc/" -e "s/mips.*/mips/" -e "s/riscv64/riscv/"
-  OUTPUT_VARIABLE ARCH_output
-  ERROR_VARIABLE ARCH_error
-  RESULT_VARIABLE ARCH_result
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(${ARCH_result} EQUAL 0)
-  set(ARCH ${ARCH_output})
-  message(STATUS "BPF target arch: ${ARCH}")
-else()
-  message(FATAL_ERROR "Failed to determine target architecture: ${ARCH_error}")
-endif()
+# lht修改：统一使用顶层CMakeLists.txt中设置的ARCH
+# execute_process(COMMAND uname -m
+#   COMMAND sed -e "s/x86_64/x86/" -e "s/aarch64/arm64/" -e "s/ppc64le/powerpc/" -e "s/mips.*/mips/" -e "s/riscv64/riscv/"
+#   OUTPUT_VARIABLE ARCH_output
+#   ERROR_VARIABLE ARCH_error
+#   RESULT_VARIABLE ARCH_result
+#   OUTPUT_STRIP_TRAILING_WHITESPACE)
+# if(${ARCH_result} EQUAL 0)
+# #   set(ARCH ${ARCH_output})
+#   message(STATUS "BPF target arch: ${ARCH}")
+# else()
+#   message(FATAL_ERROR "Failed to determine target architecture: ${ARCH_error}")
+# endif()
+message(STATUS "BPF target arch: ${ARCH}")
 
 # 将 *.bpf.c 使用clang编译成 *.o，然后将 *.o 使用 bpftool 转换为 *.skel.h
 macro(bpf_object name input src_gen_dir)
@@ -198,5 +199,16 @@ macro(bpf_object name input src_gen_dir)
   # ------------------------------------------------------------------------------------
   target_include_directories(${OUTPUT_TARGET} INTERFACE ${CMAKE_CURRENT_BINARY_DIR})
   target_include_directories(${OUTPUT_TARGET} SYSTEM INTERFACE ${LIBBPF_INCLUDE_DIRS})
-  target_link_libraries(${OUTPUT_TARGET} INTERFACE ${LIBBPF_LIBRARIES} -lelf -lz)
+  
+#lht增加：修改不同编译环境编译依赖静态库 skel的依赖库
+  if(ARCH STREQUAL "x86")
+    target_link_libraries(${OUTPUT_TARGET} INTERFACE ${LIBBPF_LIBRARIES} -lelf -lz)
+  elseif(ARCH STREQUAL "arm64")
+    target_link_libraries(${OUTPUT_TARGET} INTERFACE 
+    ${LIBBPF_LIBRARIES} 
+    ${ZLIB_ARM64_DIR}/libz.a 
+    ${ELF_ARM64_DIR}/libelf.a )
+  else()
+  endif()
+
 endmacro()
