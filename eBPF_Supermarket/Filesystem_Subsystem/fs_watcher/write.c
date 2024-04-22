@@ -33,6 +33,7 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 	//获取文件真实路径
 	snprintf(path,sizeof(path),"/proc/self/fd/%d",e->fd);
+	//通过realpath来合并文件路径
 	char *real_path = realpath(path,NULL);
 	if(real_path != NULL){
 		printf("%-8s  %-7d  %-7ld  %-7ld   %-7s\n", ts, e->pid,e->real_count,e->count,real_path);

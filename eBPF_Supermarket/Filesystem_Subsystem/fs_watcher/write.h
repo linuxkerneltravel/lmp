@@ -5,6 +5,7 @@
 struct fs_t {
     int fd;
     int pid;
+    
     size_t real_count;
     size_t count;
 };
