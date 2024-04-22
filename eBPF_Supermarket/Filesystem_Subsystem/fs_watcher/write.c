@@ -105,6 +105,5 @@ cleanup:
 	/* Clean up */
 	ring_buffer__free(rb);
 	write_bpf__destroy(skel);
-
 	return err < 0 ? -err : 0;
 }

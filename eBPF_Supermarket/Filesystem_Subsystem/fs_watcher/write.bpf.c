@@ -62,7 +62,7 @@ int kprobe_vfs_write(struct pt_regs *ctx)
 
   if(!e)
     return 0;
-
+  //如果探测到的指针不为空
   if(fd_ptr){
     int fd = *fd_ptr;
     e->fd = fd;
