@@ -29,7 +29,6 @@
 #include "bpf_wapper/io.h"
 #include "bpf_wapper/readahead.h"
 #include "bpf_wapper/probe.h"
-
 #include "sa_user.h"
 #include "clipp.h"
 
@@ -178,7 +177,11 @@ int main(int argc, char *argv[])
                                 .call([]
                                       { static_cast<ProbeStackCollector *>(StackCollectorList.back())
                                             ->setScale(StrTmp); }) %
-                            "Set the probe string");
+                            "Set the probe string; specific use is:\n"
+                            "<func> | p::<func>             -- probe a kernel function;\n"
+                            "<lib>:<func> | p:<lib>:<func>  -- probe a user-space function in the library 'lib';\n"
+                            "t:<class>:<func>               -- probe a kernel tracepoint;\n"
+                            "u:<lib>:<probe>                -- probe a USDT tracepoint");
 
         auto LlcStatOption = clipp::option("llc_stat").call([]
                                                             { StackCollectorList.push_back(new LlcStatStackCollector()); }) %

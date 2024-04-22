@@ -25,9 +25,14 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const volatile pid_t target_pid = -1;
-const volatile int target_cpu_id = -1;
 const volatile pid_t ignore_tgid = -1;
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 1);
+	__type(key, int);
+	__type(value, struct rsc_ctrl);
+} rsc_ctrl_map SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -46,6 +51,12 @@ struct {
 SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
+	int key = 0;
+	struct rsc_ctrl *rsc_ctrl;
+	rsc_ctrl = bpf_map_lookup_elem(&rsc_ctrl_map,&key);
+	if(!rsc_ctrl || !rsc_ctrl->rsc_func)
+		return 0;
+
 	struct task_struct *prev = (struct task_struct *)PT_REGS_PARM1(ctx);
 	pid_t prev_pid = BPF_CORE_READ(prev,pid);
 	int prev_cpu = bpf_get_smp_processor_id();
@@ -55,8 +66,8 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 	int next_cpu = prev_cpu;
 	int next_tgid = BPF_CORE_READ(next,tgid);
 	
-	if(prev_tgid!=ignore_tgid && (target_pid==-1 || (target_pid!=0 && prev_pid==target_pid) || 
-	   (target_pid==0 && prev_pid==target_pid && prev_cpu==target_cpu_id))){
+	if((rsc_ctrl->enable_myproc || prev_tgid!=ignore_tgid) && ((rsc_ctrl->target_pid==-1 && rsc_ctrl->target_tgid==-1) || (rsc_ctrl->target_pid!=0 && prev_pid==rsc_ctrl->target_pid) || 
+	   (rsc_ctrl->target_pid==0 && prev_pid==rsc_ctrl->target_pid && prev_cpu==rsc_ctrl->target_cpu_id) || (prev_tgid==rsc_ctrl->target_tgid))){
 		struct proc_id prev_pd = {};
 		prev_pd.pid = prev_pid;
 		if(prev_pid == 0)	prev_pd.cpu_id = prev_cpu;
@@ -86,6 +97,8 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 #endif */
 				
 				prev_total.pid = prev_pd.pid;
+				if(rsc_ctrl->target_tgid != -1)	prev_total.tgid = prev_tgid;
+				else	prev_total.tgid = -1;
 				prev_total.cpu_id = prev_cpu;
 				prev_total.time = bpf_ktime_get_ns() - prev_start->time;
 				prev_total.memused = memused;
@@ -125,9 +138,9 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 			}
 		}
 	}
-
-	if(next_tgid!=ignore_tgid && (target_pid==-1 || (target_pid!=0 && next_pid==target_pid) || 
-	   (target_pid==0 && next_pid==target_pid && next_cpu==target_cpu_id))){
+	
+	if((rsc_ctrl->enable_myproc || next_tgid!=ignore_tgid) && ((rsc_ctrl->target_pid==-1 && rsc_ctrl->target_tgid==-1) || (rsc_ctrl->target_pid!=0 && next_pid==rsc_ctrl->target_pid) || 
+	   (rsc_ctrl->target_pid==0 && next_pid==rsc_ctrl->target_pid && next_cpu==rsc_ctrl->target_cpu_id) || (next_tgid==rsc_ctrl->target_tgid))){
 		struct proc_id next_pd = {};
 		struct start_rsc next_start={};
 

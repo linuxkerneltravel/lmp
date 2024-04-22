@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #include <linux/fcntl.h>
+#include <string.h>
 
 #define gettid() syscall(__NR_gettid)
 
@@ -125,22 +126,6 @@ int main(int argc, char **argv){
    if(env.keytime_test){
       printf("KEYTIME_TEST-----------------------------------------------\n");
 
-      // 进程上下CPU逻辑: 利用sleep函数使进程睡眠3秒,即 offCPU 3秒
-      printf("进程上下CPU逻辑:\n");
-      time_t now = time(NULL);
-      struct tm *localTime = localtime(&now);
-      printf("sleep开始时间:%04d-%02d-%02d %02d:%02d:%02d\n",
-            localTime->tm_year + 1900, localTime->tm_mon + 1, localTime->tm_mday,
-            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-      sleep(3);
-      time_t afterSleep = time(NULL);
-      struct tm *localTimeAfterSleep = localtime(&afterSleep);
-      printf("sleep结束时间:%04d-%02d-%02d %02d:%02d:%02d\n",
-            localTimeAfterSleep->tm_year + 1900, localTimeAfterSleep->tm_mon + 1, localTimeAfterSleep->tm_mday,
-            localTimeAfterSleep->tm_hour, localTimeAfterSleep->tm_min, localTimeAfterSleep->tm_sec);
-      printf("程序睡眠3s!\n");
-      printf("\n");
-
       // fork、vfork逻辑: 创建子进程让子进程睡眠3秒，以表示它存在的时间
       printf("fork、vfork逻辑:\n");
       //fork
@@ -178,6 +163,22 @@ int main(int argc, char **argv){
       sleep(6);      // 等待新线程执行完毕
       printf("\n");
 
+      // 进程上下CPU逻辑: 利用sleep函数使进程睡眠3秒,即 offCPU 3秒
+      printf("进程上下CPU逻辑:\n");
+      time_t now = time(NULL);
+      struct tm *localTime = localtime(&now);
+      printf("sleep开始时间:%04d-%02d-%02d %02d:%02d:%02d\n",
+            localTime->tm_year + 1900, localTime->tm_mon + 1, localTime->tm_mday,
+            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+      sleep(3);
+      time_t afterSleep = time(NULL);
+      struct tm *localTimeAfterSleep = localtime(&afterSleep);
+      printf("sleep结束时间:%04d-%02d-%02d %02d:%02d:%02d\n",
+            localTimeAfterSleep->tm_year + 1900, localTimeAfterSleep->tm_mon + 1, localTimeAfterSleep->tm_mday,
+            localTimeAfterSleep->tm_hour, localTimeAfterSleep->tm_min, localTimeAfterSleep->tm_sec);
+      printf("程序睡眠3s!\n");
+      printf("\n");
+
       // execve逻辑: 替换当前进程，ARGV和ENVP以NULL指针结束
       // 若出错，返回-1；若成功，不返回
       char *argvv[] = { "ls", "-l", NULL };
@@ -199,6 +200,24 @@ int main(int argc, char **argv){
    if(env.lock_test){
       printf("LOCK_TEST--------------------------------------------------\n");
 
+      // 用户态自旋锁逻辑
+      printf("用户态自旋锁逻辑:\n");
+      pthread_spinlock_t spinlock;
+      // 经实验发现，pthread_spin_init() 函数内部会调用 pthread_spin_unlock() 函数
+      pthread_spin_init(&spinlock,PTHREAD_PROCESS_PRIVATE);
+      printf("spinlock_ptr:%llu\n",(long long unsigned int)&spinlock);
+      pthread_spin_lock(&spinlock);
+      printf("进程成功持有用户态自旋锁spinlock\n");
+      sleep(3);
+      pthread_spin_unlock(&spinlock);
+      printf("进程成功解锁spinlock\n");
+      pthread_spin_trylock(&spinlock);
+      printf("进程成功尝试持有用户态自旋锁spinlock\n");
+      sleep(3);
+      pthread_spin_unlock(&spinlock);
+      printf("进程成功解锁spinlock\n");
+      printf("\n");
+      
       // 用户态互斥锁逻辑: 为了应对复杂场景，模拟进程异常地递归加锁解锁
       printf("用户态互斥锁逻辑:\n");
       pthread_mutex_t mutex1;
@@ -242,7 +261,55 @@ int main(int argc, char **argv){
 
    if(env.resource_test){
       printf("RESOURSE_TEST----------------------------------------------\n");
+      
+      clock_t start_time;
+      printf("CPU 密集型任务的模拟：\n");
+      time_t now = time(NULL);
+      struct tm *localTime = localtime(&now);
+      printf("%02d:%02d:%02d  空循环5秒钟\n",
+            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+      start_time = clock();
+      while ((clock() - start_time) < 5 * CLOCKS_PER_SEC) {}
+      now = time(NULL);
+      localTime = localtime(&now);
+      printf("%02d:%02d:%02d  空循环结束\n\n",
+            localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+      
+      printf("内存密集型任务的模拟：\n");
+      printf("分配给进程3GB的内存,并赋初值\n");
+      long long int total_memory = 3LL * 1024 * 1024 * 1024;
+      char *memory = (char *)malloc(total_memory);
+      if (memory == NULL) {
+         printf("内存分配失败！\n");
+         return 1;
+      }
+      memset(memory, 'A', total_memory);
+      printf("空循环5秒钟以代表占有时间\n\n");
+      start_time = clock();
+      while ((clock() - start_time) < 5 * CLOCKS_PER_SEC) {}
 
+      printf("IO 密集型任务的模拟：\n");
+      const char *command = "rm io_test.txt";
+      printf("每秒向文件读和写2MB,持续5s\n");
+      for(int i = 0; i < 5; i++){
+         FILE *file = fopen("./io_test.txt", "w");
+         if (file == NULL) {
+            break;
+         }
+         fwrite(memory, 1, 2*1024*1024, file);
+         fclose(file);
+         file = fopen("./io_test.txt", "r");
+         if (file == NULL) {
+            break;
+         }
+         fread(memory, 1, 2*1024*1024, file);
+         fclose(file);
+         sleep(1);
+      }
+      free(memory);
+      system(command);
+      
+      printf("\n");
    }
 
    if(env.syscall_test){

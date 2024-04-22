@@ -53,18 +53,12 @@ jobs:
       - name: Run proc_image
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image
-          make proc_image
-          sudo ./proc_image -a -p 1 -t 1
-
-      - name: Run mutex_test
-        run: |
-          cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test
-          sudo make
-          sudo insmod mutex_test1.ko
-          sudo insmod mutex_test2.ko
+          make
+          sudo ./proc_image -a &
+          sudo ./controller -f
 
       - name: Run test_proc
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test
-          gcc test_proc.c -o test_proc
+          make
           ./test_proc

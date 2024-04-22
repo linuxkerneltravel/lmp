@@ -12,8 +12,8 @@
 # -----------------------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.10)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_C_COMPILER gcc)
+set(CMAKE_CXX_COMPILER g++)
 
 set(PROJECT_NAME MagicEyes)
 project(${PROJECT_NAME})
@@ -45,6 +45,20 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
 elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "loongarch64")
     set(ARCH "loongarch")
 endif()
+
+#lht增加：不同编译环境下，构建libbpf和bpftool的编译选项
+set(CROSS_COMPILE "")
+set(CC ${CMAKE_C_COMPILER})
+
+#lht增加：cmake -Dcross_compilation_arm64=ON .. 来配置交叉编译arm64的环境
+if(DEFINED TARCH AND TARCH STREQUAL arm64 OR TARCH STREQUAL aarch64)
+    message(STATUS "Cross-compilation for arm64 is enabled.")
+    set(ARCH "arm64")
+    include(${PROJECT_SOURCE_DIR}/platforms/aarch64/arm64_linux_setup.cmake)
+else()
+endif()
+
+
 # 判断CPU架构
 # if (NOT DEFINED OS_ARCH)
 #    string(TOLOWER ${CMAKE_HOST_SYSTEM_PROCESSOR} OS_ARCH)
@@ -89,13 +103,15 @@ ExternalProject_Add(libbpf
         SOURCE_DIR ${CMAKE_SOURCE_DIR}/libbpf/src
         CONFIGURE_COMMAND ""
         BUILD_COMMAND make
-        BUILD_STATIC_ONLY=1
-        OBJDIR=${CMAKE_CURRENT_BINARY_DIR}/libbpf/libbpf
-        DESTDIR=${CMAKE_CURRENT_BINARY_DIR}/libbpf
-        INCLUDEDIR=
-        LIBDIR=
-        UAPIDIR=
-        install install_uapi_headers
+            ARCH=${ARCH}
+            CC=${CC}
+            BUILD_STATIC_ONLY=1
+            OBJDIR=${CMAKE_CURRENT_BINARY_DIR}/libbpf/libbpf
+            DESTDIR=${CMAKE_CURRENT_BINARY_DIR}/libbpf
+            INCLUDEDIR=
+            LIBDIR=
+            UAPIDIR=
+            install install_uapi_headers
         BUILD_IN_SOURCE TRUE
         INSTALL_COMMAND ""
         STEP_TARGETS build
@@ -105,8 +121,11 @@ ExternalProject_Add(bpftool
         PREFIX bpftool
         SOURCE_DIR ${CMAKE_SOURCE_DIR}/bpftool/src
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND make bootstrap
-        OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/bpftool/
+        BUILD_COMMAND make 
+            ARCH=${ARCH}
+            CROSS_COMPILE=${CROSS_COMPILE}
+            bootstrap
+            OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/bpftool/
         BUILD_IN_SOURCE TRUE
         INSTALL_COMMAND ""
         STEP_TARGETS build
@@ -138,3 +157,4 @@ endif ()
 
 add_subdirectory(src/backend)
 add_subdirectory(src/bridge)
+add_subdirectory(src/magic_eyes_cli)

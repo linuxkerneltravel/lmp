@@ -42,7 +42,14 @@ CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = resource_image lock_image syscall_image keytime_image schedule_image
-TARGETS = proc_image
+WORKTOOL := proc_image
+CONTROLLER := controller
+
+SRC_DIR = ./include
+COMMON_OBJ = \
+	$(OUTPUT)/hashmap.o \
+	$(OUTPUT)/trace_helpers.o \
+	$(OUTPUT)/uprobe_helpers.o \
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -77,12 +84,12 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(TARGETS)
+all: $(CONTROLLER) $(WORKTOOL) SUCCESS_MESSAGE
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS)
+	$(Q)rm -rf $(OUTPUT) $(WORKTOOL) $(CONTROLLER)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -116,14 +123,40 @@ $(APPS): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
 	$(Q)$(BPFTOOL) gen skeleton $< > $(OUTPUT)/$@.skel.h
 
 # Build user-space code
-$(OUTPUT)/$(TARGETS).o: $(TARGETS).c $(APPS) | $(OUTPUT)
+$(OUTPUT)/%.o: $(SRC_DIR)/%.c | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(OUTPUT)/%.o: $(CONTROLLER).c | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(OUTPUT)/$(WORKTOOL).o: $(WORKTOOL).c $(APPS) | $(OUTPUT)
 	$(call msg,CC,$@)
 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
-# Build application binary
-$(TARGETS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
+# Build application binary and Create a file for storing data
+$(CONTROLLER): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+
+$(WORKTOOL): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+	$(call msg,BINARY,$@)
+	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+	@mkdir -p $(OUTPUT)/data
+	@[ -f $(OUTPUT)/data/offcpu_stack.txt ] || touch $(OUTPUT)/data/offcpu_stack.txt
+
+SUCCESS_MESSAGE:
+	@echo "        ____  ____  ______   ____                     ____                         "
+	@echo "  ___  / __ )/ __ \/ ____/  / __ \_________  _____   /  _/___ ___  ____ _____ ____ "
+	@echo " / _ \/ __  / /_/ / /_     / /_/ / ___/ __ \/ ___/   / // __ \`__ \/ __ \`/ __ \`/ _ \\"
+	@echo "/  __/ /_/ / ____/ __/    / ____/ /  / /_/ / /__   _/ // / / / / / /_/ / /_/ /  __/"
+	@echo "\___/_____/_/   /_/      /_/   /_/   \____/\___/  /___/_/ /_/ /_/\__,_/\__, /\___/ "
+	@echo "                                                                      /____/        "
+	@echo "Successful to compile eBPF_proc_image tools:"
+	@echo "proc_image ——— Pre-attach to eBPF program, data is collected and output after activation"
+	@echo "controller ——— Controller for proc_image tool"
+	@echo "Please start your use ~"
 
 # delete failed targets
 .DELETE_ON_ERROR:
