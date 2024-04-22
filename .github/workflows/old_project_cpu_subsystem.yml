@@ -1,0 +1,85 @@
+name: CPU Subsystem
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/CPU_Subsystem/**'
+      - '.github/workflows/old_project_cpu_subsystem.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/CPU_Subsystem/**'
+      - '.github/workflows/old_project_cpu_subsystem.yml'
+
+jobs:
+  CPU-Subsystem-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          sudo pip install psutil==5.9.1
+          pip install flake8 pytest
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/BCC_sar
+          sudo apt-get install bpfcc-tools linux-headers-$(uname -r) # install BCC
+
+      - name: Run BCC_sar
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/BCC_sar/src/sar
+          sudo python3 sar.py -h
+          sudo python3 sar.py -t time -c 3
+          sudo python3 sar.py -t percent -c 5
+          sudo python3 sar.py -t percent -c 3 -i 2
+
+      - name: Run BCC_sar(Per Process)
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/BCC_sar/src/sar
+          # find the process which runs for the longest time
+          TARGET=$(ps -eo pid --sort -time | sed -n "2p" | awk '{print $1}')
+          echo target=$TARGET
+          sudo python3 sar.py -t time -c 3 -p $TARGET
+          sudo python3 sar.py -t percent -c 3 -p $TARGET
+
+  Cilium-build-and-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build Cilium And Run Go Program
+        run: |
+          sudo apt install clang llvm
+          export BPF_CLANG=clang # configure llvm
+
+          # # 为当前平台单独生成一个vmlinux.h
+          # 可能会覆盖原有仓库的文件，有问题
+          # sudo apt install linux-tools-$(uname -r)
+          # sudo apt install linux-tools-generic
+          # sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > cd eBPF_Supermarket/CPU_Subsystem/old_project/vmlinux.h
+          # echo 'Already produce own vmlinux.h'
+
+          # 查看目标平台CPU信息
+          cat /proc/cpuinfo
+
+          cd eBPF_Supermarket/CPU_Subsystem/old_project/go_sar
+
+          # download cilium-eBPF package
+          go mod tidy
+          cd program
+          chmod +x run.sh
+          uname -r
+          ./run.sh

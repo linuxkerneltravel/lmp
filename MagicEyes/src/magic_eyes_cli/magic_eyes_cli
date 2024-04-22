@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+"""
+copyright(c) 2024 by lmp/MagicEyes, all rights reserved.
+brief:
+    Entry point for MagicEyes commandline tools
+"""
+__author__  = "MagicEyes developer"
+__version__ = " 0.0.1 "
+
+import os
+import sys
+# argcomplete需要Python 3.7+
+if sys.version_info < (3,7):
+    sys.exit('This program requires Python version 3.7 or newer!')
+
+
+from core.cli_arg_parser import CliArgParser
+
+
+def main():
+    cli_arg_parser = CliArgParser()
+    cli_arg_parser.parse_args(sys.argv[1:])
+
+
+if __name__ == '__main__':
+    main()

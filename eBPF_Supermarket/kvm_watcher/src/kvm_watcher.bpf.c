@@ -20,11 +20,13 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include "../include/kvm_watcher.h"
 #include "../include/kvm_exits.h"
+#include "../include/kvm_ioctl.h"
 #include "../include/kvm_vcpu.h"
 #include "../include/kvm_mmu.h"
 #include "../include/kvm_irq.h"
-#include "../include/kvm_watcher.h"
+#include "../include/kvm_hypercall.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -40,62 +42,78 @@ struct {
 // 获取vcpu的id
 SEC("fentry/kvm_vcpu_halt")
 int BPF_PROG(fentry_kvm_vcpu_halt, struct kvm_vcpu *vcpu) {
-    return trace_kvm_vcpu_halt(vcpu, vm_pid);
+    CHECK_PID(vm_pid);
+    return trace_kvm_vcpu_halt(vcpu);
 }
 // 追踪vcpu运行信息
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx) {
-    return trace_kvm_vcpu_wakeup(ctx, &rb, e, vm_pid);
+    return trace_kvm_vcpu_wakeup(ctx, &rb, e);
 }
 // 记录vcpu的halt_poll（暂停轮询）时间变化
 SEC("tp/kvm/kvm_halt_poll_ns")
 int tp_kvm_halt_poll_ns(struct halt_poll_ns *ctx) {
-    return trace_kvm_halt_poll_ns(ctx, &rb, e, vm_pid);
+    CHECK_PID(vm_pid);
+    return trace_kvm_halt_poll_ns(ctx, &rb, e);
 }
 // 记录vm_exit的时间
 SEC("tp/kvm/kvm_exit")
 int tp_exit(struct exit *ctx) {
-    return trace_kvm_exit(ctx, vm_pid);
+    CHECK_PID(vm_pid);
+    return trace_kvm_exit(ctx);
 }
 // 记录vm_entry和vm_exit的时间差
 SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
-    return trace_kvm_entry(&rb, e);
+    return trace_kvm_entry();
 }
-
+// 记录VCPU调度的信息--进入
+SEC("kprobe/vmx_vcpu_load")
+int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_vmx_vcpu_load(vcpu, cpu);
+}
+// 记录VCPU调度的信息--退出
+SEC("kprobe/vmx_vcpu_put")
+int BPF_KPROBE(kp_vmx_vcpu_put, struct kvm_vcpu *vcpu) {
+    return trace_vmx_vcpu_put();
+}
 SEC("kprobe/mark_page_dirty_in_slot")
 int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
                const struct kvm_memory_slot *memslot, gfn_t gfn) {
-    return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, e, vm_pid);
+    CHECK_PID(vm_pid);
+    return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, e);
 }
 
 SEC("tp/kvm/kvm_page_fault")
 int tp_page_fault(struct page_fault *ctx) {
-    return trace_page_fault(ctx, vm_pid);
+    CHECK_PID(vm_pid);
+    return trace_page_fault(ctx);
 }
 
-SEC("fexit/direct_page_fault")
-int BPF_PROG(fexit_direct_page_fault, struct kvm_vcpu *vcpu,
+SEC("fexit/kvm_tdp_page_fault")
+int BPF_PROG(fexit_tdp_page_fault, struct kvm_vcpu *vcpu,
              struct kvm_page_fault *fault) {
-    return trace_direct_page_fault(vcpu, fault, &rb, e);
+    return trace_tdp_page_fault(vcpu, fault, &rb, e);
 }
 
 SEC("fentry/kvm_mmu_page_fault")
 int BPF_PROG(fentry_kvm_mmu_page_fault, struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
              u64 error_code) {
-    return trace_kvm_mmu_page_fault(vcpu, cr2_or_gpa, error_code, vm_pid);
+    CHECK_PID(vm_pid);
+    return trace_kvm_mmu_page_fault(vcpu, cr2_or_gpa, error_code);
 }
 
-SEC("fexit/handle_mmio_page_fault")
-int BPF_PROG(fexit_handle_mmio_page_fault, struct kvm_vcpu *vcpu, u64 addr,
-             bool direct) {
-    return trace_handle_mmio_page_fault(vcpu, addr, direct, &rb, e);
+SEC("tp/kvmmmu/handle_mmio_page_fault")
+int tp_handle_mmio_page_fault(struct mmio_page_fault *ctx) {
+    return trace_handle_mmio_page_fault(ctx, &rb, e);
 }
 
 SEC("fentry/kvm_pic_set_irq")
 int BPF_PROG(fentry_kvm_pic_set_irq, struct kvm_pic *s, int irq,
              int irq_source_id, int level) {
-    return entry_kvm_pic_set_irq(irq, vm_pid);
+    CHECK_PID(vm_pid);
+    return entry_kvm_pic_set_irq(irq);
 }
 
 SEC("fexit/kvm_pic_set_irq")
@@ -107,7 +125,8 @@ int BPF_PROG(fexit_kvm_pic_set_irq, struct kvm_pic *s, int irq,
 SEC("fentry/ioapic_set_irq")
 int BPF_PROG(fentry_kvm_ioapic_set_irq, struct kvm_ioapic *ioapic, int irq,
              int irq_level, bool line_status) {
-    return entry_kvm_ioapic_set_irq(irq, vm_pid);
+    CHECK_PID(vm_pid);
+    return entry_kvm_ioapic_set_irq(irq);
 }
 
 SEC("fexit/ioapic_set_irq")
@@ -116,16 +135,62 @@ int BPF_PROG(fexit_kvm_ioapic_set_irq, struct kvm_ioapic *ioapic, int irq,
     return exit_kvm_ioapic_set_irq(ioapic, irq, ret, &rb, e);
 }
 
-SEC("fentry/kvm_set_msi_irq")
-int BPF_PROG(fentry_kvm_set_msi_irq, struct kvm *kvm,
+SEC("fentry/kvm_set_msi")
+int BPF_PROG(fentry_kvm_set_msi,
              struct kvm_kernel_irq_routing_entry *routing_entry,
-             struct kvm_lapic_irq *irq) {
-    return entry_kvm_set_msi_irq(kvm, vm_pid);
+             struct kvm *kvm, int irq_source_id, int level, bool line_status) {
+    CHECK_PID(vm_pid);
+    return entry_kvm_set_msi(kvm, routing_entry, level);
 }
 
-SEC("fexit/kvm_set_msi_irq")
-int BPF_PROG(fexit_kvm_set_msi_irq, struct kvm *kvm,
+SEC("fexit/kvm_set_msi")
+int BPF_PROG(fexit_kvm_set_msi,
              struct kvm_kernel_irq_routing_entry *routing_entry,
-             struct kvm_lapic_irq *irq) {
-    return exit_kvm_set_msi_irq(kvm, routing_entry, &rb, e);
+             struct kvm *kvm, int irq_source_id, int level, bool line_status) {
+    return exit_kvm_set_msi(kvm, routing_entry, &rb, e);
+}
+
+SEC("fentry/vmx_inject_irq")
+int BPF_PROG(fentry_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
+    CHECK_PID(vm_pid);
+    return entry_vmx_inject_irq(vcpu);
+}
+
+SEC("fexit/vmx_inject_irq")
+int BPF_PROG(fexit_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
+    return exit_vmx_inject_irq(vcpu, &rb, e);
+}
+
+SEC("fentry/kvm_emulate_hypercall")
+int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return entry_emulate_hypercall(vcpu, &rb, e);
+}
+
+SEC("tp/syscalls/sys_enter_ioctl")
+int tp_ioctl(struct trace_event_raw_sys_enter *args) {
+    CHECK_PID(vm_pid);
+    return trace_kvm_ioctl(args);
+}
+SEC("fentry/kvm_arch_vcpu_ioctl_run")
+int BPF_PROG(fentry_kvm_arch_vcpu_ioctl_run, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_kvm_userspace_entry(vcpu);
+}
+
+SEC("tp/kvm/kvm_userspace_exit")
+int tp_kvm_userspace_exit(struct userspace_exit *ctx) {
+    return trace_kvm_userspace_exit(ctx);
+}
+
+SEC("fentry/start_hv_timer")
+int BPF_PROG(fentry_start_hv_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_hv_timer(apic);
+}
+
+SEC("fentry/start_sw_timer")
+int BPF_PROG(fentry_start_sw_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_sw_timer(apic);
 }

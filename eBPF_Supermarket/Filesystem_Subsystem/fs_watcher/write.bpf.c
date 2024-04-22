@@ -17,7 +17,6 @@ struct {
 	__uint(max_entries,256 * 1024);
 } rb SEC(".maps");
 
-
 SEC("kprobe/do_sys_openat2")
 int BPF_KPROBE(do_sys_openat2)
 {
@@ -70,7 +69,5 @@ int kprobe_vfs_write(struct pt_regs *ctx)
     e->count = count;
     e->pid = pid;
   }
-
-  bpf_ringbuf_submit(e,0);
   return 0;
 }

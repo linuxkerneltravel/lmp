@@ -15,7 +15,7 @@ on:
       - '.github/workflows/ebpf_prometheus.yml'
 
 jobs:
-  web-backend-build-and-run:
+  eBPF_prometheus-build-and-run:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3

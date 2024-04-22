@@ -3,9 +3,7 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <limits.h>
-#include <string.h>
-#include <errno.h> 
+#include <stdlib.h>
 #include "write.h"
 #include "write.skel.h"
 
@@ -33,14 +31,7 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-	//这里是将文件路径在用户态处理，进行拼接
-	snprintf(path,sizeof(path),"/proc/self/fd/%d",e->fd);
-	char *real_path = realpath(path,NULL);
-	if(real_path != NULL){
-		printf("%-8s  %-7d  %-7ld  %-7ld   %-7s\n", ts, e->pid,e->real_count,e->count,real_path);
-		free(real_path);
-	}
-   
+	printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
     return 0;
 }
 
@@ -88,7 +79,6 @@ int main(int argc, char **argv)
 	}
 
     /* Process events */
-	printf("%-8s  %-7s   %-7s  %-7s  %-7s  %-7s\n", "TIME", "PID","Real_Count","Count","Real_Path");
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */

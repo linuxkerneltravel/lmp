@@ -1,5 +1,9 @@
 .idea/
 .DS_Store
+# for MagicEyes
+./MagicEyes/build/
+./MagicEyes/src-gen/
+./MagicEyes/cmake-build-debug/
 
 # local env files
 .env.local
@@ -51,3 +55,29 @@ tags
 *.iml
 
 nohup.out
+
+# Virtual machine image file
+eBPF_Supermarket/kvm_watcher/*.img
+
+eBPF_Supermarket/kvm_watcher/**/*.o
+eBPF_Supermarket/kvm_watcher/**/*.skel.h
+eBPF_Supermarket/kvm_watcher/**/vmlinux.h
+eBPF_Supermarket/kvm_watcher/kvm_watcher
+eBPF_Supermarket/kvm_watcher/**/temp*
+
+# eBPF_proc_image
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/.output/*
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/test/test_proc
+eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/controller
+
+# libbpf_bootstrap
+.output
+
+# eBPF skeletons
+*.skel.h
+
+# Stack_Analyser
+eBPF_Supermarket/Stack_Analyser/stack_analyzer
+eBPF_Supermarket/Stack_Analyser/exporter/exporter
+eBPF_Supermarket/Stack_Analyser/bpf_skel

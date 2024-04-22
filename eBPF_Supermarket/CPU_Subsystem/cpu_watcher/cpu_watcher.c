@@ -22,35 +22,80 @@
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include <sys/select.h>
-#include <unistd.h>
+#include <unistd.h> 
+#include <linux/perf_event.h>
+#include <asm/unistd.h>
 #include "cpu_watcher.h"
 #include "sar.skel.h"
 #include "cs_delay.skel.h"
+#include "sc_delay.skel.h"
+#include "preempt.skel.h"
+#include "schedule_delay.skel.h"
+#include "mq_delay.skel.h"
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
-static struct env {
-	int time;
-	bool enable_proc;
-	bool SAR;
-	bool CS_DELAY;
 
-} env = {
-	.time = 0,
-	.enable_proc = false,
-	.SAR = false,
-	.CS_DELAY = false,
+struct list_head {
+	struct list_head *next;
+	struct list_head *prev;
 };
+struct msg_msg {
+	struct list_head m_list;
+	long int m_type;
+	size_t m_ts;
+	struct msg_msgseg *next;
+	void *security;
+};
+
+static struct env {
+    int time;
+    bool enable_proc;
+    bool SAR;
+    bool CS_DELAY;
+    bool SYSCALL_DELAY;
+    bool PREEMPT;
+    bool SCHEDULE_DELAY;
+	bool MQ_DELAY;
+    int freq;
+} env = {
+    .time = 0,
+    .enable_proc = false,
+    .SAR = false,
+    .CS_DELAY = false,
+    .SYSCALL_DELAY = false,
+    .PREEMPT = false,
+    .SCHEDULE_DELAY = false,
+	.MQ_DELAY = false,
+    .freq = 99
+};
+
 
 struct cs_delay_bpf *cs_skel;
 struct sar_bpf *sar_skel;
+struct sc_delay_bpf *sc_skel;
+struct preempt_bpf *preempt_skel;
+struct schedule_delay_bpf *sd_skel;
+struct mq_delay_bpf *mq_skel;
+
 u64 softirq = 0;//初始化softirq;
 u64 irqtime = 0;//初始化irq;
-u64 idle = 0;//初始化idle;
+u64 idle = 0;//初始化idle;s
 u64 sched = 0;
 u64 proc = 0;
 unsigned long ktTime = 0;
 unsigned long utTime = 0;
+u64 tick_user = 0;//初始化sys;
+
+int sc_sum_time = 0 ;
+int sc_max_time = 0 ;
+int sc_min_time = SYSCALL_MIN_TIME ;
+int sys_call_count = 0;
+
+
+int preempt_count = 0 ;
+int sum_preemptTime = 0 ;
+int preempt_start_print = 0 ;
 
 /*设置传参*/
 const char argp_program_doc[] ="cpu wacher is in use ....\n";
@@ -58,6 +103,10 @@ static const struct argp_option opts[] = {
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
 	{"libbpf_sar", 's',	0,0,"print sar_info (the data of cpu)"},
 	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
+	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
+	{"preempt_time", 'p',	0,0,"print preempt_time (the data of preempt_schedule)"},
+	{"schedule_delay", 'd',	0,0,"print schedule_delay (the data of cpu)"},
+	{"mq_delay", 'm',	0,0,"print mq_delay"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
@@ -73,7 +122,19 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 			break;
 		case 'c':
 			env.CS_DELAY = true;
+			break;		
+		case 'S':
+			env.SYSCALL_DELAY = true;
 			break;			
+		case 'p':
+			env.PREEMPT = true;
+			break;
+		case 'd':
+			env.SCHEDULE_DELAY = true;
+			break;
+		case 'm':
+			env.MQ_DELAY = true;
+			break;
 		case 'h':
 			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 			break;
@@ -96,11 +157,49 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 }
 
 static volatile bool exiting=false;
+bool syscall_start_print = false;
 
 static void sig_handler(int sig)
 {
 	exiting = true;
 }
+
+/*perf_event*/
+static int nr_cpus;
+static int open_and_attach_perf_event(int freq, struct bpf_program *prog,
+				struct bpf_link *links[])
+{
+	struct perf_event_attr attr = {
+		.type = PERF_TYPE_SOFTWARE,
+		.freq = 99,
+		.sample_period = freq,
+		.config = PERF_COUNT_SW_CPU_CLOCK,
+	};
+	int i, fd;
+
+	for (i = 0; i < nr_cpus; i++) {
+		fd = syscall(__NR_perf_event_open, &attr, -1, i, -1, 0);
+		if (fd < 0) {
+			/* Ignore CPU that is offline */
+			if (errno == ENODEV)
+				continue;
+			fprintf(stderr, "failed to init perf sampling: %s\n",
+				strerror(errno));
+			return -1;
+		}
+		links[i] = bpf_program__attach_perf_event(prog, fd);
+		if (libbpf_get_error(links[i])) {
+			fprintf(stderr, "failed to attach perf event on cpu: "
+				"%d\n", i);
+			links[i] = NULL;
+			close(fd);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 
 u64 find_ksym(const char* target_symbol) {
     FILE *file = fopen("/proc/kallsyms", "r");
@@ -150,15 +249,15 @@ static int print_all()
 	__sched = sched_total - sched;
 	sched = sched_total;
 
-	// /*runqlen:*/ 
-	// int key_runqlen = 0;// 设置要查找的键值为0
-	// int err_runqlen, fd_runqlen = bpf_map__fd(sar_skel->maps.runqlen);// 获取映射文件描述符
-	// int runqlen;// 用于存储从映射中查找到的值
-	// err_runqlen = bpf_map_lookup_elem(fd_runqlen, &key_runqlen, &runqlen); // 从映射中查找键为1的值
-	// if (err_runqlen < 0) {//没找到
-	// 	fprintf(stderr, "failed to lookup infos of runqlen: %d\n", err_runqlen);
-	// 	return -1;
-	// }
+	 /*runqlen:*/ 
+	int key_runqlen = 0;
+	int err_runqlen, fd_runqlen = bpf_map__fd(sar_skel->maps.runqlen);
+	int runqlen;
+	err_runqlen = bpf_map_lookup_elem(fd_runqlen, &key_runqlen, &runqlen);
+	if (err_runqlen < 0) {
+		fprintf(stderr, "failed to lookup infos of runqlen: %d\n", err_runqlen);
+		return -1;
+	}
 
 	/*irqtime:*/
 	int key_irqtime = 0;
@@ -220,11 +319,29 @@ static int print_all()
 	}
 	unsigned long dtaUT = utTime -_utTime;
 
+	/*sys*/
+	int key_sys = 0,next_key;
+	int err_sys, fd_sys = bpf_map__fd(sar_skel->maps.tick_user);
+	u64 __tick_user =0 ;// 用于存储从映射中查找到的值
+	__tick_user = tick_user;
+	//tick_user = 0;
+	err_sys = bpf_map_lookup_elem(fd_sys, &key_sys, &tick_user);
+	if (err_sys < 0) {
+		fprintf(stderr, "failed to lookup infos of sys: %d\n", err_sys);
+		return -1;
+	}
+	u64 dtaTickUser = tick_user - __tick_user;
+	u64 dtaUTRaw = dtaTickUser/(99.0000) * 1000000000; 
+	u64 dtaSysc = abs(dtaUT - dtaUTRaw);
+	u64 dtaSys = dtaKT + dtaSysc ;
+
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		printf("%02d:%02d:%02d %8llu %8llu %8llu %8llu  %8llu %10lu %13lu\n",
-				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,dtaKT/1000,dtaUT/1000);
+		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10llu  %8llu %8lu %8lu\n",
+				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
+				__proc,__sched,runqlen,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
+				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
 	}
 	else{
 		env.enable_proc = true;
@@ -310,6 +427,79 @@ static void histogram()
 }
 
 
+// static void max_print(){
+
+// 	int sc_average_time = sc_sum_time/sys_call_count;
+// 	printf("Average_Syscall_Time: %8d ms\n",sc_average_time);
+// 	printf("MAX_Syscall_Time: %8d ms\n",sc_max_time);
+// 	printf("MIN_Syscall_Time: %8d ms\n",sc_min_time);
+// }
+static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
+{
+
+	const struct syscall_events *e = data;
+	printf("pid: %-8llu comm: %-10s syscall_id: %-8ld delay: %-8llu\n",
+		e->pid,e->comm,e->syscall_id,e->delay);
+	return 0;
+}
+//抢占时间输出
+static int preempt_print(void *ctx, void *data, unsigned long data_sz)
+{
+    const struct preempt_event *e = data;
+    printf("%-16s %-7d %-7d %-11llu\n", e->comm, e->prev_pid, e->next_pid, e->duration);
+    preempt_count++;
+    sum_preemptTime += e->duration;
+    return 0;
+}
+
+static int schedule_print(struct bpf_map *sys_fd)
+{
+    int key = 0;
+    struct sum_schedule info;
+    int err, fd = bpf_map__fd(sys_fd);
+    time_t now = time(NULL);
+    struct tm *localTime = localtime(&now);
+    int hour = localTime->tm_hour;
+    int min = localTime->tm_min;
+    int sec = localTime->tm_sec;
+    unsigned long long avg_delay;
+    
+    err = bpf_map_lookup_elem(fd, &key, &info);
+    if (err < 0) {
+        fprintf(stderr, "failed to lookup infos: %d\n", err);
+        return -1;
+    }
+    avg_delay = info.sum_delay / info.sum_count;
+    printf("%02d:%02d:%02d | %-15lf %-15lf %-15lf |\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0, info.min_delay / 1000.0);
+    return 0;
+}
+
+static int mq_event(void *ctx, void *data,unsigned long data_sz)
+{
+	time_t now = time(NULL);// 获取当前时间
+	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+	printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+	printf("-----------------------------------------------------------------------------------------------------------------------\n");
+	const struct mq_events *e = data;
+	
+	printf("Mqdes: %-8llu msg_len: %-8llu msg_prio: %-8llu\n",e->mqdes,e->msg_len,e->msg_prio);
+	printf("SND_PID: %-8lu SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
+		e->send_pid,e->send_enter_time,e->send_exit_time);
+	printf("RCV_PID: %-8lu RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
+		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
+	printf("-------------------------------------------------------------------------------\n");
+
+	printf("SND_Delay/ms: %-8.2f  RCV_Delay/ms: %-8.2f  Delay/ms: %-8.5f\n",
+		(e->send_exit_time - e->send_enter_time)/1000000.0,
+		(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,
+		(e->rcv_exit_time - e->send_enter_time)/1000000.0);
+	printf("-----------------------------------------------------------------------------------------------------------------------\n\n");
+
+	return 0;
+}
+
+
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
@@ -318,11 +508,26 @@ int main(int argc, char **argv)
 	if (err)
 		return err;
 	const char* symbol_name = "total_forks";
+	struct bpf_link *links[MAX_CPU_NR] = {};
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
 	libbpf_set_print(libbpf_print_fn);
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
+
+	nr_cpus = libbpf_num_possible_cpus();
+	if (nr_cpus < 0) {
+		fprintf(stderr, "failed to get # of possible cpus: '%s'!\n",
+			strerror(-nr_cpus));
+		return 1;
+	}
+	if (nr_cpus > MAX_CPU_NR) {
+		fprintf(stderr, "the number of cpu cores is too big, please "
+			"increase MAX_CPU_NR's value and recompile");
+		return 1;
+	}
+
+
 	if (env.CS_DELAY)
 	{
 		/* Load and verify BPF application */
@@ -352,6 +557,76 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto cs_delay_cleanup;
 		}
+	}else if (env.PREEMPT) {
+		preempt_skel = preempt_bpf__open();
+		if (!preempt_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+
+		err = preempt_bpf__load(preempt_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto preempt_cleanup;
+		}
+
+		err = preempt_bpf__attach(preempt_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto preempt_cleanup;
+		}
+
+		rb = ring_buffer__new(bpf_map__fd(preempt_skel->maps.rb), preempt_print, NULL, NULL);
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto preempt_cleanup;
+		}
+	}else if (env.SYSCALL_DELAY){
+		/* Load and verify BPF application */
+		sc_skel = sc_delay_bpf__open();
+		if (!sc_skel)
+		{
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		/* Load & verify BPF programs */
+		err = sc_delay_bpf__load(sc_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto sc_delay_cleanup;
+		}
+		/* Attach tracepoints */
+		err = sc_delay_bpf__attach(sc_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto sc_delay_cleanup;
+		}
+		rb = ring_buffer__new(bpf_map__fd(sc_skel->maps.rb), syscall_delay_print, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto sc_delay_cleanup;		
+		}
+	}else if(env.SCHEDULE_DELAY){
+		sd_skel = schedule_delay_bpf__open();
+		if (!sd_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		err = schedule_delay_bpf__load(sd_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto schedule_cleanup;
+		}
+		err = schedule_delay_bpf__attach(sd_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto schedule_cleanup;
+		}
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs     min_delay/μs");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
@@ -368,18 +643,51 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 			goto sar_cleanup;
 		}
+
+		/*perf_event加载*/
+		err = open_and_attach_perf_event(env.freq, sar_skel->progs.tick_update, links);
+		if (err)
+			goto sar_cleanup;
+
 		err = sar_bpf__attach(sar_skel);
 		if (err)
 		{
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		//printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
-		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us uthread/ms\n");
-}
+		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
+	}else if(env.MQ_DELAY){
+		/* Load and verify BPF application */
+		mq_skel = mq_delay_bpf__open();
+		if (!mq_skel)
+		{
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+		/* Load & verify BPF programs */
+		err = mq_delay_bpf__load(mq_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto mq_delay_cleanup;
+		}
+		/* Attach tracepoints */
+		err = mq_delay_bpf__attach(mq_skel);
+		if (err)
+		{
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto mq_delay_cleanup;
+		}
+		rb = ring_buffer__new(bpf_map__fd(mq_skel->maps.rb), mq_event, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto mq_delay_cleanup;
+		}
+	}
 	while (!exiting) {
-		sleep(1);
 		if(env.SAR){
+			sleep(1);
 			err = print_all();
 			if (err == -EINTR) {
 				err = 0;
@@ -391,6 +699,7 @@ int main(int argc, char **argv)
 			}
 		}
         else if(env.CS_DELAY){
+			sleep(1);
 			err = ring_buffer__poll(rb, 1000 /* timeout, s */);
 			if (err == -EINTR) {
 				err = 0;
@@ -402,8 +711,71 @@ int main(int argc, char **argv)
 			}
 			histogram();
 		}
+		else if(env.SYSCALL_DELAY){
+			err = ring_buffer__poll(rb, 100 /* timeout, ms */);		//ring_buffer__poll(),轮询打开ringbuf缓冲区。如果有事件，handle_event函数会执行	
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+			time_t now = time(NULL);// 获取当前时间
+			struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+			printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+			printf("----------------------------------------------------------------------------------------------------------\n");
+			sleep(1);			
+		}
+		else if (env.PREEMPT) {
+			err = ring_buffer__poll(rb, 100 /* timeout, ms */);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+			time_t now = time(NULL);
+			struct tm *localTime = localtime(&now);
+			if (!preempt_start_print) {
+				preempt_start_print = 1;
+			} else {
+				printf("----------------------------------------------------------------------------------------------------------\n");
+				printf("\nAverage_preempt_Time: %8d ns\n", sum_preemptTime / preempt_count);
+			}
+			printf("\nTime: %02d:%02d:%02d\n", localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+			printf("%-12s %-8s %-8s %11s\n", "COMM", "prev_pid", "next_pid", "duration_ns");
+			preempt_count = 0;
+			sum_preemptTime = 0;
+			sleep(2);
+		}
+		else if (env.SCHEDULE_DELAY){
+			err = schedule_print(sd_skel->maps.sys_schedule);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				break;
+			}
+			sleep(1);
+		}
+        else if(env.MQ_DELAY){
+			err = ring_buffer__poll(rb, 1000 /* timeout, s */);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+        	    printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+		}
 		else {
-			printf("正在开发中, -c打印cs_delay, -s打印libbpf_sar\n");
+			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n-p	打印preempt_time:\t对抢占调度时间输出;\n");
 			break;
 		}
 	}
@@ -415,5 +787,24 @@ cs_delay_cleanup:
 
 sar_cleanup:
 	sar_bpf__destroy(sar_skel);
+	return err < 0 ? -err : 0;
+
+sc_delay_cleanup:
+	ring_buffer__free(rb);
+	sc_delay_bpf__destroy(sc_skel);
+	return err < 0 ? -err : 0;
+
+preempt_cleanup:
+	ring_buffer__free(rb);
+	preempt_bpf__destroy(preempt_skel);
+	return err < 0 ? -err : 0;
+
+schedule_cleanup:
+	schedule_delay_bpf__destroy(sd_skel);
+	return err < 0 ? -err : 0;
+
+mq_delay_cleanup:
+	ring_buffer__free(rb);
+	mq_delay_bpf__destroy(mq_skel);
 	return err < 0 ? -err : 0;
 }
