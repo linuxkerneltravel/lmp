@@ -33,7 +33,7 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-
+	//这里是将文件路径在用户态处理，进行拼接
 	snprintf(path,sizeof(path),"/proc/self/fd/%d",e->fd);
 	char *real_path = realpath(path,NULL);
 	if(real_path != NULL){

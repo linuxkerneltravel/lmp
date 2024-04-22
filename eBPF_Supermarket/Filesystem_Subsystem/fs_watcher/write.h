@@ -1,6 +1,7 @@
 #ifndef __WRITE_H
 #define __WRITE_H
 
+//获取函数参数信息
 struct fs_t {
     int fd;
     int pid;

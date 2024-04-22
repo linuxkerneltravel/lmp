@@ -62,7 +62,7 @@ int kprobe_vfs_write(struct pt_regs *ctx)
 
   if(!e)
     return 0;
-
+  //这里将获取到的文件指针不为空时
   if(fd_ptr){
     int fd = *fd_ptr;
     e->fd = fd;
