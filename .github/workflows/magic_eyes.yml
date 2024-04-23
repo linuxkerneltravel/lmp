@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-run:
+  MagicEyes_build-and-run:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3

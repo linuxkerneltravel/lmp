@@ -1,0 +1,91 @@
+name: Traffic Manager
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/TrafficManager/**'
+      - '.github/workflows/net_traffic_manager.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/TrafficManager/**'
+      - '.github/workflows/net_traffic_manager.yml'
+
+jobs:
+  TrafficManager_build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache bpftool build directory
+        id: cache-bpftool
+        uses: actions/cache@v3
+        with:
+          path: bpftool
+          key: bpftool-v7.2.0-amd64
+
+      #      - name: Install Docker
+      #        run: |
+      #          sudo snap refresh
+      #          sudo snap install docker
+
+      - name: Install Minikube
+        uses: medyagh/setup-minikube@latest
+        id: minikube
+      #        with:
+      #          driver: docker
+      #          minikube-version: 1.24.0
+      #          kubernetes-version: v1.26.6
+      #          container-runtime: containerd
+
+      - name: Setup testing environments
+        run: |
+          kubectl apply -f eBPF_Supermarket/Network_Subsystem/TrafficManager/acceptance/testdata/k8s/
+
+      - name: Install eBPF development tools
+        run: |
+          sudo ln -s /usr/bin/llvm-strip-14 /usr/bin/llvm-strip
+          # sudo apt install -y llvm clang
+
+      - name: Build bpftool
+        if: steps.cache-bpftool.outputs.cache-hit != 'true'
+        run: |
+          rm -rf bpftool && mkdir bpftool && cd bpftool
+          wget https://github.com/libbpf/bpftool/releases/download/v7.2.0/bpftool-v7.2.0-amd64.tar.gz
+          sudo tar -xzf bpftool-v7.2.0-amd64.tar.gz
+          rm -f bpftool-v7.2.0-amd64.tar.gz
+          sudo chmod +x bpftool
+
+      - name: Install bpftool
+        run: |
+          sudo cp bpftool/bpftool /usr/bin/
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: eBPF_Supermarket/Network_Subsystem/TrafficManager/go.mod
+          cache-dependency-path: eBPF_Supermarket/Network_Subsystem/TrafficManager/go.sum
+
+      - name: Load Dependency
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
+          sudo go mod tidy
+
+      - name: Build
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
+          sudo make init
+          sudo make build
+
+      - name: Run
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
+          sudo -E timeout 10 ./main || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
+
+      - name: Test
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/TrafficManager/
+          make test

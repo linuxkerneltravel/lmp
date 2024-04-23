@@ -249,15 +249,15 @@ static int print_all()
 	__sched = sched_total - sched;
 	sched = sched_total;
 
-	// /*runqlen:*/ 
-	// int key_runqlen = 0;// 设置要查找的键值为0
-	// int err_runqlen, fd_runqlen = bpf_map__fd(sar_skel->maps.runqlen);// 获取映射文件描述符
-	// int runqlen;// 用于存储从映射中查找到的值
-	// err_runqlen = bpf_map_lookup_elem(fd_runqlen, &key_runqlen, &runqlen); // 从映射中查找键为1的值
-	// if (err_runqlen < 0) {//没找到
-	// 	fprintf(stderr, "failed to lookup infos of runqlen: %d\n", err_runqlen);
-	// 	return -1;
-	// }
+	 /*runqlen:*/ 
+	int key_runqlen = 0;
+	int err_runqlen, fd_runqlen = bpf_map__fd(sar_skel->maps.runqlen);
+	int runqlen;
+	err_runqlen = bpf_map_lookup_elem(fd_runqlen, &key_runqlen, &runqlen);
+	if (err_runqlen < 0) {
+		fprintf(stderr, "failed to lookup infos of runqlen: %d\n", err_runqlen);
+		return -1;
+	}
 
 	/*irqtime:*/
 	int key_irqtime = 0;
@@ -338,9 +338,9 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		printf("%02d:%02d:%02d %8llu %8llu %8llu %10llu  %8llu  %8llu  %8llu %8lu %8lu\n",
+		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10llu  %8llu %8lu %8lu\n",
 				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
-				__proc,__sched,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
+				__proc,__sched,runqlen,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
 				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
 	}
 	else{
@@ -480,16 +480,22 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 	time_t now = time(NULL);// 获取当前时间
 	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
 	printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-	printf("-----------------------------------------------------------------------------------------------------------\n");
+	printf("-----------------------------------------------------------------------------------------------------------------------\n");
 	const struct mq_events *e = data;
+	
 	printf("Mqdes: %-8llu msg_len: %-8llu msg_prio: %-8llu\n",e->mqdes,e->msg_len,e->msg_prio);
-	printf("SND_PID: %-8lu SND_enter_time: %-16llu\n",
-		e->send_pid,e->send_enter_time);
-	printf("-----------------------------------------------------------------------------------------------------------\n");
+	printf("SND_PID: %-8lu SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
+		e->send_pid,e->send_enter_time,e->send_exit_time);
 	printf("RCV_PID: %-8lu RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
 		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
-	printf("RCV_Delay: %-8.2fms\nDelay: %-8.2fms\n\n",(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,e->delay/1000000.0);
-	
+	printf("-------------------------------------------------------------------------------\n");
+
+	printf("SND_Delay/ms: %-8.2f  RCV_Delay/ms: %-8.2f  Delay/ms: %-8.5f\n",
+		(e->send_exit_time - e->send_enter_time)/1000000.0,
+		(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,
+		(e->rcv_exit_time - e->send_enter_time)/1000000.0);
+	printf("-----------------------------------------------------------------------------------------------------------------------\n\n");
+
 	return 0;
 }
 
@@ -649,8 +655,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		//printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms  BpfCnt\n");
-		printf("  time    proc/s  cswch/s  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms\n");
+		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
 	}else if(env.MQ_DELAY){
 		/* Load and verify BPF application */
 		mq_skel = mq_delay_bpf__open();
