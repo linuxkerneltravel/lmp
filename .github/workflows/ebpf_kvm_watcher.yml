@@ -25,5 +25,8 @@ jobs:
           make deps 
       - name: Test program execution
         run: |
+          continue-on-error: true 
+          cd eBPF_Supermarket/kvm_watcher/
           make 
-        continue-on-error: true 
+    
+        
