@@ -18,6 +18,40 @@
 
 #ifndef __KVM_WATCHER_H
 #define __KVM_WATCHER_H
+#include <linux/version.h>
+
+static const char binary_path[] = "/bin/qemu-system-x86_64";
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
+    do {                                                                      \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,     \
+                    .retprobe = is_retprobe);                                 \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts(              \
+            skel->progs.prog_name, env.vm_pid, binary_path, 0, &uprobe_opts); \
+    } while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                   \
+    do {                                                   \
+        if (!skel->links.prog_name) {                      \
+            perror("no program attached for " #prog_name); \
+            return -errno;                                 \
+        }                                                  \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do {                                                                \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
@@ -55,6 +89,19 @@
 #define APIC_LVT_TIMER_ONESHOT (0 << 17)      // 单次触发
 #define APIC_LVT_TIMER_PERIODIC (1 << 17)     // 周期性触发模式
 #define APIC_LVT_TIMER_TSCDEADLINE (2 << 17)  // TSC 截止模式
+
+// IOCTL
+#include <asm-generic/ioctl.h>
+#define KVMIO 0xAE
+#define KVM_CREATE_VM _IO(KVMIO, 0x01) /* returns a VM fd */
+#define KVM_CREATE_VCPU _IO(KVMIO, 0x41)
+#define KVM_GET_VCPU_EVENTS _IOR(KVMIO, 0x9f, struct kvm_vcpu_events)
+#define KVM_SET_VCPU_EVENTS _IOW(KVMIO, 0xa0, struct kvm_vcpu_events)
+#define KVM_SET_USER_MEMORY_REGION \
+    _IOW(KVMIO, 0x46, struct kvm_userspace_memory_region)
+#define KVM_TRANSLATE _IOWR(KVMIO, 0x85, struct kvm_translation)
+#define KVM_INTERRUPT _IOW(KVMIO, 0x86, struct kvm_interrupt)
+#define KVM_RUN _IO(KVMIO, 0x80)
 
 #define PRINT_USAGE_ERR()                                               \
     do {                                                                \
