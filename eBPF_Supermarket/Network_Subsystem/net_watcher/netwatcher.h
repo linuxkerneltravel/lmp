@@ -88,6 +88,13 @@ struct pack_t {
     u8 data[MAX_HTTP_HEADER]; // 用户层数据
     const void *sock;                    // 此包tcp连接的 socket 指针
     int rx;                              // rx packet(1) or tx packet(0)
+    u32 saddr;
+    u32 daddr;
+    unsigned __int128 saddr_v6;
+    unsigned __int128 daddr_v6;
+    u16 sport;
+    u16 dport;
+
 };
 
 struct udp_message {
