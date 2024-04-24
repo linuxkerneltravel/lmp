@@ -28,5 +28,3 @@ jobs:
           continue-on-error: true 
           cd eBPF_Supermarket/kvm_watcher/
           make 
-    
-        
