@@ -172,6 +172,7 @@ int tp_ioctl(struct trace_event_raw_sys_enter *args) {
     CHECK_PID(vm_pid);
     return trace_kvm_ioctl(args);
 }
+
 SEC("uprobe")
 int BPF_KPROBE(up_kvm_vcpu_ioctl, void *cpu, int type) {
     CHECK_PID(vm_pid);
