@@ -18,7 +18,6 @@
 
 #ifndef __KVM_WATCHER_H
 #define __KVM_WATCHER_H
-#include <linux/version.h>
 
 static const char binary_path[] = "/bin/qemu-system-x86_64";
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
