@@ -105,7 +105,10 @@ TIME         READ/s  WRITE/s  FSYNC/s   OPEN/s CREATE/s
 - 执行如下指令开始采集数据以及相关处理：
 
   ```
-  ./data-visual collect /home/zhang/lmp/eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image -r -p 16279
+  // 终端1：挂载eBPF内核态函数，但是处于失活状态(不进行数据的采集)
+  ./data-visual collect /home/zhang/lmp/eBPF_Supermarket/CPU_Subsystem/eBPF_proc_image/proc_image -r
+  // 终端2：激活eBPF内核态函数
+  ./controller -a -r -p 16279
   ```
 
 - 个人喜欢在主机上进行可视化设置，这样方便快捷，所以在主机上打开网址http://192.168.109.150:8090/metrics （其中192.168.109.150是虚拟机网络接口的IPv4地址），可以看到暴露在http网页中的数据：
