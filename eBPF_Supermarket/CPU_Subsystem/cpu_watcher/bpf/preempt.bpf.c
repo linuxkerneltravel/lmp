@@ -1,3 +1,19 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
+
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -33,7 +49,8 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
     return 0;
 }
 
-SEC("kprobe/finish_task_switch") 
+// SEC("kprobe/finish_task_switch") 
+SEC("kprobe/finish_task_switch.isra.0") 
 int BPF_KPROBE(finish_task_switch, struct task_struct *prev) {
     u64 end_time = bpf_ktime_get_ns();
     pid_t pid = BPF_CORE_READ(prev, pid);
