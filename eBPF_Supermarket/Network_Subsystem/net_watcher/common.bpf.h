@@ -1,21 +1,3 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-//
-// netwatcher libbpf 内核<->用户 传递信息相关结构体
-
 #ifndef __COMMON_BPF_H
 #define __COMMON_BPF_H
 
@@ -202,7 +184,7 @@ struct {
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,kfree_info = 0,icmp_info = 0 ,tcp_info = 0;
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,drop_reason = 0,icmp_info = 0 ,tcp_info = 0;
 
 /* help macro */
 
@@ -286,6 +268,8 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
     packet->sock = sk;                                                         \
     packet->ack = pkt_tuple.ack;                                               \
     packet->seq = pkt_tuple.seq;
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 /* help macro end */
 
@@ -385,7 +369,4 @@ void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
     pkt_tuple->tran_flag = 1; // tcp包
 }
 /* help functions end */
-
-
-
 #endif

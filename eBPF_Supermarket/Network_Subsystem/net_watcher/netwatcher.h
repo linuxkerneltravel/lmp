@@ -1,21 +1,3 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-//
-// netwatcher libbpf 内核<->用户 传递信息相关结构体
-
 #ifndef __NETWATCHER_H
 #define __NETWATCHER_H
 
@@ -76,6 +58,7 @@ struct conn_t {
 
 #define MAX_PACKET 1000
 #define MAX_HTTP_HEADER 256
+#define NUM_LAYERS 5
 
 struct pack_t {
     int err;                     // no err(0) invalid seq(1) invalid checksum(2)
@@ -88,6 +71,13 @@ struct pack_t {
     u8 data[MAX_HTTP_HEADER]; // 用户层数据
     const void *sock;                    // 此包tcp连接的 socket 指针
     int rx;                              // rx packet(1) or tx packet(0)
+    u32 saddr;
+    u32 daddr;
+    unsigned __int128 saddr_v6;
+    unsigned __int128 daddr_v6;
+    u16 sport;
+    u16 dport;
+
 };
 
 struct udp_message {
@@ -122,12 +112,15 @@ struct  reasonissue
     u16 protocol;
     int  drop_reason;
 };
+
 struct icmptime{
     unsigned int saddr;
     unsigned int daddr;
     unsigned long long icmp_tran_time;
     unsigned int flag; //0 send 1 rcv
+    int monitor;
 };
+
 
 struct tcp_state {
     u32 saddr;       
@@ -137,6 +130,12 @@ struct tcp_state {
 	int oldstate;
 	int newstate;
     u64 time;
+};
+
+struct timeload{
+    u64 total_time;
+    u64 normal_time;
+    int count;
 };
 
 #endif /* __NETWATCHER_H */

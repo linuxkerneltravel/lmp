@@ -1,20 +1,5 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-
 #include "common.bpf.h"
+
 
 static __always_inline
 int __udp_rcv(struct sk_buff *skb)
@@ -34,6 +19,7 @@ int __udp_rcv(struct sk_buff *skb)
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     return 0;
 }
+
 static __always_inline
 int udp_enqueue_schedule_skb(struct sock *sk,struct sk_buff *skb)
 {
@@ -87,7 +73,6 @@ int __udp_send_skb(struct sk_buff *skb)
         return 0;
     }
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
-   
     return 0;
 }
 static __always_inline
@@ -123,7 +108,7 @@ int __ip_send_skb(struct sk_buff *skb)
     message->sport =  pkt_tuple.sport;
     message->dport =  pkt_tuple.dport;
     message->rx=0;//发包
-    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
+    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));    
     bpf_ringbuf_submit(message, 0);
     return 0;
 }

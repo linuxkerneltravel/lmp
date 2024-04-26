@@ -1,24 +1,9 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-
 #include "common.bpf.h"
 
 static __always_inline
 int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int rx)
 {
+    int time =0;                                     
     struct netfilter *message;
 
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
@@ -26,14 +11,15 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
         return 0;
     }
 
-    message->saddr = pkt_tuple.saddr;
-    message->daddr =pkt_tuple.daddr;
-    message->sport =pkt_tuple.sport;
-    message->dport = pkt_tuple.dport;
+    // message->saddr = pkt_tuple.saddr;
+    // message->daddr =pkt_tuple.daddr;
+    // message->sport =pkt_tuple.sport;
+    // message->dport = pkt_tuple.dport;
     message->local_input_time = 0;
     message->pre_routing_time = 0;
     message->local_out_time = 0;
     message->post_routing_time = 0;
+    message->forward_time = 0;
     message->rx = rx; //收/发/转发方向
 
     if(rx == 1){
@@ -44,11 +30,16 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
             message->local_input_time = tinfo->time[e_ip_local_deliver_finish] - 
                                             tinfo->time[e_ip_local_deliver];
             message->pre_routing_time = tinfo->time[e_ip_local_deliver] - 
-                                            tinfo->time[e_ip_rcv];
+                                            tinfo->time[e_ip_rcv];             
             if((int)message->local_input_time < 0 || (int)message->pre_routing_time < 0){
                 bpf_ringbuf_discard(message, 0);      
                 return 0;                                  
             }
+            message->saddr = pkt_tuple.daddr;
+            message->daddr = pkt_tuple.saddr;
+            message->sport =pkt_tuple.sport;
+            message->dport = pkt_tuple.dport;
+            //bpf_printk("%d %d %d %d",pkt_tuple.saddr,pkt_tuple.daddr,pkt_tuple.sport,pkt_tuple.dport);
         }
     }else{
         if(tinfo->time[e_ip_forward] && tinfo->time[e_ip_output])
@@ -60,7 +51,7 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
             }
             message->rx = 2;
         }
-        if(tinfo->time[e_ip_output] &&
+        else if(tinfo->time[e_ip_output] &&
             tinfo->time[e_ip_local_out] &&
             tinfo->time[e_ip_finish_output])
         {
@@ -72,9 +63,17 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
                 bpf_ringbuf_discard(message, 0);      
                 return 0;   
             }
+            message->saddr = pkt_tuple.saddr;
+            message->daddr = pkt_tuple.daddr;
+            message->sport = pkt_tuple.dport;
+            message->dport = pkt_tuple.sport;
         }
     }
-    bpf_ringbuf_submit(message,0);
+    if(message->saddr && message->daddr && message->sport && message->dport){
+        bpf_ringbuf_submit(message,0);
+    }else{
+        bpf_ringbuf_discard(message, 0);
+    }
     return 0;
 }
 
@@ -104,7 +103,6 @@ int store_nf_time(struct sk_buff *skb, int hook)
     }                
 
     tinfo->time[hook] = bpf_ktime_get_ns() / 1000;
-
     if(hook == e_ip_local_deliver_finish){
         submit_nf_time(tinfo->init, tinfo, 1);
         bpf_map_delete_elem(&netfilter_time, &skb);

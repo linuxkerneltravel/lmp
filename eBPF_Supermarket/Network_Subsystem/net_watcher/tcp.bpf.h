@@ -1,19 +1,3 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-
 #include "common.bpf.h"
 
 static __always_inline
@@ -286,7 +270,6 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
         time = 0;
     else
         time = (new_time - *before_time) / 1000;
-    
     struct tcpstate tcpstate = {};
     tcpstate.oldstate = ctx->oldstate;
     tcpstate.newstate = ctx->newstate;
@@ -296,8 +279,6 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     bpf_probe_read_kernel(&tcpstate.saddr, sizeof(tcpstate.saddr), &sk->__sk_common.skc_rcv_saddr);
     bpf_probe_read_kernel(&tcpstate.daddr, sizeof(tcpstate.daddr), &sk->__sk_common.skc_daddr);
     tcpstate.time = time;
-    //bpf_printk(" %d %d %d %d %d %d ",tcpstate.saddr,tcpstate.sport,tcpstate.daddr,tcpstate.dport,
-   // tcpstate.oldstate,tcpstate.newstate,tcpstate.time);
     if (ctx->newstate == TCP_CLOSE)
         bpf_map_delete_elem(&tcp_state, &sk);
     else
@@ -317,5 +298,4 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     message->time =  tcpstate.time;
     bpf_ringbuf_submit(message, 0);
     return 0;
-
 }

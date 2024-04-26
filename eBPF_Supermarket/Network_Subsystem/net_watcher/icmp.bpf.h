@@ -1,19 +1,3 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-
 #include "common.bpf.h"
 
 static __always_inline
@@ -26,7 +10,6 @@ int __icmp_time(struct sk_buff *skb)
     get_ip_pkt_tuple(&ipk, ip);
     unsigned long long time= bpf_ktime_get_ns() / 1000;
     bpf_map_update_elem(&icmp_time, &ipk, &time, BPF_ANY);
-
     return 0;
 }
 
@@ -46,7 +29,6 @@ int __rcvend_icmp_time(struct sk_buff *skb)
     
     unsigned long long new_time= bpf_ktime_get_ns() / 1000;
     unsigned long long time=new_time-*pre_time;
-    //bpf_printk("%d %d %d",ip->saddr,ip->daddr,time);
     struct icmptime *message;
     message = bpf_ringbuf_reserve(&icmp_rb, sizeof(*message), 0);
     if(!message){
@@ -76,7 +58,6 @@ int __reply_icmp_time(struct sk_buff *skb)
         return 0;
     unsigned long long new_time= bpf_ktime_get_ns() / 1000;
     unsigned long long time=new_time-*pre_time;
-    //bpf_printk("%d %d %d",ip->saddr,ip->daddr,time);
     struct icmptime *message;
     message = bpf_ringbuf_reserve(&icmp_rb, sizeof(*message), 0);
     if(!message){

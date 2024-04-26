@@ -1,19 +1,3 @@
-// Copyright 2023 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: blown.away@qq.com
-
 #include "common.bpf.h"
 /*
 in_ipv4:
@@ -251,7 +235,7 @@ int __skb_copy_datagram_iter(struct sk_buff *skb)
             return 0;
         }
 
-        tinfo->app_time = bpf_ktime_get_ns() / 1000;
+        tinfo->app_time = bpf_ktime_get_ns() / 1000; 
     } else if (protocol == __bpf_ntohs(ETH_P_IPV6)) {
         /** ipv6 */
         struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
@@ -276,7 +260,11 @@ int __skb_copy_datagram_iter(struct sk_buff *skb)
     // bpf_printk("rx enter app layer.\n");
 
     PACKET_INIT_WITH_COMMON_INFO
-
+    packet->saddr = pkt_tuple.saddr;
+    packet->daddr = pkt_tuple.daddr;
+    packet->sport = pkt_tuple.sport;
+    packet->dport = pkt_tuple.dport;
+  //  bpf_printk("%d %d ",pkt_tuple.saddr,pkt_tuple.daddr);
     if (layer_time) {
         packet->mac_time = tinfo->ip_time - tinfo->mac_time;
         // 计算MAC层和ip层之间的时间差
@@ -487,9 +475,6 @@ int dev_queue_xmit(struct sk_buff *skb)
         struct iphdr *ip = skb_to_iphdr(skb);
         get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-        // FILTER_DPORT
-        // FILTER_SPORT
-
         if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
             return 0;
         }
@@ -546,19 +531,22 @@ int __dev_hard_start_xmit(struct sk_buff *skb)
         return 0;
     }
     PACKET_INIT_WITH_COMMON_INFO
+    packet->saddr = pkt_tuple.saddr;
+    packet->daddr = pkt_tuple.daddr;
+    packet->sport = pkt_tuple.sport;
+    packet->dport = pkt_tuple.dport;
     // 记录各层的时间差值
     if (layer_time) {
         packet->tran_time = tinfo->ip_time - tinfo->tran_time;
         packet->ip_time = tinfo->mac_time - tinfo->ip_time;
         packet->mac_time =tinfo->qdisc_time -tinfo->mac_time; // 队列纪律层，处于网络协议栈最底层，负责实际数据传输与接收
     }
-
     packet->rx = 0; // 发送一个数据包
 
     // TX HTTP Info
     if (http_info) {
         bpf_probe_read_str(packet->data, sizeof(packet->data), tinfo->data);
-        bpf_printk("%s", packet->data);
+       // bpf_printk("%s", packet->data);
     }
     bpf_ringbuf_submit(packet, 0);
 
