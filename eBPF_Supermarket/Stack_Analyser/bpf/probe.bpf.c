@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: GaoYixiang
+// author: luiyanbing@foxmail.com
 //
-// 内核态eBPF的通用的调用栈计数代码
+// 内核态bpf程序的模板代码
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -23,14 +23,14 @@
 #include <bpf/usdt.bpf.h>
 
 #include "sa_ebpf.h"
+#include "bpf_wapper/probe.h"
 #include "task.h"
 
-COMMON_MAPS(u32);
+COMMON_MAPS(time_tuple);
 COMMON_VALS;
+BPF_HASH(starts, u32, u64);
 
-const char LICENSE[] SEC("license") = "GPL";
-
-static int handle_func(void *ctx)
+static int entry(void *ctx)
 {
     CHECK_ACTIVE;
     CHECK_FREQ;
@@ -49,33 +49,71 @@ static int handle_func(void *ctx)
 
     SAVE_TASK_INFO(pid, curr, knode);
 
-    psid a_psid = GET_COUNT_KEY(pid, ctx);
-    u32 *cnt = bpf_map_lookup_elem(&psid_count_map, &a_psid);
-    if (!cnt)
-    {
-        u32 ONE = 1;
-        bpf_map_update_elem(&psid_count_map, &a_psid, &ONE, BPF_NOEXIST);
-    }
-    else
-        (*cnt)++;
-
+    u64 nsec = bpf_ktime_get_ns();
+    bpf_map_update_elem(&starts, &pid, &nsec, BPF_ANY);
     return 0;
 }
 
 SEC("kprobe/dummy_kprobe")
-int BPF_KPROBE(handle)
+int BPF_KPROBE(dummy_kprobe)
 {
-    handle_func(ctx);
+    entry(ctx);
     return 0;
 }
 SEC("tp/sched/dummy_tp")
-int handle_tp(void *ctx)
+int tp_entry(void *ctx)
 {
-    handle_func(ctx);
+    entry(ctx);
     return 0;
 }
 SEC("usdt")
-int handle_usdt(void *ctx)
+int usdt_entry(void *ctx)
 {
-    return handle_func(ctx);
+    entry(ctx);
+    return 0;
 }
+static int exit(void *ctx)
+{
+    CHECK_ACTIVE;
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+    u64 *start = bpf_map_lookup_elem(&starts, &pid);
+    if (!start)
+        return 0;
+
+    u64 delta = bpf_ktime_get_ns() - *start;
+
+    psid a_psid = GET_COUNT_KEY(pid, ctx);
+    time_tuple *d = bpf_map_lookup_elem(&psid_count_map, &a_psid);
+    if (!d)
+    {
+        time_tuple tmp = {.lat = delta, .count = 1};
+        bpf_map_update_elem(&psid_count_map, &a_psid, &tmp, BPF_NOEXIST);
+    }
+    else
+    {
+        d->lat += delta;
+        d->count++;
+    }
+    return 0;
+}
+
+SEC("kretprobe/dummy_kretprobe")
+int BPF_KRETPROBE(dummy_kretprobe)
+{
+    exit(ctx);
+    return 0;
+}
+SEC("tp/sched/dummy_tp")
+int tp_exit(void *ctx)
+{
+    exit(ctx);
+    return 0;
+}
+SEC("usdt")
+int usdt_exit(void *ctx)
+{
+    exit(ctx);
+    return 0;
+}
+const char LICENSE[] SEC("license") = "GPL";

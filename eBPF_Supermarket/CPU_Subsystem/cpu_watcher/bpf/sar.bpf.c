@@ -1,3 +1,19 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
+
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -36,8 +52,8 @@ BPF_ARRAY(ut_LastTime,u32,u64,1);
 BPF_ARRAY(tick_user,u32,u64,1);
 BPF_ARRAY(symAddr,u32,u64,1);
 // 统计fork数
-//SEC("kprobe/finish_task_switch.isra.0")
-SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
+// SEC("kprobe/finish_task_switch")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
     u32 key = 0;
@@ -75,8 +91,8 @@ int trace_sched_switch2(struct cswch_args *info) {
 	return 0;
 }
 
-SEC("kprobe/finish_task_switch")
-//SEC("kprobe/finish_task_switch.isra.0")
+// SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
