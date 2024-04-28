@@ -149,6 +149,7 @@ static int attach_usdt(struct probe_bpf *skel, std::string func, int pid)
     skel->links.usdt_exit =
         bpf_program__attach_usdt(skel->progs.usdt_exit, pid, bin_path, "libc", func.c_str(), NULL);
     CHECK_ERR(!skel->links.usdt_exit, "Fail to attach usdt");
+    return 0;
 }
 
 int ProbeStackCollector::attach(void)
@@ -157,7 +158,7 @@ int ProbeStackCollector::attach(void)
     std::vector<std::string> strList;
     splitStr(probe, ':', strList);
     std::string func = probe;
-    int err;
+    int err = 0;
 
     if (strList.size() == 3 && strList[0] == "p" && strList[1] == "")
         func = strList[2];
@@ -177,12 +178,7 @@ int ProbeStackCollector::attach(void)
     }
     else if (strList.size() == 3 && strList[0] == "u")
     {
-        char path[128];
-        int err = get_binpath(path, pid);
-        CHECK_ERR(err, "Fail to get lib path");
-        skel->links.usdt_entry =
-            bpf_program__attach_usdt(skel->progs.usdt_entry, pid, path, "libc", strList[2].c_str(), NULL);
-        CHECK_ERR(!skel->links.usdt_entry, "Fail to attach usdt");
+        err = attach_usdt(skel, strList[2], pid);
     }
     else
     {
