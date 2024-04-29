@@ -23,6 +23,7 @@
 #include <time.h>
 
 #include "bpf_wapper/on_cpu.h"
+#include "bpf_wapper/funclatency.h"
 #include "bpf_wapper/llc_stat.h"
 #include "bpf_wapper/off_cpu.h"
 #include "bpf_wapper/memleak.h"
@@ -151,7 +152,15 @@ int main(int argc, char *argv[])
                                                ->setScale(IntTmp); })) %
                                   "Set sampling period; default is 100",
                               TraceOption);
-
+        auto FunclatencyOption = clipp::option("funclatency").call([]
+                                                                     { StackCollectorList.push_back(new FunclatencyStackCollector()); }) %
+                                      COLLECTOR_INFO("funclatency") &
+                                  (clipp::value("probe", StrTmp)
+                                           .call([]
+                                                 { static_cast<FunclatencyStackCollector *>(StackCollectorList.back())
+                                                       ->setScale(StrTmp); }) %
+                                       "set the probe string to time specfic func; default period is ns" &
+                                   TraceOption);
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
                                ((clipp::option("-p") &
@@ -194,6 +203,7 @@ int main(int argc, char *argv[])
                ReadaheadOption,
                ProbeOption,
                LlcStatOption,
+               FunclatencyOption,
                MainOption,
                Info);
     }
