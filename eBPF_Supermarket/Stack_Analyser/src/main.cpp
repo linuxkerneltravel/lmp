@@ -29,7 +29,6 @@
 #include "bpf_wapper/memleak.h"
 #include "bpf_wapper/io.h"
 #include "bpf_wapper/readahead.h"
-#include "bpf_wapper/probe.h"
 #include "sa_user.h"
 #include "clipp.h"
 
@@ -131,16 +130,7 @@ int main(int argc, char *argv[])
                                    COLLECTOR_INFO("readahead") &
                                (TraceOption);
 
-        auto ProbeOption = clipp::option("probe")
-                                   .call([]
-                                         { StackCollectorList.push_back(new ProbeStackCollector()); }) %
-                               COLLECTOR_INFO("probe") &
-                           (clipp::value("probe", StrTmp)
-                                    .call([]
-                                          { static_cast<ProbeStackCollector *>(StackCollectorList.back())
-                                                ->setScale(StrTmp); }) %
-                                "Set the probe string; specific use is: \n probe func  && probe p::func    -- probe a kernel function; \n lib:func && p:lib:func          -- probe a user-space function in the library 'lib';\n probe t:cat:event               -- probe a kernel tracepoint; \n probe u:lib:probe               -- probe a USDT tracepoint" &
-                            TraceOption);
+
 
         auto LlcStatOption = clipp::option("llc_stat").call([]
                                                             { StackCollectorList.push_back(new LlcStatStackCollector()); }) %
@@ -159,7 +149,8 @@ int main(int argc, char *argv[])
                                            .call([]
                                                  { static_cast<FunclatencyStackCollector *>(StackCollectorList.back())
                                                        ->setScale(StrTmp); }) %
-                                       "set the probe string to time specfic func; default period is ns" &
+                                         "Set the probe string; specific use is: \n probe func  && probe p::func    -- probe a kernel function; \n lib:func && p:lib:func          -- probe a user-space function in the library 'lib';\n probe t:cat:event               -- probe a kernel tracepoint; \n probe u:lib:probe               -- probe a USDT tracepoint" &
+
                                    TraceOption);
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
@@ -201,7 +192,6 @@ int main(int argc, char *argv[])
                MemleakOption,
                IOOption,
                ReadaheadOption,
-               ProbeOption,
                LlcStatOption,
                FunclatencyOption,
                MainOption,
