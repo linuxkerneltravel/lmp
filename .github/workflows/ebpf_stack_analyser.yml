@@ -48,4 +48,4 @@ jobs:
           cd MagicEyes/build
           cmake -DBUILD_STACK_ANALYZER=ON ..
           make
-          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "../../eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread" -t 5
+          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer on_cpu off_cpu memleak io readahead llc_stat funclatency vfs_write -t 5
