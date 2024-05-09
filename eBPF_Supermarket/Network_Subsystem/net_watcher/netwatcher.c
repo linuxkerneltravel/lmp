@@ -1,3 +1,22 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: blown.away@qq.com
+//
+// netwatcher libbpf 用户态代码
+
+
 #include "netwatcher.h"
 #include "netwatcher.skel.h"
 #include <argp.h>
@@ -187,7 +206,6 @@ struct SymbolEntry findfunc(unsigned long int addr)
     add_to_cache(symbols[result]);
     return symbols[result];
 };
-
 void readallsym()
 {
     FILE *file = fopen("/proc/kallsyms", "r");
@@ -221,7 +239,7 @@ struct LayerDelayInfo {
     float delay; // 时延数据
     int layer_index; // 层索引
 };
-#define GRANULARITY 4.5
+#define GRANULARITY 3 
 #define ALPHA 0.2 // 衰减因子
 #define MAXTIME 10000
 
@@ -382,7 +400,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
             return 0;                                                     
                                                       
     if (sport)                                               
-        if (pack_info->sport!= sport)                                  
+            if (pack_info->sport!= sport)                                  
             return 0;   
 
     if (pack_info->err) {
@@ -515,9 +533,8 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    //if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)   return 0;
-    if ((daddr & 0x0000FFFF) == 0x000011AC || (saddr & 0x0000FFFF) == 0x000011AC) return 0;
-
+    if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
+        return 0;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
@@ -561,7 +578,6 @@ static int print_tcpstate(void *ctx, void *packet_info, size_t size) {
     const struct tcp_state *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if ((daddr & 0x0000FFFF) == 0x000011AC || (saddr & 0x0000FFFF) == 0x000011AC) return 0;
     printf("%-20s %-20s %-20d %-20d %-20s %-20s  %-20lld\n",
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
@@ -695,7 +711,6 @@ int main(int argc, char **argv) {
     skel->rodata->drop_reason = drop_reason;
     skel->rodata->tcp_info = tcp_info;
     skel->rodata->icmp_info = icmp_info;
-    skel->rodata->drop_reason = drop_reason;
 
     if(addr_to_func)
         readallsym();

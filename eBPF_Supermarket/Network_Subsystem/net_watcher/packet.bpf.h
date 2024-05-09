@@ -1,3 +1,20 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: blown.away@qq.com
+//
+
 #include "common.bpf.h"
 /*
 in_ipv4:
@@ -377,7 +394,8 @@ int __tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 
     // TX HTTP info
     if (http_info) {
-        u8 *user_data = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
+        //u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
+        u8 *user_data = BPF_CORE_READ(msg, msg_iter.iov,iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
