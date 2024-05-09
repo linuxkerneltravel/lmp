@@ -397,11 +397,11 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
         return 0;
     if (dport) 
         if (pack_info->dport != dport)                             
-            return 0;                                                     
+                return 0;                                                     
                                                       
     if (sport)                                               
             if (pack_info->sport!= sport)                                  
-            return 0;   
+                return 0;   
 
     if (pack_info->err) {
         FILE *file = fopen(err_file_path, "a");

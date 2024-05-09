@@ -60,11 +60,6 @@ $(call allow-override,LD,$(CROSS_COMPILE)ld)
 all: $(APPS) deps
 
 #更新vmlinux.h文件
-.PHONY: devel
-devel:
-	sudo apt install linux-tools-generic
-
-#更新vmlinux.h文件
 .PHONY: deps
 deps:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $(VMLINUX)

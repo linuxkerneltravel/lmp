@@ -277,8 +277,8 @@ int __skb_copy_datagram_iter(struct sk_buff *skb)
     // bpf_printk("rx enter app layer.\n");
 
     PACKET_INIT_WITH_COMMON_INFO
-    packet->saddr = pkt_tuple.saddr;
-    packet->daddr = pkt_tuple.daddr;
+    packet->saddr = pkt_tuple.daddr;
+    packet->daddr = pkt_tuple.saddr;
     packet->sport = pkt_tuple.sport;
     packet->dport = pkt_tuple.dport;
   //  bpf_printk("%d %d ",pkt_tuple.saddr,pkt_tuple.daddr);
@@ -548,7 +548,6 @@ int __dev_hard_start_xmit(struct sk_buff *skb)
     if (!sk) {
         return 0;
     }
-
     PACKET_INIT_WITH_COMMON_INFO
     packet->saddr = pkt_tuple.saddr;
     packet->daddr = pkt_tuple.daddr;
