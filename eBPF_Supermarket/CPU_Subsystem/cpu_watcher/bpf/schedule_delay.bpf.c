@@ -127,18 +127,22 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
         struct sum_schedule sum_schedule= {};
         sum_schedule.sum_count++;
         sum_schedule.sum_delay += delay;
-        if (delay > sum_schedule.max_delay)
+        if (delay > sum_schedule.max_delay){
             sum_schedule.max_delay = delay;
-        if (sum_schedule.min_delay == 0 || delay < sum_schedule.min_delay)
+            sum_schedule.pid_max = next->pid;
+        }else if (sum_schedule.min_delay == 0 || delay < sum_schedule.min_delay)
             sum_schedule.min_delay = delay;
+            sum_schedule.pid_min = next->pid;
         bpf_map_update_elem(&sys_schedule, &key, &sum_schedule, BPF_ANY);
     } else {
         sum_schedule->sum_count++;
         sum_schedule->sum_delay += delay;
-        if (delay > sum_schedule->max_delay)
+        if (delay > sum_schedule->max_delay){
             sum_schedule->max_delay = delay;
-        if (sum_schedule->min_delay == 0 || delay < sum_schedule->min_delay)
+            sum_schedule->pid_max = next->pid;
+        }else if (sum_schedule->min_delay == 0 || delay < sum_schedule->min_delay)
             sum_schedule->min_delay = delay;
+            sum_schedule->pid_min = next->pid;
     }
     return 0;
 }

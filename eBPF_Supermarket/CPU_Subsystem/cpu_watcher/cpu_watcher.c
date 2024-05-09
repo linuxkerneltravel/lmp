@@ -320,7 +320,7 @@ static int print_all()
 	unsigned long dtaUT = utTime -_utTime;
 
 	/*sys*/
-	int key_sys = 0,next_key;
+	int key_sys = 0;
 	int err_sys, fd_sys = bpf_map__fd(sar_skel->maps.tick_user);
 	u64 __tick_user =0 ;// 用于存储从映射中查找到的值
 	__tick_user = tick_user;
@@ -338,7 +338,7 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10llu  %8llu %8lu %8lu\n",
+		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10lu  %8llu %8llu %8llu\n",
 				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
 				__proc,__sched,runqlen,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
 				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
@@ -354,7 +354,7 @@ int count[25]={0};//定义一个count数组，用于汇总schedul()调度时间�
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct event *e = data;
-	printf("t1:%lu  t2:%lu  delay:%lu\n",e->t1,e->t2,e->delay);
+	printf("t1:%llu  t2:%llu  delay:%llu\n",e->t1,e->t2,e->delay);
 
 	int dly=(int)(e->delay),i=0;
 	while (dly > 1){
@@ -380,14 +380,14 @@ static int print_hstgram(int i,int max,int per_len)
 	printf("\n");
 	return per_len;
 }
-double pow(int n,int k)//实现pow函数
+double my_pow(int n,int k)//实现pow函数
 {
 	if (k > 0)
-		return n * pow(n, k - 1);
+		return n * my_pow(n, k - 1);
 	else if (k == 0)
 		return 1;
 	else
-		return 1.0 / pow(n, -k);
+		return 1.0 / my_pow(n, -k);
 }
 static void histogram()
 {
@@ -420,7 +420,7 @@ static void histogram()
 	printf("%d\t=>\t%-8d \t%-12d \t|",2,3,count[1]);
 	print_hstgram(1,max,per_len);
 	for(int i=2;i<20;i++){
-		printf("%d\t=>\t%-8d \t%-12d \t|",(int)pow(2,i),(int)pow(2,(i+1))-1,count[i]);
+		printf("%d\t=>\t%-8d \t%-12d \t|",(int)my_pow(2,i),(int)my_pow(2,(i+1))-1,count[i]);
 		print_hstgram(i,max,per_len);
 	}
 	printf("per_len = %d\n",per_len);
@@ -438,7 +438,7 @@ static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 {
 
 	const struct syscall_events *e = data;
-	printf("pid: %-8llu comm: %-10s syscall_id: %-8ld delay: %-8llu\n",
+	printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
 		e->pid,e->comm,e->syscall_id,e->delay);
 	return 0;
 }
@@ -470,8 +470,8 @@ static int schedule_print(struct bpf_map *sys_fd)
         return -1;
     }
     avg_delay = info.sum_delay / info.sum_count;
-    printf("%02d:%02d:%02d | %-15lf %-15lf %-15lf |\n",
-           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0, info.min_delay / 1000.0);
+    printf("%02d:%02d:%02d  %-15lf %-15lf  %6d  %-15lf  %6d\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.pid_max, info.min_delay / 1000.0,info.pid_min);
     return 0;
 }
 
@@ -483,10 +483,10 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 	printf("-----------------------------------------------------------------------------------------------------------------------\n");
 	const struct mq_events *e = data;
 	
-	printf("Mqdes: %-8llu msg_len: %-8llu msg_prio: %-8llu\n",e->mqdes,e->msg_len,e->msg_prio);
-	printf("SND_PID: %-8lu SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
+	printf("Mqdes: %-8d msg_len: %-8lu msg_prio: %-8u\n",e->mqdes,e->msg_len,e->msg_prio);
+	printf("SND_PID: %-8d SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
 		e->send_pid,e->send_enter_time,e->send_exit_time);
-	printf("RCV_PID: %-8lu RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
+	printf("RCV_PID: %-8d RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
 		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
 	printf("-------------------------------------------------------------------------------\n");
 
@@ -626,7 +626,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto schedule_cleanup;
 		}
-		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs     min_delay/μs");
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs   max_pid   min_delay/μs     min_pid");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
