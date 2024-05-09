@@ -187,6 +187,7 @@ struct SymbolEntry findfunc(unsigned long int addr)
     add_to_cache(symbols[result]);
     return symbols[result];
 };
+
 void readallsym()
 {
     FILE *file = fopen("/proc/kallsyms", "r");
@@ -694,6 +695,7 @@ int main(int argc, char **argv) {
     skel->rodata->drop_reason = drop_reason;
     skel->rodata->tcp_info = tcp_info;
     skel->rodata->icmp_info = icmp_info;
+    skel->rodata->drop_reason = drop_reason;
 
     if(addr_to_func)
         readallsym();

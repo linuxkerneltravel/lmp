@@ -22,13 +22,6 @@
 #include "sa_common.h"
 
 #define PF_KTHREAD 0x00200000
-#define RET_IF_KERN(task)                       \
-    do                                          \
-    {                                           \
-        int flags = BPF_CORE_READ(task, flags); \
-        if (flags & PF_KTHREAD)                 \
-            return 0;                           \
-    } while (false)
 
 /// @brief 创建一个指定名字的ebpf调用栈表
 /// @param 新栈表的名字
@@ -65,32 +58,61 @@
 #define COMMON_MAPS(count_type)                 \
     BPF_HASH(psid_count_map, psid, count_type); \
     BPF_STACK_TRACE(sid_trace_map);             \
+    BPF_HASH(tgid_cgroup_map, __u32,            \
+             char[CONTAINER_ID_LEN]);           \
     BPF_HASH(pid_info_map, u32, task_info);
 
 #define COMMON_VALS                           \
     const volatile bool trace_user = false;   \
     const volatile bool trace_kernel = false; \
-    const volatile int self_pid = 0;          \
-    bool __active = false;
+    const volatile __u64 target_cgroupid = 0; \
+    const volatile __u32 target_tgid = 0;     \
+    const volatile __u32 target_pid = 0;      \
+    const volatile __u32 self_pid = 0;        \
+    const volatile __u32 freq = 0;            \
+    bool __active = false;                    \
+    __u32 __last_n = 0;                       \
+    __u32 __next_n = 0;                       \
+    bool __recorded = false;
 
-#define CHECK_ACTIVE if(!__active) return 0;
+#define CHECK_ACTIVE \
+    if (!__active)   \
+        return 0;
 
-#define SAVE_TASK_INFO(_pid, _task)                                    \
-    if (!bpf_map_lookup_elem(&pid_info_map, &_pid))                    \
-    {                                                                  \
-        task_info info;                                                \
-        info.pid = get_task_ns_pid(_task);                             \
-        bpf_get_current_comm(info.comm, COMM_LEN);                     \
-        info.tgid = get_task_ns_tgid(_task);                           \
-        fill_container_id(_task, info.cid);                            \
-        bpf_map_update_elem(&pid_info_map, &_pid, &info, BPF_NOEXIST); \
+#define CHECK_FREQ                                                          \
+    if (freq)                                                               \
+    {                                                                       \
+        __next_n = ((bpf_ktime_get_ns() & ((1ul << 30) - 1)) * freq) >> 30; \
+        if ((__last_n == __next_n) && __recorded)                           \
+            return 0;                                                       \
+        else                                                                \
+            __last_n = __next_n;                                            \
     }
 
-#define GET_COUNT_KEY(_pid, _ctx)                                                                                 \
-    ((psid){                                                                                                      \
-        .pid = _pid,                                                                                              \
-        .usid = trace_user ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK) : -1, \
-        .ksid = trace_kernel ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP) : -1,                  \
-    })
+#define SET_KNODE(_task, _knode) \
+    struct kernfs_node *_knode = BPF_CORE_READ(_task, cgroups, dfl_cgrp, kn);
+
+#define SAVE_TASK_INFO(_pid, _task, _knode)                            \
+    if (!bpf_map_lookup_elem(&pid_info_map, &_pid))                    \
+    {                                                                  \
+        task_info info = {0};                                          \
+        info.pid = get_task_ns_pid(_task);                             \
+        bpf_get_current_comm(info.comm, COMM_LEN);                     \
+        info.tgid = BPF_CORE_READ(_task, tgid);                        \
+        bpf_map_update_elem(&pid_info_map, &_pid, &info, BPF_NOEXIST); \
+                                                                       \
+        char cgroup_name[CONTAINER_ID_LEN] = {0};                      \
+        fill_container_id(_knode, cgroup_name);                        \
+        bpf_map_update_elem(&tgid_cgroup_map, &(info.tgid),            \
+                            &cgroup_name, BPF_NOEXIST);                \
+    }
+
+#define GET_COUNT_KEY(_pid, _ctx)                                                                                  \
+    (__recorded == true,                                                                                           \
+     (psid){                                                                                                       \
+         .pid = _pid,                                                                                              \
+         .usid = trace_user ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK) : -1, \
+         .ksid = trace_kernel ? bpf_get_stackid(_ctx, &sid_trace_map, BPF_F_FAST_STACK_CMP) : -1,                  \
+     })
 
 #endif

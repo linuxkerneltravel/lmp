@@ -805,7 +805,7 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_entry,
                               env.execute_exit ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_arch_vcpu_ioctl_run,
+    bpf_program__set_autoload(skel->progs.up_kvm_vcpu_ioctl,
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_userspace_exit,
                               env.execute_exit ? true : false);
@@ -857,7 +857,7 @@ const char *getCurrentTimeFormatted() {
     tm = localtime(&t);
 
     // 格式化时间到静态分配的字符串中
-    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+    strftime(ts, sizeof(ts), "%Y/%m/%d %H:%M:%S", tm);
 
     return ts;  // 返回指向静态字符串的指针
 }
@@ -1064,7 +1064,6 @@ void __print_exit_map(int fd, enum NameType name_type) {
     for (int i = 0; i < count; i++) {
         if (first_run) {
             first_run = 0;
-            printf("\nTIME:%s\n", getCurrentTimeFormatted());
             if (name_type == EXIT_NR) {
                 printf(
                     "============================================KVM_EXIT======"
@@ -1122,6 +1121,7 @@ void __print_exit_map(int fd, enum NameType name_type) {
 int print_exit_map(struct kvm_watcher_bpf *skel) {
     int exit_fd = bpf_map__fd(skel->maps.exit_map);
     int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
+    printf("\nTIME:%s\n", getCurrentTimeFormatted());
     __print_exit_map(exit_fd, EXIT_NR);
     __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
@@ -1141,6 +1141,13 @@ void print_logo() {
     char command[512];
     sprintf(command, "echo \"%s\" | /usr/games/lolcat", logo);
     system(command);
+}
+
+int attach_probe(struct kvm_watcher_bpf *skel) {
+    if (env.execute_exit) {
+        ATTACH_UPROBE_CHECKED(skel, kvm_vcpu_ioctl, up_kvm_vcpu_ioctl);
+    }
+    return kvm_watcher_bpf__attach(skel);
 }
 
 int main(int argc, char **argv) {
@@ -1183,12 +1190,11 @@ int main(int argc, char **argv) {
     }
 
     /* 附加跟踪点处理程序 */
-    err = kvm_watcher_bpf__attach(skel);
+    err = attach_probe(skel);
     if (err) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-
     /* 设置环形缓冲区轮询 */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
     if (!rb) {

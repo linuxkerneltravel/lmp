@@ -530,6 +530,7 @@ int __dev_hard_start_xmit(struct sk_buff *skb)
     if (!sk) {
         return 0;
     }
+
     PACKET_INIT_WITH_COMMON_INFO
     packet->saddr = pkt_tuple.saddr;
     packet->daddr = pkt_tuple.daddr;
