@@ -128,3 +128,29 @@
 - netwatcher通过`bpf_map_get_next_key`对`conns_info`进行遍历，将其中存储的所有TCP连接信息按如下格式输出到`data/connects.log`文件中
 ```
 fprintf(file, "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\",is_server=\"%d\"",
+d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.is_server);
+```
+### 数据包相关信息
+- 数据包相关信息首先以如下格式输出至标准输出
+```
+printf("%-22s %-10s %-10s %-10s %-10s %-10s %-5s %s\n",
+ "SOCK", "SEQ", "ACK", "MAC_TIME", "IP_TIME", "TCP_TIME", "RX", "HTTP");
+```
+- 数据包相关信息还以如下格式输出至`data/packets.log`中
+```
+fprintf(file,"packet{sock=\"%p\",seq=\"%u\",ack=\"%u\",mac_time=\"%llu\",ip_time=\"%llu\",tcp_time=\"%llu\",http_info=\"%s\",rx=\"%d\"} 0\n",
+pack_info->sock, pack_info->seq, pack_info->ack, pack_info->mac_time, pack_info->ip_time, pack_info->tcp_time, http_data, pack_info->rx);
+```
+### 数据包错误
+- 数据包错误信息首先以如下格式输出至标准输出
+```
+printf("[X] invalid SEQ: sock = %p,seq= %u,ack = %u\n",
+                   pack_info->sock, pack_info->seq, pack_info->ack);
+printf("[X] invalid checksum: sock = %p\n", pack_info->sock);
+```
+- 数据包错误信息还以如下格式输出至`data/err.log`中
+```
+fprintf(file, "error{sock=\"%p\",seq=\"%u\",ack=\"%u\",reason=\"%s\"} 0\n",
+pack_info->sock, pack_info->seq, pack_info->ack, reason);
+```
+fprintf(file, "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\",is_server=\"%d\"",
