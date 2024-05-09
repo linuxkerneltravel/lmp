@@ -4,6 +4,8 @@
 
 kvm watcher中的kvm irq子功能模块可以对kvm中的虚拟化中断事件的实时监控和分析能力，可以捕获和记录各种中断事件，支持监控传统的PIC中断、高级的IOAPIC中断以及基于消息的MSI中断，覆盖了KVM虚拟化环境中的主要中断类型。对于每个捕获的中断事件，记录详细信息，包括中断类型、中断注入延时、引脚号、触发方式、目标LAPIC的ID、向量号以及是否被屏蔽等关键数据。
 
+![kvm_irq](https://gitee.com/nan-shuaibo/image/raw/master/202404251710847.png)
+
 ## 原理介绍
 
 x86平台主要使用的中断类型有pic、apic及msi中断，在多核系统下的apic结构图如下所示，每个cpu有一个lapic，外部中断通过ioapic转发到lapic，如果是msi中断，则绕过了io apic直接发给lapic。
@@ -14,48 +16,48 @@ KVM_CREATE_IRQCHIP的ioctl用于在虚拟机初始化阶段创建中断请求芯
 
 ```
 int kvm_set_routing_entry(struct kvm *kvm,
-			  struct kvm_kernel_irq_routing_entry *e,
-			  const struct kvm_irq_routing_entry *ue)
+              struct kvm_kernel_irq_routing_entry *e,
+              const struct kvm_irq_routing_entry *ue)
 {
-	switch (ue->type) {
-	case KVM_IRQ_ROUTING_IRQCHIP: //中断路由芯片
-		if (irqchip_split(kvm))
-			return -EINVAL;
-		e->irqchip.pin = ue->u.irqchip.pin;//设置中断芯片引脚
-		switch (ue->u.irqchip.irqchip) {
-		case KVM_IRQCHIP_PIC_SLAVE:
-			e->irqchip.pin += PIC_NUM_PINS / 2; //从片引脚
-			fallthrough;
-		case KVM_IRQCHIP_PIC_MASTER:
-			if (ue->u.irqchip.pin >= PIC_NUM_PINS / 2)
-				return -EINVAL;
-			//// 设置处理 PIC 中断的回调函数
-			e->set = kvm_set_pic_irq; 
-			break;
-		case KVM_IRQCHIP_IOAPIC:
-			if (ue->u.irqchip.pin >= KVM_IOAPIC_NUM_PINS)
-				return -EINVAL;
-			// 设置处理 IOPIC 中断的回调函数
-			e->set = kvm_set_ioapic_irq;
-			break;
-		default:
-			return -EINVAL;
-		}
-		e->irqchip.irqchip = ue->u.irqchip.irqchip;
-		break;
-	case KVM_IRQ_ROUTING_MSI:
-		// 设置处理 MSI 中断的回调函数
-		e->set = kvm_set_msi;
-		e->msi.address_lo = ue->u.msi.address_lo;
-		e->msi.address_hi = ue->u.msi.address_hi;
-		e->msi.data = ue->u.msi.data;
+    switch (ue->type) {
+    case KVM_IRQ_ROUTING_IRQCHIP: //中断路由芯片
+        if (irqchip_split(kvm))
+            return -EINVAL;
+        e->irqchip.pin = ue->u.irqchip.pin;//设置中断芯片引脚
+        switch (ue->u.irqchip.irqchip) {
+        case KVM_IRQCHIP_PIC_SLAVE:
+            e->irqchip.pin += PIC_NUM_PINS / 2; //从片引脚
+            fallthrough;
+        case KVM_IRQCHIP_PIC_MASTER:
+            if (ue->u.irqchip.pin >= PIC_NUM_PINS / 2)
+                return -EINVAL;
+            //// 设置处理 PIC 中断的回调函数
+            e->set = kvm_set_pic_irq; 
+            break;
+        case KVM_IRQCHIP_IOAPIC:
+            if (ue->u.irqchip.pin >= KVM_IOAPIC_NUM_PINS)
+                return -EINVAL;
+            // 设置处理 IOPIC 中断的回调函数
+            e->set = kvm_set_ioapic_irq;
+            break;
+        default:
+            return -EINVAL;
+        }
+        e->irqchip.irqchip = ue->u.irqchip.irqchip;
+        break;
+    case KVM_IRQ_ROUTING_MSI:
+        // 设置处理 MSI 中断的回调函数
+        e->set = kvm_set_msi;
+        e->msi.address_lo = ue->u.msi.address_lo;
+        e->msi.address_hi = ue->u.msi.address_hi;
+        e->msi.data = ue->u.msi.data;
 
-		if (kvm_msi_route_invalid(kvm, e))
-			return -EINVAL;
-		break;
+        if (kvm_msi_route_invalid(kvm, e))
+            return -EINVAL;
+        break;
 .....
 
-	return 0;
+    return 0;
 }
 ```
 
@@ -75,22 +77,22 @@ KVM_CREATE_IRQCHIP用于虚拟机向VMM的虚拟apic发送中断请求，再有V
  *  > 0   中断成功送达的 CPU 数量
  */
  int kvm_set_irq(struct kvm *kvm, int irq_source_id, u32 irq, int level,
-		bool line_status)
+        bool line_status)
 {
-	struct kvm_kernel_irq_routing_entry irq_set[KVM_NR_IRQCHIPS];
-	....
+    struct kvm_kernel_irq_routing_entry irq_set[KVM_NR_IRQCHIPS];
+    ....
      
-	while (i--) {
-		int r;
-		r = irq_set[i].set(&irq_set[i], kvm, irq_source_id, level,
-				   line_status);
-		if (r < 0)
-			continue;
+    while (i--) {
+        int r;
+        r = irq_set[i].set(&irq_set[i], kvm, irq_source_id, level,
+                   line_status);
+        if (r < 0)
+            continue;
 
-		ret = r + ((ret < 0) ? 0 : ret);
-	}
+        ret = r + ((ret < 0) ? 0 : ret);
+    }
 
-	return ret;
+    return ret;
 }
 ```
 
@@ -101,7 +103,7 @@ KVM_CREATE_IRQCHIP用于虚拟机向VMM的虚拟apic发送中断请求，再有V
 其中ioapic的回调函数kvm_set_ioapic_irq依次调用kvm_ioapic_set_irq、ioapic_set_irq最后调用ioapic_service函数，ioapic_service主要是找到中断的重映射表，然后查找中断的目的地信息并转发到对应vcpu的lapic去处理。然后会调用kvm_irq_delivery_to_apic负责将中断分发给lapic。
 
 >  中断虚拟化详细介绍可以参考：[kvm中断虚拟化 ](https://blog.csdn.net/zgy666/article/details/105456569) 
-> [内核虚拟化：虚拟中断注入](https://blog.csdn.net/weixin_46324627/article/details/136661252?csdn_share_tail=%7B%22type%22%3A%22blog%22%2C%22rType%22%3A%22article%22%2C%22rId%22%3A%22136661252%22%2C%22source%22%3A%22weixin_46324627%22%7D)
+>  [内核虚拟化：虚拟中断注入](https://blog.csdn.net/weixin_46324627/article/details/136661252?csdn_share_tail=%7B%22type%22%3A%22blog%22%2C%22rType%22%3A%22article%22%2C%22rId%22%3A%22136661252%22%2C%22source%22%3A%22weixin_46324627%22%7D)
 
 ## 挂载点
 
