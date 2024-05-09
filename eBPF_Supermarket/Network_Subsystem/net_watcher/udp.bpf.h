@@ -17,7 +17,6 @@
 
 #include "common.bpf.h"
 
-
 static __always_inline
 int __udp_rcv(struct sk_buff *skb)
 {
@@ -36,7 +35,6 @@ int __udp_rcv(struct sk_buff *skb)
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
     return 0;
 }
-
 static __always_inline
 int udp_enqueue_schedule_skb(struct sock *sk,struct sk_buff *skb)
 {
@@ -125,7 +123,7 @@ int __ip_send_skb(struct sk_buff *skb)
     message->sport =  pkt_tuple.sport;
     message->dport =  pkt_tuple.dport;
     message->rx=0;//发包
-    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));    
+    message->len=__bpf_ntohs(BPF_CORE_READ(udp,len));
     bpf_ringbuf_submit(message, 0);
     return 0;
 }

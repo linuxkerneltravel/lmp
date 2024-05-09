@@ -13,7 +13,6 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
-//
 
 #include "common.bpf.h"
 /*
@@ -252,7 +251,7 @@ int __skb_copy_datagram_iter(struct sk_buff *skb)
             return 0;
         }
 
-        tinfo->app_time = bpf_ktime_get_ns() / 1000; 
+        tinfo->app_time = bpf_ktime_get_ns() / 1000;
     } else if (protocol == __bpf_ntohs(ETH_P_IPV6)) {
         /** ipv6 */
         struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
@@ -277,11 +276,11 @@ int __skb_copy_datagram_iter(struct sk_buff *skb)
     // bpf_printk("rx enter app layer.\n");
 
     PACKET_INIT_WITH_COMMON_INFO
-    packet->saddr = pkt_tuple.daddr;
-    packet->daddr = pkt_tuple.saddr;
+    packet->saddr = pkt_tuple.saddr;
+    packet->daddr = pkt_tuple.daddr;
     packet->sport = pkt_tuple.sport;
     packet->dport = pkt_tuple.dport;
-  //  bpf_printk("%d %d ",pkt_tuple.saddr,pkt_tuple.daddr);
+
     if (layer_time) {
         packet->mac_time = tinfo->ip_time - tinfo->mac_time;
         // 计算MAC层和ip层之间的时间差
