@@ -7,7 +7,6 @@
 #include "write.h"
 #include "write.skel.h"
 
-#define PATH_MAX 128
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -27,19 +26,10 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     struct tm *tm;
     char ts[32];
     time_t t;
-	char path[PATH_MAX];
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-	//获取文件真实路径
-	snprintf(path,sizeof(path),"/proc/self/fd/%d",e->fd);
-	//通过realpath来合并文件路径
-	char *real_path = realpath(path,NULL);
-	if(real_path != NULL){
-		printf("%-8s  %-7d  %-7ld  %-7ld   %-7s\n", ts, e->pid,e->real_count,e->count,real_path);
-		free(real_path);
-	}
-   
+	printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
     return 0;
 }
 
@@ -87,7 +77,7 @@ int main(int argc, char **argv)
 	}
 
     /* Process events */
-	printf("%-8s  %-7s   %-7s  %-7s  %-7s  %-7s\n", "TIME", "PID","Real_Count","Count","Real_Path");
+	// printf("%-8s  %-7s   %-7s  %-7s  %-7s  %-7s\n", "TIME", "PID","Count","Real_Path");
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
@@ -102,9 +92,17 @@ int main(int argc, char **argv)
 		}
 	}
 
+	// printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` to see output of the BPF programs.\n");
+	// for (;;) {
+	// 	/* trigger our BPF program */
+	// 	fprintf(stderr, ".");
+	// 	sleep(1);
+	// }
+
 cleanup:
 	/* Clean up */
 	ring_buffer__free(rb);
 	write_bpf__destroy(skel);
+
 	return err < 0 ? -err : 0;
 }
