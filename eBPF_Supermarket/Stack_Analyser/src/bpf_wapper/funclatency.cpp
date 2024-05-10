@@ -21,7 +21,6 @@
 #include "uprobe_helpers.h"
 
 // ========== implement virtual func ==========
-
 uint64_t *FunclatencyStackCollector::count_values(void *data)
 {
     time_tuple *p = (time_tuple *)data;
@@ -125,25 +124,18 @@ static int attach_uprobes(struct funclatency_bpf *skel, std::string probe, int p
 static int attach_tp(struct funclatency_bpf *skel, std::string tp_class, std::string func)
 {
     
-    skel->links.tp_entry =
-        bpf_program__attach_tracepoint(skel->progs.tp_entry, tp_class.c_str(), func.c_str());
-    CHECK_ERR(!skel->links.tp_entry, "Fail to attach tracepoint");
     skel->links.tp_exit =
         bpf_program__attach_tracepoint(skel->progs.tp_exit, tp_class.c_str(), func.c_str());
     CHECK_ERR(!skel->links.tp_exit, "Fail to attach tracepoint");
     return 0;
 }
-static int attach_usdt(struct funclatency_bpf *skel, std::string func, int pid)
+static int attach_usdt(struct funclatency_bpf *skel, std::string func, int pid,char *path)
 {
-    char bin_path[128];
-    int err = get_binpath(bin_path, pid);
-    CHECK_ERR(err, "Fail to get lib path");
-    skel->links.usdt_entry =
-        bpf_program__attach_usdt(skel->progs.usdt_entry, pid, bin_path, "libc", func.c_str(), NULL);
-    CHECK_ERR(!skel->links.usdt_entry, "Fail to attach usdt");
+
     skel->links.usdt_exit =
-        bpf_program__attach_usdt(skel->progs.usdt_exit, pid, bin_path, "libc", func.c_str(), NULL);
+        bpf_program__attach_usdt(skel->progs.usdt_exit, pid, path, "libc", func.c_str(),NULL);
     CHECK_ERR(!skel->links.usdt_exit, "Fail to attach usdt");
+    return 0;
 }
 int FunclatencyStackCollector::attach(void)
 {
@@ -172,11 +164,9 @@ int FunclatencyStackCollector::attach(void)
     else if (strList.size() == 3 && strList[0] == "u")
     {
         char path[128];
-        int err = get_binpath(path,pid);
+        err = get_binpath(path,pid);
         CHECK_ERR(err, "Fail to get lib path");
-        skel->links.usdt_entry  =
-            bpf_program__attach_usdt(skel->progs.usdt_entry ,pid,path,"libc",strList[2].c_str(),NULL);
-        CHECK_ERR(!skel->links.usdt_entry , "Fail to attach usdt");
+        err = attach_usdt(skel,strList[2],pid,path);
     }
     else
     {
@@ -214,7 +204,7 @@ FunclatencyStackCollector::FunclatencyStackCollector()
 {
     scale_num = 2;
     scales = new Scale[scale_num]{
-        {"latencyTime", 1, "us"},
+        {"latencyTime", 1, "ns"},
         {"latencyCount", 1, "counts"},
     };
 };

@@ -41,7 +41,7 @@ public:
     std::string probe;
 
 protected:
-    virtual uint64_t *count_values(void *);
+    virtual uint64_t *count_values(void *);   
 
 public:
     void setScale(std::string probe);

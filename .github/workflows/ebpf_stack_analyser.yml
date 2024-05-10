@@ -31,7 +31,8 @@ jobs:
           cd eBPF_Supermarket/Stack_Analyser
           make
           gcc -o ./testdir/usdt_pthread ./testdir/usdt_pthread.c
-          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "./testdir/usdt_pthread" -t 5
+          gcc -o ./testdir/uprobe_malloc ./testdir/uprobe_malloc.c
+          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat funclatency vfs_write funclatency p::vfs_write funclatency t:sched:sched_switch funclatency c:malloc -c "./testdir/uprobe_malloc" funclatency u:pthread:pthread_create -c "./testdir/usdt_pthread" -t 5
 
   magic-eyes-build-and-test:
     runs-on: ubuntu-22.04
@@ -49,4 +50,4 @@ jobs:
           cd MagicEyes/build
           cmake -DBUILD_STACK_ANALYZER=ON ..
           make
-          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "../../eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread" -t 5
+           sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat funclatency vfs_write funclatency p::vfs_write funclatency t:sched:sched_switch funclatency c:malloc -c "../../eBPF_Supermarket/Stack_Analyser/testdir/uprobe_malloc" funclatency u:pthread:pthread_create -c "../../eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread" -t 5
