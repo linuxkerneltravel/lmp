@@ -14,10 +14,10 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-VMDIR := $(abspath ./lib/vmlinux/)
-VMLINUXSRC := $(VMDIR)/$(ARCH)/
-VMLINUX := $(VMLINUXSRC)/vmlinux.h
-LOGSRC := $(abspath ./lib/doc/)
+LOGSRC := ./lib/doc
+VMDIR := ./lib/vmlinux
+VMLINUXSRC := $(VMDIR)/$(ARCH)
+VMLINUX := ./lib/vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
@@ -60,8 +60,7 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(APPS) deps
-
+all: deps $(APPS)
 #更新vmlinux.h文件
 .PHONY: deps
 deps:
@@ -72,15 +71,19 @@ deps:
 clean:
 	$(call msg,CLEAN)
 	$(Q)rm -rf $(OUTPUT) $(APPS)
-	rm -rf ./$(LOGSRC) 
+	
+	rm -rf $(LOGSRC)
+	rm -rf $(VMDIR)
+	
 .PHONY: clean2
 clean2:
+	$(call msg,CLEAN)
 	rm -f $(APPS)
 	rm -f $(OUTPUT)/*.skel.h
 	rm -f $(OUTPUT)/*.o
 	rm -rf $(LOGSRC)
 	rm -rf $(VMDIR)
-
+	
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
 	$(Q)mkdir -p $@
@@ -89,7 +92,7 @@ $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 $(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
 	$(call msg,LIB,$@)
 	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1		      \
-		    OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@)		      \
+		    OBJDIR=$(dir $@)libbpf DESTDIR=$(dir $@)		      \
 		    INCLUDEDIR= LIBDIR= UAPIDIR=			      \
 		    install
 
