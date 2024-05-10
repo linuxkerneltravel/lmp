@@ -300,7 +300,7 @@ saddr     daddr       sprot    dprot   udp_time     rx       len
 
 ### 3.3 与Prometheus连接进行可视化
 
-`data`目录下的所有文件都满足Prometheus要求的时序数据库格式。`netwatcher`使用`visual.py`在端口41420暴露`metrics`API为Prometheus提供可视化支持，当Prometheus请求此API时，会获得当前时刻下三个log文件的所有内容。由于四个个log文件被eBPF程序实时更新，因此满足时序性。
+`data`目录下的所有文件都满足Prometheus要求的时序数据库格式。`netwatcher`使用`visual.py`在端口41420暴露`metrics`API为Prometheus提供可视化支持，当Prometheus请求此API时，会获得当前时刻所有log文件的全部内容。由于log文件被eBPF程序实时更新，因此满足时序性。
 ```c
 python visual.py
 ```
