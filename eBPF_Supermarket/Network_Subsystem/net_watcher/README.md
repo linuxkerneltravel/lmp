@@ -26,7 +26,7 @@ lmp现有许多用于监控linux网络协议栈相关信息的小工具，但这
 - HTTP1/1.1相关信息检测：通过截取相应TCP包的HTTP头实现主机环境下对用户态http1的分析
 - TCP、UDP、ICMP相关信息监测：追踪TCP、UDP、ICMP协议数据包，并实现对主机接收和发送的所有相关数据包的时延数据和流量信息
 - 监测TCP连接状态信息：包括三次握手以及四次挥手的状态转变和时延数据
-- 丢包事件的监控：分析导致丢包的地址以及原因（包括skb_drop_reason中定义的77种原因）
+- 丢包事件的监控：分析导致丢包的地址以及丢包原因
 
 #### TODO
 - [ ] 应用层协议的支持
@@ -57,12 +57,12 @@ lmp现有许多用于监控linux网络协议栈相关信息的小工具，但这
 - visual.py：暴露metrics接口给Prometheus，输出data文件夹下的所有信息
 - netwatcher.c ：对bpf.c文件中记录的信息进行输出
 - netwatcher.bpf.c：封装内核探针点。
-- tcp.bpf.h：网络数据包处理以及连接状态等信息具体实现细节。
+- tcp.bpf.h：网络数据包处理以及tcp连接状态等信息具体实现细节。
 - udp.bpf.h ：udp数据包时延、流量的具体处理逻辑。
 - packet.bpf.h ：网络数据包的处理、时间戳的记录、数据包信息的提取等指标具体处理逻辑。
-- netfilter.bpf.h：处理netfilter时延的具体逻辑，`submit_nf_time`函数用于将时延信息提交到用户态，而`store_nf_time`函数则用于存储经过每个`HOOK`点的时延。
+- netfilter.bpf.h：处理netfilter时延的具体逻辑，`submit_nf_time`函数将时延信息提交到用户态，`store_nf_time`函数存储经过每个`HOOK`点的时延。
 - drop.bpf.h ：数据包丢弃原因的具体处理逻辑。
-- dropreason.bpf.h ：丢包的77种原因。
+- dropreason.bpf.h ：skb_drop_reason定义77种丢包原因。
 - icmp.bpf.h： icmp时延具体实现细节。
 - comm.bpf.h ：辅助函数、宏、BPF映射、以及内核中使用到的结构体。
 
