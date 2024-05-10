@@ -306,4 +306,4 @@ python visual.py
 ```
 ## 四、代码实现细节
 
-- 详细实现过程见`doc/implement.md`
+- 详细实现细节见`doc/implement.md`
