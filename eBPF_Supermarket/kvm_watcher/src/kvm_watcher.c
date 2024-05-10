@@ -868,26 +868,40 @@ int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
     struct exit_key lookup_key = {};
     struct exit_key next_key = {};
     struct exit_value exit_value;
-    int i = 0,j=0,count=0;
-    while(!bpf_map_get_next_key(fd,&lookup_key,&next_key)){
-        j = i-1;
-        struct exit_key temp_key = next_key;
+    int first = 1;
+    int i = 0, j;
+    int count = 0;
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        count++;
+        if (first) {
+            first = 0;
+            bpf_map_lookup_elem(fd, &next_key, &exit_value);
+            keys[0] = next_key;
+            values[0] = exit_value;
+            i++;
+            lookup_key = next_key;
+            continue;
+        }
         err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
         if (err < 0) {
             fprintf(stderr, "failed to lookup exit_value: %d\n", err);
             return -1;
         }
+        // insert sort
+        j = i - 1;
+        struct exit_key temp_key = next_key;
         struct exit_value temp_value = exit_value;
-        while(j >= 0 && (keys[j].pid > temp_key.pid || (keys[j].tid > temp_key.tid))){
+        while (j >= 0 &&
+               (keys[j].pid > temp_key.pid || (keys[j].tid > temp_key.tid))) {
             keys[j + 1] = keys[j];
-            values[j + 1] = values[j]; 
+            values[j + 1] = values[j];
             j--;
         }
-        keys[j + 1] = temp_key;
+        i++;
+        keys[j + 1] = next_key;
         values[j + 1] = temp_value;
+        // Move to the next key
         lookup_key = next_key;
-        count ++;
-        i++;  
     }
     return count;
 }
