@@ -78,19 +78,20 @@ struct preempt_bpf *preempt_skel;
 struct schedule_delay_bpf *sd_skel;
 struct mq_delay_bpf *mq_skel;
 
-u64 softirq = 0;//初始化softirq;
-u64 irqtime = 0;//初始化irq;
-u64 idle = 0;//初始化idle;s
+u64 softirq = 0;
+u64 irqtime = 0;
+u64 idle = 0;
 u64 sched = 0;
 u64 proc = 0;
 unsigned long ktTime = 0;
 unsigned long utTime = 0;
-u64 tick_user = 0;//初始化sys;
+u64 tick_user = 0;
 
 int sc_sum_time = 0 ;
 int sc_max_time = 0 ;
 int sc_min_time = SYSCALL_MIN_TIME ;
 int sys_call_count = 0;
+bool ifprint = 0;
 
 
 int preempt_count = 0 ;
@@ -176,7 +177,6 @@ static int open_and_attach_perf_event(int freq, struct bpf_program *prog,
 		.config = PERF_COUNT_SW_CPU_CLOCK,
 	};
 	int i, fd;
-
 	for (i = 0; i < nr_cpus; i++) {
 		fd = syscall(__NR_perf_event_open, &attr, -1, i, -1, 0);
 		if (fd < 0) {
@@ -196,7 +196,6 @@ static int open_and_attach_perf_event(int freq, struct bpf_program *prog,
 			return -1;
 		}
 	}
-
 	return 0;
 }
 
@@ -207,18 +206,14 @@ u64 find_ksym(const char* target_symbol) {
         perror("Failed to open /proc/kallsyms");
         return 1;
     }
-
     char symbol_name[99];
     u64 symbol_address = 0;
-
     while (fscanf(file, "%llx %*c %s\n", &symbol_address, symbol_name) != EOF) {
         if (strcmp(symbol_name, target_symbol) == 0) {
             break;
         }
     }
-
     fclose(file);
-
     return symbol_address;
 }
 
@@ -236,6 +231,7 @@ static int print_all()
 	u64 __proc;
 	__proc = total_forks - proc;
 	proc = total_forks;
+
 	/*cswch:*/
 	int key_cswch = 0;
 	int err_cswch, fd_cswch = bpf_map__fd(sar_skel->maps.countMap);
@@ -320,7 +316,7 @@ static int print_all()
 	unsigned long dtaUT = utTime -_utTime;
 
 	/*sys*/
-	int key_sys = 0,next_key;
+	int key_sys = 0;
 	int err_sys, fd_sys = bpf_map__fd(sar_skel->maps.tick_user);
 	u64 __tick_user =0 ;// 用于存储从映射中查找到的值
 	__tick_user = tick_user;
@@ -338,7 +334,7 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10llu  %8llu %8lu %8lu\n",
+		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10lu  %8llu %8llu %8llu\n",
 				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
 				__proc,__sched,runqlen,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
 				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
@@ -346,7 +342,6 @@ static int print_all()
 	else{
 		env.enable_proc = true;
 	}
-
     return 0;
 }
 
@@ -354,49 +349,48 @@ int count[25]={0};//定义一个count数组，用于汇总schedul()调度时间�
 static int handle_event(void *ctx, void *data,unsigned long data_sz)
 {
 	const struct event *e = data;
-	printf("t1:%lu  t2:%lu  delay:%lu\n",e->t1,e->t2,e->delay);
-
+	printf("t1:%llu  t2:%llu  delay:%llu\n",e->t1,e->t2,e->delay);
 	int dly=(int)(e->delay),i=0;
 	while (dly > 1){
 		dly /= 2;
 		i ++;
 	}
-	count[i]++;//记录时间间隔次数;
+	count[i]++;
 	return 0;
 }
 static int print_hstgram(int i,int max,int per_len)
 {
 	int cnt=count[i];
 	if(per_len==1){
-		while(cnt>0){//打印
+		while(cnt>0){
 			printf("*");
 			cnt--;
 		}
 	}
-	while(cnt-per_len>=0){//打印
+	while(cnt-per_len>=0){
 		printf("*");
 		cnt-=per_len;
 	}
 	printf("\n");
 	return per_len;
 }
-double pow(int n,int k)//实现pow函数
+double my_pow(int n,int k)//实现pow函数
 {
 	if (k > 0)
-		return n * pow(n, k - 1);
+		return n * my_pow(n, k - 1);
 	else if (k == 0)
 		return 1;
 	else
-		return 1.0 / pow(n, -k);
+		return 1.0 / my_pow(n, -k);
 }
 static void histogram()
 {
 	int log10[15]={0},max=0,per_len=1;
-	for(int i=0;i<10;i++){//log10(count[i]);
+	for(int i=0;i<10;i++){
 		int tmp=count[i],cnt=0;
 		while (tmp >= 10){
 			tmp /= 10;
-			cnt ++;//幂次
+			cnt ++;
 		}
 		log10[cnt]++;
 	}
@@ -406,13 +400,13 @@ static void histogram()
 			max=i;
 	}
 
-	while(max>0){//pow(10,max);
+	while(max>0){
 		per_len *=10 ;
 		max--;
 	}
 
-	time_t now = time(NULL);// 获取当前时间
-	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+	time_t now = time(NULL);
+	struct tm *localTime = localtime(&now);
 	printf("\nTime : %02d:%02d:%02d \n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
 	printf("%-24s \t%-12s \t%-12s \n","cs_delay","Count","Distribution");
 	printf("%d\t=>\t%-8d \t%-12d \t|",0,1,count[0]);
@@ -420,28 +414,22 @@ static void histogram()
 	printf("%d\t=>\t%-8d \t%-12d \t|",2,3,count[1]);
 	print_hstgram(1,max,per_len);
 	for(int i=2;i<20;i++){
-		printf("%d\t=>\t%-8d \t%-12d \t|",(int)pow(2,i),(int)pow(2,(i+1))-1,count[i]);
+		printf("%d\t=>\t%-8d \t%-12d \t|",(int)my_pow(2,i),(int)my_pow(2,(i+1))-1,count[i]);
 		print_hstgram(i,max,per_len);
 	}
 	printf("per_len = %d\n",per_len);
 }
 
 
-// static void max_print(){
-
-// 	int sc_average_time = sc_sum_time/sys_call_count;
-// 	printf("Average_Syscall_Time: %8d ms\n",sc_average_time);
-// 	printf("MAX_Syscall_Time: %8d ms\n",sc_max_time);
-// 	printf("MIN_Syscall_Time: %8d ms\n",sc_min_time);
-// }
 static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 {
 
 	const struct syscall_events *e = data;
-	printf("pid: %-8llu comm: %-10s syscall_id: %-8ld delay: %-8llu\n",
+	printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
 		e->pid,e->comm,e->syscall_id,e->delay);
 	return 0;
 }
+
 //抢占时间输出
 static int preempt_print(void *ctx, void *data, unsigned long data_sz)
 {
@@ -462,16 +450,19 @@ static int schedule_print(struct bpf_map *sys_fd)
     int hour = localTime->tm_hour;
     int min = localTime->tm_min;
     int sec = localTime->tm_sec;
-    unsigned long long avg_delay;
-    
+    unsigned long long avg_delay; 
     err = bpf_map_lookup_elem(fd, &key, &info);
     if (err < 0) {
         fprintf(stderr, "failed to lookup infos: %d\n", err);
         return -1;
     }
     avg_delay = info.sum_delay / info.sum_count;
-    printf("%02d:%02d:%02d | %-15lf %-15lf %-15lf |\n",
-           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0, info.min_delay / 1000.0);
+	if(!ifprint){
+		ifprint=1;
+	}else{
+		printf("%02d:%02d:%02d  %-15lf %-15lf  %5d  %15lf  %10d\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.pid_max, info.min_delay / 1000.0,info.pid_min);
+	}
     return 0;
 }
 
@@ -483,10 +474,10 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 	printf("-----------------------------------------------------------------------------------------------------------------------\n");
 	const struct mq_events *e = data;
 	
-	printf("Mqdes: %-8llu msg_len: %-8llu msg_prio: %-8llu\n",e->mqdes,e->msg_len,e->msg_prio);
-	printf("SND_PID: %-8lu SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
+	printf("Mqdes: %-8d msg_len: %-8lu msg_prio: %-8u\n",e->mqdes,e->msg_len,e->msg_prio);
+	printf("SND_PID: %-8d SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
 		e->send_pid,e->send_enter_time,e->send_exit_time);
-	printf("RCV_PID: %-8lu RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
+	printf("RCV_PID: %-8d RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
 		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
 	printf("-------------------------------------------------------------------------------\n");
 
@@ -626,7 +617,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto schedule_cleanup;
 		}
-		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs     min_delay/μs");
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs   max_pid        min_delay/μs   min_pid");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
