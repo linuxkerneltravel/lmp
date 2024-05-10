@@ -27,7 +27,6 @@
 
 COMMON_MAPS(union combined_alloc_info);
 COMMON_VALS;
-const volatile __u64 sample_rate = 1;
 const volatile bool wa_missing_free = false;
 const volatile size_t page_size = 4096;
 const volatile bool trace_all = false;
@@ -41,21 +40,24 @@ const char LICENSE[] SEC("license") = "GPL";
 static int gen_alloc_enter(size_t size)
 {
     CHECK_ACTIVE;
-    if (!size)
+    CHECK_FREQ;
+    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
+
+    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
         return 0;
-    if (sample_rate > 1)
     {
-        if (bpf_ktime_get_ns() % sample_rate != 0)
+        u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
+        if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
             return 0;
     }
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    RET_IF_KERN(curr);
-    // update group
-    // group share memory
     u32 tgid = BPF_CORE_READ(curr, tgid);
-    if (tgid == self_pid)
+    if (target_tgid > 0 && tgid != target_tgid)
         return 0;
-    SAVE_TASK_INFO(tgid, curr);
+    SET_KNODE(curr, knode);
+    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
+        return 0;
+
+    SAVE_TASK_INFO(tgid, curr, knode);
     if (trace_all)
         bpf_printk("alloc entered, size = %lu\n", size);
     // record size

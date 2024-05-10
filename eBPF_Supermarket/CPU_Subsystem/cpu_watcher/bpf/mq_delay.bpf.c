@@ -1,4 +1,4 @@
-// Copyright 2024 The LMP Authors.
+// Copyright 2023 The LMP Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: albert_xuu@163.com
+// author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>		//包含了BPF 辅助函数

@@ -10,6 +10,8 @@
 
 `kvm_watcher`是一款基于eBPF的kvm虚拟机检测工具，其旨在使用户方便快捷在宿主机侧获取kvm虚拟机中的各种信息，报告所有正在运行的guest行为。
 
+![kvm watcher项目框图](https://gitee.com/nan-shuaibo/image/raw/master/202404251704350.png)
+
 目前，其实现的功能主要包括：
 
 - **[VM Exit 事件分析](./docs/kvm_exit.md)**

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// author: zhangziheng0525@163.com
-//
-// eBPF map for libbpf sar
+// author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
+
 #include <asm/types.h>
 #include <linux/version.h>
 

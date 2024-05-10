@@ -60,7 +60,6 @@ private:
 public:
     char *object = (char *)"libc.so.6";
     bool percpu = false;
-    __u64 sample_rate = 1;
     bool wa_missing_free = false;
 
 protected:

@@ -276,6 +276,10 @@ int __skb_copy_datagram_iter(struct sk_buff *skb)
     // bpf_printk("rx enter app layer.\n");
 
     PACKET_INIT_WITH_COMMON_INFO
+    packet->saddr = pkt_tuple.saddr;
+    packet->daddr = pkt_tuple.daddr;
+    packet->sport = pkt_tuple.sport;
+    packet->dport = pkt_tuple.dport;
 
     if (layer_time) {
         packet->mac_time = tinfo->ip_time - tinfo->mac_time;
@@ -545,7 +549,12 @@ int __dev_hard_start_xmit(struct sk_buff *skb)
     if (!sk) {
         return 0;
     }
+
     PACKET_INIT_WITH_COMMON_INFO
+    packet->saddr = pkt_tuple.saddr;
+    packet->daddr = pkt_tuple.daddr;
+    packet->sport = pkt_tuple.sport;
+    packet->dport = pkt_tuple.dport;
     // 记录各层的时间差值
     if (layer_time) {
         packet->tran_time = tinfo->ip_time - tinfo->tran_time;
