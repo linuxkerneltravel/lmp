@@ -14,7 +14,10 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-VMLINUX := ./lib/vmlinux/$(ARCH)/vmlinux.h
+VMDIR := $(abspath ./lib/vmlinux/)
+VMLINUXSRC := $(VMDIR)/$(ARCH)/
+VMLINUX := $(VMLINUXSRC)/vmlinux.h
+LOGSRC := $(abspath ./lib/doc/)
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
@@ -62,19 +65,21 @@ all: $(APPS) deps
 #更新vmlinux.h文件
 .PHONY: deps
 deps:
+	mkdir -p $(VMLINUXSRC)
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $(VMLINUX)
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
 	$(Q)rm -rf $(OUTPUT) $(APPS)
-	rm -rf log.txt
-
+	rm -rf ./$(LOGSRC) 
 .PHONY: clean2
 clean2:
 	rm -f $(APPS)
 	rm -f $(OUTPUT)/*.skel.h
 	rm -f $(OUTPUT)/*.o
+	rm -rf $(LOGSRC)
+	rm -rf $(VMDIR)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
