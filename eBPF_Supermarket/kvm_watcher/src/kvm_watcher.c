@@ -928,7 +928,7 @@ int clear_map(void *lookup_key, void *next_key, enum EventType type, int fd) {
     while (!bpf_map_get_next_key(fd, lookup_key, next_key)) {
         err = bpf_map_delete_elem(fd, next_key);
         if (err < 0) {
-            fprintf(stderr, "failed to cleanup hc_count: %d\n", err);
+            fprintf(stderr, "failed to cleanup map: %d\n", err);
             return -1;
         }
         lookup_key = next_key;
