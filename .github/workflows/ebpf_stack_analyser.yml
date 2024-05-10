@@ -30,8 +30,10 @@ jobs:
         run: |
           cd eBPF_Supermarket/Stack_Analyser
           make
+          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe vfs_open -d 5
+
           gcc -o ./testdir/usdt_pthread ./testdir/usdt_pthread.c
-          sudo ./stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "./testdir/usdt_pthread" -t 5
+          sudo ./stack_analyzer probe u:pthread:pthread_create -c "./testdir/usdt_pthread" -d 5
 
   magic-eyes-build-and-test:
     runs-on: ubuntu-22.04
@@ -49,4 +51,5 @@ jobs:
           cd MagicEyes/build
           cmake -DBUILD_STACK_ANALYZER=ON ..
           make
-          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe u:pthread:pthread_create -c "../../eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread" -t 5
+          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer on_cpu off_cpu memleak io readahead llc_stat probe vfs_open -d 5
+          sudo ./src/backend/system_diagnosis/stack_analyzer/stack_analyzer probe u:pthread:pthread_create -c "../../eBPF_Supermarket/Stack_Analyser/testdir/usdt_pthread" -d 5

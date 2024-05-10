@@ -32,18 +32,18 @@ new_ebpf.sh <name>
 
 1. 实现包装类初始化函数，若数据标度`scale`的值可以确定，请在此初始化
 2. 若标度无法确定，则实现`setScale`，对标度及包装类参数进行设置
-3. 实现一系列虚函数：`count_value, load, attach, detach, unload`
+3. 实现一系列虚函数：`count_values, load, attach, detach, unload`
 4. 可实现一些辅助函数
 
 ## src/bpf/<name>.bpf.c
 
-1. 通过修改`DeclareCommonMaps(__u32)`中的`__u32`设置计数变量类型
+1. 通过修改`COMMON_MAPS(__u32)`中的`__u32`设置计数变量类型
 2. 可声明额外的map和全局变量在eBPF程序内部使用，但不会被框架输出。
 3. 实现eBPF程序，请使用通用的`eBPF map`进行数据存储，使用通用的全局变量进行进程和数据过滤，否则无法正确输出数据
     
     通用的map分别为：
-    1. psid_count：键为psid类型，值为 1. 中设置的计数变量类型
-    2. stack_trace：键为uint32类型，标识唯一的栈嗲用路径，值为void*[]类型，存储栈上的调用地址
+    1. psid_count_map：键为psid类型，值为 1. 中设置的计数变量类型
+    2. sid_trace_map：键为uint32类型，标识唯一的栈嗲用路径，值为void*[]类型，存储栈上的调用地址
     3. pid_tgid：键为uint32类型，表示pid，值为uint32类型，表示tgid
     4. pid_comm：键为uint32类型，表示pid，值为comm类型，表示进程名
 

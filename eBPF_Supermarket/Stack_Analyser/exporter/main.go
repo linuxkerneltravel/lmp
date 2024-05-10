@@ -292,6 +292,7 @@ func CollectProfiles(cb CollectProfilesCallback) error {
 		for i, s := range scales {
 			target := sd.NewTarget("", k.pid, sd.DiscoveryTarget{
 				"__container_id__": info[k.pid].cid,
+				"service_name": "Stack_Analyzer",
 				labels.MetricName:  s.Type,
 			})
 			cb(target, group_trace, v[i], s, true)

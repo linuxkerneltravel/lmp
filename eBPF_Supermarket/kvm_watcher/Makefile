@@ -41,7 +41,8 @@ default: bpf
 deps:
 	sudo apt-get update
 	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
-		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) 
+		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) \
+		 libpcap-dev gcc-multilib build-essential
 	sudo apt-get install -y  lolcat qemu-kvm wget
 # 生成 vmlinux.h
 .PHONY: vmlinux
