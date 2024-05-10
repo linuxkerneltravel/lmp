@@ -16,12 +16,19 @@
 //
 // Variable definitions and help functions for lock in the process
 
-static int record_lock_enter(pid_t ignore_tgid,int lock_status,int flag,void *__lock,void *lock_rb,void *proc_lock)
+static int record_lock_enter(pid_t ignore_tgid,int lock_status,int flag,void *__lock,void *lock_rb,void *proc_lock,void *lock_ctrl_map)
 {
+    int key = 0;
+    struct lock_ctrl *lock_ctrl;
+    lock_ctrl = bpf_map_lookup_elem(lock_ctrl_map,&key);
+    if(!lock_ctrl || !lock_ctrl->lock_func)
+		return 0;
+    
     pid_t pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
+    if((lock_ctrl->enable_myproc || tgid!=ignore_tgid) && ((lock_ctrl->target_pid==-1 && lock_ctrl->target_tgid==-1) || 
+       (lock_ctrl->target_pid!=0 && pid==lock_ctrl->target_pid) || (lock_ctrl->target_tgid!=0 && tgid==lock_ctrl->target_tgid))){
         u64 lock_ptr = (u64)__lock;
         struct proc_flag proc_flag = {};
         
@@ -37,6 +44,8 @@ static int record_lock_enter(pid_t ignore_tgid,int lock_status,int flag,void *__
 
         e->lock_status = lock_status;
         e->pid = pid;
+        if(lock_ctrl->target_tgid != -1)	e->tgid = tgid;
+        else	e->tgid = -1;
         e->lock_ptr = lock_ptr;
         e->time = bpf_ktime_get_ns();
         
@@ -46,12 +55,19 @@ static int record_lock_enter(pid_t ignore_tgid,int lock_status,int flag,void *__
     return 0;
 }
 
-static int record_lock_exit(pid_t ignore_tgid,int lock_status,int flag,int ret,void *lock_rb,void *proc_lock,void *locktype)
+static int record_lock_exit(pid_t ignore_tgid,int lock_status,int flag,int ret,void *lock_rb,void *proc_lock,void *locktype,void *lock_ctrl_map)
 {
+    int key = 0;
+    struct lock_ctrl *lock_ctrl;
+    lock_ctrl = bpf_map_lookup_elem(lock_ctrl_map,&key);
+    if(!lock_ctrl || !lock_ctrl->lock_func)
+		return 0;
+    
     pid_t pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
+    if((lock_ctrl->enable_myproc || tgid!=ignore_tgid) && ((lock_ctrl->target_pid==-1 && lock_ctrl->target_tgid==-1) || 
+       (lock_ctrl->target_pid!=0 && pid==lock_ctrl->target_pid) || (lock_ctrl->target_tgid!=0 && tgid==lock_ctrl->target_tgid))){
         u64 *lock_ptr;
         u64 temp_lock_ptr;
         struct proc_flag proc_flag = {};
@@ -82,6 +98,8 @@ static int record_lock_exit(pid_t ignore_tgid,int lock_status,int flag,int ret,v
 
         e->lock_status = lock_status;
         e->pid = pid;
+        if(lock_ctrl->target_tgid != -1)	e->tgid = tgid;
+        else	e->tgid = -1;
         e->ret = ret;
         e->lock_ptr = temp_lock_ptr;
         e->time = bpf_ktime_get_ns();
@@ -92,12 +110,19 @@ static int record_lock_exit(pid_t ignore_tgid,int lock_status,int flag,int ret,v
     return 0;
 }
 
-static int record_unlock_enter(pid_t ignore_tgid,int flag,void *__lock,void *proc_unlock)
+static int record_unlock_enter(pid_t ignore_tgid,int flag,void *__lock,void *proc_unlock,void *lock_ctrl_map)
 {
+    int key = 0;
+    struct lock_ctrl *lock_ctrl;
+    lock_ctrl = bpf_map_lookup_elem(lock_ctrl_map,&key);
+    if(!lock_ctrl || !lock_ctrl->lock_func)
+		return 0;
+    
     pid_t pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
+    if((lock_ctrl->enable_myproc || tgid!=ignore_tgid) && ((lock_ctrl->target_pid==-1 && lock_ctrl->target_tgid==-1) || 
+       (lock_ctrl->target_pid!=0 && pid==lock_ctrl->target_pid) || (lock_ctrl->target_tgid!=0 && tgid==lock_ctrl->target_tgid))){
         u64 lock_ptr = (u64)__lock;
         struct proc_flag proc_flag = {};
 
@@ -110,12 +135,19 @@ static int record_unlock_enter(pid_t ignore_tgid,int flag,void *__lock,void *pro
     return 0;
 }
 
-static int record_unlock_exit(pid_t ignore_tgid,int lock_status,int flag,void *lock_rb,void *proc_unlock,void *locktype)
+static int record_unlock_exit(pid_t ignore_tgid,int lock_status,int flag,void *lock_rb,void *proc_unlock,void *locktype,void *lock_ctrl_map)
 {
+    int key = 0;
+    struct lock_ctrl *lock_ctrl;
+    lock_ctrl = bpf_map_lookup_elem(lock_ctrl_map,&key);
+    if(!lock_ctrl || !lock_ctrl->lock_func)
+		return 0;
+    
     pid_t pid = bpf_get_current_pid_tgid();
     int tgid = bpf_get_current_pid_tgid() >> 32;
 
-    if(tgid!=ignore_tgid){
+    if((lock_ctrl->enable_myproc || tgid!=ignore_tgid) && ((lock_ctrl->target_pid==-1 && lock_ctrl->target_tgid==-1) || 
+       (lock_ctrl->target_pid!=0 && pid==lock_ctrl->target_pid) || (lock_ctrl->target_tgid!=0 && tgid==lock_ctrl->target_tgid))){
         u64 *lock_ptr;
         u64 temp_lock_ptr;
         struct proc_flag proc_flag = {};
@@ -148,6 +180,8 @@ static int record_unlock_exit(pid_t ignore_tgid,int lock_status,int flag,void *l
         
         e->lock_status = lock_status;
         e->pid = pid;
+        if(lock_ctrl->target_tgid != -1)	e->tgid = tgid;
+        else	e->tgid = -1;
         e->lock_ptr = temp_lock_ptr;
         e->time = bpf_ktime_get_ns();
         

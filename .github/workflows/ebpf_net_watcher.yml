@@ -1,0 +1,49 @@
+name: net_watcher
+
+on:
+  push:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/net_watcher/**'
+      - '.github/workflows/net_watcher.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/Network_Subsystem/net_watcher/**'
+      - '.github/workflows/net_watcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  net_watcher_build-and-run:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies and Init Env
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          git submodule update --init --recursive
+
+      - name: Build and Run
+        run: |
+          cd eBPF_Supermarket/Network_Subsystem/net_watcher/
+          make
+          # run
+          sudo timeout -s SIGINT 5 ./netwatcher || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -a || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -e || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -i || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -r || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -t || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -u || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -n || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -k || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -k -T || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -I || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+        timeout-minutes: 5

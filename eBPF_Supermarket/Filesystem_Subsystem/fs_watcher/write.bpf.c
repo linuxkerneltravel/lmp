@@ -24,7 +24,6 @@ int BPF_KRETPROBE(do_sys_openat2_exit,long fd)
   pid_t pid;
  
   pid = bpf_get_current_pid_tgid() >> 32;
-  bpf_printk("pid = %d",pid);
   
   e = bpf_ringbuf_reserve(&rb,sizeof(*e),0);
   if(!e)
@@ -57,4 +56,3 @@ int BPF_KPROBE(vfs_write)
   bpf_ringbuf_submit(e,0);
   return 0;
 }
-

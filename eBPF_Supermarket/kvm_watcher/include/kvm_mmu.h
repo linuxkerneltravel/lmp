@@ -48,17 +48,16 @@ struct page_fault {
     char __data[0];
 };
 
-static int trace_page_fault(struct page_fault *ctx, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int trace_page_fault(struct page_fault *ctx) {
     u64 ts = bpf_ktime_get_ns();
     u64 addr = ctx->fault_address;
     bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
     return 0;
 }
 
-static int trace_direct_page_fault(struct kvm_vcpu *vcpu,
-                                   struct kvm_page_fault *fault, void *rb,
-                                   struct common_event *e) {
+static int trace_tdp_page_fault(struct kvm_vcpu *vcpu,
+                                struct kvm_page_fault *fault, void *rb,
+                                struct common_event *e) {
     u64 addr;
     bpf_probe_read_kernel(&addr, sizeof(u64), &fault->addr);
     u64 *ts;
@@ -81,7 +80,6 @@ static int trace_direct_page_fault(struct kvm_vcpu *vcpu,
     if (count) {
         (*count)++;
         e->page_fault_data.count = *count;
-        bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
     } else {
         e->page_fault_data.count = 1;
         bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
@@ -100,40 +98,46 @@ static int trace_direct_page_fault(struct kvm_vcpu *vcpu,
 }
 
 static int trace_kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
-                                    u64 error_code, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+                                    u64 error_code) {
     if (error_code & PFERR_RSVD_MASK) {
         u64 ts = bpf_ktime_get_ns();
-        u64 addr = cr2_or_gpa;
-        bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
+        u64 gfn = cr2_or_gpa >> PAGE_SHIFT;
+        bpf_map_update_elem(&pf_delay, &gfn, &ts, BPF_ANY);
     }
     return 0;
 }
 
-static int trace_handle_mmio_page_fault(struct kvm_vcpu *vcpu, u64 addr,
-                                        bool direct, void *rb,
+struct mmio_page_fault {
+    u64 pad;
+    u64 addr;
+    gfn_t gfn;
+    unsigned access;
+};
+
+static int trace_handle_mmio_page_fault(struct mmio_page_fault *ctx, void *rb,
                                         struct common_event *e) {
     u64 *ts;
-    ts = bpf_map_lookup_elem(&pf_delay, &addr);
+    u64 gfn;
+    bpf_probe_read_kernel(&gfn, sizeof(u64), &ctx->gfn);
+    ts = bpf_map_lookup_elem(&pf_delay, &gfn);
     if (!ts) {
         return 0;
     }
     u32 *count;
     u32 new_count = 1;
     u64 delay = bpf_ktime_get_ns() - *ts;
-    bpf_map_delete_elem(&pf_delay, &addr);
+    bpf_map_delete_elem(&pf_delay, &gfn);
     RESERVE_RINGBUF_ENTRY(rb, e);
-    count = bpf_map_lookup_elem(&pf_count, &addr);
+    count = bpf_map_lookup_elem(&pf_count, &gfn);
     if (count) {
         (*count)++;
         e->page_fault_data.count = *count;
-        bpf_map_update_elem(&pf_count, &addr, count, BPF_ANY);
     } else {
         e->page_fault_data.count = 1;
-        bpf_map_update_elem(&pf_count, &addr, &new_count, BPF_ANY);
+        bpf_map_update_elem(&pf_count, &gfn, &new_count, BPF_ANY);
     }
     e->page_fault_data.delay = delay;
-    e->page_fault_data.addr = addr;
+    e->page_fault_data.addr = gfn << PAGE_SHIFT;
     e->page_fault_data.error_code = PFERR_RSVD_MASK;
     e->process.pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));

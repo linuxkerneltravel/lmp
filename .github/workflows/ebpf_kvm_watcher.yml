@@ -1,0 +1,30 @@
+name: kvm_watcher
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/kvm_watcher/**'
+      - '.github/workflows/kvm_watcher.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'eBPF_Supermarket/kvm_watcher/**'
+      - '.github/workflows/kvm_watcher.yml'
+
+jobs:
+  kvm_watcher-project-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          cd eBPF_Supermarket/kvm_watcher/
+          make deps 
+      - name: Test program execution
+        continue-on-error: true 
+        run: |
+          cd eBPF_Supermarket/kvm_watcher/
+          make 

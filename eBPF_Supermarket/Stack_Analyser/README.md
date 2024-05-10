@@ -1,8 +1,10 @@
-# 1. 功能描述
+# 功能描述
 
 对操作系统各方面的调用栈进行计数，从中分析程序性能瓶颈。
 
-## 2.1 应用场景及意义
+# 意义
+
+## 应用场景及意义
 
 Stack_Analyzer是一个基于eBPF的按照指定时间间隔（默认为5s）来统计涉及特定子系统的进程函数调用栈的性能指标的工具。使用它可以帮助您便捷地查看相关子系统性能损耗最高或者对系统吞吐量影响较大的瓶颈调用栈，直接而具体地设计并进行程序或系统性能上的优化，进而降低对cpu性能的损耗，提高系统吞吐量，以增强车机系统的实时性。
 
@@ -16,7 +18,7 @@ Stack_Analyzer是一个基于eBPF的按照指定时间间隔（默认为5s）来
 
 除此之外，本项目设计了一个便于复用的调用栈采集框架，方便监测指标的添加。之后可根据需求添加更多的监测指标。
 
-## 2.2 性能参数及观测意义
+## 性能参数及观测意义
 
 采集的指标对主要子系统进行了覆盖，分为以下五个部分：
 
@@ -28,9 +30,9 @@ Stack_Analyzer是一个基于eBPF的按照指定时间间隔（默认为5s）来
 
 为了易于分析调用栈数据，项目加入更多的可视化元素和交互方式，使得画像更加直观、易于理解，对优化程序或系统性能有重要意义。
 
-# 2. 要求
+# 使用要求
 
-## 2.1 内核要求
+## 内核配置要求
 
 - 版本：>= Linux 5.10
 - 开启内核选项：
@@ -53,19 +55,66 @@ Stack_Analyzer是一个基于eBPF的按照指定时间间隔（默认为5s）来
         - CONFIG_DEBUG_INFO_BTF=y
         - CONFIG_FTRACE_SYSCALLS=y
 
-## 2.2 数据准确性要求
+## 数据准确性要求
 
 添加 `-g -fno-omit-frame-pointer` 选项编译被测程序以保留程序的fp信息，以便监测程序可以通过fp信息回溯被测程序的调用栈。
 
-# 3. 计划安排
+## 编译要求
 
-- [x] 实时输出功能
-- [x] on-cpu 栈采集功能
-- [x] off-cpu 栈采集功能
-- [x] malloc-free 栈采集功能
-- [x] 保存为json文件功能
-- [x] 火焰图绘制功能
-- [x] io-write栈采集功能
-- [x] 加入排序功能
-- [x] 收发包栈采集功能
-- [ ] 栈数据智能分析功能
+Ubuntu下需要安装一下依赖，其他发行版类似
+
+```shell
+$ git submodule update --init --recursive
+$ apt install clang libelf1 libelf-dev zlib1g-dev
+```
+
+g++-10以上，clang-12以上
+
+# 使用方法
+
+## 工具编译
+
+```shell
+$ make
+```
+
+## 命令使用方法
+
+```shell
+$ ./stack_analyzer -h
+```
+
+## 输出格式
+
+```shell
+Type:OnCPUTime Unit:nanoseconds Period:20408163
+time:20240309_06_23_32
+counts:
+pid     usid    ksid    count
+23640   126625  88396   1
+traces:
+sid     trace
+88396   entry_SYSCALL_64_after_hwframe;do_syscall_64;__x64_sys_clone;__do_sys_clone;kernel_clone;copy_process;dup_mm.constprop.0;dup_mmap;copy_page_range;copy_p4d_range;copy_pte_range;__pte_alloc;pte_alloc_one;alloc_pages;__alloc_pages;get_page_from_freelist;clear_page_orig;
+126625  _Fork+0x7ff997200027;
+groups:
+pid     tgid
+23640   23640
+commands:
+23640   node
+OK
+```
+
+## 发送到Pyroscope
+
+请阅读[`exporter/README.md`](exporter/README.md)。
+
+# 目录描述
+
+- include：各种定义。
+- include/bpf：eBPF程序的骨架头文件和其包装类的定义。
+- src：各种实现。
+- src/bpf：eBPF程序的代码和其包装类的实现。
+- exporter：使用Golang开发的数据推送程序，将采集到的调用栈数据推送到Pyroscope服务器，获取更强的数据存储和可视化性能。
+- main.cpp：负责参数解析、配置、调用栈数据收集器管理和子进程管理。
+- libbpf-bootstrap: 项目依赖的libbpf及相关工具源代码，方便移植。
+- new_bpf.sh：初始化新的采集能力的脚本，详情请参考`框架使用说明.md`。

@@ -1,0 +1,392 @@
+// Copyright 2024 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: luiyanbing@foxmail.com
+//
+// 主函数，负责参数解析，管理被监控命令对应的进程，数据输出
+
+#include <signal.h>
+#include <iostream>
+#include <poll.h>
+#include <fcntl.h>
+#include <time.h>
+
+#include "bpf_wapper/on_cpu.h"
+#include "bpf_wapper/probe.h"
+#include "bpf_wapper/llc_stat.h"
+#include "bpf_wapper/off_cpu.h"
+#include "bpf_wapper/memleak.h"
+#include "bpf_wapper/io.h"
+#include "bpf_wapper/readahead.h"
+#include "bpf_wapper/probe.h"
+#include "sa_user.h"
+#include "clipp.h"
+
+uint64_t stop_time = -1;
+bool timeout = false;
+uint64_t IntTmp;
+std::string StrTmp;
+clipp::man_page *man_page;
+std::vector<StackCollector *> StackCollectorList;
+
+namespace MainConfig
+{
+    uint64_t run_time = -1; // 运行时间
+    unsigned delay = 5;     // 设置输出间隔
+    std::string command = "";
+    uint32_t target_pid = 0;
+    uint32_t target_tgid = 0;
+    uint64_t target_cgroup = 0;
+    std::string trigger = "";    // 触发器
+    std::string trig_event = ""; // 触发事件
+    uint32_t top = 10;
+    uint32_t freq = 49;
+    bool trace_user = false;
+    bool trace_kernel = false;
+}
+
+namespace helper
+{
+#include <sys/vfs.h>
+#include <linux/magic.h>
+    struct cgid_file_handle
+    {
+        // struct file_handle handle;
+        unsigned int handle_bytes;
+        int handle_type;
+        uint64_t cgid;
+    };
+    uint64_t get_cgroupid(const char *pathname)
+    {
+        struct statfs fs;
+        int err;
+        struct cgid_file_handle *h;
+        int mount_id;
+        uint64_t ret;
+
+        err = statfs(pathname, &fs);
+        if (err != 0)
+        {
+            fprintf(stderr, "statfs on %s failed: %s\n", pathname, strerror(errno));
+            exit(1);
+        }
+
+        if ((fs.f_type != (typeof(fs.f_type))CGROUP2_SUPER_MAGIC))
+        {
+            fprintf(stderr, "File %s is not on a cgroup2 mount.\n", pathname);
+            exit(1);
+        }
+
+        h = (cgid_file_handle *)malloc(sizeof(struct cgid_file_handle));
+        if (!h)
+        {
+            fprintf(stderr, "Cannot allocate memory.\n");
+            exit(1);
+        }
+
+        h->handle_bytes = 8;
+        err = name_to_handle_at(AT_FDCWD, pathname, (struct file_handle *)h, &mount_id, 0);
+        if (err != 0)
+        {
+            fprintf(stderr, "name_to_handle_at failed: %s\n", strerror(errno));
+            exit(1);
+        }
+
+        if (h->handle_bytes != 8)
+        {
+            fprintf(stderr, "Unexpected handle size: %d. \n", h->handle_bytes);
+            exit(1);
+        }
+
+        ret = h->cgid;
+        free(h);
+
+        return ret;
+    }
+}
+
+void end_handle(void)
+{
+    signal(SIGINT, SIG_IGN);
+    for (auto Item : StackCollectorList)
+    {
+        Item->activate(false);
+        if (!timeout)
+        {
+            std::cout << std::string(*Item) << std::endl;
+        }
+        Item->detach();
+        Item->unload();
+    }
+    if (MainConfig::command.length())
+    {
+        kill(MainConfig::target_pid, SIGTERM);
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    man_page = new clipp::man_page();
+    clipp::group cli;
+    {
+        auto OnCpuOption = (clipp::option("on_cpu")
+                                .call([]
+                                      { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
+                            COLLECTOR_INFO("on-cpu"));
+
+        auto OffCpuOption = clipp::option("off_cpu")
+                                .call([]
+                                      { StackCollectorList.push_back(new OffCPUStackCollector()); }) %
+                            COLLECTOR_INFO("off-cpu");
+
+        auto MemleakOption = (clipp::option("memleak")
+                                  .call([]
+                                        { StackCollectorList.push_back(new MemleakStackCollector()); }) %
+                              COLLECTOR_INFO("memleak")) &
+                             (clipp::option("-W")
+                                  .call([]
+                                        { static_cast<MemleakStackCollector *>(StackCollectorList.back())
+                                              ->wa_missing_free = true; }) %
+                              "Free when missing in kernel to alleviate misjudgments");
+
+        auto IOOption = clipp::option("io")
+                            .call([]
+                                  { StackCollectorList.push_back(new IOStackCollector()); }) %
+                        COLLECTOR_INFO("io");
+
+        auto ReadaheadOption = clipp::option("readahead")
+                                   .call([]
+                                         { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
+                               COLLECTOR_INFO("readahead");
+
+        auto LlcStatOption = clipp::option("llc_stat").call([]
+                                                            { StackCollectorList.push_back(new LlcStatStackCollector()); }) %
+                                 COLLECTOR_INFO("llc_stat") &
+                             ((clipp::option("-P") &
+                               clipp::value("period", IntTmp)
+                                   .call([]
+                                         { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
+                                               ->setScale(IntTmp); })) %
+                              "Set sampling period; default is 100");
+
+        auto ProbeOption = clipp::option("probe")
+                                         .call([]
+                                               { StackCollectorList.push_back(new ProbeStackCollector()); }) %
+                                     COLLECTOR_INFO("probe") &
+                                 (clipp::value("probe", StrTmp)
+                                      .call([]
+                                            { static_cast<ProbeStackCollector *>(StackCollectorList.back())
+                                                  ->setScale(StrTmp); }) %
+                                  "Set the probe string; specific use is:\n"
+                                  "<func> | p::<func>             -- probe a kernel function;\n"
+                                  "<lib>:<func> | p:<lib>:<func>  -- probe a user-space function in the library 'lib';\n"
+                                  "t:<class>:<func>               -- probe a kernel tracepoint;\n"
+                                  "u:<lib>:<probe>                -- probe a USDT tracepoint");
+
+        auto MainOption = _GREEN "Some overall options" _RE %
+                          ((
+                               ((clipp::option("-g") &
+                                 clipp::value("cgroup path", StrTmp)
+                                     .call([]
+                                           { MainConfig::target_cgroup = helper::get_cgroupid(StrTmp.c_str()); printf("Trace cgroup %ld\n", MainConfig::target_cgroup); })) %
+                                "Set the cgroup of the process to be tracked; default is -1, which keeps track of all cgroups") |
+                               ((clipp::option("-p") &
+                                 clipp::value("pid", MainConfig::target_tgid)) %
+                                "Set the pid of the process to be tracked; default is -1, which keeps track of all processes") |
+                               ((clipp::option("-t") &
+                                 clipp::value("tid", MainConfig::target_pid)) %
+                                "Set the tid of the thread to be tracked; default is -1, which keeps track of all threads") |
+                               ((clipp::option("-c") &
+                                 clipp::value("command", MainConfig::command)) %
+                                "Set the command to be run and sampled; defaults is none")),
+                           (clipp::option("-o") &
+                            clipp::value("top", MainConfig::top)) %
+                               "Set the top number; default is 10",
+                           (clipp::option("-f") &
+                            clipp::value("freq", MainConfig::freq)) %
+                               "Set sampling frequency, 0 for close; default is 49",
+                           (clipp::option("-i") &
+                            clipp::value("interval", MainConfig::delay)) %
+                               "Set the output delay time (seconds); default is 5",
+                           (clipp::option("-d") &
+                            clipp::value("duration", MainConfig::run_time)
+                                .call([]
+                                      { stop_time = time(NULL) + MainConfig::run_time; })) %
+                               "Set the total sampling time; default is __INT_MAX__",
+                           (clipp::option("-u")
+                                    .call([]
+                                          { MainConfig::trace_user = true; }) %
+                                "Sample user stacks",
+                            clipp::option("-k")
+                                    .call([]
+                                          { MainConfig::trace_kernel = true; }) %
+                                "Sample kernel stacks"),
+                           (clipp::option("-T") &
+                            ((clipp::required("cpu").set(MainConfig::trigger) |
+                              clipp::required("memory").set(MainConfig::trigger) |
+                              clipp::required("io").set(MainConfig::trigger)) &
+                             clipp::value("event", MainConfig::trig_event))) %
+                               "Set a trigger for monitoring. For example, " _ERED "-T cpu \"some 150000 100000\" " _RE
+                               "means triggers when cpu partial stall "
+                               "with 1s tracking window size * and 150ms threshold.");
+
+        auto Info = _GREEN "Information of the application" _RE %
+                    ((clipp::option("-v", "--version")
+                          .call([]
+                                { std::cout << "verion 2.0\n\n"; }) %
+                      "Show version"),
+                     (clipp::option("-h", "--help")
+                          .call([]
+                                { std::cout << *man_page << std::endl; exit(0); }) %
+                      "Show man page"));
+
+        cli = (OnCpuOption,
+               OffCpuOption,
+               MemleakOption,
+               IOOption,
+               ReadaheadOption,
+               LlcStatOption,
+               ProbeOption,
+               MainOption,
+               Info);
+    }
+    {
+        auto fmt = clipp::doc_formatting{}
+                       .first_column(3)
+                       .doc_column(25)
+                       .last_column(128);
+        *man_page = clipp::make_man_page(cli, argv[0], fmt)
+                        .prepend_section("DESCRIPTION", _RED "Count the function call stack associated with some metric.\n" _RE BANNER)
+                        .append_section("LICENSE", _RED "Apache Licence 2.0" _RE);
+    }
+    if (!clipp::parse(argc, argv, cli))
+    {
+        std::cerr << *man_page << std::endl;
+        return -1;
+    }
+    if (StackCollectorList.size() == 0)
+    {
+        printf(_ERED "At least one collector needs to be added.\n" _RE);
+        return -1;
+    }
+
+    fprintf(stderr, BANNER "\n");
+
+    uint64_t eventbuff = 1;
+    int child_exec_event_fd = eventfd(0, EFD_CLOEXEC);
+    CHECK_ERR(child_exec_event_fd < 0, "failed to create event fd");
+    if (MainConfig::command.length())
+    {
+        MainConfig::target_pid = fork();
+        switch (MainConfig::target_pid)
+        {
+        case (uint32_t)-1:
+        {
+            CHECK_ERR(true, "Command create failed.");
+        }
+        case 0:
+        {
+            const auto bytes = read(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
+            CHECK_ERR(bytes < 0, "Failed to read from fd %ld", bytes)
+            else CHECK_ERR(bytes != sizeof(eventbuff), "Read unexpected size %ld", bytes);
+            printf("child exec %s\n", MainConfig::command.c_str());
+            CHECK_ERR_EXIT(execl("/bin/bash", "bash", "-c", MainConfig::command.c_str(), NULL), "failed to execute child command");
+            break;
+        }
+        default:
+        {
+            printf("Create child %d\n", MainConfig::target_pid);
+            break;
+        }
+        }
+    }
+
+    for (auto Item = StackCollectorList.begin(); Item != StackCollectorList.end();)
+    {
+        fprintf(stderr, _RED "Attach collecotor%d %s.\n" _RE,
+                (int)(Item - StackCollectorList.begin()) + 1, (*Item)->getName());
+        (*Item)->pid = MainConfig::target_pid;
+        (*Item)->tgid = MainConfig::target_tgid;
+        (*Item)->cgroup = MainConfig::target_cgroup;
+        (*Item)->top = MainConfig::top;
+        (*Item)->freq = MainConfig::freq;
+        (*Item)->kstack = MainConfig::trace_kernel;
+        (*Item)->ustack = MainConfig::trace_user;
+        if ((*Item)->load() || (*Item)->attach())
+            goto err;
+        Item++;
+        continue;
+    err:
+        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scales->Type.c_str());
+        (*Item)->detach();
+        (*Item)->unload();
+        Item = StackCollectorList.erase(Item);
+    }
+
+    if (StackCollectorList.size() == 0)
+    {
+        fprintf(stderr, _ERED "No collecter to run.\n" _RE);
+        return -1;
+    }
+
+    if (MainConfig::command.length())
+    {
+        fprintf(stderr, _GREEN "Wake up child.\n" _RE);
+        write(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
+    }
+
+    atexit(end_handle);
+    signal(SIGINT, [](int)
+           { exit(EXIT_SUCCESS); });
+
+    struct pollfd fds = {.fd = -1};
+    if (MainConfig::trigger != "" && MainConfig::trig_event != "")
+    {
+        auto path = MainConfig::trigger.c_str();
+        auto trig = MainConfig::trig_event.c_str();
+
+        fds.fd = open(path, O_RDWR | O_NONBLOCK);
+        CHECK_ERR(fds.fd < 0, "%s open error", path);
+        fds.events = POLLPRI;
+        CHECK_ERR(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
+        fprintf(stderr, _RED "Waiting for events...\n" _RE);
+    }
+    fprintf(stderr, _RED "Running for %lus or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
+    for (; (uint64_t)time(NULL) < stop_time && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0));)
+    {
+        if (fds.fd >= 0)
+        {
+            while (true)
+            {
+                int n = poll(&fds, 1, -1);
+                CHECK_ERR(n < 0, "Poll error");
+                CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
+                if (fds.revents & POLLPRI)
+                {
+                    fprintf(stderr, _RED "Event triggered!\n" _RE);
+                    break;
+                }
+            }
+        }
+        for (auto Item : StackCollectorList)
+            Item->activate(true);
+        sleep(MainConfig::delay);
+        for (auto Item : StackCollectorList)
+            Item->activate(false);
+        for (auto Item : StackCollectorList)
+            std::cout << std::string(*Item);
+    }
+    timeout = true;
+    return 0;
+}

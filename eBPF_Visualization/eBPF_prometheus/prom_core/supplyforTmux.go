@@ -63,7 +63,7 @@ func (t *TmuxMetrics) UpdateSql() {
 func (t *TmuxMetrics) Initsql() {
 	t.Sqlobj.Data = t.OriginalValue
 	t.Sqlobj.Connectsql()
-	t.Sqlobj.OperateTable("tmux_data")
+	t.Sqlobj.OperateTable("tmux_data", "")
 	t.Sqlinted = true
 }
 

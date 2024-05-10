@@ -7,7 +7,6 @@
 #include "write.h"
 #include "write.skel.h"
 
-
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
 	return vfprintf(stderr, format, args);
@@ -29,7 +28,7 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-	printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
+	  printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
     return 0;
 }
 
@@ -37,7 +36,7 @@ int main(int argc, char **argv)
 {
     struct ring_buffer *rb = NULL;
     struct write_bpf *skel;
-	int err;
+	  int err;
    
     /* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
@@ -77,7 +76,6 @@ int main(int argc, char **argv)
 	}
 
     /* Process events */
-	// printf("%-8s  %-7s   %-7s  %-7s  %-7s  %-7s\n", "TIME", "PID","Count","Real_Path");
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
@@ -92,12 +90,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	// printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` to see output of the BPF programs.\n");
-	// for (;;) {
-	// 	/* trigger our BPF program */
-	// 	fprintf(stderr, ".");
-	// 	sleep(1);
-	// }
 
 cleanup:
 	/* Clean up */
