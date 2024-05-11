@@ -27,7 +27,9 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-#include "../include/kvm_watcher.h"
+#include "common.h"
+#include "trace_helpers.h"
+#include "uprobe_helpers.h"
 #include "kvm_watcher.skel.h"
 
 // 创建并打开临时文件
@@ -795,9 +797,9 @@ static int print_event_head(struct env *env) {
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load,
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load,
                               env.execute_vcpu_load ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put,
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put,
                               env.execute_vcpu_load ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
                               env.execute_vcpu_wakeup ? true : false);
@@ -805,13 +807,13 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_entry,
                               env.execute_exit ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_arch_vcpu_ioctl_run,
+    bpf_program__set_autoload(skel->progs.up_kvm_vcpu_ioctl,
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_userspace_exit,
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
                               env.execute_halt_poll_ns ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,
+    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,
                               env.execute_mark_page_dirty ? true : false);
     bpf_program__set_autoload(skel->progs.tp_page_fault,
                               env.execute_page_fault ? true : false);
@@ -857,107 +859,9 @@ const char *getCurrentTimeFormatted() {
     tm = localtime(&t);
 
     // 格式化时间到静态分配的字符串中
-    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+    strftime(ts, sizeof(ts), "%Y/%m/%d %H:%M:%S", tm);
 
     return ts;  // 返回指向静态字符串的指针
-}
-
-int print_hc_map(struct kvm_watcher_bpf *skel) {
-    int fd = bpf_map__fd(skel->maps.hc_map);
-    int count_fd = bpf_map__fd(skel->maps.hc_count);
-    int err;
-    struct hc_key lookup_key = {};
-    struct hc_key next_key = {};
-    struct hc_value hc_value = {};
-    int first_run = 1;
-    // Iterate over the map
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        if (first_run) {
-            first_run = 0;
-            printf(
-                "--------------------------------------------------------------"
-                "----------"
-                "\n");
-            printf("TIME:%s\n", getCurrentTimeFormatted());
-            printf("%-12s %-12s %-12s %-12s %-12s\n", "PID", "VCPU_ID", "NAME",
-                   "COUNTS", "HYPERCALLS");
-        }
-        // Print the current entry
-        err = bpf_map_lookup_elem(fd, &next_key, &hc_value);
-        if (err < 0) {
-            fprintf(stderr, "failed to lookup hc_value: %d\n", err);
-            return -1;
-        }
-        printf("%-12d %-12d %-12s %-12d %-12lld\n", next_key.pid,
-               next_key.vcpu_id, getName(next_key.nr, HYPERCALL_NR),
-               hc_value.counts, hc_value.hypercalls);
-        // // Move to the next key
-        lookup_key = next_key;
-    }
-    memset(&lookup_key, 0, sizeof(struct hc_key));
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup hc_map: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
-    memset(&lookup_key, 0, sizeof(struct hc_key));
-    while (!bpf_map_get_next_key(count_fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(count_fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup hc_count: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
-    return 0;
-}
-
-int print_timer_map(struct kvm_watcher_bpf *skel) {
-    int fd = bpf_map__fd(skel->maps.timer_map);
-    int err;
-    struct timer_key lookup_key = {};
-    struct timer_key next_key = {};
-    struct timer_value timer_value = {};
-    int first_run = 1;
-
-    // Iterate over the map
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        if (first_run) {
-            first_run = 0;
-            printf(
-                "--------------------------------------------------------------"
-                "----------\n");
-            printf("TIME:%s\n", getCurrentTimeFormatted());
-            printf("%-12s %-12s %-12s %-12s\n", "PID", "TIMER_MODE", "HV",
-                   "COUNTS");
-        }
-        // Print the current entry
-        err = bpf_map_lookup_elem(fd, &next_key, &timer_value);
-        if (err < 0) {
-            fprintf(stderr, "failed to lookup timer_value: %d\n", err);
-            return -1;
-        }
-        printf("%-12d %-12s %-12d %-12u\n", next_key.pid,
-               getName(next_key.timer_mode, TIMER_MODE_NR), next_key.hv,
-               timer_value.counts);
-        // Move to the next key
-        lookup_key = next_key;
-    }
-
-    // Clear the timer_map
-    memset(&lookup_key, 0, sizeof(struct timer_key));
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup timer_map: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
-    return 0;
 }
 
 // In order to sort vm_exit maps
@@ -1004,6 +908,108 @@ int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
     return count;
 }
 
+// clear the specific map
+int clear_map(void *lookup_key, void *next_key, enum EventType type, int fd) {
+    int err;
+    switch (type) {
+        case HYPERCALL:
+            memset(lookup_key, 0, sizeof(struct hc_key));
+            break;
+        case TIMER:
+            memset(lookup_key, 0, sizeof(struct timer_key));
+            break;
+        case VCPU_LOAD:
+            memset(lookup_key, 0, sizeof(struct load_key));
+            break;
+        case EXIT:
+            memset(lookup_key, 0, sizeof(struct exit_key));
+            break;
+        default:
+            return -1;
+    }
+    while (!bpf_map_get_next_key(fd, lookup_key, next_key)) {
+        err = bpf_map_delete_elem(fd, next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup map: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    return 1;
+}
+
+int print_hc_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.hc_map);
+    int count_fd = bpf_map__fd(skel->maps.hc_count);
+    int err;
+    struct hc_key lookup_key = {};
+    struct hc_key next_key = {};
+    struct hc_value hc_value = {};
+    int first_run = 1;
+    // Iterate over the map
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first_run) {
+            first_run = 0;
+            printf(
+                "--------------------------------------------------------------"
+                "----------"
+                "\n");
+            printf("TIME:%s\n", getCurrentTimeFormatted());
+            printf("%-12s %-12s %-12s %-12s %-12s\n", "PID", "VCPU_ID", "NAME",
+                   "COUNTS", "HYPERCALLS");
+        }
+        // Print the current entry
+        err = bpf_map_lookup_elem(fd, &next_key, &hc_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup hc_value: %d\n", err);
+            return -1;
+        }
+        printf("%-12d %-12d %-12s %-12d %-12lld\n", next_key.pid,
+               next_key.vcpu_id, getName(next_key.nr, HYPERCALL_NR),
+               hc_value.counts, hc_value.hypercalls);
+        // // Move to the next key
+        lookup_key = next_key;
+    }
+    clear_map(&lookup_key, &next_key, HYPERCALL, fd);
+    clear_map(&lookup_key, &next_key, HYPERCALL, count_fd);
+    return 0;
+}
+
+int print_timer_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.timer_map);
+    int err;
+    struct timer_key lookup_key = {};
+    struct timer_key next_key = {};
+    struct timer_value timer_value = {};
+    int first_run = 1;
+
+    // Iterate over the map
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first_run) {
+            first_run = 0;
+            printf(
+                "--------------------------------------------------------------"
+                "----------\n");
+            printf("TIME:%s\n", getCurrentTimeFormatted());
+            printf("%-12s %-12s %-12s %-12s\n", "PID", "TIMER_MODE", "HV",
+                   "COUNTS");
+        }
+        // Print the current entry
+        err = bpf_map_lookup_elem(fd, &next_key, &timer_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup timer_value: %d\n", err);
+            return -1;
+        }
+        printf("%-12d %-12s %-12d %-12u\n", next_key.pid,
+               getName(next_key.timer_mode, TIMER_MODE_NR), next_key.hv,
+               timer_value.counts);
+        // Move to the next key
+        lookup_key = next_key;
+    }
+    clear_map(&lookup_key, &next_key, TIMER, fd);
+    return 0;
+}
+
 int print_vcpu_load_map(struct kvm_watcher_bpf *skel) {
     int fd = bpf_map__fd(skel->maps.load_map);
     int err;
@@ -1038,16 +1044,7 @@ int print_vcpu_load_map(struct kvm_watcher_bpf *skel) {
                load_value.vcpu_id, load_value.pcpu_id);
         lookup_key = next_key;
     }
-    // clear the maps
-    memset(&lookup_key, 0, sizeof(struct load_key));
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup counters: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
+    clear_map(&lookup_key, &next_key, VCPU_LOAD, fd);
     return 0;
 }
 
@@ -1064,7 +1061,6 @@ void __print_exit_map(int fd, enum NameType name_type) {
     for (int i = 0; i < count; i++) {
         if (first_run) {
             first_run = 0;
-            printf("\nTIME:%s\n", getCurrentTimeFormatted());
             if (name_type == EXIT_NR) {
                 printf(
                     "============================================KVM_EXIT======"
@@ -1108,20 +1104,12 @@ void __print_exit_map(int fd, enum NameType name_type) {
                    getName(keys[i].reason, name_type));
         }
     }
-    // clear the maps
-    memset(&lookup_key, 0, sizeof(struct exit_key));
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        int err = bpf_map_delete_elem(fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup counters: %d\n", err);
-            return;
-        }
-        lookup_key = next_key;
-    }
+    clear_map(&lookup_key, &next_key, EXIT, fd);
 }
 int print_exit_map(struct kvm_watcher_bpf *skel) {
     int exit_fd = bpf_map__fd(skel->maps.exit_map);
     int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
+    printf("\nTIME:%s\n", getCurrentTimeFormatted());
     __print_exit_map(exit_fd, EXIT_NR);
     __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
@@ -1131,7 +1119,7 @@ void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
                                const char *map_name, int err) {
     OUTPUT_INTERVAL(2);
     print_func(skel);
-    if (err < 0) {
+    if (err < 0 && err != -4) {
         printf("Error printing %s map: %d\n", map_name, err);
     }
 }
@@ -1141,6 +1129,13 @@ void print_logo() {
     char command[512];
     sprintf(command, "echo \"%s\" | /usr/games/lolcat", logo);
     system(command);
+}
+
+int attach_probe(struct kvm_watcher_bpf *skel) {
+    if (env.execute_exit) {
+        ATTACH_UPROBE_CHECKED(skel, kvm_vcpu_ioctl, up_kvm_vcpu_ioctl);
+    }
+    return kvm_watcher_bpf__attach(skel);
 }
 
 int main(int argc, char **argv) {
@@ -1183,12 +1178,11 @@ int main(int argc, char **argv) {
     }
 
     /* 附加跟踪点处理程序 */
-    err = kvm_watcher_bpf__attach(skel);
+    err = attach_probe(skel);
     if (err) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-
     /* 设置环形缓冲区轮询 */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
     if (!rb) {

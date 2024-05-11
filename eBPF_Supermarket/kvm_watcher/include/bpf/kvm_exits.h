@@ -19,7 +19,7 @@
 #ifndef __KVM_EXITS_H
 #define __KVM_EXITS_H
 
-#include "kvm_watcher.h"
+#include "common.h"
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -135,7 +135,7 @@ static int trace_kvm_entry() {
     return 0;
 }
 
-static int trace_kvm_userspace_entry(struct kvm_vcpu *vcpu) {
+static int trace_kvm_vcpu_ioctl() {
     pid_t tid = (u32)bpf_get_current_pid_tgid();
     u64 ts = bpf_ktime_get_ns();
     bpf_map_update_elem(&userspace_exit_times, &tid, &ts, BPF_ANY);

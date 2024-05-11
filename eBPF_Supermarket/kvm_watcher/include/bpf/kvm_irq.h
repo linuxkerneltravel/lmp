@@ -18,7 +18,7 @@
 #ifndef __KVM_IRQ_H
 #define __KVM_IRQ_H
 
-#include "kvm_watcher.h"
+#include "common.h"
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>

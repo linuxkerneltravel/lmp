@@ -19,24 +19,11 @@
 #ifndef __KVM_IOCTL_H
 #define __KVM_IOCTL_H
 
-#include "kvm_watcher.h"
+#include "common.h"
 #include "vmlinux.h"
-#include <asm-generic/ioctl.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-#include <linux/version.h>
-
-#define KVMIO 0xAE
-#define KVM_CREATE_VM _IO(KVMIO, 0x01) /* returns a VM fd */
-#define KVM_CREATE_VCPU _IO(KVMIO, 0x41)
-#define KVM_GET_VCPU_EVENTS _IOR(KVMIO, 0x9f, struct kvm_vcpu_events)
-#define KVM_SET_VCPU_EVENTS _IOW(KVMIO, 0xa0, struct kvm_vcpu_events)
-#define KVM_SET_USER_MEMORY_REGION \
-    _IOW(KVMIO, 0x46, struct kvm_userspace_memory_region)
-#define KVM_TRANSLATE _IOWR(KVMIO, 0x85, struct kvm_translation)
-#define KVM_INTERRUPT _IOW(KVMIO, 0x86, struct kvm_interrupt)
-#define KVM_RUN _IO(KVMIO, 0x80)
 
 static int trace_kvm_ioctl(struct trace_event_raw_sys_enter *args) {
     int fd = (int)args->args[0];

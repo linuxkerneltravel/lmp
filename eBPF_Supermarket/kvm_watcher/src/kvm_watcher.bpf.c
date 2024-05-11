@@ -16,17 +16,17 @@
 //
 // Kernel space BPF program used for monitoring data for KVM event.
 
-#include "../include/vmlinux.h"
+#include "vmlinux.h"
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include "../include/kvm_watcher.h"
-#include "../include/kvm_exits.h"
-#include "../include/kvm_ioctl.h"
-#include "../include/kvm_vcpu.h"
-#include "../include/kvm_mmu.h"
-#include "../include/kvm_irq.h"
-#include "../include/kvm_hypercall.h"
+#include "common.h"
+#include "kvm_exits.h"
+#include "kvm_ioctl.h"
+#include "kvm_vcpu.h"
+#include "kvm_mmu.h"
+#include "kvm_irq.h"
+#include "kvm_hypercall.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -68,19 +68,21 @@ int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
 // 记录VCPU调度的信息--进入
-SEC("kprobe/vmx_vcpu_load")
-int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+SEC("fentry/vmx_vcpu_load")
+int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
     CHECK_PID(vm_pid);
     return trace_vmx_vcpu_load(vcpu, cpu);
 }
+
 // 记录VCPU调度的信息--退出
-SEC("kprobe/vmx_vcpu_put")
-int BPF_KPROBE(kp_vmx_vcpu_put, struct kvm_vcpu *vcpu) {
+SEC("fentry/vmx_vcpu_put")
+int BPF_PROG(fentry_vmx_vcpu_put) {
     return trace_vmx_vcpu_put();
 }
-SEC("kprobe/mark_page_dirty_in_slot")
-int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
-               const struct kvm_memory_slot *memslot, gfn_t gfn) {
+
+SEC("fentry/mark_page_dirty_in_slot")
+int BPF_PROG(fentry_mark_page_dirty_in_slot, struct kvm *kvm,
+             const struct kvm_memory_slot *memslot, gfn_t gfn) {
     CHECK_PID(vm_pid);
     return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, e);
 }
@@ -172,10 +174,13 @@ int tp_ioctl(struct trace_event_raw_sys_enter *args) {
     CHECK_PID(vm_pid);
     return trace_kvm_ioctl(args);
 }
-SEC("fentry/kvm_arch_vcpu_ioctl_run")
-int BPF_PROG(fentry_kvm_arch_vcpu_ioctl_run, struct kvm_vcpu *vcpu) {
+
+SEC("uprobe")
+int BPF_KPROBE(up_kvm_vcpu_ioctl, void *cpu, int type) {
     CHECK_PID(vm_pid);
-    return trace_kvm_userspace_entry(vcpu);
+    if (type != KVM_RUN)
+        return 0;
+    return trace_kvm_vcpu_ioctl();
 }
 
 SEC("tp/kvm/kvm_userspace_exit")

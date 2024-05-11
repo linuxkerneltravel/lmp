@@ -45,4 +45,5 @@ jobs:
           sudo timeout -s SIGINT 5 ./netwatcher -k || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
           sudo timeout -s SIGINT 5 ./netwatcher -k -T || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
           sudo timeout -s SIGINT 5 ./netwatcher -I || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo timeout -s SIGINT 5 ./netwatcher -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
         timeout-minutes: 5
