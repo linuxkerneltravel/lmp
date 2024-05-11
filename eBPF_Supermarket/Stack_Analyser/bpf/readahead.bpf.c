@@ -31,7 +31,6 @@
 COMMON_MAPS(ra_tuple);
 COMMON_VALS;
 
-int target_pid = 0;
 BPF_HASH(in_ra_map, u32, psid);
 BPF_HASH(page_psid_map, struct page *, psid);
 
@@ -39,14 +38,21 @@ SEC("fentry/page_cache_ra_unbounded") // fentry在内核函数page_cache_ra_unbo
 int BPF_PROG(page_cache_ra_unbounded)
 {
     CHECK_ACTIVE;
+    CHECK_FREQ;
     struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    RET_IF_KERN(curr);
-    u32 pid = get_task_ns_pid(curr); // 获取当前进程tgid，用户空间的pid即是tgid
 
-    if ((target_pid >= 0 && pid != target_pid) || !pid || pid == self_pid)
+    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
+        return 0;
+    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
+    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
+        return 0;
+    if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
+        return 0;
+    SET_KNODE(curr, knode);
+    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
         return 0;
 
-    SAVE_TASK_INFO(pid, curr);
+    SAVE_TASK_INFO(pid, curr, knode);
     psid apsid = GET_COUNT_KEY(pid, ctx);
 
     ra_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // d指向psid_count表中的apsid对应的类型为tuple的值
