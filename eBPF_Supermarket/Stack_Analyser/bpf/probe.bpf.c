@@ -60,18 +60,7 @@ int BPF_KPROBE(dummy_kprobe)
     entry(ctx);
     return 0;
 }
-SEC("tp/sched/dummy_tp")
-int tp_entry(void *ctx)
-{
-    entry(ctx);
-    return 0;
-}
-SEC("usdt")
-int usdt_entry(void *ctx)
-{
-    entry(ctx);
-    return 0;
-}
+
 static int exit(void *ctx)
 {
     CHECK_ACTIVE;
@@ -104,16 +93,38 @@ int BPF_KRETPROBE(dummy_kretprobe)
     exit(ctx);
     return 0;
 }
+
+
+static int handleCounts(void *ctx)
+{
+    CHECK_ACTIVE;
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+
+    psid a_psid = GET_COUNT_KEY(pid, ctx);
+    time_tuple *d = bpf_map_lookup_elem(&psid_count_map, &a_psid);
+    if (!d)
+    {
+        time_tuple tmp = {.lat = 0, .count = 1};
+        bpf_map_update_elem(&psid_count_map, &a_psid, &tmp, BPF_NOEXIST);
+    }
+    else
+    {
+        d->lat = 0;
+        d->count++;
+    }
+    return 0;
+}
 SEC("tp/sched/dummy_tp")
 int tp_exit(void *ctx)
 {
-    exit(ctx);
+    handleCounts(ctx);
     return 0;
 }
 SEC("usdt")
 int usdt_exit(void *ctx)
 {
-    exit(ctx);
+    handleCounts(ctx);
     return 0;
 }
 const char LICENSE[] SEC("license") = "GPL";
