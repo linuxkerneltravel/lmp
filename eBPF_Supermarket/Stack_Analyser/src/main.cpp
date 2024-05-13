@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
                IOOption,
                ReadaheadOption,
                LlcStatOption,
-               ProbeOption,
+               clipp::repeatable(ProbeOption),
                MainOption,
                Info);
     }
