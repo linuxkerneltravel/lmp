@@ -23,7 +23,6 @@
 #include <time.h>
 
 #include "bpf_wapper/on_cpu.h"
-#include "bpf_wapper/probe.h"
 #include "bpf_wapper/llc_stat.h"
 #include "bpf_wapper/off_cpu.h"
 #include "bpf_wapper/memleak.h"
