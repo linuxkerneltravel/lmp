@@ -470,22 +470,24 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 {
 	time_t now = time(NULL);// 获取当前时间
 	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
-	printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-	printf("-----------------------------------------------------------------------------------------------------------------------\n");
 	const struct mq_events *e = data;
-	
-	printf("Mqdes: %-8d msg_len: %-8lu msg_prio: %-8u\n",e->mqdes,e->msg_len,e->msg_prio);
-	printf("SND_PID: %-8d SND_enter_time: %-16llu SND_exit_time: %-16llu\n",
-		e->send_pid,e->send_enter_time,e->send_exit_time);
-	printf("RCV_PID: %-8d RCV_enter_time: %-16llu RCV_exit_time: %-16llu\n",
-		e->rcv_pid,e->rcv_enter_time,e->rcv_exit_time);
-	printf("-------------------------------------------------------------------------------\n");
-
-	printf("SND_Delay/ms: %-8.2f  RCV_Delay/ms: %-8.2f  Delay/ms: %-8.5f\n",
-		(e->send_exit_time - e->send_enter_time)/1000000.0,
-		(e->rcv_exit_time - e->rcv_enter_time)/1000000.0,
-		(e->rcv_exit_time - e->send_enter_time)/1000000.0);
-	printf("-----------------------------------------------------------------------------------------------------------------------\n\n");
+	float send_delay,rcv_delay,delay;
+	if(!e->send_enter_time || !e->send_exit_time || !e->rcv_enter_time || !e->rcv_exit_time) {
+		printf("erro!\n");
+		return 0;
+	}
+	send_delay = (e->send_exit_time - e->send_enter_time)/1000000.0;
+	rcv_delay = (e->rcv_exit_time - e->rcv_enter_time)/1000000.0;	
+	if(e->send_enter_time < e->rcv_enter_time){
+		delay = (e->rcv_exit_time - e->send_enter_time)/1000000.0;
+	}else{
+		delay = (e->rcv_exit_time - e->send_enter_time)/1000000.0 + send_delay + rcv_delay;		
+	}
+	printf("%02d:%02d:%02d   %-8llu %-8lu %-8lu \t%-16ld %-16ld %-16ld %-16ld\t%-15.5f %-15.5f %-15.5f\n",
+		localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
+		e->mqdes,e->send_pid,e->rcv_pid,
+		e->send_enter_time,e->send_exit_time,e->rcv_enter_time,e->rcv_exit_time,
+		send_delay,rcv_delay,delay);
 
 	return 0;
 }
@@ -669,6 +671,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto mq_delay_cleanup;
 		}
+		printf("%-8s   %-8s %-8s %-8s \t%-16s %-16s %-16s %-16s\t%-15s %-15s %-15s\n","Time","Mqdes","SND_PID","RCV_PID","SND_Enter","SND_EXit","RCV_Enter","RCV_EXit","SND_Delay/ms","RCV_Delay/ms","Delay/ms");		
 		rb = ring_buffer__new(bpf_map__fd(mq_skel->maps.rb), mq_event, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
 		if (!rb) {
 			err = -1;
