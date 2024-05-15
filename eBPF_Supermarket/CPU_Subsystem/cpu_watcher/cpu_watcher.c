@@ -23,6 +23,8 @@
 #include <bpf/libbpf.h>
 #include <sys/select.h>
 #include <unistd.h> 
+#include <stdlib.h>
+#include <string.h>
 #include <linux/perf_event.h>
 #include <asm/unistd.h>
 #include "cpu_watcher.h"
@@ -35,6 +37,7 @@
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
+#define MAX_BUF 512
 
 struct list_head {
 	struct list_head *next;
@@ -440,6 +443,32 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
     return 0;
 }
 
+char* get_process_name_by_pid(int pid) {
+    static char buf[MAX_BUF];
+    char command[MAX_BUF];
+    snprintf(command, sizeof(command), "cat /proc/%d/status | grep Name", pid);
+    FILE* fp = popen(command, "r");
+    if (fp == NULL) {
+        perror("popen");
+        return NULL;
+    }
+    char* name = NULL;
+    while (fgets(buf, sizeof(buf), fp)) {
+        if (strncmp(buf, "Name:", 5) == 0) {
+            name = strdup(buf + 6); 
+            break;
+        }
+    }
+    pclose(fp);
+	if (name != NULL) {
+        size_t len = strlen(name);
+        if (len > 0 && name[len - 1] == '\n') {
+            name[len - 1] = '\0';
+        }
+    }
+    return name;
+}
+
 static int schedule_print(struct bpf_map *sys_fd)
 {
     int key = 0;
@@ -460,8 +489,16 @@ static int schedule_print(struct bpf_map *sys_fd)
 	if(!ifprint){
 		ifprint=1;
 	}else{
-		printf("%02d:%02d:%02d  %-15lf %-15lf  %5d  %15lf  %10d\n",
-           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.pid_max, info.min_delay / 1000.0,info.pid_min);
+		char* proc_name_max = get_process_name_by_pid(info.pid_max);
+		char* proc_name_min = get_process_name_by_pid(info.pid_min);
+		printf("%02d:%02d:%02d  %-15lf %-15lf  %5d  %10s %15lf  %10d %15s\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.pid_max,proc_name_max,info.min_delay / 1000.0,info.pid_min,proc_name_min);
+		if (proc_name_max != NULL) {
+    		free(proc_name_max);
+		}
+		if (proc_name_min != NULL) {
+			free(proc_name_min);		
+		}
 	}
     return 0;
 }
@@ -617,7 +654,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto schedule_cleanup;
 		}
-		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs   max_pid        min_delay/μs   min_pid");
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs   max_pid    max_proc_name  min_delay/μs   min_pid  min_proc_name");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
