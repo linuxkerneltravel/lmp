@@ -134,6 +134,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 			break;
 		case 'P':
 			env.percent = true;
+			break;
 		case 's':
 			env.SAR = true;
 			break;
@@ -717,7 +718,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		if (env.percent == true){
+		if (env.percent){
 			printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
 		}else{printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");}
 	}else if(env.MQ_DELAY){
