@@ -107,7 +107,7 @@ static const struct argp_option opts[] = {
 	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
 	{"preempt_time", 'p',	0,0,"print preempt_time (the data of preempt_schedule)"},
 	{"schedule_delay", 'd',	0,0,"print schedule_delay (the data of cpu)"},
-	{"mq_delay", 'm',	0,0,"print mq_delay"},
+	{"mq_delay", 'm',	0,0,"print mq_delay(the data of proc)"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
