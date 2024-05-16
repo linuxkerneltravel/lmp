@@ -40,7 +40,7 @@ void ProbeStackCollector::setScale(std::string probe)
 
 int ProbeStackCollector::load(void)
 {
-    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
+    EBPF_LOAD_OPEN_INIT();
     return 0;
 };
 
@@ -91,10 +91,10 @@ static int attach_kprobes(struct probe_bpf *skel, std::string func)
 {
     skel->links.dummy_kprobe =
         bpf_program__attach_kprobe(skel->progs.dummy_kprobe, false, func.c_str());
-    CHECK_ERR(!skel->links.dummy_kprobe, "Fail to attach kprobe");
+    CHECK_ERR_RN1(!skel->links.dummy_kprobe, "Fail to attach kprobe");
     skel->links.dummy_kretprobe =
         bpf_program__attach_kprobe(skel->progs.dummy_kretprobe, true, func.c_str());
-    CHECK_ERR(!skel->links.dummy_kretprobe, "Fail to attach ketprobe");
+    CHECK_ERR_RN1(!skel->links.dummy_kretprobe, "Fail to attach ketprobe");
     return 0;
 }
 static int attach_uprobes(struct probe_bpf *skel, std::string probe, int pid)
@@ -118,11 +118,11 @@ static int attach_uprobes(struct probe_bpf *skel, std::string probe, int pid)
     skel->links.dummy_kprobe =
         bpf_program__attach_uprobe(skel->progs.dummy_kprobe, false, pid,
                                    bin_path, func_off);
-    CHECK_ERR(!skel->links.dummy_kprobe, "Fail to attach uprobe");
+    CHECK_ERR_RN1(!skel->links.dummy_kprobe, "Fail to attach uprobe");
     skel->links.dummy_kretprobe =
         bpf_program__attach_uprobe(skel->progs.dummy_kretprobe, true, pid,
                                    bin_path, func_off);
-    CHECK_ERR(!skel->links.dummy_kretprobe, "Fail to attach uprobe");
+    CHECK_ERR_RN1(!skel->links.dummy_kretprobe, "Fail to attach uprobe");
     return 0;
 }
 
@@ -131,7 +131,7 @@ static int attach_tp(struct probe_bpf *skel, std::string tp_class, std::string f
 
     skel->links.tp_exit =
         bpf_program__attach_tracepoint(skel->progs.tp_exit, tp_class.c_str(), func.c_str());
-    CHECK_ERR(!skel->links.tp_exit, "Fail to attach tracepoint");
+    CHECK_ERR_RN1(!skel->links.tp_exit, "Fail to attach tracepoint");
     return 0;
 }
 
@@ -139,10 +139,10 @@ static int attach_usdt(struct probe_bpf *skel, std::string func, int pid)
 {
     char bin_path[128];
     int err = get_binpath(bin_path, pid);
-    CHECK_ERR(err, "Fail to get lib path");
+    CHECK_ERR_RN1(err, "Fail to get lib path");
     skel->links.usdt_exit =
         bpf_program__attach_usdt(skel->progs.usdt_exit, pid, bin_path, "libc", func.c_str(), NULL);
-    CHECK_ERR(!skel->links.usdt_exit, "Fail to attach usdt");
+    CHECK_ERR_RN1(!skel->links.usdt_exit, "Fail to attach usdt");
     return 0;
 }
 
@@ -168,18 +168,18 @@ int ProbeStackCollector::attach(void)
     {
         if (strList.size() == 3)
             func = strList[1] + ":" + strList[2];
-        err = attach_uprobes(skel, func, pid);
+        err = attach_uprobes(skel, func, tgid);
     }
     else if (strList.size() == 3 && strList[0] == "u")
     {
-        err = attach_usdt(skel, strList[2], pid);
+        err = attach_usdt(skel, strList[2], tgid);
     }
     else
     {
         printf("Type must be 'p', 't', or 'u' or too any args");
     }
 
-    CHECK_ERR(err, "Fail to attach");
+    CHECK_ERR_RN1(err, "Fail to attach");
 
     return 0;
 };

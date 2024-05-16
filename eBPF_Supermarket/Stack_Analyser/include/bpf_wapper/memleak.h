@@ -106,7 +106,7 @@ public:
     do                                                                                \
     {                                                                                 \
         __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);                      \
-        CHECK_ERR(!skel->links.prog_name, "no program attached for " #prog_name "\n") \
+        CHECK_ERR_RN1(!skel->links.prog_name, "no program attached for " #prog_name "\n") \
     } while (false)
 
 #define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)

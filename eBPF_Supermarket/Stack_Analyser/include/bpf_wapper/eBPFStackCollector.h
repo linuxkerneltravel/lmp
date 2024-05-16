@@ -112,7 +112,7 @@ public:
 #define EBPF_LOAD_OPEN_INIT(...)                       \
     {                                                  \
         skel = skel->open(NULL);                       \
-        CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
+        CHECK_ERR_RN1(!skel, "Fail to open BPF skeleton"); \
         __VA_ARGS__;                                   \
         skel->rodata->trace_user = ustack;             \
         skel->rodata->trace_kernel = kstack;           \
@@ -121,14 +121,14 @@ public:
         skel->rodata->target_cgroupid = cgroup;        \
         skel->rodata->freq = freq;                     \
         err = skel->load(skel);                        \
-        CHECK_ERR(err, "Fail to load BPF skeleton");   \
+        CHECK_ERR_RN1(err, "Fail to load BPF skeleton");   \
         obj = skel->obj;                               \
     }
 
 #define ATTACH_PROTO                                     \
     {                                                    \
         err = skel->attach(skel);                        \
-        CHECK_ERR(err, "Failed to attach BPF skeleton"); \
+        CHECK_ERR_RN1(err, "Failed to attach BPF skeleton"); \
     }
 
 #define DETACH_PROTO            \
