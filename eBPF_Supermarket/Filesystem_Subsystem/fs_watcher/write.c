@@ -28,7 +28,8 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-	  printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
+	//打印
+	printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
     return 0;
 }
 
@@ -36,11 +37,10 @@ int main(int argc, char **argv)
 {
     struct ring_buffer *rb = NULL;
     struct write_bpf *skel;
-	  int err;
+	int err;
    
-    /* Set up libbpf errors and debug info callback */
+	/* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
-
 	
 	/* Cleaner handling of Ctrl-C */
 	signal(SIGINT, sig_handler);
@@ -83,18 +83,16 @@ int main(int argc, char **argv)
 			err = 0;
 			break;
 		}
-
 		if (err < 0) {
 			printf("Error polling perf buffer: %d\n", err);
 			break;
 		}
 	}
-
-
-cleanup:
+	
+	cleanup:
 	/* Clean up */
 	ring_buffer__free(rb);
 	write_bpf__destroy(skel);
-
+	
 	return err < 0 ? -err : 0;
 }
