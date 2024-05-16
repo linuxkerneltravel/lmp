@@ -21,6 +21,7 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
+#include <sys/sysinfo.h>
 #include <sys/select.h>
 #include <unistd.h> 
 #include <stdlib.h>
@@ -53,6 +54,8 @@ struct msg_msg {
 
 static struct env {
     int time;
+	int period;
+	bool percent;
     bool enable_proc;
     bool SAR;
     bool CS_DELAY;
@@ -63,6 +66,8 @@ static struct env {
     int freq;
 } env = {
     .time = 0,
+	.period = 1,
+	.percent = false,
     .enable_proc = false,
     .SAR = false,
     .CS_DELAY = false,
@@ -90,6 +95,7 @@ unsigned long ktTime = 0;
 unsigned long utTime = 0;
 u64 tick_user = 0;
 
+
 int sc_sum_time = 0 ;
 int sc_max_time = 0 ;
 int sc_min_time = SYSCALL_MIN_TIME ;
@@ -105,6 +111,8 @@ int preempt_start_print = 0 ;
 const char argp_program_doc[] ="cpu wacher is in use ....\n";
 static const struct argp_option opts[] = {
 	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
+	{ "period", 'i', "INTERVAL", 0, "Period interval in seconds" },
+	{"percent",'P',0,0,"format data as percentages"},
 	{"libbpf_sar", 's',	0,0,"print sar_info (the data of cpu)"},
 	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
 	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
@@ -121,6 +129,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 			env.time = strtol(arg, NULL, 10);
 			if(env.time) alarm(env.time);
                 	break;
+		case 'i':
+			env.period = strtol(arg, NULL, 10);
+			break;
+		case 'P':
+			env.percent = true;
 		case 's':
 			env.SAR = true;
 			break;
@@ -222,6 +235,7 @@ u64 find_ksym(const char* target_symbol) {
 
 static int print_all()
 {
+	int nprocs = get_nprocs();
 	/*proc:*/
 	int key_proc = 1;
 	int err_proc, fd_proc = bpf_map__fd(sar_skel->maps.countMap);
@@ -337,10 +351,30 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10lu  %8llu %8llu %8llu\n",
+		if (env.percent == true){
+			printf("%02d:%02d:%02d %8llu %8llu %6d  ",localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc, __sched, runqlen);
+			// 大于百分之60的标红输出
+			double values[7] = {
+				(double)dtairqtime / 10000000 / nprocs / env.period,
+				(double)dtasoftirq / 10000000 / nprocs / env.period,
+				(double)dtaidle / 10000000 / nprocs / env.period,
+				(double)dtaKT / 10000000 / nprocs / env.period,
+				(double)dtaSysc / 10000000 / nprocs / env.period,
+				(double)dtaUTRaw / 10000000 / nprocs / env.period,
+				(double)dtaSys / 10000000 / nprocs / env.period
+			};
+			for (int i = 0; i < 7; i++) {
+				if (values[i] > 60.0) {
+					printf("\033[1;31m");  // 设置为红色
+				}
+				printf("%10.2f ", values[i]);
+				printf("\033[0m");  // 重置为默认颜色
+			}
+			printf("\n");
+		}else{printf("%02d:%02d:%02d %8llu %8llu %6d %8llu %10llu  %8llu  %10lu  %8llu %8llu %8llu\n",
 				localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
 				__proc,__sched,runqlen,dtairqtime/1000,dtasoftirq/1000,dtaidle/1000000,
-				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);
+				dtaKT/1000,dtaSysc / 1000000,dtaUTRaw/1000000,dtaSys / 1000000);}
 	}
 	else{
 		env.enable_proc = true;
@@ -491,8 +525,8 @@ static int schedule_print(struct bpf_map *sys_fd)
 	}else{
 		char* proc_name_max = get_process_name_by_pid(info.pid_max);
 		char* proc_name_min = get_process_name_by_pid(info.pid_min);
-		printf("%02d:%02d:%02d  %-15lf %-15lf  %5d  %10s %15lf  %10d %15s\n",
-           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.pid_max,proc_name_max,info.min_delay / 1000.0,info.pid_min,proc_name_min);
+		printf("%02d:%02d:%02d  %-15lf %-15lf  %10s %15lf  %15s\n",
+           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,proc_name_max,info.min_delay / 1000.0,proc_name_min);
 		if (proc_name_max != NULL) {
     		free(proc_name_max);
 		}
@@ -654,7 +688,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto schedule_cleanup;
 		}
-		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs   max_pid    max_proc_name  min_delay/μs   min_pid  min_proc_name");
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs    max_proc_name    min_delay/μs   min_proc_name");
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
@@ -683,7 +717,9 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
+		if (env.percent == true){
+			printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
+		}else{printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");}
 	}else if(env.MQ_DELAY){
 		/* Load and verify BPF application */
 		mq_skel = mq_delay_bpf__open();
@@ -715,7 +751,7 @@ int main(int argc, char **argv)
 	}
 	while (!exiting) {
 		if(env.SAR){
-			sleep(1);
+			sleep(env.period);
 			err = print_all();
 			if (err == -EINTR) {
 				err = 0;
