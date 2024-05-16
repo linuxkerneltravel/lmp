@@ -55,7 +55,7 @@ int LlcStatStackCollector::attach(void)
 	CHECK_ERR_RN1(num_cpus <= 0, "Fail to get the number of processors");
 
 	struct perf_event_attr attr = {
-		.type = PERF_COUNT_HW_CPU_CYCLES,
+		.type = PERF_TYPE_HARDWARE,
 		.size = sizeof(attr),
 		.sample_period = scales->Period,
 		.inherit = 1,
