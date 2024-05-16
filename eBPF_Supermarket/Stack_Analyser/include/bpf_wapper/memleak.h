@@ -90,7 +90,7 @@ public:
         skel->links.prog_name =                                 \
             bpf_program__attach_uprobe_opts(                    \
                 skel->progs.prog_name,                          \
-                pid,                                            \
+                tgid,                                           \
                 object,                                         \
                 0,                                              \
                 &uprobe_opts);                                  \

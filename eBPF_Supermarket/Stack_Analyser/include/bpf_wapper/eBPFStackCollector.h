@@ -48,7 +48,7 @@ struct CountItem
 class StackCollector
 {
 protected:
-    int self_pid = -1;
+    int self_tgid = -1;
     struct bpf_object *obj = NULL;
 
     // 默认显示计数的变化情况，即每次输出数据后清除计数
@@ -62,7 +62,6 @@ public:
     uint32_t freq = 49;
     uint64_t cgroup = 0;
     uint32_t tgid = 0;
-    uint32_t pid = 0; // 用于设置ebpf程序跟踪的pid
     int err = 0;      // 用于保存错误代码
 
     bool ustack = false; // 是否跟踪用户栈
@@ -117,8 +116,7 @@ public:
         __VA_ARGS__;                                   \
         skel->rodata->trace_user = ustack;             \
         skel->rodata->trace_kernel = kstack;           \
-        skel->rodata->self_pid = self_pid;             \
-        skel->rodata->target_pid = pid;                \
+        skel->rodata->self_tgid = self_tgid;             \
         skel->rodata->target_tgid = tgid;              \
         skel->rodata->target_cgroupid = cgroup;        \
         skel->rodata->freq = freq;                     \

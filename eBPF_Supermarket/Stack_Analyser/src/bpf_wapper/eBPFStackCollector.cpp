@@ -44,7 +44,7 @@ bool operator<(const CountItem a, const CountItem b)
 
 StackCollector::StackCollector()
 {
-    self_pid = getpid();
+    self_tgid = getpid();
 };
 
 std::vector<CountItem> *StackCollector::sortedCountList(void)
@@ -141,6 +141,7 @@ StackCollector::operator std::string()
                         std::stringstream ss("");
                         ss << "+0x" << std::hex << (sym.ip - sym.start);
                         sym.name += ss.str();
+                        clearSpace(sym.name);
                         g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
                     }
                     else
@@ -150,7 +151,6 @@ StackCollector::operator std::string()
                         sym.name = ss.str();
                         g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
                     }
-                    clearSpace(sym.name);
                     sym_trace[i++] = sym.name;
                 }
                 traces[id.usid] = sym_trace;
@@ -171,14 +171,13 @@ StackCollector::operator std::string()
                     {
                         ss << "+0x" << std::hex << (sym.ip - sym.start);
                         sym.name += ss.str();
+                        clearSpace(sym.name);
                     }
                     else
                     {
                         ss << "0x" << std::hex << addr;
                         sym.name = ss.str();
-                        g_symbol_parser.putin_symbol_cache(pid, addr, sym.name);
                     }
-                    clearSpace(sym.name);
                     sym_trace[i++] = sym.name;
                 }
                 traces[id.ksid] = sym_trace;

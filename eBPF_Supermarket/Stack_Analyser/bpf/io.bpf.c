@@ -33,27 +33,19 @@ const char LICENSE[] SEC("license") = "GPL";
 static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
     CHECK_ACTIVE;
-    CHECK_FREQ;
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    CHECK_TGID(tgid);
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
-        return 0;
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
-        return 0;
-    if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
-        return 0;
-    SET_KNODE(curr, knode);
-    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
-        return 0;
-
-    SAVE_TASK_INFO(pid, curr, knode);
-
-    // record time delta
-    psid apsid = GET_COUNT_KEY(pid, ctx);
+    u32 pid = BPF_CORE_READ(curr, pid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     io_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count表当中的apsid表项，即size
     u64 len = BPF_CORE_READ(ctx, args[2]);                      // 读取系统调用的第三个参数
-
     if (!d)
     {
         io_tuple tmp = {.count = 1, .size = len};

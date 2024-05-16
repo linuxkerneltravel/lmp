@@ -38,23 +38,17 @@ SEC("fentry/page_cache_ra_unbounded") // fentry在内核函数page_cache_ra_unbo
 int BPF_PROG(page_cache_ra_unbounded)
 {
     CHECK_ACTIVE;
-    CHECK_FREQ;
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    CHECK_TGID(tgid);
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
-        return 0;
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
-        return 0;
-    if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
-        return 0;
-    SET_KNODE(curr, knode);
-    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
-        return 0;
-
-    SAVE_TASK_INFO(pid, curr, knode);
-    psid apsid = GET_COUNT_KEY(pid, ctx);
-
+    u32 pid = BPF_CORE_READ(curr, pid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     ra_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // d指向psid_count表中的apsid对应的类型为tuple的值
     if (!d)
     {
@@ -69,11 +63,7 @@ SEC("fexit/alloc_pages") // fexit在内核函数alloc_pages退出时触发，挂
 int BPF_PROG(filemap_alloc_folio_ret, gfp_t gfp, unsigned int order, u64 ret)
 {
     CHECK_ACTIVE;
-    u32 pid = bpf_get_current_pid_tgid() >> 32; // pid为当前进程的pid
-
-    if ((target_pid >= 0 && pid != target_pid) || !pid)
-        return 0;
-
+    u32 pid = bpf_get_current_pid_tgid() >> 32;                 // pid为当前进程的pid
     struct psid *apsid = bpf_map_lookup_elem(&in_ra_map, &pid); // apsid指向了当前in_ra中pid的表项内容
     if (!apsid)
         return 0;
@@ -97,11 +87,7 @@ int BPF_PROG(page_cache_ra_unbounded_ret) // fexit在内核函数page_cache_ra_u
 {
     CHECK_ACTIVE;
     u32 pid = bpf_get_current_pid_tgid() >> 32; // 获取当前进程的pid
-
-    if ((target_pid >= 0 && pid != target_pid) || !pid)
-        return 0;
-
-    bpf_map_delete_elem(&in_ra_map, &pid); // 删除了in_ra对应的pid的表项,即删除对应的栈计数信息
+    bpf_map_delete_elem(&in_ra_map, &pid);      // 删除了in_ra对应的pid的表项,即删除对应的栈计数信息
     return 0;
 }
 
@@ -110,9 +96,6 @@ int BPF_PROG(mark_page_accessed, u64 page)
 {
     CHECK_ACTIVE;
     u32 pid = bpf_get_current_pid_tgid() >> 32; // 获取当前进程的pid
-
-    if ((target_pid >= 0 && pid != target_pid) || !pid)
-        return 0;
     psid *apsid;
     apsid = bpf_map_lookup_elem(&page_psid_map, &page); // 查看page_psid对应的 地址page 对应类型为psid的值，并保存在apsid
     if (!apsid)
