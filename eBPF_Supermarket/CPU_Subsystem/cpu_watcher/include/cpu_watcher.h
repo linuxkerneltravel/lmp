@@ -17,11 +17,11 @@
 #include <asm/types.h>
 #include <linux/version.h>
 
-typedef long long unsigned int u64;
+typedef unsigned long long u64;
 typedef unsigned int u32;
-typedef __kernel_mqd_t	mqd_t;
+typedef __kernel_mqd_t mqd_t;
 #define __user
-#define MAX_CPU_NR	128
+#define MAX_CPU_NR 128
 #define TASK_COMM_LEN 20
 #define SYSCALL_MIN_TIME 1E7
 #define MAX_SYSCALL_COUNT 100
@@ -35,56 +35,49 @@ typedef __kernel_mqd_t	mqd_t;
 /// @param type1 键的类型
 /// @param type2 值的类型
 /// @param MAX_ENTRIES map容量
-#define BPF_ARRAY(name, type1,type2,MAX_ENTRIES )       \
-	struct									\ 
-	{										\
-		__uint(type, BPF_MAP_TYPE_ARRAY);	\
-		__uint(key_size, sizeof(type1));	\
-		__uint(value_size, sizeof(type2));	\
-		__uint(max_entries, MAX_ENTRIES);	\
+#define BPF_ARRAY(name, type1, type2, MAX_ENTRIES) \
+	struct { \
+		__uint(type, BPF_MAP_TYPE_ARRAY); \
+		__uint(key_size, sizeof(type1)); \
+		__uint(value_size, sizeof(type2)); \
+		__uint(max_entries, MAX_ENTRIES); \
 	} name SEC(".maps")
-
 /// @brief 创建一个指定名字和键值类型的ebpf散列表
 /// @param name 新散列表的名字
 /// @param type1 键的类型
 /// @param type2 值的类型
 /// @param MAX_ENTRIES 哈希map容量
-#define BPF_HASH(name, type1,type2,MAX_ENTRIES )       \
-    struct                                 \
-    {                                      \
-        __uint(type, BPF_MAP_TYPE_HASH);   \
-        __uint(key_size, sizeof(type1));   \
-        __uint(value_size, sizeof(type2)); \
-        __uint(max_entries, MAX_ENTRIES);  \
-    } name SEC(".maps")
-
+#define BPF_HASH(name, type1, type2, MAX_ENTRIES) \
+	struct { \
+		__uint(type, BPF_MAP_TYPE_HASH); \
+		__uint(key_size, sizeof(type1)); \
+		__uint(value_size, sizeof(type2)); \
+		__uint(max_entries, MAX_ENTRIES); \
+	} name SEC(".maps")
 /// @brief 创建一个指定名字和键值类型的ebpf每CPU数组
 /// @param name 新散列表的名字
 /// @param type1 键的类型
 /// @param type2 值的类型
 /// @param MAX_ENTRIES map容量
-#define BPF_PERCPU_ARRAY(name, type1,type2,MAX_ENTRIES )       \
-    struct                                 \
-    {                                      \
-        __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);   \
-        __uint(key_size, sizeof(type1));   \
-        __uint(value_size, sizeof(type2)); \
-        __uint(max_entries, MAX_ENTRIES);  \
-    } name SEC(".maps")
-
+#define BPF_PERCPU_ARRAY(name, type1, type2, MAX_ENTRIES) \
+	struct { \
+		__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY); \
+		__uint(key_size, sizeof(type1)); \
+		__uint(value_size, sizeof(type2)); \
+		__uint(max_entries, MAX_ENTRIES); \
+	} name SEC(".maps")
 /// @brief 创建一个指定名字和键值类型的ebpf每CPU散列表
 /// @param name 新散列表的名字
 /// @param type1 键的类型
 /// @param type2 值的类型
 /// @param MAX_ENTRIES map容量
-#define BPF_PERCPU_HASH(name, type1,type2,MAX_ENTRIES )       \
-    struct                                 \
-    {                                      \
-        __uint(type, BPF_MAP_TYPE_PERCPU_HASH);   \
-        __uint(key_size, sizeof(type1));   \
-        __uint(value_size, sizeof(type2)); \
-        __uint(max_entries, MAX_ENTRIES);  \
-    } name SEC(".maps")
+#define BPF_PERCPU_HASH(name, type1, type2, MAX_ENTRIES) \
+	struct { \
+		__uint(type, BPF_MAP_TYPE_PERCPU_HASH); \
+		__uint(key_size, sizeof(type1)); \
+		__uint(value_size, sizeof(type2)); \
+		__uint(max_entries, MAX_ENTRIES); \
+	} name SEC(".maps")
 
 /*----------------------------------------------*/
 /*          cs_delay结构体                     */
@@ -92,22 +85,22 @@ typedef __kernel_mqd_t	mqd_t;
 #ifndef __CS_DELAY_H
 #define __CS_DELAY_H
 struct event {
-	long unsigned int t1;
-	long unsigned int t2;
-	long unsigned int delay;   
+	u64 t1;
+	u64 t2;
+	u64 delay;   
 };
 #endif /* __CS_DELAY_H */
 
 /*----------------------------------------------*/
 /*          syscall_delay结构体                     */
 /*----------------------------------------------*/
-struct syscall_flags{
-	long unsigned int start_time;
+struct syscall_flags {
+	u64 start_time;
 	int syscall_id;
 };
 
 struct syscall_events {//每个进程一个
-    int pid,count;
+    int pid, count;
     char comm[TASK_COMM_LEN];
     u64 delay;
     u64 syscall_id;
@@ -115,7 +108,7 @@ struct syscall_events {//每个进程一个
 /*----------------------------------------------*/
 /*         preempt_event结构体                     */
 /*----------------------------------------------*/
-struct preempt_event{
+struct preempt_event {
 	pid_t prev_pid;
 	pid_t next_pid;
 	unsigned long long duration;
@@ -125,22 +118,24 @@ struct preempt_event{
 /*         schedule_delay相关结构体                     */
 /*----------------------------------------------*/
 //标识不同进程
-struct proc_id{
+struct proc_id {
 	int pid;
 	int cpu_id;
 }; 
 //标识该进程的调度信息
-struct schedule_event{
+struct schedule_event {
 	int pid;
 	int count;//调度次数
 	unsigned long long enter_time;
 };
 //整个系统所有调度信息
-struct sum_schedule{
+struct sum_schedule {
 	unsigned long long sum_count;
 	unsigned long long sum_delay;
 	unsigned long long max_delay;
 	unsigned long long min_delay;
+    int pid_max;
+	int pid_min;
 };
 
 /*----------------------------------------------*/
@@ -150,36 +145,34 @@ struct mq_events {
     int send_pid;
     int rcv_pid;
     mqd_t mqdes;
-        size_t msg_len;
-        unsigned int msg_prio;
-        
-        u64 send_enter_time;
-        u64 send_exit_time;
-        u64 rcv_enter_time;
-        u64 rcv_exit_time;
+    size_t msg_len;
+    unsigned int msg_prio;
+    u64 send_enter_time;
+    u64 send_exit_time;
+    u64 rcv_enter_time;
+    u64 rcv_exit_time;
 };
 struct send_events {
     int send_pid;
     u64 Key_msg_ptr;
-    
     mqd_t mqdes;
-        size_t msg_len;
-        unsigned int msg_prio;
-        const char *u_msg_ptr;
-        const void  *src;
-        u64 send_enter_time;
-        u64 send_exit_time;
+    size_t msg_len;
+    unsigned int msg_prio;
+    const char *u_msg_ptr;
+    const void *src;
+    u64 send_enter_time;
+    u64 send_exit_time;
 };
 struct rcv_events {
     int rcv_pid;
     u64 Key_msg_ptr;
     mqd_t mqdes;
-        size_t msg_len;
-        unsigned int msg_prio; 
-        const char *u_msg_ptr;
-        const void  *dest;
-        u64 rcv_enter_time;
-        u64 rcv_exit_time;
+    size_t msg_len;
+    unsigned int msg_prio; 
+    const char *u_msg_ptr;
+    const void *dest;
+    u64 rcv_enter_time;
+    u64 rcv_exit_time;
 };
 /*----------------------------------------------*/
 /*          cswch_args结构体                     */

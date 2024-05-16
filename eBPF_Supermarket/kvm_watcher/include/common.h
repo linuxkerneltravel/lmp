@@ -92,7 +92,7 @@ static const char binary_path[] = "/bin/qemu-system-x86_64";
 // IOCTL
 #include <asm-generic/ioctl.h>
 #define KVMIO 0xAE
-#define KVM_CREATE_VM _IO(KVMIO, 0x01) 
+#define KVM_CREATE_VM _IO(KVMIO, 0x01)
 #define KVM_CREATE_VCPU _IO(KVMIO, 0x41)
 #define KVM_GET_VCPU_EVENTS _IOR(KVMIO, 0x9f, struct kvm_vcpu_events)
 #define KVM_SET_VCPU_EVENTS _IOW(KVMIO, 0xa0, struct kvm_vcpu_events)

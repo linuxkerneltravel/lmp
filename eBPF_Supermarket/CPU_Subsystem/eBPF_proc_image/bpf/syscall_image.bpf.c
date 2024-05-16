@@ -26,6 +26,8 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const volatile pid_t ignore_tgid = -1;
 const int key = 0;
+pid_t pre_target_pid = -1;//上一个监测的进程；
+int pre_target_tgid = -1;//上一个监测的进程组；
 
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
@@ -80,14 +82,14 @@ int sys_enter(struct trace_event_raw_sys_enter *args)
                 if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                     syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
                 }
-                syscall_seq->count ++;
+                syscall_seq->count++;
             }else if (syscall_seq->count <= MAX_SYSCALL_COUNT-1 && syscall_seq->count > 0 && 
                       syscall_seq->record_syscall+syscall_seq->count <= syscall_seq->record_syscall+(MAX_SYSCALL_COUNT-1)){
                 if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || 
                     (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                     syscall_seq->record_syscall[syscall_seq->count] = (int)args->id;
                 }
-                syscall_seq->count ++;
+                syscall_seq->count++;
             }
         }
     }
@@ -132,6 +134,20 @@ int sys_exit(struct trace_event_raw_sys_exit *args)
                 syscall_seq->max_delay = this_delay;
             if(syscall_seq->min_delay==0 || this_delay<syscall_seq->min_delay)
                 syscall_seq->min_delay = this_delay;
+            //策略切换，首次数据不记录；
+            if(sc_ctrl->target_tgid ==-1 && sc_ctrl->target_pid ==pid && sc_ctrl->target_pid != pre_target_pid){
+                syscall_seq->sum_delay = 0;
+                syscall_seq->count = 0;
+                pre_target_pid = sc_ctrl->target_pid;//更改pre_target_pid；
+                return 0;                
+            }
+            if(sc_ctrl->target_tgid !=-1 && sc_ctrl->target_tgid ==tgid && sc_ctrl->target_tgid != pre_target_tgid){
+                syscall_seq->sum_delay = 0;
+                syscall_seq->count = 0;
+                pre_target_tgid = sc_ctrl->target_tgid;//更改pre_target_pid；
+                return 0;                
+            }
+            
             if((sc_ctrl->target_tgid==-1 && (sc_ctrl->target_pid==-1 || pid==sc_ctrl->target_pid)) || 
                (sc_ctrl->target_tgid!=-1 && tgid == sc_ctrl->target_tgid)){
                 syscall_seq->proc_count += syscall_seq->count;

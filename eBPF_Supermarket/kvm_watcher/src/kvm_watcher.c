@@ -27,7 +27,9 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-#include "../include/kvm_watcher.h"
+#include "common.h"
+#include "trace_helpers.h"
+#include "uprobe_helpers.h"
 #include "kvm_watcher.skel.h"
 
 // 创建并打开临时文件
@@ -795,9 +797,9 @@ static int print_event_head(struct env *env) {
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load,
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load,
                               env.execute_vcpu_load ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put,
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put,
                               env.execute_vcpu_load ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
                               env.execute_vcpu_wakeup ? true : false);
@@ -811,7 +813,7 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
                               env.execute_halt_poll_ns ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,
+    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,
                               env.execute_mark_page_dirty ? true : false);
     bpf_program__set_autoload(skel->progs.tp_page_fault,
                               env.execute_page_fault ? true : false);
@@ -1117,7 +1119,7 @@ void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
                                const char *map_name, int err) {
     OUTPUT_INTERVAL(2);
     print_func(skel);
-    if (err < 0) {
+    if (err < 0 && err != -4) {
         printf("Error printing %s map: %d\n", map_name, err);
     }
 }

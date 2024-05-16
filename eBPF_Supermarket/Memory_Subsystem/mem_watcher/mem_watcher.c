@@ -24,6 +24,7 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
+#include <bpf/bpf.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include "paf.skel.h"
@@ -39,6 +40,9 @@ static const int perf_max_stack_depth = 127;    //stack id 对应的堆栈的深
 static const int stack_map_max_entries = 10240; //最大允许存储多少个stack_id
 static __u64 *g_stacks = NULL;
 static size_t g_stacks_size = 0;
+
+#define KERN_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP)
+#define USER_STACKID_FLAGS (0 | BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK)
 
 static struct blaze_symbolizer *symbolizer;
 
@@ -86,6 +90,7 @@ static struct env {
 	bool procstat;
 	bool sysstat;
 	bool memleak;
+	bool kernel_trace;
 
 	bool part2;
 
@@ -98,8 +103,10 @@ static struct env {
 	.procstat = false,
 	.sysstat = false,
 	.memleak = false,
+	.kernel_trace = true,
 	.rss = false,
 	.part2 = false,
+	.choose_pid = 0,
 };
 
 const char argp_program_doc[] = "mem_watcher is in use ....\n";
@@ -107,22 +114,27 @@ const char argp_program_doc[] = "mem_watcher is in use ....\n";
 static const struct argp_option opts[] = {
 	{0, 0, 0, 0, "select function:", 1},
 
-	{"paf", 'a', 0, 0, "print paf (内存页面状态报告)", 2},
+	{0, 0, 0, 0, "par:", 2},
+	{"paf", 'a', 0, 0, "print paf (内存页面状态报告)"},
 
-	{"pr", 'p', 0, 0, "print pr (页面回收状态报告)", 3},
+	{0, 0, 0, 0, "pr:", 3},
+	{"pr", 'p', 0, 0, "print pr (页面回收状态报告)"},
 
-	{"procstat", 'r', 0, 0, "print procstat (进程内存状态报告)", 4},
-	{0, 0, 0, 0, "procstat additional function:"},
+	{0, 0, 0, 0, "procstat:", 4},
+	{"procstat", 'r', 0, 0, "print procstat (进程内存状态报告)"},
 	{"choose_pid", 'P', "PID", 0, "选择进程号打印"},
 	{"Rss", 'R', NULL, 0, "打印进程页面", 5},
 
-	{"sysstat", 's', 0, 0, "print sysstat (系统内存状态报告)", 6},
-	{0, 0, 0, 0, "sysstat additional function:"},
+	{0, 0, 0, 0, "sysstat:", 6},
+	{"sysstat", 's', 0, 0, "print sysstat (系统内存状态报告)"},
+	
 	{"part2", 'n', NULL, 0, "系统内存状态报告2", 7},
 
-	{"memleak", 'l', "PID", 0, "print memleak (内存泄漏检测)", 8},
+	{0, 0, 0, 0, "memleak:", 8},
+	{"memleak", 'l', 0, 0, "print memleak (内核态内存泄漏检测)", 8},
+	{"choose_pid", 'P', "PID", 0, "选择进程号打印, print memleak (用户态内存泄漏检测)", 9},
 
-	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 9},
+	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 10},
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
@@ -294,6 +306,17 @@ int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid) {
     }
 
     return 0;
+}
+
+void disable_kernel_tracepoints(struct memleak_bpf *skel) {
+	bpf_program__set_autoload(skel->progs.memleak__kmalloc, false);
+	bpf_program__set_autoload(skel->progs.memleak__kmalloc_node, false);
+	bpf_program__set_autoload(skel->progs.memleak__kfree, false);
+	bpf_program__set_autoload(skel->progs.memleak__kmem_cache_alloc, false);
+	bpf_program__set_autoload(skel->progs.memleak__kmem_cache_alloc_node, false);
+	bpf_program__set_autoload(skel->progs.memleak__kmem_cache_free, false);
+	bpf_program__set_autoload(skel->progs.memleak__mm_page_alloc, false);
+	bpf_program__set_autoload(skel->progs.memleak__mm_page_free, false);
 }
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
@@ -635,12 +658,13 @@ int main(int argc, char **argv) {
 	}
 
 	else if (env.memleak) {
-		if (argc != 3) {
-			printf("usage:%s attach_pid\n", argv[0]);
-			return -1;
+		if (env.choose_pid != 0) {
+			printf("用户态内存泄漏\n");
+			env.kernel_trace = false;
+			attach_pid = env.choose_pid;
 		}
-
-		attach_pid = atoi(argv[2]);
+		else
+			attach_pid = 0;
 
 		strcpy(binary_path, "/lib/x86_64-linux-gnu/libc.so.6");
 
@@ -653,9 +677,14 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "Failed to open BPF skeleton\n");
 			return 1;
 		}
+		//skel->rodata->stack_flags = KERN_STACKID_FLAGS;
+		skel->rodata->stack_flags = env.kernel_trace ? KERN_STACKID_FLAGS : USER_STACKID_FLAGS;
 
 		bpf_map__set_value_size(skel->maps.stack_traces, perf_max_stack_depth * sizeof(__u64));
 		bpf_map__set_max_entries(skel->maps.stack_traces, stack_map_max_entries);
+
+		if (!env.kernel_trace)
+			disable_kernel_tracepoints(skel);
 
 		/* Load & verify BPF programs */
 		err = memleak_bpf__load(skel);
@@ -664,10 +693,13 @@ int main(int argc, char **argv) {
 			goto memleak_cleanup;
 		}
 
-		err = attach_uprobes(skel);
-		if (err) {
-			fprintf(stderr, "failed to attach uprobes\n");
-			goto memleak_cleanup;
+		if (!env.kernel_trace) {
+			err = attach_uprobes(skel);
+			if (err) {
+				fprintf(stderr, "failed to attach uprobes\n");
+
+				goto memleak_cleanup;
+			}
 		}
 
 		/* Let libbpf perform auto-attach for uprobe_sub/uretprobe_sub

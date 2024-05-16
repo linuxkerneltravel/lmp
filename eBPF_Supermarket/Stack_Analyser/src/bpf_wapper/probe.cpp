@@ -40,7 +40,7 @@ void ProbeStackCollector::setScale(std::string probe)
 
 int ProbeStackCollector::load(void)
 {
-    EBPF_LOAD_OPEN_INIT();
+    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
     return 0;
 };
 
@@ -129,9 +129,6 @@ static int attach_uprobes(struct probe_bpf *skel, std::string probe, int pid)
 static int attach_tp(struct probe_bpf *skel, std::string tp_class, std::string func)
 {
 
-    skel->links.tp_entry =
-        bpf_program__attach_tracepoint(skel->progs.tp_entry, tp_class.c_str(), func.c_str());
-    CHECK_ERR(!skel->links.tp_entry, "Fail to attach tracepoint");
     skel->links.tp_exit =
         bpf_program__attach_tracepoint(skel->progs.tp_exit, tp_class.c_str(), func.c_str());
     CHECK_ERR(!skel->links.tp_exit, "Fail to attach tracepoint");
@@ -143,9 +140,6 @@ static int attach_usdt(struct probe_bpf *skel, std::string func, int pid)
     char bin_path[128];
     int err = get_binpath(bin_path, pid);
     CHECK_ERR(err, "Fail to get lib path");
-    skel->links.usdt_entry =
-        bpf_program__attach_usdt(skel->progs.usdt_entry, pid, bin_path, "libc", func.c_str(), NULL);
-    CHECK_ERR(!skel->links.usdt_entry, "Fail to attach usdt");
     skel->links.usdt_exit =
         bpf_program__attach_usdt(skel->progs.usdt_exit, pid, bin_path, "libc", func.c_str(), NULL);
     CHECK_ERR(!skel->links.usdt_exit, "Fail to attach usdt");
