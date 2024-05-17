@@ -21,7 +21,7 @@
 
 #define SET_KP_OR_FENTRY_LOAD(function_name, module_name)                    \
     do {                                                                     \
-        if (fentry_can_attach(#function_name, module_name)) {                \
+        if (fentry_can_attach(#function_name, #module_name)) {                \
             bpf_program__set_autoload(skel->progs.fentry_##function_name,    \
                                       true);                                 \
         } else {                                                             \

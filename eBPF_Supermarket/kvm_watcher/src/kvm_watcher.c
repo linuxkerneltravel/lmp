@@ -811,21 +811,21 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.kp_start_sw_timer, false);
 
     if (env.execute_vcpu_load) {
-        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, "kvm_intel");
-        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_put, "kvm_intel");
+        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, kvm_intel);
+        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_put, kvm_intel);
     }
     if (env.execute_vcpu_wakeup) {
-        SET_KP_OR_FENTRY_LOAD(kvm_vcpu_halt, "kvm");
+        SET_KP_OR_FENTRY_LOAD(kvm_vcpu_halt, kvm);
     }
     if (env.execute_mark_page_dirty) {
-        SET_KP_OR_FENTRY_LOAD(mark_page_dirty_in_slot, "kvm");
+        SET_KP_OR_FENTRY_LOAD(mark_page_dirty_in_slot, kvm);
     }
     if (env.execute_timer) {
-        SET_KP_OR_FENTRY_LOAD(start_hv_timer, "kvm");
-        SET_KP_OR_FENTRY_LOAD(start_sw_timer, "kvm");
+        SET_KP_OR_FENTRY_LOAD(start_hv_timer, kvm);
+        SET_KP_OR_FENTRY_LOAD(start_sw_timer, kvm);
     }
     if (env.execute_hypercall) {
-        SET_KP_OR_FENTRY_LOAD(kvm_emulate_hypercall, "kvm");
+        SET_KP_OR_FENTRY_LOAD(kvm_emulate_hypercall, kvm);
     }
 
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
