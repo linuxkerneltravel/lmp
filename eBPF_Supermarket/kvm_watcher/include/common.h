@@ -19,6 +19,16 @@
 #ifndef __KVM_WATCHER_H
 #define __KVM_WATCHER_H
 
+#define SET_KP_OR_FENTRY_LOAD(function_name, module_name)                    \
+    do {                                                                     \
+        if (fentry_can_attach(#function_name, module_name)) {                \
+            bpf_program__set_autoload(skel->progs.fentry_##function_name,    \
+                                      true);                                 \
+        } else {                                                             \
+            bpf_program__set_autoload(skel->progs.kp_##function_name, true); \
+        }                                                                    \
+    } while (0)
+
 static const char binary_path[] = "/bin/qemu-system-x86_64";
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
     do {                                                                      \
