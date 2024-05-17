@@ -53,7 +53,12 @@ static int entry(void *ctx)
     bpf_map_update_elem(&starts, &pid, &nsec, BPF_ANY);
     return 0;
 }
-
+SEC("fentry/dummy_fentry")
+int BPF_PROG(dummy_fentry)
+{
+	entry(ctx);
+	return 0;
+}
 SEC("kprobe/dummy_kprobe")
 int BPF_KPROBE(dummy_kprobe)
 {
@@ -64,8 +69,7 @@ int BPF_KPROBE(dummy_kprobe)
 static int exit(void *ctx)
 {
     CHECK_ACTIVE;
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
-
+    u32 pid = bpf_get_current_pid_tgid() >> 32; 
     u64 *start = bpf_map_lookup_elem(&starts, &pid);
     if (!start)
         return 0;
@@ -87,13 +91,20 @@ static int exit(void *ctx)
     return 0;
 }
 
+SEC("fexit/dummy_fexit")
+int BPF_PROG(dummy_fexit)
+{
+	exit(ctx);
+	return 0;
+}
+
+
 SEC("kretprobe/dummy_kretprobe")
 int BPF_KRETPROBE(dummy_kretprobe)
 {
     exit(ctx);
     return 0;
 }
-
 
 static int handleCounts(void *ctx)
 {
