@@ -36,6 +36,7 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
     message->pre_routing_time = 0;
     message->local_out_time = 0;
     message->post_routing_time = 0;
+    message->forward_time=0;
     message->rx = rx; //收/发/转发方向
 
     if(rx == 1){

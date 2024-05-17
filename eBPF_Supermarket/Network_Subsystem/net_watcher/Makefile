@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 OUTPUT := .output
 CLANG ?= clang
-LIBBPF_SRC := $(abspath ./lib/libbpf/src)
-BPFTOOL_SRC := $(abspath ./lib/bpftool/src)
+LIBBPF_SRC := $(abspath ../../lib/libbpf/src)
+BPFTOOL_SRC := $(abspath ../../lib/bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
@@ -14,14 +14,14 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-LOGSRC := ./lib/doc
-VMDIR := ./lib/vmlinux
+LOGSRC := ./data/doc
+VMDIR := ../../lib/vmlinux
 VMLINUXSRC := $(VMDIR)/$(ARCH)
-VMLINUX := ./lib/vmlinux/$(ARCH)/vmlinux.h
+VMLINUX := $(VMLINUXSRC)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
+INCLUDES := -I$(OUTPUT) -I ../../lib/libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
