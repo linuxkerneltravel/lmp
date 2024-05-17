@@ -47,8 +47,16 @@ static size_t g_stacks_size = 0;
 static struct blaze_symbolizer *symbolizer;
 
 static int attach_pid;
-static char binary_path[128] = {0};
- 
+static char binary_path[128] = { 0 };
+
+struct allocation {
+	int stack_id;
+	__u64 size;
+	size_t count;
+};
+
+static struct allocation *allocs;
+
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe) \
     do { \
         LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, \
@@ -185,6 +193,22 @@ static const struct argp argp = {
 	.doc = argp_program_doc,
 };
 
+int alloc_size_compare(const void *a, const void *b)
+{
+	const struct allocation *x = (struct allocation *)a;
+	const struct allocation *y = (struct allocation *)b;
+
+	// descending order
+
+	if (x->size > y->size)
+		return -1;
+
+	if (x->size < y->size)
+		return 1;
+
+	return 0;
+}
+
 static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, uint64_t offset, const blaze_symbolize_code_info *code_info) {
 	// If we have an input address  we have a new symbol.
 	if (input_addr != 0) {
@@ -252,6 +276,96 @@ static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
 	}
 
 	blaze_result_free(result);
+}
+
+int print_outstanding_allocs(struct memleak_bpf *skel) {
+	const size_t allocs_key_size = bpf_map__key_size(skel->maps.allocs);
+
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+
+	size_t nr_allocs = 0;
+
+	// for each struct alloc_info "alloc_info" in the bpf map "allocs"
+	for (__u64 prev_key = 0, curr_key = 0; ; prev_key = curr_key) {
+		struct alloc_info alloc_info = {};
+		memset(&alloc_info, 0, sizeof(alloc_info));
+
+		if (bpf_map__get_next_key(skel->maps.allocs, &prev_key, &curr_key, allocs_key_size)) {
+			if (errno == ENOENT) {
+				break; // no more keys, done
+			}
+
+			perror("map get next key error");
+
+			return -errno;
+		}
+
+		if (bpf_map__lookup_elem(skel->maps.allocs, &curr_key, allocs_key_size, &alloc_info, sizeof(alloc_info), 0)) {
+			if (errno == ENOENT)
+				continue;
+
+			perror("map lookup error");
+
+			return -errno;
+		}
+
+		// filter invalid stacks
+		if (alloc_info.stack_id < 0) {
+			continue;
+		}
+
+		// when the stack_id exists in the allocs array,
+		//   increment size with alloc_info.size
+		bool stack_exists = false;
+
+		for (size_t i = 0; !stack_exists && i < nr_allocs; ++i) {
+			struct allocation *alloc = &allocs[i];
+
+			if (alloc->stack_id == alloc_info.stack_id) {
+				alloc->size += alloc_info.size;
+				alloc->count++;
+
+				stack_exists = true;
+				break;
+			}
+		}
+
+		if (stack_exists)
+			continue;
+
+		// when the stack_id does not exist in the allocs array,
+		//   create a new entry in the array
+		struct allocation alloc = {
+			.stack_id = alloc_info.stack_id,
+			.size = alloc_info.size,
+			.count = 1,
+		};
+
+		memcpy(&allocs[nr_allocs], &alloc, sizeof(alloc));
+		nr_allocs++;
+	}
+
+	// sort the allocs array in descending order
+	qsort(allocs, nr_allocs, sizeof(allocs[0]), alloc_size_compare);
+
+	// get min of allocs we stored vs the top N requested stacks
+	size_t nr_allocs_to_show = nr_allocs < 10 ? nr_allocs : 10;
+
+	printf("[%d:%d:%d] Top %zu stacks with outstanding allocations:\n",
+		tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs_to_show);
+
+	for (size_t i = 0; i < nr_allocs_to_show;i++) {
+		if (bpf_map__lookup_elem(skel->maps.stack_traces,
+            &allocs[i].stack_id, sizeof(allocs[i].stack_id), g_stacks, g_stacks_size, 0)) {
+            perror("failed to lookup stack traces!");
+            return -errno;
+        }
+	}
+
+	show_stack_trace(g_stacks, nr_allocs_to_show, 0);
+
+	return 0;
 }
 
 int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid) {
@@ -668,6 +782,8 @@ int main(int argc, char **argv) {
 
 		strcpy(binary_path, "/lib/x86_64-linux-gnu/libc.so.6");
 
+		allocs = calloc(ALLOCS_MAX_ENTRIES, sizeof(*allocs));
+
 		/* Set up libbpf errors and debug info callback */
 		libbpf_set_print(libbpf_print_fn);
 
@@ -724,7 +840,11 @@ int main(int argc, char **argv) {
 
 		for (i = 0;; i++) {
 			/* trigger our BPF programs */
-			print_outstanding_combined_allocs(skel, attach_pid);
+			if (!env.kernel_trace) 
+				print_outstanding_combined_allocs(skel, attach_pid);
+			else
+				print_outstanding_allocs(skel);
+
 			sleep(1);
 		}
 	}
