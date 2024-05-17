@@ -75,7 +75,7 @@ int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
 
-//记录VCPU调度的信息--进入
+// 记录VCPU调度的信息--进入
 SEC("fentry/vmx_vcpu_load")
 int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
     CHECK_PID(vm_pid);

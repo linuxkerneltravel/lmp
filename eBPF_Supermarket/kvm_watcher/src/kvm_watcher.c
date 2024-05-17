@@ -794,21 +794,21 @@ static int print_event_head(struct env *env) {
 }
 
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
-
-    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load,false);
-    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load,false);
-    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put,false);
-    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put,false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,false);
-    bpf_program__set_autoload(skel->progs.kp_kvm_vcpu_halt,false);
-    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,false);
-    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_emulate_hypercall,false);
-    bpf_program__set_autoload(skel->progs.kp_kvm_emulate_hypercall,false);
-    bpf_program__set_autoload(skel->progs.fentry_start_hv_timer,false);
-    bpf_program__set_autoload(skel->progs.kp_start_hv_timer,false);
-    bpf_program__set_autoload(skel->progs.fentry_start_sw_timer,false);
-    bpf_program__set_autoload(skel->progs.kp_start_sw_timer,false);
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt, false);
+    bpf_program__set_autoload(skel->progs.kp_kvm_vcpu_halt, false);
+    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,
+                              false);
+    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot, false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_emulate_hypercall, false);
+    bpf_program__set_autoload(skel->progs.kp_kvm_emulate_hypercall, false);
+    bpf_program__set_autoload(skel->progs.fentry_start_hv_timer, false);
+    bpf_program__set_autoload(skel->progs.kp_start_hv_timer, false);
+    bpf_program__set_autoload(skel->progs.fentry_start_sw_timer, false);
+    bpf_program__set_autoload(skel->progs.kp_start_sw_timer, false);
 
     if (env.execute_vcpu_load) {
         SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, "kvm_intel");
@@ -820,11 +820,11 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     if (env.execute_mark_page_dirty) {
         SET_KP_OR_FENTRY_LOAD(mark_page_dirty_in_slot, "kvm");
     }
-    if(env.execute_timer){
+    if (env.execute_timer) {
         SET_KP_OR_FENTRY_LOAD(start_hv_timer, "kvm");
         SET_KP_OR_FENTRY_LOAD(start_sw_timer, "kvm");
     }
-    if(env.execute_hypercall){
+    if (env.execute_hypercall) {
         SET_KP_OR_FENTRY_LOAD(kvm_emulate_hypercall, "kvm");
     }
 
@@ -1200,7 +1200,6 @@ int main(int argc, char **argv) {
     /* Parameterize BPF code with parameter */
     skel->rodata->vm_pid = env.vm_pid;
 
-    
     /* 禁用或加载内核挂钩函数 */
     set_disable_load(skel);
 
@@ -1210,7 +1209,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
         goto cleanup;
     }
-    
+
     /* 附加跟踪点处理程序 */
     err = attach_probe(skel);
     if (err) {
