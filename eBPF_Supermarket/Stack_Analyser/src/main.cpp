@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
         Item++;
         continue;
     err:
-        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scales->Type.c_str());
+        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->getName());
         (*Item)->detach();
         (*Item)->unload();
         Item = StackCollectorList.erase(Item);
