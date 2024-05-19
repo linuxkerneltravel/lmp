@@ -141,6 +141,20 @@ $(TARGETS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 
+SUCCESS_MESSAGE:
+	@echo "\e[38;2;255;0;0m                                      __       __             \e[0m"
+	@echo "\e[38;2;255;128;0m  _________  __  __   _      ______ _/ /______/ /_  ___  _____\e[0m"
+	@echo "\e[38;2;255;255;0m / ___/ __ \/ / / /  | | /| / / __  / __/ ___/ __ \/ _ \/ ___/\e[0m"
+	@echo "\e[38;2;128;255;0m/ /__/ /_/ / /_/ /   | |/ |/ / /_/ / /_/ /__/ / / /  __/ /    \e[0m"
+	@echo "\e[38;2;0;255;0m\___/ .___/\__,_/    |__/|__/\__,_/\__/\___/_/ /_/\___/_/     \e[0m"
+	@echo "\e[38;2;0;255;128m   /_/                                                       \e[0m"
+	@echo "\e[38;2;0;255;255mSuccessful to compile cpu_watcher tools:                      \e[0m"
+	@echo "\e[38;2;0;255;255mPlease start your use ~                                      \e[0m"
+
+	
+all: $(TARGETS) SUCCESS_MESSAGE
+
+
 # delete failed targets
 .DELETE_ON_ERROR:
 

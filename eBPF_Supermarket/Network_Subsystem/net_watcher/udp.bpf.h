@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
+// netwatcher libbpf udp
 
 #include "common.bpf.h"
 
@@ -87,7 +88,6 @@ int __udp_send_skb(struct sk_buff *skb)
         return 0;
     }
     tinfo->tran_time = bpf_ktime_get_ns() / 1000;
-   
     return 0;
 }
 static __always_inline
