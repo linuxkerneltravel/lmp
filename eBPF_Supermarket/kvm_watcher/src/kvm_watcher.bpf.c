@@ -45,6 +45,13 @@ int BPF_PROG(fentry_kvm_vcpu_halt, struct kvm_vcpu *vcpu) {
     CHECK_PID(vm_pid);
     return trace_kvm_vcpu_halt(vcpu);
 }
+
+SEC("kprobe/kvm_vcpu_halt")
+int BPF_KPROBE(kp_kvm_vcpu_halt, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_kvm_vcpu_halt(vcpu);
+}
+
 // 追踪vcpu运行信息
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx) {
@@ -67,9 +74,16 @@ SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
+
 // 记录VCPU调度的信息--进入
 SEC("fentry/vmx_vcpu_load")
 int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_vmx_vcpu_load(vcpu, cpu);
+}
+
+SEC("kprobe/vmx_vcpu_load")
+int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
     CHECK_PID(vm_pid);
     return trace_vmx_vcpu_load(vcpu, cpu);
 }
@@ -80,9 +94,21 @@ int BPF_PROG(fentry_vmx_vcpu_put) {
     return trace_vmx_vcpu_put();
 }
 
+SEC("kprobe/vmx_vcpu_put")
+int BPF_KPROBE(kp_vmx_vcpu_put) {
+    return trace_vmx_vcpu_put();
+}
+
 SEC("fentry/mark_page_dirty_in_slot")
 int BPF_PROG(fentry_mark_page_dirty_in_slot, struct kvm *kvm,
              const struct kvm_memory_slot *memslot, gfn_t gfn) {
+    CHECK_PID(vm_pid);
+    return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, e);
+}
+
+SEC("kprobe/mark_page_dirty_in_slot")
+int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
+               const struct kvm_memory_slot *memslot, gfn_t gfn) {
     CHECK_PID(vm_pid);
     return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, e);
 }
@@ -164,9 +190,15 @@ int BPF_PROG(fexit_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
 }
 
 SEC("fentry/kvm_emulate_hypercall")
-int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
+int BPF_PROG(fentry_kvm_emulate_hypercall, struct kvm_vcpu *vcpu) {
     CHECK_PID(vm_pid);
-    return entry_emulate_hypercall(vcpu, &rb, e);
+    return trace_emulate_hypercall(vcpu, &rb, e);
+}
+
+SEC("kprobe/kvm_emulate_hypercall")
+int BPF_KPROBE(kp_kvm_emulate_hypercall, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_emulate_hypercall(vcpu, &rb, e);
 }
 
 SEC("tp/syscalls/sys_enter_ioctl")
@@ -194,8 +226,20 @@ int BPF_PROG(fentry_start_hv_timer, struct kvm_lapic *apic) {
     return trace_start_hv_timer(apic);
 }
 
+SEC("kprobe/start_hv_timer")
+int BPF_KPROBE(kp_start_hv_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_hv_timer(apic);
+}
+
 SEC("fentry/start_sw_timer")
 int BPF_PROG(fentry_start_sw_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_sw_timer(apic);
+}
+
+SEC("kprobe/start_sw_timer")
+int BPF_KPROBE(kp_start_sw_timer, struct kvm_lapic *apic) {
     CHECK_PID(vm_pid);
     return trace_start_sw_timer(apic);
 }
