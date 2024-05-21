@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
+// netwatcher libbpf icmp
 
 #include "common.bpf.h"
 
@@ -26,7 +27,6 @@ int __icmp_time(struct sk_buff *skb)
     get_ip_pkt_tuple(&ipk, ip);
     unsigned long long time= bpf_ktime_get_ns() / 1000;
     bpf_map_update_elem(&icmp_time, &ipk, &time, BPF_ANY);
-
     return 0;
 }
 
@@ -46,7 +46,6 @@ int __rcvend_icmp_time(struct sk_buff *skb)
     
     unsigned long long new_time= bpf_ktime_get_ns() / 1000;
     unsigned long long time=new_time-*pre_time;
-    //bpf_printk("%d %d %d",ip->saddr,ip->daddr,time);
     struct icmptime *message;
     message = bpf_ringbuf_reserve(&icmp_rb, sizeof(*message), 0);
     if(!message){
@@ -76,7 +75,6 @@ int __reply_icmp_time(struct sk_buff *skb)
         return 0;
     unsigned long long new_time= bpf_ktime_get_ns() / 1000;
     unsigned long long time=new_time-*pre_time;
-    //bpf_printk("%d %d %d",ip->saddr,ip->daddr,time);
     struct icmptime *message;
     message = bpf_ringbuf_reserve(&icmp_rb, sizeof(*message), 0);
     if(!message){

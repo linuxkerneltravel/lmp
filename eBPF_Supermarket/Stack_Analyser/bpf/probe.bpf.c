@@ -30,8 +30,7 @@ COMMON_MAPS(time_tuple);
 COMMON_VALS;
 BPF_HASH(starts, u32, u64);
 
-SEC("kprobe/dummy_kprobe")
-int BPF_KPROBE(dummy_kprobe)
+static int entry(void *ctx)
 {
     CHECK_ACTIVE;
     u64 ts = bpf_ktime_get_ns();
@@ -49,8 +48,7 @@ int BPF_KPROBE(dummy_kprobe)
     return 0;
 }
 
-SEC("kretprobe/dummy_kretprobe")
-int BPF_KRETPROBE(dummy_kretprobe)
+static int exit(void *ctx)
 {
     CHECK_ACTIVE;
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -72,6 +70,35 @@ int BPF_KRETPROBE(dummy_kretprobe)
         d->count++;
     }
     return 0;
+}
+
+
+SEC("kprobe/dummy_kprobe")
+int BPF_KPROBE(dummy_kprobe)
+{
+    entry(ctx);
+    return 0;
+}
+
+SEC("kretprobe/dummy_kretprobe")
+int BPF_KRETPROBE(dummy_kretprobe)
+{
+    exit(ctx);
+    return 0;
+}
+
+SEC("fentry/dummy_fentry")
+int BPF_PROG(dummy_fentry)
+{
+	entry(ctx);
+	return 0;
+}
+
+SEC("fexit/dummy_fexit")
+int BPF_PROG(dummy_fexit)
+{
+	exit(ctx);
+	return 0;
 }
 
 static int static_tracing_handler(void *ctx)

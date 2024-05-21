@@ -21,29 +21,9 @@
 #include "uprobe_helpers.h"
 
 // ========== implement virtual func ==========
-
-uint64_t *ProbeStackCollector::count_values(void *data)
-{
-    time_tuple *p = (time_tuple *)data;
-    return new uint64_t[scale_num]{
-        p->lat,
-        p->count,
-    };
-};
-
-void ProbeStackCollector::setScale(std::string probe)
-{
-    this->probe = probe;
-    for (int i = 0; i < scale_num; i++)
-        scales[i].Type = probe + scales[i].Type;
-};
-
-int ProbeStackCollector::load(void)
-{
-    EBPF_LOAD_OPEN_INIT();
-    return 0;
-};
-
+bool tryf;
+std::vector<std::string> strList;
+std::string func;
 void splitStr(std::string symbol, const char split, std::vector<std::string> &res)
 {
     if (symbol == "")
@@ -58,6 +38,78 @@ void splitStr(std::string symbol, const char split, std::vector<std::string> &re
         pos = strs.find(split);
     }
 }
+uint64_t *ProbeStackCollector::count_values(void *data)
+{
+    time_tuple *p = (time_tuple *)data;
+    return new uint64_t[scale_num]{
+        p->lat,
+        p->count,
+    };
+};
+
+void ProbeStackCollector::setScale(std::string probe)
+{
+    this->probe = probe;
+    splitStr(probe, ':', strList);
+    func = probe;
+    for (int i = 0; i < scale_num; i++)
+        scales[i].Type = probe + scales[i].Type;
+};
+
+static bool try_fentry(struct probe_bpf *skel, std::string func)
+{
+    long err;
+
+    if (!fentry_can_attach(func.c_str(), NULL))
+    {
+        return false;
+    }
+    err = bpf_program__set_attach_target(skel->progs.dummy_fentry, 0, func.c_str());
+    if (err)
+    {
+        bpf_program__set_autoload(skel->progs.dummy_fentry, false);
+        bpf_program__set_autoload(skel->progs.dummy_fexit, false);
+        return false;
+    }
+    err = bpf_program__set_attach_target(skel->progs.dummy_fexit, 0, func.c_str());
+    if (err)
+    {
+        bpf_program__set_autoload(skel->progs.dummy_fentry, false);
+        bpf_program__set_autoload(skel->progs.dummy_fexit, false);
+
+        return false;
+    }
+
+    bpf_program__set_autoload(skel->progs.dummy_kprobe, false);
+    bpf_program__set_autoload(skel->progs.dummy_kretprobe, false);
+    return true;
+}
+
+int ProbeStackCollector::load(void)
+{
+    std::string str = func;
+    skel = skel->open(NULL);
+    CHECK_ERR_RN1(!skel, "Fail to open BPF skeleton");
+    if (strList.size() == 3 && strList[0] == "p" && strList[1] == "")
+        str = strList[2];
+    if (strList.size() == 1 || (strList.size() == 3 && strList[0] == "p" && strList[1] == "")){
+        tryf = try_fentry(skel, str);
+     }else{
+        bpf_program__set_autoload(skel->progs.dummy_fentry, false);
+        bpf_program__set_autoload(skel->progs.dummy_fexit, false);
+     }
+    skel->rodata->target_tgid = tgid;
+    skel->rodata->trace_user = ustack;
+    skel->rodata->trace_kernel = kstack;
+    skel->rodata->self_tgid = self_tgid;
+    skel->rodata->target_tgid = tgid;
+    skel->rodata->target_cgroupid = cgroup;
+    skel->rodata->freq = freq;
+    err = skel->load(skel);
+    CHECK_ERR_RN1(err, "Fail to load BPF skeleton");
+    obj = skel->obj;
+    return 0;
+};
 
 static int get_binpath(char *path, int pid)
 {
@@ -95,6 +147,16 @@ static int attach_kprobes(struct probe_bpf *skel, std::string func)
     skel->links.dummy_kretprobe =
         bpf_program__attach_kprobe(skel->progs.dummy_kretprobe, true, func.c_str());
     CHECK_ERR_RN1(!skel->links.dummy_kretprobe, "Fail to attach ketprobe");
+    return 0;
+}
+static int attach_fentry(struct probe_bpf *skel)
+{
+    skel->links.dummy_fentry =
+        bpf_program__attach(skel->progs.dummy_fentry);
+    CHECK_ERR_RN1(!skel->links.dummy_fentry, "Fail to attach fentry");
+    skel->links.dummy_fexit =
+        bpf_program__attach(skel->progs.dummy_fexit);
+    CHECK_ERR_RN1(!skel->links.dummy_fexit, "Fail to attach fexit");
     return 0;
 }
 static int attach_uprobes(struct probe_bpf *skel, std::string probe, int pid)
@@ -149,16 +211,24 @@ static int attach_usdt(struct probe_bpf *skel, std::string func, int pid)
 int ProbeStackCollector::attach(void)
 {
     // dynamic mounting
-    std::vector<std::string> strList;
-    splitStr(probe, ':', strList);
-    std::string func = probe;
+    // std::vector<std::string> strList;
+    // splitStr(probe, ':', strList);
+    // std::string func = probe;
     int err = 0;
-
     if (strList.size() == 3 && strList[0] == "p" && strList[1] == "")
         func = strList[2];
     if (strList.size() == 1 || (strList.size() == 3 && strList[0] == "p" && strList[1] == ""))
     {
-        err = attach_kprobes(skel, func);
+        if (!tryf)
+        {
+            err = attach_kprobes(skel, func);
+            return 0;
+        }
+        else
+        {
+            err = attach_fentry(skel);
+            return 0;
+        }
     }
     else if (strList.size() == 3 && strList[0] == "t")
     {
