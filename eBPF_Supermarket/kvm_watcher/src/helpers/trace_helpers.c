@@ -976,7 +976,7 @@ bool is_kernel_module(const char *name) {
     return found;
 }
 
-static bool fentry_try_attach(int id) {
+bool fentry_try_attach(int id) {
     int prog_fd, attach_fd;
     char error[4096];
     struct bpf_insn insns[] = {
@@ -1023,7 +1023,7 @@ bool fentry_can_attach(const char *name, const char *mod) {
 
     btf__free(module_btf);
     btf__free(vmlinux_btf);
-    return id > 0 && fentry_try_attach(id);
+    return id > 0;
 }
 
 #define DEBUGFS "/sys/kernel/debug/tracing"
