@@ -127,6 +127,12 @@ OK
 4. 总体效果展示
     ![stack analyzer dashboard](asset/image-4.png)
 
+## grafana dashboard 导出及导入
+
+本仓库提供了上节效果展示所使用的dashboard，即`./grafana_stack_analyzer_dashboard.json`
+其导出方法为：在仪表盘界面点击[分享]按钮，导出，导出为文件，即可。
+导入则需要在创建仪表盘菜单选择[导入仪表盘]，通过仪表板 JSON 模型导入，选择需要的仪表盘文件，即可。
+
 # 目录描述
 
 - include：各种定义。
