@@ -16,7 +16,6 @@
 //
 // netwatcher libbpf 内核<->用户 传递信息相关结构体
 
-
 #ifndef __NETWATCHER_H
 #define __NETWATCHER_H
 
@@ -131,15 +130,12 @@ struct  reasonissue
     u16 protocol;
     int  drop_reason;
 };
-
 struct icmptime{
     unsigned int saddr;
     unsigned int daddr;
     unsigned long long icmp_tran_time;
     unsigned int flag; //0 send 1 rcv
-    int monitor;
 };
-
 
 struct tcp_state {
     u32 saddr;       
@@ -151,10 +147,29 @@ struct tcp_state {
     u64 time;
 };
 
-struct timeload{
-    u64 total_time;
-    u64 normal_time;
-    int count;
+struct dns_information {
+    u32 saddr;       
+    u32 daddr; 
+    u16 id; 
+    u16 flags;
+    u16 qdcount;
+    u16 ancount;
+    u16 nscount;
+    u16 arcount;
+    char data[64];
+    int rx;
 };
-
+#ifndef MAX_STACK_DEPTH
+#define MAX_STACK_DEPTH 128
+#endif
+typedef u64 stack_trace_t[MAX_STACK_DEPTH];
+struct stacktrace_event {
+	u32 pid;
+	u32 cpu_id;
+	char comm[16];
+	signed int kstack_sz;
+	signed int ustack_sz;
+	stack_trace_t kstack;
+	stack_trace_t ustack;
+};
 #endif /* __NETWATCHER_H */

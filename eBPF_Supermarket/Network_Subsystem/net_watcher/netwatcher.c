@@ -16,7 +16,6 @@
 //
 // netwatcher libbpf 用户态代码
 
-
 #include "netwatcher.h"
 #include "netwatcher.skel.h"
 #include <argp.h>
@@ -42,7 +41,7 @@ static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,drop_reason = 0,addr_to_func=0 ,icmp_info = 0 , tcp_info = 0, time_load = 0 ; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,drop_reason = 0,addr_to_func=0 ,icmp_info = 0 , tcp_info = 0, time_load = 0 ,dns_info = 0; // flag
 
 static const char* tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -70,8 +69,9 @@ static const struct argp_option opts[] = {
     {"icmptime", 'I', 0, 0, "set to trace layer time of icmp"},
     {"tcpstate", 'S', 0, 0, "set to trace tcpstate"},
     {"timeload", 'L', 0, 0, "analysis time load"},
+    {"dns", 'D', 0, 0, "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd 问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr 域名、rx 收发包 "},
+  {}};
 
-    {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     char *end;
@@ -121,6 +121,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'L':
         time_load = 1;
         break;
+    case 'D':
+        dns_info = 1;
+        break;
     default:
         return ARGP_ERR_UNKNOWN;
     }
@@ -137,6 +140,62 @@ struct SymbolEntry{
     unsigned long addr;
     char name[30];
 };
+
+enum MonitorMode {
+    MODE_UDP,
+    MODE_NET_FILTER,
+    MODE_DROP_REASON,
+    MODE_ICMP,
+    MODE_TCP,
+    MODE_DNS,
+    MODE_DEFAULT
+};
+
+enum MonitorMode get_monitor_mode() {
+    if (udp_info) {
+        return MODE_UDP;
+    } else if (net_filter) {
+        return MODE_NET_FILTER;
+    } else if (drop_reason) {
+        return MODE_DROP_REASON;
+    } else if (icmp_info) {
+        return MODE_ICMP;
+    } else if (tcp_info) {
+        return MODE_TCP;
+    } else if (dns_info) {
+        return MODE_DNS;
+    } else {
+        return MODE_DEFAULT; 
+    }
+}
+#define LOGO_STRING " " \
+        "              __                          __           __                       \n"\
+        "             /\\ \\__                      /\\ \\__       /\\ \\                      \n"\
+        "  ___      __\\ \\  _\\  __  __  __     __  \\ \\  _\\   ___\\ \\ \\___      __   _ __   \n"\
+        "/  _  \\  / __ \\ \\ \\/ /\\ \\/\\ \\/\\ \\  / __ \\ \\ \\ \\/  / ___\\ \\  _  \\  / __ \\/\\  __\\ \n"\
+        "/\\ \\/\\ \\/\\  __/\\ \\ \\_\\ \\ \\_/ \\_/ \\/\\ \\_\\ \\_\\ \\ \\_/\\ \\__/\\ \\ \\ \\ \\/\\  __/\\ \\ \\/  \n"\
+        "\\ \\_\\ \\_\\ \\____\\ \\__\\ \\_______ / /\\ \\__/\\ \\_\\ \\__\\ \\____/\\ \\_\\ \\_\\ \\____ \\ \\_\\  \n"\
+        " \\/_/\\/_/\\/____/ \\/__/ \\/__//__ /  \\/_/  \\/_/\\/__/\\/____/ \\/_/\\/_/\\/____/ \\/_/  \n\n"
+
+//通过lolcat命令彩色处理
+void print_logo() {
+    char *logo = LOGO_STRING;
+    int i = 0;
+    FILE *lolcat_pipe = popen("/usr/games/lolcat", "w");
+    if (lolcat_pipe == NULL) {
+        printf("Error: Unable to execute lolcat command.\n");
+        return;
+    }
+    //像lolcat管道逐个字符写入字符串
+    while (logo[i] != '\0') {
+        fputc(logo[i], lolcat_pipe);
+        fflush(lolcat_pipe);//刷新管道，确保字符被立即发送给lolcat
+        usleep(150);
+        i++;
+    }
+
+    pclose(lolcat_pipe);
+}
 
 struct SymbolEntry symbols[300000];
 int num_symbols = 0;
@@ -276,6 +335,163 @@ int process_delay(float layer_delay, int layer_index) {
     return 0;
 }
 
+static void set_rodata_flags(struct netwatcher_bpf *skel) {
+    skel->rodata->filter_dport = dport;
+    skel->rodata->filter_sport = sport;
+    skel->rodata->all_conn = all_conn;
+    skel->rodata->err_packet = err_packet;
+    skel->rodata->extra_conn_info = extra_conn_info;
+    skel->rodata->layer_time = layer_time;
+    skel->rodata->http_info = http_info;
+    skel->rodata->retrans_info = retrans_info;
+    skel->rodata->udp_info = udp_info;
+    skel->rodata->net_filter = net_filter;
+    skel->rodata->drop_reason = drop_reason;
+    skel->rodata->tcp_info = tcp_info;
+    skel->rodata->icmp_info = icmp_info;
+    skel->rodata->dns_info = dns_info;
+}
+static void set_disable_load(struct netwatcher_bpf *skel){
+
+    bpf_program__set_autoload(skel->progs.inet_csk_accept_exit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v4_connect,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v4_connect_exit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v6_connect,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v6_connect_exit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_set_state,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.eth_type_trans,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_rcv_core,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.ip6_rcv_core,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v4_rcv,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v6_rcv,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v4_do_rcv,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_v6_do_rcv,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.skb_copy_datagram_iter,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_validate_incoming,
+                                err_packet ? true :false );
+    bpf_program__set_autoload(skel->progs.__skb_checksum_complete_exit,
+                                err_packet ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_sendmsg,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_queue_xmit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.inet6_csk_xmit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.__dev_queue_xmit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.dev_hard_start_xmit,
+                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_enter_recovery,
+                                retrans_info ? true :false );
+    bpf_program__set_autoload(skel->progs.tcp_enter_loss,
+                                retrans_info ? true :false );
+    bpf_program__set_autoload(skel->progs.udp_rcv,
+                                udp_info || dns_info ? true :false );
+    bpf_program__set_autoload(skel->progs.__udp_enqueue_schedule_skb,
+                                udp_info || dns_info ? true :false );
+    bpf_program__set_autoload(skel->progs.udp_send_skb,
+                                udp_info || dns_info ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_send_skb,
+                                udp_info || dns_info ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_rcv,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_local_deliver,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_local_deliver_finish,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_local_out,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_output,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.__ip_finish_output,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.ip_forward,
+                                net_filter ? true :false );
+    bpf_program__set_autoload(skel->progs.tp_kfree,
+                                drop_reason ? true :false );
+    bpf_program__set_autoload(skel->progs.icmp_rcv,
+                                icmp_info ? true :false );
+    bpf_program__set_autoload(skel->progs.__sock_queue_rcv_skb,
+                                icmp_info ? true :false );
+    bpf_program__set_autoload(skel->progs.icmp_reply,
+                                icmp_info ? true :false );
+    bpf_program__set_autoload(skel->progs.handle_set_state,
+                                tcp_info ? true :false );
+}
+
+static void print_header(enum MonitorMode mode){
+    switch(mode){
+        case MODE_UDP:
+            printf("===============================================================UDP INFORMATION========================================================\n");
+            printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr", "sprot",
+                   "dprot", "udp_time/μs", "rx/direction", "len/byte");
+            break;
+        case MODE_NET_FILTER:
+            printf("==================================================================NET FILTER INFORMATION===========================================================\n");
+            printf("%-20s %-20s %-12s %-12s %-8s %-8s %-7s %-8s %-8s %-8s\n", "saddr", "daddr","dprot", "sprot",
+                    "PreRT/μs","L_IN/μs","FW/μs","PostRT/μs","L_OUT/μs","rx/direction");
+            break;
+        case MODE_DROP_REASON:
+            printf("===============================================================DROP INFORMATION========================================================\n");
+            printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "time","saddr", "daddr","sprot", "dprot","prot","addr","reason");
+            break;
+        case MODE_ICMP:
+            printf("=================================================ICMP INFORMATION==============================================\n");
+            printf("%-20s %-20s %-20s %-20s\n", "saddr", "daddr","icmp_time/μs","tx//direction");
+            break;
+        case MODE_TCP:
+            printf("===============================================================TCP STATE INFORMATION========================================================\n");
+            printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "saddr", "daddr","sport","dport","oldstate","newstate","time/μs");
+            break;
+        case MODE_DNS:
+            printf("===================================================================================DNS INFORMATION================================================================================\n");
+            printf("%-20s %-20s %-12s %-12s %-12s %-12s %-12s %-11s %-47s %5s \n","saddr","daddr","Id","Flags","Qd","An","Ns","Ar","Qr","rx/direction");
+            break;
+        case MODE_DEFAULT:
+            printf("================================================================INFORMATION=========================================================================\n");
+            printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-15s %-15s \n", "SOCK","Saddr","Sport","Daddr","Dport", 
+                    "MAC_TIME/μs", "IP_TIME/μs", "TRAN_TIME/μs", "RX//direction", "HTTP");
+            break;
+    }
+
+}
+
+static void open_log_files() {
+    FILE *err_file = fopen(err_file_path, "w+");
+    if (err_file == NULL) {
+        fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    fclose(err_file);
+
+    FILE *packet_file = fopen(packets_file_path, "w+");
+    if (packet_file == NULL) {
+        fprintf(stderr, "Failed to open packets.log: (%s)\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    fclose(packet_file);
+
+    FILE *udp_file = fopen(udp_file_path, "w+");
+    if (udp_file == NULL) {
+        fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    fclose(udp_file);
+}
 
 static void sig_handler(int signo) { exiting = true; }
 
@@ -382,7 +598,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
-    if (udp_info || net_filter || drop_reason || icmp_info || tcp_info)
+    if (udp_info || net_filter || drop_reason || icmp_info || tcp_info || dns_info)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if(pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME || pack_info->tran_time > MAXTIME)
@@ -440,7 +656,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
             sprintf(http_data, "-");
         }
         if (layer_time) {
-                   printf("%-22p %-20s %-8d %-20s %-8d %-10llu %-10llu %-10llu %-5d %-10s",
+                   printf("%-22p %-20s %-8d %-20s %-8d %-14llu %-14llu %-14llu %-15d %-16s",
                    pack_info->sock,inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),pack_info->sport,
                    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),pack_info->dport,
                    pack_info->mac_time, pack_info->ip_time,
@@ -496,7 +712,9 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    // if(pack_info->tran_time > MAXTIME||(daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
+    if(pack_info->tran_time > MAXTIME)
+        return 0;
+    // if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
     //     return 0;
     
     printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d",
@@ -533,8 +751,6 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    // if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
-    //     return 0;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
@@ -641,7 +857,7 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     }
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    printf("%-20s %-20s %-12lld %-12d",
+    printf("%-20s %-20s %-20lld %-20d",
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
             pack_info->icmp_tran_time,
@@ -657,8 +873,58 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+// 从DNS数据包中提取并打印域名
+static void print_domain_name(const unsigned char *data, char *output) {
+    const unsigned char *next = data; 
+    int pos = 0, first = 1;
+    //循环到尾部，标志0
+    while (*next != 0) { 
+        if (!first) {
+            output[pos++] = '.';//在每个段之前添加点号
+        } else {
+            first = 0;//第一个段后清除标志
+        }
+        int len = *next++;//下一个段长度
+        // 将DNS编码的域名中的每个字符复制到输出缓冲区
+        for (int i = 0; i < len; ++i) {
+            output[pos++] = *next++;
+        }
+    }
+    output[pos] = '\0'; // 确保字符串正确结束
+}
 
-int main(int argc, char **argv) {
+static int print_dns(void *ctx, void *packet_info, size_t size) {
+    if (!packet_info)  // 修正变量名
+        return 0;
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN];
+    const struct dns_information *pack_info = (const struct dns_information *)packet_info;  // 强制类型转换
+    unsigned int saddr = pack_info->saddr;
+    unsigned int daddr = pack_info->daddr;
+    char domain_name[256]; // 用于存储输出的域名
+    
+    inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
+    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
+    // 使用print_domain_name函数填充domain_name
+    print_domain_name((const unsigned char *)pack_info->data, domain_name);
+
+    // 调整打印格式，使用domain_name变量
+    printf("%-20s %-20s %-#12x %-#12x %-12x %-12x %-12x %-11x %-47s %-10d\n",
+           s_str, d_str,
+           pack_info->id, pack_info->flags, pack_info->qdcount,
+           pack_info->ancount, pack_info->nscount, pack_info->arcount,
+           domain_name, pack_info->rx);
+
+    return 0;
+}
+
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
+                           va_list args) {
+    return vfprintf(stderr, format, args);
+}
+
+
+int main(int argc, char **argv) {  
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
         *(last_slash + 1) = '\0';
@@ -677,6 +943,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *kfree_rb = NULL;
     struct ring_buffer *icmp_rb = NULL;
     struct ring_buffer *tcp_rb = NULL;
+    struct ring_buffer *dns_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -686,6 +953,7 @@ int main(int argc, char **argv) {
             return err;
     }
 
+    libbpf_set_print(libbpf_print_fn);
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -696,21 +964,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return 1;
     }
-
     /* Parameterize BPF code */
-    skel->rodata->filter_dport = dport;
-    skel->rodata->filter_sport = sport;
-    skel->rodata->all_conn = all_conn;
-    skel->rodata->err_packet = err_packet;
-    skel->rodata->extra_conn_info = extra_conn_info;
-    skel->rodata->layer_time = layer_time;
-    skel->rodata->http_info = http_info;
-    skel->rodata->retrans_info = retrans_info;
-    skel->rodata->udp_info = udp_info;
-    skel->rodata->net_filter = net_filter;
-    skel->rodata->drop_reason = drop_reason;
-    skel->rodata->tcp_info = tcp_info;
-    skel->rodata->icmp_info = icmp_info;
+    set_rodata_flags(skel);
+    set_disable_load(skel);
 
     if(addr_to_func)
         readallsym();
@@ -727,31 +983,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-    if (udp_info) {
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr", "sprot",
-               "dprot", "udp_time","rx","len");
-    }
-    else if(net_filter)
-    {
-        printf("%-20s %-20s %-12s %-12s %-8s %-8s %-7s %-8s %-8s %-8s\n", "saddr", "daddr","dprot", "sprot",
-            "PreRT","L_IN","FW","PostRT","L_OUT","rx");
-    }
-    else if(drop_reason)
-    {
-        printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "time","saddr", "daddr","sprot", "dprot","prot","addr","reason");
-    }
-    else if(icmp_info)
-    {
-        printf("%-20s %-20s %-12s %-12s\n", "saddr", "daddr","time","flag");
-    }
-    else if(tcp_info)
-    {
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "saddr", "daddr","sport","dport","oldstate","newstate","time");
-    }
-    else{
-       printf("%-22s %-20s %-8s %-20s %-8s %-10s %-10s %-10s %-5s %-10s \n", "SOCK","Saddr","Sport","Daddr","Dport", 
-            "MAC_TIME", "IP_TIME", "TRAN_TIME", "RX", "HTTP");
-    }
+    enum MonitorMode mode = get_monitor_mode();
+
+    print_logo();
+
+    print_header(mode);
+
     udp_rb =ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
     if (!udp_rb) {
         err = -1;
@@ -782,6 +1019,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
         goto cleanup;
     }
+    dns_rb =ring_buffer__new(bpf_map__fd(skel->maps.dns_rb), print_dns, NULL, NULL);
+    if (!dns_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(tcp)\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
@@ -789,24 +1032,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(packet)\n");
         goto cleanup;
     }
-    FILE *err_file = fopen(err_file_path, "w+");
-    if (err_file == NULL) {
-        fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
-        return 0;
-    }
-    fclose(err_file);
-    FILE *packet_file = fopen(packets_file_path, "w+");
-    if (packet_file == NULL) {
-        fprintf(stderr, "Failed to open packets.log: (%s)\n", strerror(errno));
-        return 0;
-    }
-    fclose(packet_file);
-    FILE *udp_file = fopen(udp_file_path, "w+");
-    if (udp_file == NULL) {
-        fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
-        return 0;
-    }
-    fclose(udp_file);
+
+    open_log_files();
 
     /* Process events */
     while (!exiting) {
@@ -816,6 +1043,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(kfree_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(icmp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(tcp_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(dns_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

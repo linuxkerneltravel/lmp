@@ -13,13 +13,15 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
-// netwatcher libbpf 内核函数
+//
+// tcpwatch libbpf 内核函数
 
 #include "common.bpf.h"
 
 #include "netfilter.bpf.h"
 
 #include "icmp.bpf.h"
+
 
 #include "tcp.bpf.h"
 
@@ -227,7 +229,12 @@ int BPF_KPROBE(tcp_enter_loss, struct sock *sk) {
 /* udp */
 SEC("kprobe/udp_rcv")
 int BPF_KPROBE(udp_rcv, struct sk_buff *skb) {
-    return __udp_rcv(skb);
+    if(udp_info)
+        return __udp_rcv(skb);
+    else if(dns_info)
+        return __dns_rcv(skb);
+    else
+        return 0;
 }
 
 SEC("kprobe/__udp_enqueue_schedule_skb")
@@ -237,7 +244,12 @@ int BPF_KPROBE(__udp_enqueue_schedule_skb, struct sock *sk,struct sk_buff *skb) 
 
 SEC("kprobe/udp_send_skb")
 int BPF_KPROBE(udp_send_skb, struct sk_buff *skb) {
-   return __udp_send_skb(skb);
+    if(udp_info)
+        return __udp_send_skb(skb);
+    else if(dns_info)
+        return __dns_send(skb);
+    else
+        return 0;
 }
 SEC("kprobe/ip_send_skb")
 int BPF_KPROBE(ip_send_skb,struct net *net, struct sk_buff *skb) {
