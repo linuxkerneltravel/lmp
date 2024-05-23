@@ -13,15 +13,13 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
-//
-// tcpwatch libbpf 内核函数
+// netwatcher libbpf 内核函数
 
 #include "common.bpf.h"
 
 #include "netfilter.bpf.h"
 
 #include "icmp.bpf.h"
-
 
 #include "tcp.bpf.h"
 

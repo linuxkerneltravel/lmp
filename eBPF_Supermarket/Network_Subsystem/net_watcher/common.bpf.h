@@ -287,6 +287,8 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
     packet->ack = pkt_tuple.ack;                                               \
     packet->seq = pkt_tuple.seq;
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 /* help macro end */
 
 /* help functions */
@@ -385,7 +387,4 @@ void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
     pkt_tuple->tran_flag = 1; // tcp包
 }
 /* help functions end */
-
-
-
 #endif
