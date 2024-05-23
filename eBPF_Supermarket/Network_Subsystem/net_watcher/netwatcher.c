@@ -17,6 +17,7 @@
 // netwatcher libbpf 用户态代码
 
 #include "netwatcher.h"
+#include "dropreason.h"
 #include "netwatcher.skel.h"
 #include <argp.h>
 #include <arpa/inet.h>
@@ -28,9 +29,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
-#include "dropreason.h"
+#include <unistd.h>
 
 static volatile bool exiting = false;
 
@@ -41,9 +41,11 @@ static char udp_file_path[1024];
 
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
-           http_info = 0, retrans_info = 0, udp_info = 0,net_filter = 0,drop_reason = 0,addr_to_func=0 ,icmp_info = 0 , tcp_info = 0, time_load = 0 ,dns_info = 0; // flag
+           http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
+           drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
+           time_load = 0, dns_info = 0; // flag
 
-static const char* tcp_states[] = {
+static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
     [4] = "FIN_WAIT1",   [5] = "FIN_WAIT2",  [6] = "TIME_WAIT",
     [7] = "CLOSE",       [8] = "CLOSE_WAIT", [9] = "LAST_ACK",
@@ -63,15 +65,17 @@ static const struct argp_option opts[] = {
     {"sport", 's', "SPORT", 0, "trace this source port only"},
     {"dport", 'd', "DPORT", 0, "trace this destination port only"},
     {"udp", 'u', 0, 0, "trace the udp message"},
-    {"net_filter",'n',0,0,"trace ipv4 packget filter "},
-    {"drop_reason",'k',0,0,"trace kfree "},
-    {"addr_to_func",'T',0,0,"translation addr to func and offset"},
+    {"net_filter", 'n', 0, 0, "trace ipv4 packget filter "},
+    {"drop_reason", 'k', 0, 0, "trace kfree "},
+    {"addr_to_func", 'T', 0, 0, "translation addr to func and offset"},
     {"icmptime", 'I', 0, 0, "set to trace layer time of icmp"},
     {"tcpstate", 'S', 0, 0, "set to trace tcpstate"},
     {"timeload", 'L', 0, 0, "analysis time load"},
-    {"dns", 'D', 0, 0, "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd 问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr 域名、rx 收发包 "},
-  {}};
-
+    {"dns", 'D', 0, 0,
+     "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd "
+     "问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr "
+     "域名、rx 收发包 "},
+    {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     char *end;
@@ -136,7 +140,7 @@ static const struct argp argp = {
     .doc = argp_program_doc,
 };
 
-struct SymbolEntry{
+struct SymbolEntry {
     unsigned long addr;
     char name[30];
 };
@@ -165,19 +169,27 @@ enum MonitorMode get_monitor_mode() {
     } else if (dns_info) {
         return MODE_DNS;
     } else {
-        return MODE_DEFAULT; 
+        return MODE_DEFAULT;
     }
 }
-#define LOGO_STRING " " \
-        "              __                          __           __                       \n"\
-        "             /\\ \\__                      /\\ \\__       /\\ \\                      \n"\
-        "  ___      __\\ \\  _\\  __  __  __     __  \\ \\  _\\   ___\\ \\ \\___      __   _ __   \n"\
-        "/  _  \\  / __ \\ \\ \\/ /\\ \\/\\ \\/\\ \\  / __ \\ \\ \\ \\/  / ___\\ \\  _  \\  / __ \\/\\  __\\ \n"\
-        "/\\ \\/\\ \\/\\  __/\\ \\ \\_\\ \\ \\_/ \\_/ \\/\\ \\_\\ \\_\\ \\ \\_/\\ \\__/\\ \\ \\ \\ \\/\\  __/\\ \\ \\/  \n"\
-        "\\ \\_\\ \\_\\ \\____\\ \\__\\ \\_______ / /\\ \\__/\\ \\_\\ \\__\\ \\____/\\ \\_\\ \\_\\ \\____ \\ \\_\\  \n"\
-        " \\/_/\\/_/\\/____/ \\/__/ \\/__//__ /  \\/_/  \\/_/\\/__/\\/____/ \\/_/\\/_/\\/____/ \\/_/  \n\n"
+#define LOGO_STRING                                                            \
+    " "                                                                        \
+    "              __                          __           __               " \
+    "        \n"                                                               \
+    "             /\\ \\__                      /\\ \\__       /\\ \\        " \
+    "              \n"                                                         \
+    "  ___      __\\ \\  _\\  __  __  __     __  \\ \\  _\\   ___\\ \\ \\___ " \
+    "     __   _ __   \n"                                                      \
+    "/  _  \\  / __ \\ \\ \\/ /\\ \\/\\ \\/\\ \\  / __ \\ \\ \\ \\/  / ___\\ " \
+    "\\  _  \\  / __ \\/\\  __\\ \n"                                           \
+    "/\\ \\/\\ \\/\\  __/\\ \\ \\_\\ \\ \\_/ \\_/ \\/\\ \\_\\ \\_\\ \\ "       \
+    "\\_/\\ \\__/\\ \\ \\ \\ \\/\\  __/\\ \\ \\/  \n"                          \
+    "\\ \\_\\ \\_\\ \\____\\ \\__\\ \\_______ / /\\ \\__/\\ \\_\\ \\__\\ "     \
+    "\\____/\\ \\_\\ \\_\\ \\____ \\ \\_\\  \n"                                \
+    " \\/_/\\/_/\\/____/ \\/__/ \\/__//__ /  \\/_/  \\/_/\\/__/\\/____/ "      \
+    "\\/_/\\/_/\\/____/ \\/_/  \n\n"
 
-//通过lolcat命令彩色处理
+// 通过lolcat命令彩色处理
 void print_logo() {
     char *logo = LOGO_STRING;
     int i = 0;
@@ -186,10 +198,10 @@ void print_logo() {
         printf("Error: Unable to execute lolcat command.\n");
         return;
     }
-    //像lolcat管道逐个字符写入字符串
+    // 像lolcat管道逐个字符写入字符串
     while (logo[i] != '\0') {
         fputc(logo[i], lolcat_pipe);
-        fflush(lolcat_pipe);//刷新管道，确保字符被立即发送给lolcat
+        fflush(lolcat_pipe); // 刷新管道，确保字符被立即发送给lolcat
         usleep(150);
         i++;
     }
@@ -199,13 +211,12 @@ void print_logo() {
 
 struct SymbolEntry symbols[300000];
 int num_symbols = 0;
-//定义快表
+// 定义快表
 #define CACHEMAXSIZE 5
 struct SymbolEntry cache[CACHEMAXSIZE];
 int cache_size = 0;
-//LRU算法查找函数
-struct SymbolEntry find_in_cache(unsigned long int addr)
-{
+// LRU算法查找函数
+struct SymbolEntry find_in_cache(unsigned long int addr) {
     // 查找地址是否在快表中
     for (int i = 0; i < cache_size; i++) {
         if (cache[i].addr == addr) {
@@ -219,7 +230,7 @@ struct SymbolEntry find_in_cache(unsigned long int addr)
             return temp;
         }
     }
-     // 如果地址不在快表中，则返回空
+    // 如果地址不在快表中，则返回空
     struct SymbolEntry empty_entry;
     empty_entry.addr = 0;
     return empty_entry;
@@ -243,9 +254,8 @@ void add_to_cache(struct SymbolEntry entry) {
     }
 }
 
-struct SymbolEntry findfunc(unsigned long int addr)
-{
-     // 先在快表中查找
+struct SymbolEntry findfunc(unsigned long int addr) {
+    // 先在快表中查找
     struct SymbolEntry entry = find_in_cache(addr);
     if (entry.addr != 0) {
         return entry;
@@ -265,8 +275,7 @@ struct SymbolEntry findfunc(unsigned long int addr)
     add_to_cache(symbols[result]);
     return symbols[result];
 };
-void readallsym()
-{
+void readallsym() {
     FILE *file = fopen("/proc/kallsyms", "r");
     if (!file) {
         perror("Error opening file");
@@ -277,7 +286,7 @@ void readallsym()
         unsigned long addr;
         char type, name[30];
         int ret = sscanf(line, "%lx %c %s", &addr, &type, name);
-        if (ret == 3) {       
+        if (ret == 3) {
             symbols[num_symbols].addr = addr;
             strncpy(symbols[num_symbols].name, name, 30);
             num_symbols++;
@@ -289,16 +298,18 @@ void readallsym()
 /*
     指数加权移动平均算法（EWMA）
     1.使用指数加权移动平均算法（EWMA）来计算每层的指数加权移动平均值，
-    公式EWMA_new = alpha * new_value + (1 - alpha) * old_ewma ,alpha 指数加权系数，表示新数据点的权重，new_value 当前时延，old_ewma 旧的指数加权移动平均值
+    公式EWMA_new = alpha * new_value + (1 - alpha) * old_ewma ,alpha
+   指数加权系数，表示新数据点的权重，new_value 当前时延，old_ewma
+   旧的指数加权移动平均值
     2.根据当前时延和指数加权移动平均值*预先设定的粒度阈值（GRANULARITY）对比，来判断时延是否异常
-    3.可以快速适应数据的变化，并能够有效地检测异常时延 
+    3.可以快速适应数据的变化，并能够有效地检测异常时延
 
 */
 struct LayerDelayInfo {
-    float delay; // 时延数据
+    float delay;     // 时延数据
     int layer_index; // 层索引
 };
-#define GRANULARITY 3 
+#define GRANULARITY 3
 #define ALPHA 0.2 // 衰减因子
 #define MAXTIME 10000
 
@@ -307,28 +318,31 @@ float ewma_values[NUM_LAYERS] = {0};
 int count[NUM_LAYERS] = {0};
 
 // 指数加权移动平均算法
-float calculate_ewma(float new_value, float old_ewma) { 
+float calculate_ewma(float new_value, float old_ewma) {
     return ALPHA * new_value + (1 - ALPHA) * old_ewma;
 }
 
 // 收集时延数据并检测异常
 int process_delay(float layer_delay, int layer_index) {
 
-    if(layer_delay==0) return 0;
+    if (layer_delay == 0)
+        return 0;
     count[layer_index]++;
-    if( ewma_values[layer_index]==0){  
-        ewma_values[layer_index]=layer_delay;
+    if (ewma_values[layer_index] == 0) {
+        ewma_values[layer_index] = layer_delay;
         return 0;
     }
     // 计算阈值,指数加权移动平均值乘以粒度因子
-    ewma_values[layer_index] = calculate_ewma(layer_delay, ewma_values[layer_index]);
+    ewma_values[layer_index] =
+        calculate_ewma(layer_delay, ewma_values[layer_index]);
     float threshold = ewma_values[layer_index] * GRANULARITY;
-    if(count[layer_index]>30){
+    if (count[layer_index] > 30) {
         // 判断当前时延是否超过阈值
-     //   printf("%d %d:%f %f      ",layer_index,count[layer_index]++,threshold,layer_delay);
-        if (layer_delay > threshold) {//异常
+        //   printf("%d %d:%f %f
+        //   ",layer_index,count[layer_index]++,threshold,layer_delay);
+        if (layer_delay > threshold) { // 异常
             return 1;
-        }else{
+        } else {
             return 0;
         }
     }
@@ -351,123 +365,199 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->icmp_info = icmp_info;
     skel->rodata->dns_info = dns_info;
 }
-static void set_disable_load(struct netwatcher_bpf *skel){
+static void set_disable_load(struct netwatcher_bpf *skel) {
 
     bpf_program__set_autoload(skel->progs.inet_csk_accept_exit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_connect,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_connect_exit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_connect,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_connect_exit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_set_state,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.eth_type_trans,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.ip_rcv_core,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.ip6_rcv_core,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_rcv,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_rcv,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_do_rcv,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_do_rcv,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.skb_copy_datagram_iter,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_validate_incoming,
-                                err_packet ? true :false );
+                              err_packet ? true : false);
     bpf_program__set_autoload(skel->progs.__skb_checksum_complete_exit,
-                                err_packet ? true :false );
+                              err_packet ? true : false);
     bpf_program__set_autoload(skel->progs.tcp_sendmsg,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.ip_queue_xmit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.inet6_csk_xmit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.__dev_queue_xmit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.dev_hard_start_xmit,
-                                (all_conn||err_packet||extra_conn_info||retrans_info||layer_time||http_info) ? true :false );
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info)
+                                  ? true
+                                  : false);
     bpf_program__set_autoload(skel->progs.tcp_enter_recovery,
-                                retrans_info ? true :false );
+                              retrans_info ? true : false);
     bpf_program__set_autoload(skel->progs.tcp_enter_loss,
-                                retrans_info ? true :false );
+                              retrans_info ? true : false);
     bpf_program__set_autoload(skel->progs.udp_rcv,
-                                udp_info || dns_info ? true :false );
+                              udp_info || dns_info ? true : false);
     bpf_program__set_autoload(skel->progs.__udp_enqueue_schedule_skb,
-                                udp_info || dns_info ? true :false );
+                              udp_info || dns_info ? true : false);
     bpf_program__set_autoload(skel->progs.udp_send_skb,
-                                udp_info || dns_info ? true :false );
+                              udp_info || dns_info ? true : false);
     bpf_program__set_autoload(skel->progs.ip_send_skb,
-                                udp_info || dns_info ? true :false );
-    bpf_program__set_autoload(skel->progs.ip_rcv,
-                                net_filter ? true :false );
+                              udp_info || dns_info ? true : false);
+    bpf_program__set_autoload(skel->progs.ip_rcv, net_filter ? true : false);
     bpf_program__set_autoload(skel->progs.ip_local_deliver,
-                                net_filter ? true :false );
+                              net_filter ? true : false);
     bpf_program__set_autoload(skel->progs.ip_local_deliver_finish,
-                                net_filter ? true :false );
+                              net_filter ? true : false);
     bpf_program__set_autoload(skel->progs.ip_local_out,
-                                net_filter ? true :false );
-    bpf_program__set_autoload(skel->progs.ip_output,
-                                net_filter ? true :false );
+                              net_filter ? true : false);
+    bpf_program__set_autoload(skel->progs.ip_output, net_filter ? true : false);
     bpf_program__set_autoload(skel->progs.__ip_finish_output,
-                                net_filter ? true :false );
+                              net_filter ? true : false);
     bpf_program__set_autoload(skel->progs.ip_forward,
-                                net_filter ? true :false );
-    bpf_program__set_autoload(skel->progs.tp_kfree,
-                                drop_reason ? true :false );
-    bpf_program__set_autoload(skel->progs.icmp_rcv,
-                                icmp_info ? true :false );
+                              net_filter ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_kfree, drop_reason ? true : false);
+    bpf_program__set_autoload(skel->progs.icmp_rcv, icmp_info ? true : false);
     bpf_program__set_autoload(skel->progs.__sock_queue_rcv_skb,
-                                icmp_info ? true :false );
-    bpf_program__set_autoload(skel->progs.icmp_reply,
-                                icmp_info ? true :false );
+                              icmp_info ? true : false);
+    bpf_program__set_autoload(skel->progs.icmp_reply, icmp_info ? true : false);
     bpf_program__set_autoload(skel->progs.handle_set_state,
-                                tcp_info ? true :false );
+                              tcp_info ? true : false);
 }
 
-static void print_header(enum MonitorMode mode){
-    switch(mode){
-        case MODE_UDP:
-            printf("===============================================================UDP INFORMATION========================================================\n");
-            printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr", "sprot",
-                   "dprot", "udp_time/μs", "rx/direction", "len/byte");
-            break;
-        case MODE_NET_FILTER:
-            printf("==================================================================NET FILTER INFORMATION===========================================================\n");
-            printf("%-20s %-20s %-12s %-12s %-8s %-8s %-7s %-8s %-8s %-8s\n", "saddr", "daddr","dprot", "sprot",
-                    "PreRT/μs","L_IN/μs","FW/μs","PostRT/μs","L_OUT/μs","rx/direction");
-            break;
-        case MODE_DROP_REASON:
-            printf("===============================================================DROP INFORMATION========================================================\n");
-            printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "time","saddr", "daddr","sprot", "dprot","prot","addr","reason");
-            break;
-        case MODE_ICMP:
-            printf("=================================================ICMP INFORMATION==============================================\n");
-            printf("%-20s %-20s %-20s %-20s\n", "saddr", "daddr","icmp_time/μs","tx//direction");
-            break;
-        case MODE_TCP:
-            printf("===============================================================TCP STATE INFORMATION========================================================\n");
-            printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "saddr", "daddr","sport","dport","oldstate","newstate","time/μs");
-            break;
-        case MODE_DNS:
-            printf("===================================================================================DNS INFORMATION================================================================================\n");
-            printf("%-20s %-20s %-12s %-12s %-12s %-12s %-12s %-11s %-47s %5s \n","saddr","daddr","Id","Flags","Qd","An","Ns","Ar","Qr","rx/direction");
-            break;
-        case MODE_DEFAULT:
-            printf("================================================================INFORMATION=========================================================================\n");
-            printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-15s %-15s \n", "SOCK","Saddr","Sport","Daddr","Dport", 
-                    "MAC_TIME/μs", "IP_TIME/μs", "TRAN_TIME/μs", "RX//direction", "HTTP");
-            break;
+static void print_header(enum MonitorMode mode) {
+    switch (mode) {
+    case MODE_UDP:
+        printf("==============================================================="
+               "UDP "
+               "INFORMATION===================================================="
+               "====\n");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr",
+               "sprot", "dprot", "udp_time/μs", "rx/direction", "len/byte");
+        break;
+    case MODE_NET_FILTER:
+        printf("==============================================================="
+               "===NET FILTER "
+               "INFORMATION===================================================="
+               "=======\n");
+        printf("%-20s %-20s %-12s %-12s %-8s %-8s %-7s %-8s %-8s %-8s\n",
+               "saddr", "daddr", "dprot", "sprot", "PreRT/μs", "L_IN/μs",
+               "FW/μs", "PostRT/μs", "L_OUT/μs", "rx/direction");
+        break;
+    case MODE_DROP_REASON:
+        printf("==============================================================="
+               "DROP "
+               "INFORMATION===================================================="
+               "====\n");
+        printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "time",
+               "saddr", "daddr", "sprot", "dprot", "prot", "addr", "reason");
+        break;
+    case MODE_ICMP:
+        printf("=================================================ICMP "
+               "INFORMATION==============================================\n");
+        printf("%-20s %-20s %-20s %-20s\n", "saddr", "daddr", "icmp_time/μs",
+               "tx//direction");
+        break;
+    case MODE_TCP:
+        printf("==============================================================="
+               "TCP STATE "
+               "INFORMATION===================================================="
+               "====\n");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "saddr", "daddr",
+               "sport", "dport", "oldstate", "newstate", "time/μs");
+        break;
+    case MODE_DNS:
+        printf("==============================================================="
+               "====================DNS "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-20s %-20s %-12s %-12s %-12s %-12s %-12s %-11s %-47s %5s \n",
+               "saddr", "daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
+               "rx/direction");
+        break;
+    case MODE_DEFAULT:
+        printf("==============================================================="
+               "=INFORMATION==================================================="
+               "======================\n");
+        printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-15s %-15s \n",
+               "SOCK", "Saddr", "Sport", "Daddr", "Dport", "MAC_TIME/μs",
+               "IP_TIME/μs", "TRAN_TIME/μs", "RX//direction", "HTTP");
+        break;
     }
-
 }
 
 static void open_log_files() {
@@ -535,7 +625,8 @@ static int print_conns(struct netwatcher_bpf *skel) {
 
         char s_ip_port_str[INET6_ADDRSTRLEN + 6];
         char d_ip_port_str[INET6_ADDRSTRLEN + 6];
-        if((d.saddr & 0x0000FFFF) == 0x0000007F || (d.daddr & 0x0000FFFF) == 0x0000007F)
+        if ((d.saddr & 0x0000FFFF) == 0x0000007F ||
+            (d.daddr & 0x0000FFFF) == 0x0000007F)
             return 0;
         if (d.family == AF_INET) {
             sprintf(s_ip_port_str, "%s:%d",
@@ -598,26 +689,28 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
-    if (udp_info || net_filter || drop_reason || icmp_info || tcp_info || dns_info)
+    if (udp_info || net_filter || drop_reason || icmp_info || tcp_info ||
+        dns_info)
         return 0;
     const struct pack_t *pack_info = packet_info;
-    if(pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME || pack_info->tran_time > MAXTIME)
-    {
+    if (pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME ||
+        pack_info->tran_time > MAXTIME) {
         return 0;
     }
     char d_str[INET_ADDRSTRLEN];
     char s_str[INET_ADDRSTRLEN];
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
+    if ((daddr & 0x0000FFFF) == 0x0000007F ||
+        (saddr & 0x0000FFFF) == 0x0000007F)
         return 0;
-    if (dport) 
-        if (pack_info->dport != dport)                             
-                return 0;                                                     
-                                                      
-    if (sport)                                               
-            if (pack_info->sport!= sport)                                  
-                return 0;   
+    if (dport)
+        if (pack_info->dport != dport)
+            return 0;
+
+    if (sport)
+        if (pack_info->sport != sport)
+            return 0;
 
     if (pack_info->err) {
         FILE *file = fopen(err_file_path, "a");
@@ -656,44 +749,54 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
             sprintf(http_data, "-");
         }
         if (layer_time) {
-                   printf("%-22p %-20s %-8d %-20s %-8d %-14llu %-14llu %-14llu %-15d %-16s",
-                   pack_info->sock,inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),pack_info->sport,
-                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),pack_info->dport,
-                   pack_info->mac_time, pack_info->ip_time,
+            printf("%-22p %-20s %-8d %-20s %-8d %-14llu %-14llu %-14llu %-15d "
+                   "%-16s",
+                   pack_info->sock,
+                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                   pack_info->sport,
+                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                   pack_info->dport, pack_info->mac_time, pack_info->ip_time,
                    pack_info->tran_time, pack_info->rx, http_data);
             fprintf(
                 file,
-                "packet{sock=\"%p\",saddr=\"%s\",sport=\"%d\",daddr=\"%s\",dport=\"%d\",seq=\"%u\",ack=\"%u\","
+                "packet{sock=\"%p\",saddr=\"%s\",sport=\"%d\",daddr=\"%s\","
+                "dport=\"%d\",seq=\"%u\",ack=\"%u\","
                 "mac_time=\"%llu\",ip_time=\"%llu\",tran_time=\"%llu\",http_"
                 "info=\"%s\",rx=\"%d\"} \n",
-                pack_info->sock,inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),pack_info->sport,
-                inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),pack_info->dport,
-                pack_info->seq, pack_info->ack,
-                pack_info->mac_time, pack_info->ip_time,
-                pack_info->tran_time,http_data, pack_info->rx);
+                pack_info->sock,
+                inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                pack_info->sport,
+                inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                pack_info->dport, pack_info->seq, pack_info->ack,
+                pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
+                http_data, pack_info->rx);
         } else {
-                printf("%-22p %-20s %-8d %-20s %-8d %-10d %-10d %-10d %-5d %-10s",
-                   pack_info->sock,inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),pack_info->sport,
-                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),pack_info->dport,0,0,0, pack_info->rx, http_data);
-            fprintf(
-                file,
-                "packet{sock=\"%p\",saddr=\"%s\",sport=\"%d\",daddr=\"%s\",dport=\"%d\",seq=\"%u\",ack=\"%u\","
-                "mac_time=\"%d\",ip_time=\"%d\",tran_time=\"%d\",http_"
-                "info=\"%s\",rx=\"%d\"} \n",
-                pack_info->sock,inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),pack_info->sport,
-                inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),pack_info->dport,
-                pack_info->seq, pack_info->ack,0,0,0,http_data, pack_info->rx);
+            printf("%-22p %-20s %-8d %-20s %-8d %-10d %-10d %-10d %-5d %-10s",
+                   pack_info->sock,
+                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                   pack_info->sport,
+                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                   pack_info->dport, 0, 0, 0, pack_info->rx, http_data);
+            fprintf(file,
+                    "packet{sock=\"%p\",saddr=\"%s\",sport=\"%d\",daddr=\"%s\","
+                    "dport=\"%d\",seq=\"%u\",ack=\"%u\","
+                    "mac_time=\"%d\",ip_time=\"%d\",tran_time=\"%d\",http_"
+                    "info=\"%s\",rx=\"%d\"} \n",
+                    pack_info->sock,
+                    inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                    pack_info->sport,
+                    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                    pack_info->dport, pack_info->seq, pack_info->ack, 0, 0, 0,
+                    http_data, pack_info->rx);
         }
         fclose(file);
     }
-    if(time_load)
-    {
-        int mac = process_delay(pack_info->mac_time,0);
-        int ip = process_delay(pack_info->ip_time,1);
-        int tran = process_delay(pack_info->tran_time,2);
-        if(mac||ip||tran)
-        {
-            printf("%-15s","abnormal data");
+    if (time_load) {
+        int mac = process_delay(pack_info->mac_time, 0);
+        int ip = process_delay(pack_info->ip_time, 1);
+        int tran = process_delay(pack_info->tran_time, 2);
+        if (mac || ip || tran) {
+            printf("%-15s", "abnormal data");
         }
     }
     printf("\n");
@@ -702,8 +805,8 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
 static int print_udp(void *ctx, void *packet_info, size_t size) {
     if (!udp_info)
         return 0;
-    FILE *file = fopen(udp_file_path, "a+");//追加
-     if (file == NULL) {
+    FILE *file = fopen(udp_file_path, "a+"); // 追加
+    if (file == NULL) {
         fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
         return 0;
     }
@@ -712,29 +815,29 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if(pack_info->tran_time > MAXTIME)
+    if (pack_info->tran_time > MAXTIME)
         return 0;
-    // if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
+    // if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) ==
+    // 0x0000007F)
     //     return 0;
-    
+
     printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
-           pack_info->dport, pack_info->tran_time,pack_info->rx,pack_info->len);
-    fprintf(
-            file,
+           pack_info->dport, pack_info->tran_time, pack_info->rx,
+           pack_info->len);
+    fprintf(file,
             "packet{saddr=\"%s\",daddr=\"%s\",sport=\"%u\","
             "dport=\"%u\",udp_time=\"%llu\",rx=\"%d\",len=\"%d\"} \n",
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
-            pack_info->dport, pack_info->tran_time,pack_info->rx,pack_info->len);
+            pack_info->dport, pack_info->tran_time, pack_info->rx,
+            pack_info->len);
     fclose(file);
-    if(time_load)
-    {
+    if (time_load) {
         int flag = process_delay(pack_info->tran_time, 3);
-        if(flag)
-            printf("%-15s","abnormal data");
-        
+        if (flag)
+            printf("%-15s", "abnormal data");
     }
     printf("\n");
 
@@ -742,43 +845,42 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
 }
 
 static int print_netfilter(void *ctx, void *packet_info, size_t size) {
-    if(!net_filter)
+    if (!net_filter)
         return 0;
     char d_str[INET_ADDRSTRLEN];
-    char s_str[INET_ADDRSTRLEN]; 
+    char s_str[INET_ADDRSTRLEN];
     const struct netfilter *pack_info = packet_info;
-    if(pack_info->local_input_time > MAXTIME || pack_info->forward_time > MAXTIME || pack_info->local_out_time > MAXTIME || pack_info->post_routing_time > MAXTIME ||pack_info->pre_routing_time >MAXTIME )
+    if (pack_info->local_input_time > MAXTIME ||
+        pack_info->forward_time > MAXTIME ||
+        pack_info->local_out_time > MAXTIME ||
+        pack_info->post_routing_time > MAXTIME ||
+        pack_info->pre_routing_time > MAXTIME)
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
-            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-            pack_info->sport,pack_info->dport,
-            pack_info->pre_routing_time,
-            pack_info->local_input_time,
-            pack_info->forward_time,
-            pack_info->post_routing_time,
-            pack_info->local_out_time,
-            pack_info->rx);
-    //定义一个数组用于存储需要检测的时延数据和对应的层索引
+           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
+           pack_info->dport, pack_info->pre_routing_time,
+           pack_info->local_input_time, pack_info->forward_time,
+           pack_info->post_routing_time, pack_info->local_out_time,
+           pack_info->rx);
+    // 定义一个数组用于存储需要检测的时延数据和对应的层索引
     struct LayerDelayInfo layer_delay_infos[] = {
-            {pack_info->pre_routing_time, 4},
-            {pack_info->local_input_time, 5},
-            {pack_info->forward_time, 6},
-            {pack_info->post_routing_time, 7},
-            {pack_info->local_out_time, 8}
-     };
-    if(time_load)
-    {
+        {pack_info->pre_routing_time, 4},
+        {pack_info->local_input_time, 5},
+        {pack_info->forward_time, 6},
+        {pack_info->post_routing_time, 7},
+        {pack_info->local_out_time, 8}};
+    if (time_load) {
         // 循环遍历数组
         for (int i = 0; i < 5; i++) {
-            //数组的总字节数除以第一个元素的字节数得到元素的个数
+            // 数组的总字节数除以第一个元素的字节数得到元素的个数
             float delay = layer_delay_infos[i].delay;
             int layer_net = layer_delay_infos[i].layer_index;
             int flag = process_delay(delay, layer_net);
-            if (flag) 
-                printf("%-15s","abnormal data");
+            if (flag)
+                printf("%-15s", "abnormal data");
         }
     }
     printf("\n");
@@ -787,87 +889,80 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
 }
 
 static int print_tcpstate(void *ctx, void *packet_info, size_t size) {
-    if(!tcp_info)
+    if (!tcp_info)
         return 0;
     char d_str[INET_ADDRSTRLEN];
-    char s_str[INET_ADDRSTRLEN]; 
+    char s_str[INET_ADDRSTRLEN];
     const struct tcp_state *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
     printf("%-20s %-20s %-20d %-20d %-20s %-20s  %-20lld\n",
-            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-            pack_info->sport,pack_info->dport,tcp_states[pack_info->oldstate],tcp_states[pack_info->newstate],pack_info->time);
+           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
+           pack_info->dport, tcp_states[pack_info->oldstate],
+           tcp_states[pack_info->newstate], pack_info->time);
 
     return 0;
 }
 
 static int print_kfree(void *ctx, void *packet_info, size_t size) {
-    if(!drop_reason)
+    if (!drop_reason)
         return 0;
     char d_str[INET_ADDRSTRLEN];
-    char s_str[INET_ADDRSTRLEN]; 
+    char s_str[INET_ADDRSTRLEN];
     const struct reasonissue *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if(saddr == 0 && daddr ==0 )
-    {
+    if (saddr == 0 && daddr == 0) {
         return 0;
     }
     char prot[6];
-    if(pack_info->protocol==2048)
-    {
+    if (pack_info->protocol == 2048) {
         strcpy(prot, "ipv4");
-    }
-    else if(pack_info->protocol==34525)
-    {
+    } else if (pack_info->protocol == 34525) {
         strcpy(prot, "ipv6");
-    }
-    else {
+    } else {
         // 其他协议
         strcpy(prot, "other");
     }
     time_t now = time(NULL);
     struct tm *localTime = localtime(&now);
-    printf("%02d:%02d:%02d      %-17s %-17s %-10u %-10u %-10s", 
-    localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
-    inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,pack_info->dport,prot);
-    if(!addr_to_func)
-        printf("%-34lx",pack_info->location);
+    printf("%02d:%02d:%02d      %-17s %-17s %-10u %-10u %-10s",
+           localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
+           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
+           pack_info->dport, prot);
+    if (!addr_to_func)
+        printf("%-34lx", pack_info->location);
     else {
-        struct SymbolEntry data= findfunc(pack_info->location);
+        struct SymbolEntry data = findfunc(pack_info->location);
         char result[40];
         sprintf(result, "%s+0x%lx", data.name, pack_info->location - data.addr);
-        printf("%-34s",result);
+        printf("%-34s", result);
     }
     printf("%s\n", SKB_Drop_Reason_Strings[pack_info->drop_reason]);
     return 0;
 }
 
 static int print_icmptime(void *ctx, void *packet_info, size_t size) {
-    if(!icmp_info)
+    if (!icmp_info)
         return 0;
     char d_str[INET_ADDRSTRLEN];
-    char s_str[INET_ADDRSTRLEN]; 
+    char s_str[INET_ADDRSTRLEN];
     const struct icmptime *pack_info = packet_info;
-    if(pack_info->icmp_tran_time > MAXTIME)
-    {
+    if (pack_info->icmp_tran_time > MAXTIME) {
         return 0;
     }
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
     printf("%-20s %-20s %-20lld %-20d",
-            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-            pack_info->icmp_tran_time,
-            pack_info->flag);    
-    if(time_load)
-    {
+           inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+           inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+           pack_info->icmp_tran_time, pack_info->flag);
+    if (time_load) {
         int icmp_data = process_delay(pack_info->icmp_tran_time, 9);
-        if(icmp_data)
-        {
-            printf("%-15s\n","abnormal data");
+        if (icmp_data) {
+            printf("%-15s\n", "abnormal data");
         }
     }
     printf("\n");
@@ -875,17 +970,17 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
 }
 // 从DNS数据包中提取并打印域名
 static void print_domain_name(const unsigned char *data, char *output) {
-    const unsigned char *next = data; 
+    const unsigned char *next = data;
     int pos = 0, first = 1;
-    //循环到尾部，标志0
-    while (*next != 0) { 
+    // 循环到尾部，标志0
+    while (*next != 0) {
         if (!first) {
-            output[pos++] = '.';//在每个段之前添加点号
+            output[pos++] = '.'; // 在每个段之前添加点号
         } else {
-            first = 0;//第一个段后清除标志
+            first = 0; // 第一个段后清除标志
         }
-        int len = *next++;//下一个段长度
-        // 将DNS编码的域名中的每个字符复制到输出缓冲区
+        int len = *next++; // 下一个段长度
+
         for (int i = 0; i < len; ++i) {
             output[pos++] = *next++;
         }
@@ -894,24 +989,23 @@ static void print_domain_name(const unsigned char *data, char *output) {
 }
 
 static int print_dns(void *ctx, void *packet_info, size_t size) {
-    if (!packet_info)  // 修正变量名
+    if (!packet_info)
         return 0;
     char d_str[INET_ADDRSTRLEN];
     char s_str[INET_ADDRSTRLEN];
-    const struct dns_information *pack_info = (const struct dns_information *)packet_info;  // 强制类型转换
+    const struct dns_information *pack_info =
+        (const struct dns_information *)packet_info; // 强制类型转换
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
     char domain_name[256]; // 用于存储输出的域名
-    
+
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
-    // 使用print_domain_name函数填充domain_name
+
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
 
-    // 调整打印格式，使用domain_name变量
     printf("%-20s %-20s %-#12x %-#12x %-12x %-12x %-12x %-11x %-47s %-10d\n",
-           s_str, d_str,
-           pack_info->id, pack_info->flags, pack_info->qdcount,
+           s_str, d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
            domain_name, pack_info->rx);
 
@@ -923,8 +1017,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
     return vfprintf(stderr, format, args);
 }
 
-
-int main(int argc, char **argv) {  
+int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
         *(last_slash + 1) = '\0';
@@ -936,7 +1029,7 @@ int main(int argc, char **argv) {
     strcat(connects_file_path, "data/connects.log");
     strcat(err_file_path, "data/err.log");
     strcat(packets_file_path, "data/packets.log");
-    strcat(udp_file_path,"data/udp.log");
+    strcat(udp_file_path, "data/udp.log");
     struct ring_buffer *rb = NULL;
     struct ring_buffer *udp_rb = NULL;
     struct ring_buffer *netfilter_rb = NULL;
@@ -968,7 +1061,7 @@ int main(int argc, char **argv) {
     set_rodata_flags(skel);
     set_disable_load(skel);
 
-    if(addr_to_func)
+    if (addr_to_func)
         readallsym();
 
     err = netwatcher_bpf__load(skel);
@@ -989,37 +1082,43 @@ int main(int argc, char **argv) {
 
     print_header(mode);
 
-    udp_rb =ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
+    udp_rb =
+        ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
     if (!udp_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(udp)\n");
         goto cleanup;
     }
-    netfilter_rb =ring_buffer__new(bpf_map__fd(skel->maps.netfilter_rb), print_netfilter, NULL, NULL);
+    netfilter_rb = ring_buffer__new(bpf_map__fd(skel->maps.netfilter_rb),
+                                    print_netfilter, NULL, NULL);
     if (!netfilter_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(netfilter)\n");
         goto cleanup;
     }
-    kfree_rb =ring_buffer__new(bpf_map__fd(skel->maps.kfree_rb), print_kfree, NULL, NULL);
+    kfree_rb = ring_buffer__new(bpf_map__fd(skel->maps.kfree_rb), print_kfree,
+                                NULL, NULL);
     if (!kfree_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(kfree)\n");
         goto cleanup;
     }
-    icmp_rb =ring_buffer__new(bpf_map__fd(skel->maps.icmp_rb), print_icmptime, NULL, NULL);
+    icmp_rb = ring_buffer__new(bpf_map__fd(skel->maps.icmp_rb), print_icmptime,
+                               NULL, NULL);
     if (!icmp_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(icmp)\n");
         goto cleanup;
     }
-    tcp_rb =ring_buffer__new(bpf_map__fd(skel->maps.tcp_rb), print_tcpstate, NULL, NULL);
+    tcp_rb = ring_buffer__new(bpf_map__fd(skel->maps.tcp_rb), print_tcpstate,
+                              NULL, NULL);
     if (!tcp_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
         goto cleanup;
     }
-    dns_rb =ring_buffer__new(bpf_map__fd(skel->maps.dns_rb), print_dns, NULL, NULL);
+    dns_rb =
+        ring_buffer__new(bpf_map__fd(skel->maps.dns_rb), print_dns, NULL, NULL);
     if (!dns_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
