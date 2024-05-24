@@ -373,18 +373,18 @@ int main(int argc, char *argv[]){ //xacladm load enp1s0 ./conf.d/ipv4.conf
 
 
     // 解析命令行参数
-    if (strcmp(command, "ip_f") == 0) {
+    if (strcmp(command, "ip") == 0) {
 
         // argc - 2 表示将命令行参数的数量减去2，这可能是为了排除程序名称和command 参数，只留下与接口名称相关的参数。
         //argv + 3 表示将指向命令行参数数组的指针向后移动3个位置，这可能是为了跳过程序名称、command 参数和ifname 参数，直接指向与IPv4配置文件相关的参数。
         //因为前两个参数是程序名称和操作命令。
         err = load_handler_ipv4(argc - 2, argv + 3);
     }
-    else if (strcmp(command, "mac_f") == 0) {
+    else if (strcmp(command, "mac") == 0) {
 
         err = load_handler_mac(argc - 2, argv + 3);
     }
-    else if (strcmp(command, "rout") == 0) {
+    else if (strcmp(command, "router") == 0) {
 
         err = load_handler_router(argc - 2, argv + 3);
     }
