@@ -1,21 +1,3 @@
-// Copyright 2024 The LMP Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
-//
-// process image of the user test program
-
 #include <stdio.h>
 #include <unistd.h>
 #include <time.h>
@@ -49,19 +31,20 @@ static struct env {
 const char argp_program_doc[] ="To test cpu_watcher.\n";
 
 static const struct argp_option opts[] = {
-   { "sar", 's', NULL, 0, "To test sar" },
-   { "cs_delay", 'c', NULL, 0, "To test cs_delay" },
-   { "sc_delay", 'S', NULL, 0, "To test sc_delay" },
-   { "mq_delay", 'm', NULL, 0, "To test mq_delay" },
-   { "preempt_delay", 'p', NULL, 0, "To test preempt_delay" },
-   { "schedule_delay", 'd', NULL, 0, "To test schedule_delay"},
-   { "all", 'a', NULL, 0, "To test all" },
-   { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
+   { "sar", 's', NULL, 0, "To test sar", 0 },
+   { "cs_delay", 'c', NULL, 0, "To test cs_delay", 0 },
+   { "sc_delay", 'S', NULL, 0, "To test sc_delay", 0 },
+   { "mq_delay", 'm', NULL, 0, "To test mq_delay", 0 },
+   { "preempt_delay", 'p', NULL, 0, "To test preempt_delay", 0 },
+   { "schedule_delay", 'd', NULL, 0, "To test schedule_delay", 0 },
+   { "all", 'a', NULL, 0, "To test all", 0 },
+   { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help", 0 },
    {},
 };
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
+    (void)arg; 
 	switch (key) {
 		case 'a':
 				env.sar_test = true;
@@ -99,20 +82,48 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
+void *schedule_stress_test(void *arg) {
+    (void)arg;
+    while (1) {
+        sched_yield(); // 调度函数
+    }
+    return NULL;
+}
+
+void start_schedule_stress_test(int num_threads) {
+    pthread_t *threads = malloc(num_threads * sizeof(pthread_t));
+    for (int i = 0; i < num_threads; i++) {
+        pthread_create(&threads[i], NULL, schedule_stress_test, NULL);
+    }
+    for (int i = 0; i < num_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+    free(threads);
+}
+
 void *func(void *arg)
 {
+   (void)arg;
    int tpid;
-
    tpid = gettid();
    printf("新线程pid:%d,睡眠3s后退出\n",tpid);
    sleep(3);
    printf("新线程退出\n");
+   return NULL;
+}
+
+void input_pid() {
+    int stop;
+    int pid = getpid();
+    printf("test_proc进程的PID:【%d】\n", pid);
+    printf("输入任意数字继续程序的运行:");
+    scanf("%d", &stop); // 使用时将其取消注释
+    printf("程序开始执行...\n");
+    printf("\n");
 }
 
 int main(int argc, char **argv){
-    int pid,stop;
     int err;
-    pthread_t tid;
     static const struct argp argp = {
     	.options = opts,
     	.parser = parse_arg,
@@ -123,27 +134,40 @@ int main(int argc, char **argv){
     if (err)
     	return err;
 
-    pid = getpid();
-    printf("test_proc进程的PID:【%d】\n", pid);
-    printf("输入任意数字继续程序的运行:");
-    scanf("%d",&stop);                   // 使用时将其取消注释
-    printf("程序开始执行...\n");
-    printf("\n");
-
     if(env.sar_test){
-    /*sar的测试代码*/
+        printf("SAR_TEST----------------------------------------------\n");
+        //SAR功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程，持续15秒,观察加压前后的变化。
+        char *argvv[] = { "/usr/bin/stress-ng", "--hdd", "4", "--hdd-opts", "wr-seq,rd-seq", "--io", "4",  "--timeout", "15s", "--metrics-brief", NULL };
+        char *envp[] = { "PATH=/bin", NULL };
+        printf("SAR功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程和4个UDP网络操作线程，持续15秒,观察加压前后的变化\n");
+        printf("执行指令 stress-ng --hdd 4 --hdd-opts wr-seq,rd-seq --io 4 --udp 4 --timeout 15s --metrics-brief\n");
+        execve("/usr/bin/stress-ng", argvv, envp);
+        perror("execve");
+        printf("\n");
     }
 
     if(env.cs_delay_test){
-    /*cs_delay的测试代码*/
+         printf("CS_DELAY_TEST----------------------------------------------\n");
+         //CS_DELAY功能测试逻辑：无限循环的线程函数，不断调用 sched_yield() 来放弃 CPU 使用权，模拟高调度负载。
+         start_schedule_stress_test(10); // 创建10个线程进行调度压力测试
     }
 
     if(env.sc_delay_test){
-    /*sc_delay的测试代码*/
+         printf("SC_DELAY_TEST----------------------------------------------\n");
+         //SC_DELAY功能测试逻辑：创建多个系统调用，观察其变化
+          const int num_iterations = 1000000; // 系统调用的迭代次数
+        for (int i = 0; i < num_iterations; i++) {
+            getpid();     // 获取进程ID
+            getppid();    // 获取父进程ID
+            time(NULL);   // 获取当前时间
+            syscall(SYS_gettid); // 获取线程ID
+        }
+        printf("系统调用压力测试完成。\n");
     }
 
     if(env.mq_delay_test){
     /*mq_delay的测试代码*/
+        input_pid(); // 在mq_delay_test中调用
         system("./sender & ./receiver");
         sleep(60);
         system("^Z");
@@ -154,7 +178,16 @@ int main(int argc, char **argv){
     }
 
     if(env.schedule_test){
-    /*schedule_delay的测试代码*/
+        printf("SCHEDULE_TEST----------------------------------------------\n");
+        // 调度延迟测试逻辑：创建线程执行 sysbench --threads=32 --time=10 cpu run，观察加压前后的变化
+        char *argvv[] = { "/usr/bin/sysbench", "--threads=32", "--time=10", "cpu", "run", NULL };
+        char *envp[] = { "PATH=/bin", NULL };
+        printf("调度延迟测试逻辑：\n");
+        printf("执行指令 sysbench --threads=32 --time=10 cpu run\n");
+        execve("/usr/bin/sysbench", argvv, envp);
+        perror("execve");
+        
+        printf("\n");
     }
 
     return 0;
