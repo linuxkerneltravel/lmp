@@ -71,13 +71,13 @@ int OnCPUStackCollector::attach(void)
     bool *online_mask;
     int num_online_cpus;
     err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
-    CHECK_ERR(err, "Fail to get online CPU numbers");
+    CHECK_ERR_RN1(err, "Fail to get online CPU numbers");
 
     num_cpus = libbpf_num_possible_cpus();
-    CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
+    CHECK_ERR_RN1(num_cpus <= 0, "Fail to get the number of processors");
 
     struct perf_event_attr attr = {
-        .type = PERF_COUNT_HW_CPU_CYCLES,
+        .type = PERF_TYPE_HARDWARE,
         .size = sizeof(attr),
         .config = PERF_COUNT_HW_CPU_CYCLES,
         .sample_freq = freq,
@@ -99,11 +99,22 @@ int OnCPUStackCollector::attach(void)
         }
         /* Set up performance monitoring on a CPU/Core */
         int pefd = perf_event_open(&attr, tgid ? tgid : -1, cpu, -1, 0);
-        CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+        if (pefd < 0)
+        {
+            if (attr.type != PERF_TYPE_SOFTWARE)
+            {
+                attr.type = PERF_TYPE_SOFTWARE;
+                attr.config = PERF_COUNT_SW_CPU_CLOCK;
+                pefd = perf_event_open(&attr, tgid ? tgid : -1, cpu, -1, 0);
+                CHECK_ERR_RN1(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+            }
+            else
+                DEAL_ERR(return -1, "Fail to set up performance monitor on a CPU/Core");
+        }
         pefds[cpu] = pefd;
         /* Attach a BPF program on a CPU */
         links[cpu] = bpf_program__attach_perf_event(skel->progs.do_stack, pefd); // 与内核bpf程序联系
-        CHECK_ERR(!links[cpu], "Fail to attach bpf program");
+        CHECK_ERR_RN1(!links[cpu], "Fail to attach bpf program");
     }
     return 0;
 }

@@ -36,7 +36,7 @@ uint64_t *OffCPUStackCollector::count_values(void *data)
 
 int OffCPUStackCollector::load(void)
 {
-    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
+    EBPF_LOAD_OPEN_INIT();
     return 0;
 }
 
