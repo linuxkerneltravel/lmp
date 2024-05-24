@@ -2,8 +2,10 @@
 #define __WRITE_H
 
 struct fs_t {
+    int fd;
     int pid;
-    unsigned long long duration_ns;
+    size_t real_count;
+    size_t count;
 };
 
 #endif /* __WRITE_H */
