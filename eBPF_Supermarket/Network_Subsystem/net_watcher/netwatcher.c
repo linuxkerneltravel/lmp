@@ -1154,7 +1154,9 @@ int main(int argc, char **argv) {
         ring_buffer__new(bpf_map__fd(skel->maps.dns_rb), print_dns, NULL, NULL);
     if (!dns_rb) {
         err = -1;
-        fprintf(stderr, "Failed to create ring buffer(tcp)\n");
+        fprintf(stderr, "Failed to create ring buffer(dns)\n");
+        goto cleanup;
+    }
     trace_rb =ring_buffer__new(bpf_map__fd(skel->maps.trace_rb), print_trace, NULL, NULL);
     if (!trace_rb) {
         err = -1;
