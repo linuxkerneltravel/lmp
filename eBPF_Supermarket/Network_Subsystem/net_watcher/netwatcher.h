@@ -16,6 +16,7 @@
 //
 // netwatcher libbpf 内核<->用户 传递信息相关结构体
 
+
 #ifndef __NETWATCHER_H
 #define __NETWATCHER_H
 
@@ -76,6 +77,7 @@ struct conn_t {
 
 #define MAX_PACKET 1000
 #define MAX_HTTP_HEADER 256
+#define NUM_LAYERS 5
 
 struct pack_t {
     int err;                     // no err(0) invalid seq(1) invalid checksum(2)
@@ -88,6 +90,13 @@ struct pack_t {
     u8 data[MAX_HTTP_HEADER]; // 用户层数据
     const void *sock;                    // 此包tcp连接的 socket 指针
     int rx;                              // rx packet(1) or tx packet(0)
+    u32 saddr;
+    u32 daddr;
+    unsigned __int128 saddr_v6;
+    unsigned __int128 daddr_v6;
+    u16 sport;
+    u16 dport;
+
 };
 
 struct udp_message {
@@ -122,12 +131,15 @@ struct  reasonissue
     u16 protocol;
     int  drop_reason;
 };
+
 struct icmptime{
     unsigned int saddr;
     unsigned int daddr;
     unsigned long long icmp_tran_time;
     unsigned int flag; //0 send 1 rcv
+    int monitor;
 };
+
 
 struct tcp_state {
     u32 saddr;       
@@ -137,6 +149,12 @@ struct tcp_state {
 	int oldstate;
 	int newstate;
     u64 time;
+};
+
+struct timeload{
+    u64 total_time;
+    u64 normal_time;
+    int count;
 };
 
 #endif /* __NETWATCHER_H */

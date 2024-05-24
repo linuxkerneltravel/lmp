@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
+// netwatcher libbpf tcp
 
 #include "common.bpf.h"
 
@@ -286,7 +287,6 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
         time = 0;
     else
         time = (new_time - *before_time) / 1000;
-    
     struct tcpstate tcpstate = {};
     tcpstate.oldstate = ctx->oldstate;
     tcpstate.newstate = ctx->newstate;
@@ -296,8 +296,6 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     bpf_probe_read_kernel(&tcpstate.saddr, sizeof(tcpstate.saddr), &sk->__sk_common.skc_rcv_saddr);
     bpf_probe_read_kernel(&tcpstate.daddr, sizeof(tcpstate.daddr), &sk->__sk_common.skc_daddr);
     tcpstate.time = time;
-    //bpf_printk(" %d %d %d %d %d %d ",tcpstate.saddr,tcpstate.sport,tcpstate.daddr,tcpstate.dport,
-   // tcpstate.oldstate,tcpstate.newstate,tcpstate.time);
     if (ctx->newstate == TCP_CLOSE)
         bpf_map_delete_elem(&tcp_state, &sk);
     else
@@ -317,5 +315,4 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     message->time =  tcpstate.time;
     bpf_ringbuf_submit(message, 0);
     return 0;
-
 }

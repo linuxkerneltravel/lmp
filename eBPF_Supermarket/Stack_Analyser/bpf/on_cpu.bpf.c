@@ -34,11 +34,17 @@ int do_stack(void *ctx)
 {
     CHECK_ACTIVE;
     struct task_struct *curr = (void *)bpf_get_current_task(); // curr指向当前进程的tsk
-    RET_IF_KERN(curr);                                         // 忽略内核线程
-    u32 pid = BPF_CORE_READ(curr, pid);                        // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
-    if (!pid || pid == self_pid)
+
+    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
         return 0;
-    SAVE_TASK_INFO(pid, curr);
+    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
+    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
+        return 0;
+    SET_KNODE(curr, knode);
+    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
+        return 0;
+
+    SAVE_TASK_INFO(pid, curr, knode);
     psid apsid = GET_COUNT_KEY(pid, ctx);
 
     // add cosunt

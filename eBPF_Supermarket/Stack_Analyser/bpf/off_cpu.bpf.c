@@ -27,7 +27,6 @@
 COMMON_MAPS(u32);
 COMMON_VALS;
 
-const volatile int target_pid = 0;
 BPF_HASH(pid_offTs_map, u32, u64); // 记录进程运行的起始时间
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -36,18 +35,42 @@ SEC("kprobe/finish_task_switch") // 动态挂载点finish_task_switch.isra.0
 int BPF_KPROBE(do_stack, struct task_struct *curr)
 {
     CHECK_ACTIVE;
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获取换出进程tsk的pid
-    RET_IF_KERN(curr);
-    if ((target_pid >= 0 && pid == target_pid) || (target_pid < 0 && pid && pid != self_pid))
+    do
     {
+        if (freq)
+        {
+            __next_n = ((bpf_ktime_get_ns() & ((1ul << 30) - 1)) * freq) >> 30;
+            if (__last_n == __next_n)
+            {
+                if (__recorded)
+                    break;
+            }
+            else
+                __last_n = __next_n;
+        }
+
+        if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
+            break;
+        u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
+        if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
+            break;
+        if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
+            break;
+        {
+            SET_KNODE(curr, knode);
+            if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
+                break;
+        }
+
         // record curr block time
         u64 ts = bpf_ktime_get_ns();                                 // ts=当前的时间戳（ns）
         bpf_map_update_elem(&pid_offTs_map, &pid, &ts, BPF_NOEXIST); // 如果start表中不存在pid对应的时间，则就创建pid-->ts
-    }
+        __recorded = true;
+    } while (false);
 
     // calculate time delta, next ready to run
     struct task_struct *next = (struct task_struct *)bpf_get_current_task(); // next指向换入进程结构体
-    pid = BPF_CORE_READ(next, pid);                                          // 利用帮助函数获取next指向的tsk的pid
+    u32 pid = BPF_CORE_READ(next, pid);                                      // 利用帮助函数获取next指向的tsk的pid
     u64 *tsp = bpf_map_lookup_elem(&pid_offTs_map, &pid);                    // tsp指向start表中的pid的值
     if (!tsp)
         return 0;
@@ -57,7 +80,10 @@ int BPF_KPROBE(do_stack, struct task_struct *curr)
         return 0;
 
     // record data
-    SAVE_TASK_INFO(pid, next);
+    {
+        SET_KNODE(next, knode);
+        SAVE_TASK_INFO(pid, next, knode);
+    }
     psid apsid = GET_COUNT_KEY(pid, ctx);
 
     // record time delta

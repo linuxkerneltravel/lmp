@@ -37,18 +37,83 @@ bool timeout = false;
 uint64_t IntTmp;
 std::string StrTmp;
 clipp::man_page *man_page;
+std::vector<StackCollector *> StackCollectorList;
 
 namespace MainConfig
 {
     uint64_t run_time = -1; // 运行时间
     unsigned delay = 5;     // 设置输出间隔
     std::string command = "";
-    int32_t target_pid = -1;
+    uint32_t target_pid = 0;
+    uint32_t target_tgid = 0;
+    uint64_t target_cgroup = 0;
     std::string trigger = "";    // 触发器
     std::string trig_event = ""; // 触发事件
+    uint32_t top = 10;
+    uint32_t freq = 49;
+    bool trace_user = false;
+    bool trace_kernel = false;
 }
 
-std::vector<StackCollector *> StackCollectorList;
+namespace helper
+{
+#include <sys/vfs.h>
+#include <linux/magic.h>
+    struct cgid_file_handle
+    {
+        // struct file_handle handle;
+        unsigned int handle_bytes;
+        int handle_type;
+        uint64_t cgid;
+    };
+    uint64_t get_cgroupid(const char *pathname)
+    {
+        struct statfs fs;
+        int err;
+        struct cgid_file_handle *h;
+        int mount_id;
+        uint64_t ret;
+
+        err = statfs(pathname, &fs);
+        if (err != 0)
+        {
+            fprintf(stderr, "statfs on %s failed: %s\n", pathname, strerror(errno));
+            exit(1);
+        }
+
+        if ((fs.f_type != (typeof(fs.f_type))CGROUP2_SUPER_MAGIC))
+        {
+            fprintf(stderr, "File %s is not on a cgroup2 mount.\n", pathname);
+            exit(1);
+        }
+
+        h = (cgid_file_handle *)malloc(sizeof(struct cgid_file_handle));
+        if (!h)
+        {
+            fprintf(stderr, "Cannot allocate memory.\n");
+            exit(1);
+        }
+
+        h->handle_bytes = 8;
+        err = name_to_handle_at(AT_FDCWD, pathname, (struct file_handle *)h, &mount_id, 0);
+        if (err != 0)
+        {
+            fprintf(stderr, "name_to_handle_at failed: %s\n", strerror(errno));
+            exit(1);
+        }
+
+        if (h->handle_bytes != 8)
+        {
+            fprintf(stderr, "Unexpected handle size: %d. \n", h->handle_bytes);
+            exit(1);
+        }
+
+        ret = h->cgid;
+        free(h);
+
+        return ret;
+    }
+}
 
 void end_handle(void)
 {
@@ -74,100 +139,98 @@ int main(int argc, char *argv[])
     man_page = new clipp::man_page();
     clipp::group cli;
     {
-        auto TraceOption = (clipp::option("-u")
-                                    .call([]
-                                          { StackCollectorList.back()->ustack = true; }) %
-                                "Sample user stacks",
-                            clipp::option("-k")
-                                    .call([]
-                                          { StackCollectorList.back()->kstack = true; }) %
-                                "Sample kernel stacks\n");
-
         auto OnCpuOption = (clipp::option("on_cpu")
                                 .call([]
                                       { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
-                            COLLECTOR_INFO("on-cpu")) &
-                           ((clipp::option("-f") &
-                             clipp::value("freq", IntTmp)
-                                 .call([]
-                                       { static_cast<OnCPUStackCollector *>(StackCollectorList.back())
-                                             ->setScale(IntTmp); })) %
-                                "Set sampling frequency; default is 49",
-                            TraceOption);
+                            COLLECTOR_INFO("on-cpu"));
 
         auto OffCpuOption = clipp::option("off_cpu")
-                                    .call([]
-                                          { StackCollectorList.push_back(new OffCPUStackCollector()); }) %
-                                COLLECTOR_INFO("off-cpu") &
-                            (TraceOption);
+                                .call([]
+                                      { StackCollectorList.push_back(new OffCPUStackCollector()); }) %
+                            COLLECTOR_INFO("off-cpu");
 
         auto MemleakOption = (clipp::option("memleak")
                                   .call([]
                                         { StackCollectorList.push_back(new MemleakStackCollector()); }) %
                               COLLECTOR_INFO("memleak")) &
-                             ((clipp::option("-i") &
-                               clipp::value("interval", IntTmp)
-                                   .call([]
-                                         { static_cast<MemleakStackCollector *>(StackCollectorList.back())
-                                               ->sample_rate = IntTmp; })) %
-                                  "Set the sampling interval; default is 1",
-                              clipp::option("-w")
-                                      .call([]
-                                            { static_cast<MemleakStackCollector *>(StackCollectorList.back())
-                                                  ->wa_missing_free = true; }) %
-                                  "Free when missing in kernel to alleviate misjudgments",
-                              TraceOption);
+                             (clipp::option("-W")
+                                  .call([]
+                                        { static_cast<MemleakStackCollector *>(StackCollectorList.back())
+                                              ->wa_missing_free = true; }) %
+                              "Free when missing in kernel to alleviate misjudgments");
 
         auto IOOption = clipp::option("io")
-                                .call([]
-                                      { StackCollectorList.push_back(new IOStackCollector()); }) %
-                            COLLECTOR_INFO("io") &
-                        (TraceOption);
+                            .call([]
+                                  { StackCollectorList.push_back(new IOStackCollector()); }) %
+                        COLLECTOR_INFO("io");
 
         auto ReadaheadOption = clipp::option("readahead")
-                                       .call([]
-                                             { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
-                                   COLLECTOR_INFO("readahead") &
-                               (TraceOption);
-
-        auto ProbeOption = clipp::option("probe")
                                    .call([]
-                                         { StackCollectorList.push_back(new ProbeStackCollector()); }) %
-                               COLLECTOR_INFO("probe") &
-                           (clipp::value("probe", StrTmp)
-                                    .call([]
-                                          { static_cast<ProbeStackCollector *>(StackCollectorList.back())
-                                                ->setScale(StrTmp); }) %
-                                "Set the probe string; specific use is: \n probe func  && probe p::func    -- probe a kernel function; \n lib:func && p:lib:func          -- probe a user-space function in the library 'lib';\n probe t:cat:event               -- probe a kernel tracepoint; \n probe u:lib:probe               -- probe a USDT tracepoint" &
-                            TraceOption);
+                                         { StackCollectorList.push_back(new ReadaheadStackCollector()); }) %
+                               COLLECTOR_INFO("readahead");
 
         auto LlcStatOption = clipp::option("llc_stat").call([]
                                                             { StackCollectorList.push_back(new LlcStatStackCollector()); }) %
                                  COLLECTOR_INFO("llc_stat") &
-                             ((clipp::option("-i") &
+                             ((clipp::option("-P") &
                                clipp::value("period", IntTmp)
                                    .call([]
                                          { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
                                                ->setScale(IntTmp); })) %
-                                  "Set sampling period; default is 100",
-                              TraceOption);
+                              "Set sampling period; default is 100");
+
+        auto ProbeOption = clipp::option("probe")
+                                         .call([]
+                                               { StackCollectorList.push_back(new ProbeStackCollector()); }) %
+                                     COLLECTOR_INFO("probe") &
+                                 (clipp::value("probe", StrTmp)
+                                      .call([]
+                                            { static_cast<ProbeStackCollector *>(StackCollectorList.back())
+                                                  ->setScale(StrTmp); }) %
+                                  "Set the probe string; specific use is:\n"
+                                  "<func> | p::<func>             -- probe a kernel function;\n"
+                                  "<lib>:<func> | p:<lib>:<func>  -- probe a user-space function in the library 'lib';\n"
+                                  "t:<class>:<func>               -- probe a kernel tracepoint;\n"
+                                  "u:<lib>:<probe>                -- probe a USDT tracepoint");
 
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
+                               ((clipp::option("-g") &
+                                 clipp::value("cgroup path", StrTmp)
+                                     .call([]
+                                           { MainConfig::target_cgroup = helper::get_cgroupid(StrTmp.c_str()); printf("Trace cgroup %ld\n", MainConfig::target_cgroup); })) %
+                                "Set the cgroup of the process to be tracked; default is -1, which keeps track of all cgroups") |
                                ((clipp::option("-p") &
-                                 clipp::value("pid", MainConfig::target_pid)) %
+                                 clipp::value("pid", MainConfig::target_tgid)) %
                                 "Set the pid of the process to be tracked; default is -1, which keeps track of all processes") |
+                               ((clipp::option("-t") &
+                                 clipp::value("tid", MainConfig::target_pid)) %
+                                "Set the tid of the thread to be tracked; default is -1, which keeps track of all threads") |
                                ((clipp::option("-c") &
                                  clipp::value("command", MainConfig::command)) %
                                 "Set the command to be run and sampled; defaults is none")),
-                           (clipp::option("-d") &
+                           (clipp::option("-o") &
+                            clipp::value("top", MainConfig::top)) %
+                               "Set the top number; default is 10",
+                           (clipp::option("-f") &
+                            clipp::value("freq", MainConfig::freq)) %
+                               "Set sampling frequency, 0 for close; default is 49",
+                           (clipp::option("-i") &
                             clipp::value("interval", MainConfig::delay)) %
                                "Set the output delay time (seconds); default is 5",
-                           (clipp::option("-t") &
+                           (clipp::option("-d") &
                             clipp::value("duration", MainConfig::run_time)
                                 .call([]
                                       { stop_time = time(NULL) + MainConfig::run_time; })) %
                                "Set the total sampling time; default is __INT_MAX__",
+                           (clipp::option("-u")
+                                    .call([]
+                                          { MainConfig::trace_user = true; }) %
+                                "Sample user stacks",
+                            clipp::option("-k")
+                                    .call([]
+                                          { MainConfig::trace_kernel = true; }) %
+                                "Sample kernel stacks"),
                            (clipp::option("-T") &
                             ((clipp::required("cpu").set(MainConfig::trigger) |
                               clipp::required("memory").set(MainConfig::trigger) |
@@ -192,8 +255,8 @@ int main(int argc, char *argv[])
                MemleakOption,
                IOOption,
                ReadaheadOption,
-               ProbeOption,
                LlcStatOption,
+               ProbeOption,
                MainOption,
                Info);
     }
@@ -227,7 +290,7 @@ int main(int argc, char *argv[])
         MainConfig::target_pid = fork();
         switch (MainConfig::target_pid)
         {
-        case -1:
+        case (uint32_t)-1:
         {
             CHECK_ERR(true, "Command create failed.");
         }
@@ -253,6 +316,12 @@ int main(int argc, char *argv[])
         fprintf(stderr, _RED "Attach collecotor%d %s.\n" _RE,
                 (int)(Item - StackCollectorList.begin()) + 1, (*Item)->getName());
         (*Item)->pid = MainConfig::target_pid;
+        (*Item)->tgid = MainConfig::target_tgid;
+        (*Item)->cgroup = MainConfig::target_cgroup;
+        (*Item)->top = MainConfig::top;
+        (*Item)->freq = MainConfig::freq;
+        (*Item)->kstack = MainConfig::trace_kernel;
+        (*Item)->ustack = MainConfig::trace_user;
         if ((*Item)->load() || (*Item)->attach())
             goto err;
         Item++;

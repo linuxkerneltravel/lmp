@@ -31,7 +31,6 @@ private:
 	int *pefds = NULL;
 	int num_cpus = 0;
 	struct bpf_link **links = NULL;
-	unsigned long long freq = 49;
 
 protected:
 	virtual uint64_t *count_values(void *);
