@@ -793,15 +793,42 @@ static int print_event_head(struct env *env) {
     return 0;
 }
 
-/*通过env结构体的属性真值来判断是否加载某个挂载函数*/
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt, false);
+    bpf_program__set_autoload(skel->progs.kp_kvm_vcpu_halt, false);
+    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,
+                              false);
+    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot, false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_emulate_hypercall, false);
+    bpf_program__set_autoload(skel->progs.kp_kvm_emulate_hypercall, false);
+    bpf_program__set_autoload(skel->progs.fentry_start_hv_timer, false);
+    bpf_program__set_autoload(skel->progs.kp_start_hv_timer, false);
+    bpf_program__set_autoload(skel->progs.fentry_start_sw_timer, false);
+    bpf_program__set_autoload(skel->progs.kp_start_sw_timer, false);
+
+    if (env.execute_vcpu_load) {
+        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, kvm_intel);
+        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_put, kvm_intel);
+    }
+    if (env.execute_vcpu_wakeup) {
+        SET_KP_OR_FENTRY_LOAD(kvm_vcpu_halt, kvm);
+    }
+    if (env.execute_mark_page_dirty) {
+        SET_KP_OR_FENTRY_LOAD(mark_page_dirty_in_slot, kvm);
+    }
+    if (env.execute_timer) {
+        SET_KP_OR_FENTRY_LOAD(start_hv_timer, kvm);
+        SET_KP_OR_FENTRY_LOAD(start_sw_timer, kvm);
+    }
+    if (env.execute_hypercall) {
+        SET_KP_OR_FENTRY_LOAD(kvm_emulate_hypercall, kvm);
+    }
+
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
-                              env.execute_vcpu_wakeup ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load,
-                              env.execute_vcpu_load ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put,
-                              env.execute_vcpu_load ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
                               env.execute_vcpu_wakeup ? true : false);
     bpf_program__set_autoload(skel->progs.tp_exit,
                               env.execute_exit ? true : false);
@@ -813,8 +840,6 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
                               env.execute_halt_poll_ns ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,
-                              env.execute_mark_page_dirty ? true : false);
     bpf_program__set_autoload(skel->progs.tp_page_fault,
                               env.execute_page_fault ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_tdp_page_fault,
@@ -839,14 +864,8 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_irq_inject ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_vmx_inject_irq,
                               env.execute_irq_inject ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_emulate_hypercall,
-                              env.execute_hypercall ? true : false);
     bpf_program__set_autoload(skel->progs.tp_ioctl,
                               env.execute_ioctl ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_start_hv_timer,
-                              env.execute_timer ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_start_sw_timer,
-                              env.execute_timer ? true : false);
 }
 
 // 函数不接受参数，返回一个静态分配的字符串
@@ -870,28 +889,15 @@ int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
     struct exit_key lookup_key = {};
     struct exit_key next_key = {};
     struct exit_value exit_value;
-    int first = 1;
-    int i = 0, j;
-    int count = 0;
+    int i = 0, j = 0, count = 0;
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        count++;
-        if (first) {
-            first = 0;
-            bpf_map_lookup_elem(fd, &next_key, &exit_value);
-            keys[0] = next_key;
-            values[0] = exit_value;
-            i++;
-            lookup_key = next_key;
-            continue;
-        }
+        j = i - 1;
+        struct exit_key temp_key = next_key;
         err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
         if (err < 0) {
             fprintf(stderr, "failed to lookup exit_value: %d\n", err);
             return -1;
         }
-        // insert sort
-        j = i - 1;
-        struct exit_key temp_key = next_key;
         struct exit_value temp_value = exit_value;
         while (j >= 0 &&
                (keys[j].pid > temp_key.pid || (keys[j].tid > temp_key.tid))) {
@@ -899,11 +905,11 @@ int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
             values[j + 1] = values[j];
             j--;
         }
-        i++;
-        keys[j + 1] = next_key;
+        keys[j + 1] = temp_key;
         values[j + 1] = temp_value;
-        // Move to the next key
         lookup_key = next_key;
+        count++;
+        i++;
     }
     return count;
 }

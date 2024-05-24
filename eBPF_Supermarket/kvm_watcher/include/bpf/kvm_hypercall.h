@@ -53,7 +53,7 @@ struct {
     __type(value, u32);
 } hc_count SEC(".maps");
 
-static int entry_emulate_hypercall(struct kvm_vcpu *vcpu, void *rb,
+static int trace_emulate_hypercall(struct kvm_vcpu *vcpu, void *rb,
                                    struct common_event *e) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 nr, a0, a1, a2, a3;
