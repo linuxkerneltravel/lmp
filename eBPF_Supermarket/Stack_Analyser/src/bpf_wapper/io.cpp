@@ -38,7 +38,7 @@ IOStackCollector::IOStackCollector()
 
 int IOStackCollector::load(void)
 {
-    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
+    EBPF_LOAD_OPEN_INIT();
     return 0;
 }
 

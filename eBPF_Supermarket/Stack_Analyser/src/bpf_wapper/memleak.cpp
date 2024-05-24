@@ -128,9 +128,9 @@ int MemleakStackCollector::load(void)
 int MemleakStackCollector::attach(void)
 {
     if (!kstack)
-        CHECK_ERR(attach_uprobes(skel), "failed to attach uprobes");
+        CHECK_ERR_RN1(attach_uprobes(skel), "failed to attach uprobes");
     err = skel->attach(skel);
-    CHECK_ERR(err, "Failed to attach BPF skeleton");
+    CHECK_ERR_RN1(err, "Failed to attach BPF skeleton");
     return 0;
 };
 

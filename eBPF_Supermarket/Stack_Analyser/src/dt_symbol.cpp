@@ -444,7 +444,7 @@ bool symbol_parser::find_vma(pid_t pid, vma &vm)
 
     vm.start = vma_iter->second.start;
     vm.end = vma_iter->second.end;
-    vm.name = vma_iter->second.name;
+    vm.name = "/proc/" + std::to_string(pid) + "/root/" + vma_iter->second.name;
     vm.offset = vma_iter->second.offset;
 
     return true;

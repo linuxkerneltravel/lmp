@@ -815,12 +815,8 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if (pack_info->tran_time > MAXTIME)
+    if(pack_info->tran_time > MAXTIME||(daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
         return 0;
-    // if((daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) ==
-    // 0x0000007F)
-    //     return 0;
-
     printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -1016,7 +1012,43 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {
     return vfprintf(stderr, format, args);
 }
+static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid)
+{
+    int i;
+    printf("-----------------------------------\n");
+	for (i = 1; i < stack_sz; i++) {
+        if(addr_to_func)
+        {
+            struct SymbolEntry data= findfunc(stack[i]);
+            char result[40];
+            sprintf(result, "%s+0x%llx", data.name, stack[i] - data.addr);
+		    printf("%-10d [<%016llx>]=%s\n", i, stack[i], result);
+        }
+        else
+        {
+            printf("%-10d [<%016llx>]\n", i, stack[i]);
+        }
+	}
+    printf("-----------------------------------\n");
+}
+static int print_trace(void *_ctx, void *data, size_t size)
+{
+    struct stacktrace_event *event = data;
 
+	if (event->kstack_sz <= 0 && event->ustack_sz <= 0)
+		return 1;
+
+	printf("COMM: %s (pid=%d) @ CPU %d\n", event->comm, event->pid, event->cpu_id);
+
+	if (event->kstack_sz > 0) {
+		printf("Kernel:\n");
+		show_stack_trace(event->kstack, event->kstack_sz / sizeof(__u64), 0);
+	} else {
+		printf("No Kernel Stack\n");
+	}
+	printf("\n");
+	return 0;
+}
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -1037,6 +1069,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *icmp_rb = NULL;
     struct ring_buffer *tcp_rb = NULL;
     struct ring_buffer *dns_rb = NULL;
+    struct ring_buffer *trace_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -1122,6 +1155,10 @@ int main(int argc, char **argv) {
     if (!dns_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
+    trace_rb =ring_buffer__new(bpf_map__fd(skel->maps.trace_rb), print_trace, NULL, NULL);
+    if (!trace_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
     /* Set up ring buffer polling */
@@ -1143,6 +1180,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(icmp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(tcp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(dns_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(trace_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

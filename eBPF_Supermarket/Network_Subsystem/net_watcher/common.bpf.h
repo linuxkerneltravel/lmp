@@ -166,7 +166,9 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
+
 } dns_rb SEC(".maps");
+} trace_rb SEC(".maps");
 
 // 存储每个tcp连接所对应的conn_t
 struct {
@@ -405,6 +407,29 @@ void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
 
     pkt_tuple->tran_flag = 1; // tcp包
 }
+int getstack(void *ctx)
+{
+    int pid = bpf_get_current_pid_tgid() >> 32;
+	int cpu_id = bpf_get_smp_processor_id();
+	struct stacktrace_event *event;
+	int cp;
+
+	event = bpf_ringbuf_reserve(&trace_rb, sizeof(*event), 0);
+	if (!event)
+		return 1;
+
+	event->pid = pid;
+	event->cpu_id = cpu_id;
+
+	if (bpf_get_current_comm(event->comm, sizeof(event->comm)))
+		event->comm[0] = 0;
+
+	event->kstack_sz = bpf_get_stack(ctx, event->kstack, sizeof(event->kstack), 0);
+	bpf_ringbuf_submit(event, 0);
+
+	return 0;
+}
+
 /* help functions end */
 
 

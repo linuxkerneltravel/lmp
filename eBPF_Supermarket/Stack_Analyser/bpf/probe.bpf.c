@@ -14,7 +14,7 @@
 //
 // author: luiyanbing@foxmail.com
 //
-// 内核态bpf程序的模板代码
+// probe功能的内核态bpf程序代码
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -33,50 +33,31 @@ BPF_HASH(starts, u32, u64);
 static int entry(void *ctx)
 {
     CHECK_ACTIVE;
-    CHECK_FREQ;
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
+    u64 ts = bpf_ktime_get_ns();
+    CHECK_FREQ(ts);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    CHECK_TGID(tgid);
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
-        return 0;
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
-        return 0;
-    if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
-        return 0;
-    SET_KNODE(curr, knode);
-    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
-        return 0;
-
-    SAVE_TASK_INFO(pid, curr, knode);
-
-    u64 nsec = bpf_ktime_get_ns();
-    bpf_map_update_elem(&starts, &pid, &nsec, BPF_ANY);
-    return 0;
-}
-SEC("fentry/dummy_fentry")
-int BPF_PROG(dummy_fentry)
-{
-	entry(ctx);
-	return 0;
-}
-SEC("kprobe/dummy_kprobe")
-int BPF_KPROBE(dummy_kprobe)
-{
-    entry(ctx);
+    u32 pid = BPF_CORE_READ(curr, pid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    bpf_map_update_elem(&starts, &pid, &ts, BPF_ANY);
     return 0;
 }
 
 static int exit(void *ctx)
 {
     CHECK_ACTIVE;
-    u32 pid = bpf_get_current_pid_tgid() >> 32; 
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 *start = bpf_map_lookup_elem(&starts, &pid);
     if (!start)
         return 0;
+    u64 delta = TS - *start;
 
-    u64 delta = bpf_ktime_get_ns() - *start;
-
-    psid a_psid = GET_COUNT_KEY(pid, ctx);
+    psid a_psid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     time_tuple *d = bpf_map_lookup_elem(&psid_count_map, &a_psid);
     if (!d)
     {
@@ -91,13 +72,13 @@ static int exit(void *ctx)
     return 0;
 }
 
-SEC("fexit/dummy_fexit")
-int BPF_PROG(dummy_fexit)
-{
-	exit(ctx);
-	return 0;
-}
 
+SEC("kprobe/dummy_kprobe")
+int BPF_KPROBE(dummy_kprobe)
+{
+    entry(ctx);
+    return 0;
+}
 
 SEC("kretprobe/dummy_kretprobe")
 int BPF_KRETPROBE(dummy_kretprobe)
@@ -106,13 +87,34 @@ int BPF_KRETPROBE(dummy_kretprobe)
     return 0;
 }
 
-static int handleCounts(void *ctx)
+SEC("fentry/dummy_fentry")
+int BPF_PROG(dummy_fentry)
+{
+	entry(ctx);
+	return 0;
+}
+
+SEC("fexit/dummy_fexit")
+int BPF_PROG(dummy_fexit)
+{
+	exit(ctx);
+	return 0;
+}
+
+static int static_tracing_handler(void *ctx)
 {
     CHECK_ACTIVE;
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    CHECK_TGID(tgid);
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-
-    psid a_psid = GET_COUNT_KEY(pid, ctx);
+    u32 pid = BPF_CORE_READ(curr, pid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    psid a_psid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     time_tuple *d = bpf_map_lookup_elem(&psid_count_map, &a_psid);
     if (!d)
     {
@@ -120,22 +122,22 @@ static int handleCounts(void *ctx)
         bpf_map_update_elem(&psid_count_map, &a_psid, &tmp, BPF_NOEXIST);
     }
     else
-    {
-        d->lat = 0;
         d->count++;
-    }
     return 0;
 }
+
 SEC("tp/sched/dummy_tp")
 int tp_exit(void *ctx)
 {
-    handleCounts(ctx);
+    static_tracing_handler(ctx);
     return 0;
 }
+
 SEC("usdt")
 int usdt_exit(void *ctx)
 {
-    handleCounts(ctx);
+    static_tracing_handler(ctx);
     return 0;
 }
+
 const char LICENSE[] SEC("license") = "GPL";
