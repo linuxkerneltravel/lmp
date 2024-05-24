@@ -166,8 +166,10 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
-
 } dns_rb SEC(".maps");
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
 } trace_rb SEC(".maps");
 
 // 存储每个tcp连接所对应的conn_t
