@@ -488,3 +488,87 @@ int dev_queue_xmit(struct sk_buff *skb)
         eth,
         h_proto); // 以太网头部协议字段该字段存储的是以太网帧所封装的上层协议类型
     struct tcphdr *tcp = skb_to_tcphdr(skb);
+struct packet_tuple pkt_tuple = {0};
+    struct ktime_info *tinfo;
+    if (protocol == __bpf_ntohs(ETH_P_IP)) {
+        /** ipv4 */
+        struct iphdr *ip = skb_to_iphdr(skb);
+        get_pkt_tuple(&pkt_tuple, ip, tcp);
+
+        if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
+            return 0;
+        }
+        tinfo->mac_time = bpf_ktime_get_ns() / 1000;
+    } else if (protocol == __bpf_ntohs(ETH_P_IPV6)) {
+        /** ipv6 */
+        struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
+        get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
+
+        if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
+            return 0;
+        }
+        tinfo->mac_time = bpf_ktime_get_ns() / 1000;
+    }
+    return 0;
+}
+static __always_inline
+int __dev_hard_start_xmit(struct sk_buff *skb)
+{
+    const struct ethhdr *eth = (struct ethhdr *)BPF_CORE_READ(skb, data);
+    u16 protocol = BPF_CORE_READ(eth, h_proto);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    struct ktime_info *tinfo;
+    if (protocol == __bpf_ntohs(ETH_P_IP)) {
+        /** ipv4 */
+        struct iphdr *ip = skb_to_iphdr(skb);
+        get_pkt_tuple(&pkt_tuple, ip, tcp);
+
+        if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
+            return 0;
+        }
+        // 数据包在队列中等待的时间
+        tinfo->qdisc_time = bpf_ktime_get_ns() / 1000;
+    } else if (protocol == __bpf_ntohs(ETH_P_IPV6)) {
+        /** ipv6 */
+        struct ipv6hdr *ip6h = skb_to_ipv6hdr(skb);
+        get_pkt_tuple_v6(&pkt_tuple, ip6h, tcp);
+
+        if ((tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple)) == NULL) {
+            return 0;
+        }
+        tinfo->qdisc_time = bpf_ktime_get_ns() / 1000;
+    } else {
+        return 0;
+    }
+
+    /*----- record packet time info ------*/
+    if (tinfo == NULL) {
+        return 0;
+    }
+    struct sock *sk = tinfo->sk;
+    if (!sk) {
+        return 0;
+    }
+    PACKET_INIT_WITH_COMMON_INFO
+    packet->saddr = pkt_tuple.saddr;
+    packet->daddr = pkt_tuple.daddr;
+    packet->sport = pkt_tuple.sport;
+    packet->dport = pkt_tuple.dport;
+    // 记录各层的时间差值
+    if (layer_time) {
+        packet->tran_time = tinfo->ip_time - tinfo->tran_time;
+        packet->ip_time = tinfo->mac_time - tinfo->ip_time;
+        packet->mac_time =tinfo->qdisc_time -tinfo->mac_time; // 队列纪律层，处于网络协议栈最底层，负责实际数据传输与接收
+    }
+    packet->rx = 0; // 发送一个数据包
+
+    // TX HTTP Info
+    if (http_info) {
+        bpf_probe_read_str(packet->data, sizeof(packet->data), tinfo->data);
+       // bpf_printk("%s", packet->data);
+    }
+    bpf_ringbuf_submit(packet, 0);
+
+    return 0;
+}

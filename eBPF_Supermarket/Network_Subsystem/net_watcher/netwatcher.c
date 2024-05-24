@@ -657,7 +657,44 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid)
+{
+    int i;
+    printf("-----------------------------------\n");
+	for (i = 1; i < stack_sz; i++) {
+        if(addr_to_func)
+        {
+            struct SymbolEntry data= findfunc(stack[i]);
+            char result[40];
+            sprintf(result, "%s+0x%llx", data.name, stack[i] - data.addr);
+		    printf("%-10d [<%016llx>]=%s\n", i, stack[i], result);
+        }
+        else
+        {
+            printf("%-10d [<%016llx>]\n", i, stack[i]);
+        }
+	}
+    printf("-----------------------------------\n");
+}
+static int print_trace(void *_ctx, void *data, size_t size)
+{
+    struct stacktrace_event *event = data;
 
+	if (event->kstack_sz <= 0 && event->ustack_sz <= 0)
+		return 1;
+
+	printf("COMM: %s (pid=%d) @ CPU %d\n", event->comm, event->pid, event->cpu_id);
+
+	if (event->kstack_sz > 0) {
+		printf("Kernel:\n");
+		show_stack_trace(event->kstack, event->kstack_sz / sizeof(__u64), 0);
+	} else {
+		printf("No Kernel Stack\n");
+	}
+
+	printf("\n");
+	return 0;
+}
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -677,6 +714,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *kfree_rb = NULL;
     struct ring_buffer *icmp_rb = NULL;
     struct ring_buffer *tcp_rb = NULL;
+    struct ring_buffer *trace_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -782,6 +820,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
         goto cleanup;
     }
+    trace_rb =ring_buffer__new(bpf_map__fd(skel->maps.trace_rb), print_trace, NULL, NULL);
+    if (!trace_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(trace)\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
@@ -816,6 +860,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(kfree_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(icmp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(tcp_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(trace_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

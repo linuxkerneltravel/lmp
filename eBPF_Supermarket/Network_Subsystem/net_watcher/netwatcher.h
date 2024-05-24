@@ -156,5 +156,15 @@ struct timeload{
     u64 normal_time;
     int count;
 };
-
+#define MAX_STACK_DEPTH 128
+typedef u64 stack_trace_t[MAX_STACK_DEPTH];
+struct stacktrace_event {
+	u32 pid;
+	u32 cpu_id;
+	char comm[16];
+	signed int kstack_sz;
+	signed int ustack_sz;
+	stack_trace_t kstack;
+	stack_trace_t ustack;
+};
 #endif /* __NETWATCHER_H */
