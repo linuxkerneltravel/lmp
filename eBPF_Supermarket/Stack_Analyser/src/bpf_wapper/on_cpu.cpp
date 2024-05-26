@@ -59,18 +59,12 @@ uint64_t *OnCPUStackCollector::count_values(void *data)
     };
 };
 
-int OnCPUStackCollector::load(void)
+int OnCPUStackCollector::ready(void)
 {
     EBPF_LOAD_OPEN_INIT();
-    return 0;
-};
-
-int OnCPUStackCollector::attach(void)
-{
-    const char *online_cpus_file = "/sys/devices/system/cpu/online";
     bool *online_mask;
     int num_online_cpus;
-    err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
+    err = parse_cpu_mask_file("/sys/devices/system/cpu/online", &online_mask, &num_online_cpus);
     CHECK_ERR_RN1(err, "Fail to get online CPU numbers");
 
     num_cpus = libbpf_num_possible_cpus();
@@ -103,6 +97,7 @@ int OnCPUStackCollector::attach(void)
         {
             if (attr.type != PERF_TYPE_SOFTWARE)
             {
+                HINT_ERR("Hardware perf events not exist, try to attach to software event");
                 attr.type = PERF_TYPE_SOFTWARE;
                 attr.config = PERF_COUNT_SW_CPU_CLOCK;
                 pefd = perf_event_open(&attr, tgid ? tgid : -1, cpu, -1, 0);
@@ -119,35 +114,19 @@ int OnCPUStackCollector::attach(void)
     return 0;
 }
 
-void OnCPUStackCollector::detach(void)
+void OnCPUStackCollector::finish(void)
 {
-    if (links)
+    for (int i = 0; i < num_cpus; i++)
     {
-        for (int cpu = 0; cpu < num_cpus; cpu++)
-        {
-            bpf_link__destroy(links[cpu]);
-        }
-        free(links);
-        links = NULL;
+        bpf_link__destroy(links[i]);
+        close(pefds[i]);
     }
-    if (pefds)
-    {
-        for (int i = 0; i < num_cpus; i++)
-        {
-            if (pefds[i] >= 0)
-            {
-                close(pefds[i]);
-            }
-        }
-        free(pefds);
-        pefds = NULL;
-    }
-};
-
-void OnCPUStackCollector::unload(void)
-{
+    free(links);
+    free(pefds);
+    links = NULL;
+    pefds = NULL;
     UNLOAD_PROTO;
-};
+}
 
 void OnCPUStackCollector::activate(bool tf)
 {

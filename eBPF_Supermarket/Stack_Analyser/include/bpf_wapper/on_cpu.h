@@ -38,10 +38,8 @@ protected:
 public:
 	void setScale(uint64_t freq);
 	OnCPUStackCollector();
-	virtual int load(void);
-	virtual int attach(void);
-	virtual void detach(void);
-	virtual void unload(void);
+    virtual int ready(void);
+    virtual void finish(void);
 	virtual void activate(bool tf);
     virtual const char *getName(void);
 };
