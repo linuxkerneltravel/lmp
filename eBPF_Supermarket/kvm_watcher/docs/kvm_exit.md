@@ -48,7 +48,7 @@
 ## 示例输出
 
 4391为主机上的虚拟机进程，4508、4509、4510...分别是虚拟机中的vcpu子进程，每隔两秒输出虚拟机中产生的exit事件及其处理延时等信息。
-
+结果会以进程号（VM的唯一标识）以及线程号（VM中每个VCPU的唯一标识）的优先级依次从小到大的顺序输出。
 ```
 ubuntu@rd350x:~/nans/lmp/eBPF_Supermarket/kvm_watcher$ sudo ./kvm_watcher -e
 

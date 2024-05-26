@@ -1,4 +1,4 @@
-````name: Stack_Analyser
+name: Stack_Analyser
 
 on:
   push:
