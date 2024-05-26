@@ -393,8 +393,12 @@ int __tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 
     // TX HTTP info
     if (http_info) {
+        // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 1)
+        //     u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
+        // #else
+        //     u8 *user_data = BPF_CORE_READ(msg, msg_iter.iov,iov_base);
+        // #endif
         u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
-        //u8 *user_data = BPF_CORE_READ(msg, msg_iter.iov,iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
@@ -485,7 +489,7 @@ int dev_queue_xmit(struct sk_buff *skb)
         eth,
         h_proto); // 以太网头部协议字段该字段存储的是以太网帧所封装的上层协议类型
     struct tcphdr *tcp = skb_to_tcphdr(skb);
-    struct packet_tuple pkt_tuple = {0};
+struct packet_tuple pkt_tuple = {0};
     struct ktime_info *tinfo;
     if (protocol == __bpf_ntohs(ETH_P_IP)) {
         /** ipv4 */
@@ -569,4 +573,3 @@ int __dev_hard_start_xmit(struct sk_buff *skb)
 
     return 0;
 }
-

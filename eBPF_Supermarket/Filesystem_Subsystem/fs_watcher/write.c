@@ -3,9 +3,11 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <bpf/libbpf.h>
+#include <stdlib.h>
 #include "write.h"
 #include "write.skel.h"
+
+#define PATH_MAX 128
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -25,11 +27,11 @@ static int write_event(void *ctx, void *data, size_t data_sz)
     struct tm *tm;
     char ts[32];
     time_t t;
-
+	char path[PATH_MAX];
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-    printf("%-8s  %-7d  %-7llu\n", ts, e->pid,e->duration_ns);
+	printf("%-8s  %-7ld %-7ld\n", ts, e->pid,e->fd);
     return 0;
 }
 
@@ -77,7 +79,6 @@ int main(int argc, char **argv)
 	}
 
     /* Process events */
-	printf("%-8s  %-7s   %-7s\n", "TIME", "PID", "durations");
 	while (!exiting) {
 		err = ring_buffer__poll(rb, 100 /* timeout, ms */);
 		/* Ctrl-C will cause -EINTR */
