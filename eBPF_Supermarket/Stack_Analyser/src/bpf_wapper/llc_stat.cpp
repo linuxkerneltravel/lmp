@@ -37,18 +37,12 @@ uint64_t *LlcStatStackCollector::count_values(void *data)
 	};
 };
 
-int LlcStatStackCollector::load(void)
+int LlcStatStackCollector::ready(void)
 {
 	EBPF_LOAD_OPEN_INIT();
-	return 0;
-};
-
-int LlcStatStackCollector::attach(void)
-{
-	const char *online_cpus_file = "/sys/devices/system/cpu/online";
 	bool *online_mask;
 	int num_online_cpus;
-	err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
+	err = parse_cpu_mask_file("/sys/devices/system/cpu/online", &online_mask, &num_online_cpus);
 	CHECK_ERR_RN1(err, "Fail to get online CPU numbers");
 
 	num_cpus = libbpf_num_possible_cpus();
@@ -93,10 +87,10 @@ int LlcStatStackCollector::attach(void)
 		rlinks[cpu] = bpf_program__attach_perf_event(skel->progs.on_cache_ref, pefd);
 		CHECK_ERR_RN1(!rlinks[cpu], "Fail to attach bpf program");
 	}
-	return 0;
-};
+    return 0;
+}
 
-void LlcStatStackCollector::detach(void)
+void LlcStatStackCollector::finish(void)
 {
 	for (int cpu = 0; cpu < num_cpus; cpu++)
 	{
@@ -111,12 +105,8 @@ void LlcStatStackCollector::detach(void)
 	free(rpefds);
 	mlinks = rlinks = NULL;
 	mpefds = rpefds = NULL;
-};
-
-void LlcStatStackCollector::unload(void)
-{
 	UNLOAD_PROTO;
-};
+}
 
 void LlcStatStackCollector::activate(bool tf)
 {

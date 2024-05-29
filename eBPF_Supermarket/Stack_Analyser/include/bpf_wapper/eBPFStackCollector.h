@@ -79,23 +79,8 @@ public:
     StackCollector();
     operator std::string();
 
-    /// @brief 负责ebpf程序的加载、参数设置和打开操作
-    /// @param  无
-    /// @return 成功则返回0，否则返回负数
-    virtual int load(void) = 0;
-
-    /// @brief 将ebpf程序挂载到跟踪点上
-    /// @param  无
-    /// @return 成功则返回0，否则返回负数
-    virtual int attach(void) = 0;
-
-    /// @brief 断开ebpf的跟踪点和处理函数间的连接
-    /// @param  无
-    virtual void detach(void) = 0;
-
-    /// @brief 卸载ebpf程序
-    /// @param  无
-    virtual void unload(void) = 0;
+    virtual int ready(void) = 0;
+    virtual void finish(void) = 0;
 
     /// @brief 激活eBPF程序
     /// @param  无

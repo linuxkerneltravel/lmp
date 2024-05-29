@@ -124,8 +124,7 @@ void end_handle(void)
         {
             std::cout << std::string(*Item) << std::endl;
         }
-        Item->detach();
-        Item->unload();
+        Item->finish();
     }
     if (MainConfig::command.length())
     {
@@ -317,14 +316,13 @@ int main(int argc, char *argv[])
         (*Item)->freq = MainConfig::freq;
         (*Item)->kstack = MainConfig::trace_kernel;
         (*Item)->ustack = MainConfig::trace_user;
-        if ((*Item)->load() || (*Item)->attach())
+        if ((*Item)->ready())
             goto err;
         Item++;
         continue;
     err:
         fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->getName());
-        (*Item)->detach();
-        (*Item)->unload();
+        (*Item)->finish();
         Item = StackCollectorList.erase(Item);
     }
 
