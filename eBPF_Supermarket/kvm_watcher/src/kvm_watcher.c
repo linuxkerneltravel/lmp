@@ -328,6 +328,7 @@ static struct env {
     bool execute_ioctl;
     bool execute_timer;
     bool verbose;
+    bool show;
     int monitoring_time;
     pid_t vm_pid;
     enum EventType event_type;
@@ -347,6 +348,7 @@ static struct env {
     .verbose = false,
     .monitoring_time = 0,
     .vm_pid = -1,
+    .show = false,
     .event_type = NONE_TYPE,
 };
 
@@ -376,6 +378,7 @@ static const struct argp_option opts[] = {
      "Monitoring the data of mmio page fault.(The -f option must be "
      "specified.)"},
     {"vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor."},
+    {"show", 's', NULL, 0, "Visual display"},
     {"monitoring_time", 't', "SEC", 0, "Time for monitoring."},
     {"kvm_ioctl", 'l', NULL, 0, "Monitoring the KVM IOCTL."},
     {"kvm_timer", 'T', NULL, 0, "Monitoring the KVM hv or software timer."},
@@ -386,6 +389,9 @@ static const struct argp_option opts[] = {
 // 解析命令行参数
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
+        case 's':
+            env.show = true;
+            break;
         case 'H':
             argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
             break;
@@ -735,11 +741,12 @@ static int print_event_head(struct env *env) {
                    "VAILD?");
             break;
         case EXIT:
-            printf("Waiting vm_exit ... \n");
+            //可视化调整输出格式
+            // printf("Waiting vm_exit ... \n");
             break;
         case VCPU_LOAD:
             //可视化调整输出格式
-            //printf("Waiting vm_vcpu_load ... \n");
+            // printf("Waiting vm_vcpu_load ... \n");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -1023,38 +1030,60 @@ int print_vcpu_load_map(struct kvm_watcher_bpf *skel) {
     int fd = bpf_map__fd(skel->maps.load_map);
     int err;
     struct load_key lookup_key = {};
-    struct load_key next_key = {}; 
+    struct load_key next_key = {};
     struct load_value load_value = {};
-    //可视化调整输出格式
-    //int first = 1;
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+    int first = 1;
+    if (env.show) {
         if (is_first) {
-            is_first = 0;
-            //可视化调整输出格式
-            //printf("\nTIME:%s\n", getCurrentTimeFormatted());
             printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid",
                    "tid", "total_time", "max_time", "min_time", "counts",
                    "vcpuid", "pcpuid");
-            //可视化调整输出格式
-            // printf(
-            //     "------------ ------------ ------------ ------------ "
-            //     "------------ "
-            //     "------------ "
-            //     "------------ "
-            //     "------------\n");
+            is_first = 0;
         }
-        err = bpf_map_lookup_elem(fd, &next_key, &load_value);
-        if (err < 0) {
-            fprintf(stderr, "failed to lookup vcpu_load_value: %d\n", err);
-            return -1;
+        while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+            err = bpf_map_lookup_elem(fd, &next_key, &load_value);
+            if (err < 0) {
+                fprintf(stderr, "failed to lookup vcpu_load_value: %d\n", err);
+                return -1;
+            }
+            printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u %-12d %-12d\n",
+                   next_key.pid, next_key.tid,
+                   NS_TO_MS_WITH_DECIMAL(load_value.total_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.max_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.min_time), load_value.count,
+                   load_value.vcpu_id, load_value.pcpu_id);
+
+            lookup_key = next_key;
         }
-        printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u %-12d %-12d\n",
-               next_key.pid, next_key.tid,
-               NS_TO_MS_WITH_DECIMAL(load_value.total_time),
-               NS_TO_MS_WITH_DECIMAL(load_value.max_time),
-               NS_TO_MS_WITH_DECIMAL(load_value.min_time), load_value.count,
-               load_value.vcpu_id, load_value.pcpu_id);
-        lookup_key = next_key;
+
+    } else {
+        if (first) {
+            first = 0;
+            printf("\nTIME:%s\n", getCurrentTimeFormatted());
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid",
+                   "tid", "total_time", "max_time", "min_time", "counts",
+                   "vcpuid", "pcpuid");
+            printf(
+                "------------ ------------ ------------ ------------ "
+                "------------ "
+                "------------ "
+                "------------ "
+                "------------\n");
+        }
+        while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+            err = bpf_map_lookup_elem(fd, &next_key, &load_value);
+            if (err < 0) {
+                fprintf(stderr, "failed to lookup vcpu_load_value: %d\n", err);
+                return -1;
+            }
+            printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u %-12d %-12d\n",
+                   next_key.pid, next_key.tid,
+                   NS_TO_MS_WITH_DECIMAL(load_value.total_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.max_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.min_time), load_value.count,
+                   load_value.vcpu_id, load_value.pcpu_id);
+            lookup_key = next_key;
+        }
     }
     clear_map(&lookup_key, &next_key, VCPU_LOAD, fd);
     return 0;
@@ -1070,50 +1099,68 @@ void __print_exit_map(int fd, enum NameType name_type) {
     // Iterate over the array
     __u32 pid = 0;
     __u32 tid = 0;
-    for (int i = 0; i < count; i++) {
-        if (first_run) {
-            first_run = 0;
-            if (name_type == EXIT_NR) {
-                printf(
-                    "============================================KVM_EXIT======"
-                    "========"
-                    "==============================\n");
-            } else if (name_type == EXIT_USERSPACE_NR) {
-                printf(
-                    "\n=======================================KVM_USERSPACE_"
-                    "EXIT======="
-                    "================================\n");
-            } else {
-                return;
-            }
-            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "PID", "TID",
-                   "TOTAL_TIME", "MAX_TIME", "MIN_TIME", "COUNT", "REASON");
-            printf(
-                "------------ ------------ ------------ ------------ "
-                "------------ "
-                "------------ "
-                "------------\n");
+    if (env.show) {
+        if (is_first) {
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s\n", "PID", "TID",
+                   "TOTAL_TIME", "MAX_TIME", "MIN_TIME", "COUNT");
+            is_first = 0;
         }
-        // Print the current entry
-        if (tid == 0 || tid != keys[i].tid) {
-            tid = keys[i].tid;
-            if (pid == 0 || pid != keys[i].pid) {
-                pid = keys[i].pid;
-                printf("%-13d", pid);
-            } else {
-                printf("%-13s", "");
+        for (int i = 0; i < count; i++) {
+            printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u\n", keys[i].pid,
+                   keys[i].tid, NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count);
+        }
+
+    } else {
+        for (int i = 0; i < count; i++) {
+            if (first_run) {
+                first_run = 0;
+                if (name_type == EXIT_NR) {
+                    printf(
+                        "============================================KVM_EXIT=="
+                        "===="
+                        "========"
+                        "==============================\n");
+                } else if (name_type == EXIT_USERSPACE_NR) {
+                    printf(
+                        "\n=======================================KVM_"
+                        "USERSPACE_"
+                        "EXIT======="
+                        "================================\n");
+                } else {
+                    return;
+                }
+                printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "PID",
+                       "TID", "TOTAL_TIME", "MAX_TIME", "MIN_TIME", "COUNT",
+                       "REASON");
+                printf(
+                    "------------ ------------ ------------ ------------ "
+                    "------------ "
+                    "------------ "
+                    "------------\n");
             }
-            printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", keys[i].tid,
-                   NS_TO_MS_WITH_DECIMAL(values[i].total_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                   getName(keys[i].reason, name_type));
-        } else if (tid == keys[i].tid) {
-            printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
-                   NS_TO_MS_WITH_DECIMAL(values[i].total_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                   getName(keys[i].reason, name_type));
+            // Print the current entry
+            if (tid == 0 || tid != keys[i].tid) {
+                tid = keys[i].tid;
+                if (pid == 0 || pid != keys[i].pid) {
+                    pid = keys[i].pid;
+                    printf("%-13d", pid);
+                } else {
+                    printf("%-13s", "");
+                }
+                printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n",
+                       keys[i].tid, NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].min_time),
+                       values[i].count, getName(keys[i].reason, name_type));
+            } else if (tid == keys[i].tid) {
+                printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
+                       NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].min_time),
+                       values[i].count, getName(keys[i].reason, name_type));
+            }
         }
     }
     clear_map(&lookup_key, &next_key, EXIT, fd);
@@ -1121,7 +1168,7 @@ void __print_exit_map(int fd, enum NameType name_type) {
 int print_exit_map(struct kvm_watcher_bpf *skel) {
     int exit_fd = bpf_map__fd(skel->maps.exit_map);
     int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
-    //printf("\nTIME:%s\n", getCurrentTimeFormatted());
+    // printf("\nTIME:%s\n", getCurrentTimeFormatted());
     __print_exit_map(exit_fd, EXIT_NR);
     __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
@@ -1156,7 +1203,7 @@ int main(int argc, char **argv) {
     struct kvm_watcher_bpf *skel;
     int err;
     //可视化调整输出格式
-    //print_logo();
+    // print_logo();
 
     /*解析命令行参数*/
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
