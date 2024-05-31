@@ -38,7 +38,7 @@
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
-#define MAX_BUF 512
+
 
 struct list_head {
 	struct list_head *next;
@@ -54,29 +54,34 @@ struct msg_msg {
 
 static struct env {
     int time;
-	int period;
-	bool percent;
+    int period;
+    bool percent;
     bool enable_proc;
     bool SAR;
     bool CS_DELAY;
     bool SYSCALL_DELAY;
+    bool MIN_US_SET;
+    int MIN_US;
     bool PREEMPT;
     bool SCHEDULE_DELAY;
-	bool MQ_DELAY;
+    bool MQ_DELAY;
     int freq;
 } env = {
     .time = 0,
-	.period = 1,
-	.percent = false,
+    .period = 1,
+    .percent = false,
     .enable_proc = false,
     .SAR = false,
     .CS_DELAY = false,
     .SYSCALL_DELAY = false,
+    .MIN_US_SET = false,
+    .MIN_US = 10000,
     .PREEMPT = false,
     .SCHEDULE_DELAY = false,
-	.MQ_DELAY = false,
+    .MQ_DELAY = false,
     .freq = 99
 };
+
 
 
 struct cs_delay_bpf *cs_skel;
@@ -108,59 +113,74 @@ int sum_preemptTime = 0 ;
 int preempt_start_print = 0 ;
 
 /*设置传参*/
-const char argp_program_doc[] ="cpu wacher is in use ....\n";
+const char argp_program_doc[] = "cpu watcher is in use ....\n";
 static const struct argp_option opts[] = {
-	{ "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
-	{ "period", 'i', "INTERVAL", 0, "Period interval in seconds" },
-	{"percent",'P',0,0,"format data as percentages"},
-	{"libbpf_sar", 's',	0,0,"print sar_info (the data of cpu)"},
-	{"cs_delay", 'c',	0,0,"print cs_delay (the data of cpu)"},
-	{"syscall_delay", 'S',	0,0,"print syscall_delay (the data of syscall)"},
-	{"preempt_time", 'p',	0,0,"print preempt_time (the data of preempt_schedule)"},
-	{"schedule_delay", 'd',	0,0,"print schedule_delay (the data of cpu)"},
-	{"mq_delay", 'm',	0,0,"print mq_delay(the data of proc)"},
-	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
-	{0},
+    { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
+    { "period", 'i', "INTERVAL", 0, "Period interval in seconds" },
+    {"percent", 'P', 0, 0, "Format data as percentages" },
+    {"libbpf_sar", 's', 0, 0, "Print sar_info (the data of cpu)" },
+    {"cs_delay", 'c', 0, 0, "Print cs_delay (the data of cpu)" },
+    {"syscall_delay", 'S', 0, 0, "Print syscall_delay (the data of syscall)" },
+    {"preempt_time", 'p', 0, 0, "Print preempt_time (the data of preempt_schedule)" },
+    {"schedule_delay", 'd', 0, 0, "Print schedule_delay (the data of cpu)" },
+    {"schedule_delay_min_us_set", 'e', "THRESHOLD", 0, "Print scheduling delays that exceed the threshold (the data of cpu)" },
+    {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" },
+    { NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
+    { 0 },
 };
+
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
-	switch (key) {
-		case 't':
-			env.time = strtol(arg, NULL, 10);
-			if(env.time) alarm(env.time);
-                	break;
-		case 'i':
-			env.period = strtol(arg, NULL, 10);
-			break;
-		case 'P':
-			env.percent = true;
-			break;
-		case 's':
-			env.SAR = true;
-			break;
-		case 'c':
-			env.CS_DELAY = true;
-			break;		
-		case 'S':
-			env.SYSCALL_DELAY = true;
-			break;			
-		case 'p':
-			env.PREEMPT = true;
-			break;
-		case 'd':
-			env.SCHEDULE_DELAY = true;
-			break;
-		case 'm':
-			env.MQ_DELAY = true;
-			break;
-		case 'h':
-			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-			break;
-		default:
-			return ARGP_ERR_UNKNOWN;
-	}
-	return 0;
+    switch (key) {
+        case 't':
+            env.time = strtol(arg, NULL, 10);
+            if(env.time) alarm(env.time);
+            break;
+        case 'i':
+            env.period = strtol(arg, NULL, 10);
+            break;
+        case 'P':
+            env.percent = true;
+            break;
+        case 's':
+            env.SAR = true;
+            break;
+        case 'c':
+            env.CS_DELAY = true;
+            break;
+        case 'S':
+            env.SYSCALL_DELAY = true;
+            break;
+        case 'p':
+            env.PREEMPT = true;
+            break;
+        case 'd':
+            env.SCHEDULE_DELAY = true;
+            break;
+        case 'e':
+            env.MIN_US_SET = true;
+            if (arg) {
+                env.MIN_US = strtol(arg, NULL, 10);
+                if (env.MIN_US <= 0) {
+                    fprintf(stderr, "Invalid value for min_us: %d\n", env.MIN_US);
+                    argp_usage(state);
+                }
+            } else {
+                env.MIN_US = 10000;
+            }
+            break;
+        case 'm':
+            env.MQ_DELAY = true;
+            break;
+        case 'h':
+            argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+            break;
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
 }
+
 static const struct argp argp = {
     .options = opts,
     .parser = parse_arg,
@@ -478,65 +498,81 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
     return 0;
 }
 
-char* get_process_name_by_pid(int pid) {
-    static char buf[MAX_BUF];
-    char command[MAX_BUF];
-    snprintf(command, sizeof(command), "cat /proc/%d/status | grep Name", pid);
-    FILE* fp = popen(command, "r");
-    if (fp == NULL) {
-        perror("popen");
-        return NULL;
-    }
-    char* name = NULL;
-    while (fgets(buf, sizeof(buf), fp)) {
-        if (strncmp(buf, "Name:", 5) == 0) {
-            name = strdup(buf + 6); 
-            break;
+// 定义一个结构来存储已输出的条目
+struct output_entry {
+    int pid;
+    char comm[16];
+    long long delay;
+};
+
+// 定义一个数组来存储已输出的条目
+struct output_entry seen_entries[MAX_ENTRIES];
+int seen_count = 0;
+
+// 检查条目是否已存在
+bool entry_exists(int pid, const char *comm, long long delay) {
+    for (int i = 0; i < seen_count; i++) {
+        if (seen_entries[i].pid == pid &&
+            strcmp(seen_entries[i].comm, comm) == 0 &&
+            seen_entries[i].delay == delay) {
+            return true;
         }
     }
-    pclose(fp);
-	if (name != NULL) {
-        size_t len = strlen(name);
-        if (len > 0 && name[len - 1] == '\n') {
-            name[len - 1] = '\0';
-        }
-    }
-    return name;
+    return false;
 }
 
-static int schedule_print(struct bpf_map *sys_fd)
+// 添加条目到已输出的条目列表
+void add_entry(int pid, const char *comm, long long delay) {
+    if (seen_count < MAX_ENTRIES) {
+        seen_entries[seen_count].pid = pid;
+        strncpy(seen_entries[seen_count].comm, comm, sizeof(seen_entries[seen_count].comm));
+        seen_entries[seen_count].delay = delay;
+        seen_count++;
+    }
+}
+static int schedule_print()
 {
     int key = 0;
-    struct sum_schedule info;
-    int err, fd = bpf_map__fd(sys_fd);
-    time_t now = time(NULL);
-    struct tm *localTime = localtime(&now);
-    int hour = localTime->tm_hour;
-    int min = localTime->tm_min;
-    int sec = localTime->tm_sec;
-    unsigned long long avg_delay; 
-    err = bpf_map_lookup_elem(fd, &key, &info);
-    if (err < 0) {
-        fprintf(stderr, "failed to lookup infos: %d\n", err);
-        return -1;
-    }
-    avg_delay = info.sum_delay / info.sum_count;
-	if(!ifprint){
-		ifprint=1;
-	}else{
-		char* proc_name_max = get_process_name_by_pid(info.pid_max);
-		char* proc_name_min = get_process_name_by_pid(info.pid_min);
-		printf("%02d:%02d:%02d  %-15lf %-15lf  %10s %15lf  %15s\n",
-           hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,proc_name_max,info.min_delay / 1000.0,proc_name_min);
-		if (proc_name_max != NULL) {
-    		free(proc_name_max);
+	if(env.SCHEDULE_DELAY){
+		struct sum_schedule info;
+		int err, fd = bpf_map__fd(sd_skel->maps.sys_schedule);
+		time_t now = time(NULL);
+		struct tm *localTime = localtime(&now);
+		int hour = localTime->tm_hour;
+		int min = localTime->tm_min;
+		int sec = localTime->tm_sec;
+		unsigned long long avg_delay; 
+		err = bpf_map_lookup_elem(fd, &key, &info);
+		if (err < 0) {
+			fprintf(stderr, "failed to lookup infos: %d\n", err);
+			return -1;
 		}
-		if (proc_name_min != NULL) {
-			free(proc_name_min);		
+		avg_delay = info.sum_delay / info.sum_count;
+		if (!ifprint) {
+			ifprint=1;
+		}else{
+			printf("%02d:%02d:%02d  %-15lf %-15lf  %10s %15lf  %15s\n",
+			hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.proc_name_max,info.min_delay / 1000.0,info.proc_name_min);
 		}
+	}else if(env.MIN_US_SET){
+		struct proc_schedule info;
+        int key = 0;  
+        int err, fd = bpf_map__fd(sd_skel->maps.threshold_schedule);
+        err = bpf_map_lookup_elem(fd, &key, &info);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup infos: %d\n", err);
+            return -1;
+        }
+        if (info.delay / 1000 > env.MIN_US&&info.pid!=0) { // 默认输出调度延迟大于10ms的
+            if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
+                printf("%-10d %-10s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
+                add_entry(info.pid, info.proc_name, info.delay / 1000);
+            }
+        }
 	}
     return 0;
 }
+
 
 static int mq_event(void *ctx, void *data,unsigned long data_sz)
 {
@@ -675,7 +711,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto sc_delay_cleanup;		
 		}
-	}else if(env.SCHEDULE_DELAY){
+	}else if(env.SCHEDULE_DELAY||env.MIN_US_SET){
 		sd_skel = schedule_delay_bpf__open();
 		if (!sd_skel) {
 			fprintf(stderr, "Failed to open and load BPF skeleton\n");
@@ -691,7 +727,11 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto schedule_cleanup;
 		}
-		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs    max_proc_name    min_delay/μs   min_proc_name");
+		if(env.MIN_US_SET){
+			printf("%s\n","pid        COMM       schedule_delay/us");
+		}else{
+			printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs    max_proc_name    min_delay/μs   min_proc_name");
+		}
 	}else if (env.SAR){
 		/* Load and verify BPF application */
 		sar_skel = sar_bpf__open();
@@ -820,8 +860,8 @@ int main(int argc, char **argv)
 			sum_preemptTime = 0;
 			sleep(2);
 		}
-		else if (env.SCHEDULE_DELAY){
-			err = schedule_print(sd_skel->maps.sys_schedule);
+		else if (env.SCHEDULE_DELAY||env.MIN_US_SET){
+			err = schedule_print();
 			if (err == -EINTR) {
 				err = 0;
 				break;
@@ -829,7 +869,9 @@ int main(int argc, char **argv)
 			if (err < 0) {
 				break;
 			}
-			sleep(1);
+			if(env.SCHEDULE_DELAY){
+				sleep(1);
+			}	
 		}
         else if(env.MQ_DELAY){
 			err = ring_buffer__poll(rb, 1000 /* timeout, s */);
