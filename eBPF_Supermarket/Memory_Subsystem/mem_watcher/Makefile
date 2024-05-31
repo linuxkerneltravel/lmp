@@ -130,6 +130,17 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
 
+SUCCESS_MESSAGE:
+	@echo "\e[38;2;255;102;204m                                          _       _               \e[0m"
+	@echo "\e[38;2;255;153;204m  _ __ ___   ___ _ __ ___  __      ____ _| |_ ___| |__   ___ _ __ \e[0m"
+	@echo "\e[38;2;255;204;204m | '_ \` _ \ / _ \ '_ \` _ \ \ \ /\ / / _\` | __/ __| '_ \ / _ \ '__|\e[0m"
+	@echo "\e[38;2;204;229;255m | | | | | |  __/ | | | | | \ V  V / (_| | || (__| | | |  __/ |   \e[0m"
+	@echo "\e[38;2;153;204;255m |_| |_| |_|\___|_| |_| |_|  \_/\_/ \__ _|\__\___|_| |_|\___|_|   \e[0m"
+
+	@echo "\e[38;2;0;255;255mSuccessful to compile mem_watcher tools:                      \e[0m"
+	@echo "\e[38;2;0;255;255mPlease start your use ~                                      \e[0m"
+all: $(TARGETS) SUCCESS_MESSAGE
+
 # delete failed targets
 .DELETE_ON_ERROR:
 

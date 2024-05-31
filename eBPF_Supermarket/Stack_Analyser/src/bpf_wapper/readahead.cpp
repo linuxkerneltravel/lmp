@@ -37,25 +37,16 @@ ReadaheadStackCollector::ReadaheadStackCollector()
     };
 };
 
-int ReadaheadStackCollector::load(void)
+int ReadaheadStackCollector::ready(void)
 {
     EBPF_LOAD_OPEN_INIT();
-    return 0;
-}
-
-int ReadaheadStackCollector::attach(void)
-{
     ATTACH_PROTO;
     return 0;
 }
 
-void ReadaheadStackCollector::detach(void)
+void ReadaheadStackCollector::finish(void)
 {
     DETACH_PROTO;
-}
-
-void ReadaheadStackCollector::unload(void)
-{
     UNLOAD_PROTO;
 }
 
@@ -64,6 +55,7 @@ void ReadaheadStackCollector::activate(bool tf)
     ACTIVE_SET(tf);
 }
 
-const char *ReadaheadStackCollector::getName(void) {
+const char *ReadaheadStackCollector::getName(void)
+{
     return "ReadaheadStackCollector";
 }
