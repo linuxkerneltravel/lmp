@@ -227,9 +227,17 @@ struct {
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0;
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,
+                   drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0 ,stack_info = 0;
 
 /* help macro */
+
+#define FILTER                                          \
+    if(filter_dport&&filter_dport!= pkt_tuple.dport)    \
+        return 0;                                       \
+    if(filter_sport&&filter_sport!= pkt_tuple.sport)    \
+        return 0;                                       \
+
 
 // 连接的目标端口是否匹配于filter_dport的值
 #define FILTER_DPORT                                                           \
