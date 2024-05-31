@@ -134,7 +134,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
     switch (key) {
         case 't':
             env.time = strtol(arg, NULL, 10);
-            if(env.time) alarm(env.time);
+            if (env.time) alarm(env.time);
             break;
         case 'i':
             env.period = strtol(arg, NULL, 10);
@@ -565,7 +565,7 @@ static int schedule_print()
         }
         if (info.delay / 1000 > env.MIN_US&&info.pid!=0) { // 默认输出调度延迟大于10ms的
             if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
-                printf("%-10d %-10s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
+                printf("%-10d %-16s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
                 add_entry(info.pid, info.proc_name, info.delay / 1000);
             }
         }
@@ -728,7 +728,8 @@ int main(int argc, char **argv)
 			goto schedule_cleanup;
 		}
 		if(env.MIN_US_SET){
-			printf("%s\n","pid        COMM       schedule_delay/us");
+			printf("调度延时大于%dms的进程:\n",env.MIN_US/1000);
+			printf("%s\n","pid        COMM                   schedule_delay/us");
 		}else{
 			printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs    max_proc_name    min_delay/μs   min_proc_name");
 		}
