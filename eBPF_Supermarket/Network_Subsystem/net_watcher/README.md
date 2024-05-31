@@ -34,6 +34,7 @@ netwatcher能够追踪TCP、UDP、ICMP协议数据包从应用程序发出开始
 - TCP、UDP、ICMP相关信息监测：追踪TCP、UDP、ICMP协议数据包，并实现对主机接收和发送的所有相关数据包的时延数据和流量信息
 - 监测TCP连接状态信息：包括三次握手以及四次挥手的状态转变和时延数据
 - 丢包事件的监控：分析导致丢包的地址以及丢包原因
+- DNS协议相关信息监控：通过截取UDP包，对DNS协议包进行解析，获取事务ID、标志字段、问题部分计数、应答记录计数、授权记录计数、附加记录计数、域名等信息
 
 #### TODO
 - [ ] 应用层协议的支持
@@ -149,6 +150,7 @@ Watch tcp/ip in network subsystem
 - 指定 `-I` 参数监控ICMP协议数据包收发过程中的时延。
 - 指定 `-T` 参数将捕获到的丢包事件虚拟地址转换成函数名+偏移量形式。
 - 指定 `-L` 参数监测网络协议栈数据包经过各层的时延，采用指数加权移动法对异常的时延数据进行监控并发出警告信息。
+- 指定 `-D` 参数监测DNS协议包信息。截取UDP包，对DNS协议包进行解析，获取其基本指标，包含事务ID、标志字段、问题部分计数、应答记录计数、域名等相关信息。
 
 ### 3.1 监控连接信息
 `netwatcher`会将保存在内存中的连接相关信息实时地在`data/connects.log`中更新。默认情况下，为节省资源消耗，`netwatcher`会实时删除已CLOSED的TCP连接相关信息，并只会保存每个TCP连接的基本信息。
@@ -299,6 +301,19 @@ time      saddr           daddr          sprot   dprot  prot  addr              
 sudo ./netwatcher -t -L
 saddr     daddr       sprot    dprot   udp_time     rx       len     
 127.0.0.1 127.0.0.53  44530    53      1593         0        51      abnoermal data
+```
+
+#### 3.2.8 DNS协议包监控
+
+选择`udp_rcv`和`udp_send_skb`挂载捕获DNS收包和发包相关信息，从UDP头部开始分析并定位DNS数据部分获取其信息，头部信息存储在`query.header`，数据部分读取存储于`data`，可以获取到DNS协议包的事务ID、标志字段、问题部分计数、应答记录计数、授权记录计数、附加记录计数、域名等信息。
+
+```C
+sudo ./netwatcher -D
+saddr             daddr             Id       Flags     Qd   An    Ns   Ar  Qr                                rx/direction      
+192.168.60.136    192.168.60.2      0x48d5   0x100     1    0     0    0   baidu.com                         1         
+192.168.60.2      192.168.60.136    0x48d5   0x8180    1    2     0    0   baidu.com                         0               
+127.0.0.1         127.0.0.53        0x7637   0x120     1    0     0    1   contile.services.mozilla.com      1         
+192.168.60.136    192.168.60.2      0x2c35   0x100     1    0     0    0   contile.services.mozilla.com      1    
 ```
 
 ### 3.3 与Prometheus连接进行可视化
