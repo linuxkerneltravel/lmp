@@ -46,9 +46,6 @@
 [submodule "eBPF_Supermarket/CPU_Subsystem/libbpf"]
 	path = eBPF_Supermarket/CPU_Subsystem/libbpf
 	url = https://github.com/libbpf/libbpf.git
-[submodule "eBPF_Supermarket/Stack_Analyser/libbpf-bootstrap"]
-	path = eBPF_Supermarket/Stack_Analyser/libbpf-bootstrap
-	url = https://github.com/libbpf/libbpf-bootstrap.git
 [submodule "eBPF_Supermarket/Network_Subsystem/net_manager/lib/libbpf"]
 	path = eBPF_Supermarket/Network_Subsystem/net_manager/lib/libbpf
 	url = https://github.com/libbpf/libbpf.git
