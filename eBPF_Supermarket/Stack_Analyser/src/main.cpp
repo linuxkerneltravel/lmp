@@ -44,7 +44,6 @@ namespace MainConfig
     uint64_t run_time = -1; // 运行时间
     unsigned delay = 5;     // 设置输出间隔
     std::string command = "";
-    uint32_t target_pid = 0;
     uint32_t target_tgid = 0;
     uint64_t target_cgroup = 0;
     std::string trigger = "";    // 触发器
@@ -125,12 +124,11 @@ void end_handle(void)
         {
             std::cout << std::string(*Item) << std::endl;
         }
-        Item->detach();
-        Item->unload();
+        Item->finish();
     }
     if (MainConfig::command.length())
     {
-        kill(MainConfig::target_pid, SIGTERM);
+        kill(MainConfig::target_tgid, SIGTERM);
     }
 }
 
@@ -203,9 +201,6 @@ int main(int argc, char *argv[])
                                ((clipp::option("-p") &
                                  clipp::value("pid", MainConfig::target_tgid)) %
                                 "Set the pid of the process to be tracked; default is -1, which keeps track of all processes") |
-                               ((clipp::option("-t") &
-                                 clipp::value("tid", MainConfig::target_pid)) %
-                                "Set the tid of the thread to be tracked; default is -1, which keeps track of all threads") |
                                ((clipp::option("-c") &
                                  clipp::value("command", MainConfig::command)) %
                                 "Set the command to be run and sampled; defaults is none")),
@@ -256,7 +251,7 @@ int main(int argc, char *argv[])
                IOOption,
                ReadaheadOption,
                LlcStatOption,
-               ProbeOption,
+               clipp::repeatable(ProbeOption),
                MainOption,
                Info);
     }
@@ -284,28 +279,28 @@ int main(int argc, char *argv[])
 
     uint64_t eventbuff = 1;
     int child_exec_event_fd = eventfd(0, EFD_CLOEXEC);
-    CHECK_ERR(child_exec_event_fd < 0, "failed to create event fd");
+    CHECK_ERR_RN1(child_exec_event_fd < 0, "failed to create event fd");
     if (MainConfig::command.length())
     {
-        MainConfig::target_pid = fork();
-        switch (MainConfig::target_pid)
+        MainConfig::target_tgid = fork();
+        switch (MainConfig::target_tgid)
         {
         case (uint32_t)-1:
         {
-            CHECK_ERR(true, "Command create failed.");
+            CHECK_ERR_RN1(true, "Command create failed.");
         }
         case 0:
         {
             const auto bytes = read(child_exec_event_fd, &eventbuff, sizeof(eventbuff));
-            CHECK_ERR(bytes < 0, "Failed to read from fd %ld", bytes)
-            else CHECK_ERR(bytes != sizeof(eventbuff), "Read unexpected size %ld", bytes);
+            CHECK_ERR_RN1(bytes < 0, "Failed to read from fd %ld", bytes)
+            else CHECK_ERR_RN1(bytes != sizeof(eventbuff), "Read unexpected size %ld", bytes);
             printf("child exec %s\n", MainConfig::command.c_str());
-            CHECK_ERR_EXIT(execl("/bin/bash", "bash", "-c", MainConfig::command.c_str(), NULL), "failed to execute child command");
+            CHECK_ERR(exit(-1), execl("/bin/bash", "bash", "-c", MainConfig::command.c_str(), NULL), "failed to execute child command");
             break;
         }
         default:
         {
-            printf("Create child %d\n", MainConfig::target_pid);
+            printf("Create child %d\n", MainConfig::target_tgid);
             break;
         }
         }
@@ -315,21 +310,19 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, _RED "Attach collecotor%d %s.\n" _RE,
                 (int)(Item - StackCollectorList.begin()) + 1, (*Item)->getName());
-        (*Item)->pid = MainConfig::target_pid;
         (*Item)->tgid = MainConfig::target_tgid;
         (*Item)->cgroup = MainConfig::target_cgroup;
         (*Item)->top = MainConfig::top;
         (*Item)->freq = MainConfig::freq;
         (*Item)->kstack = MainConfig::trace_kernel;
         (*Item)->ustack = MainConfig::trace_user;
-        if ((*Item)->load() || (*Item)->attach())
+        if ((*Item)->ready())
             goto err;
         Item++;
         continue;
     err:
-        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->scales->Type.c_str());
-        (*Item)->detach();
-        (*Item)->unload();
+        fprintf(stderr, _ERED "Collector %s err.\n" _RE, (*Item)->getName());
+        (*Item)->finish();
         Item = StackCollectorList.erase(Item);
     }
 
@@ -356,21 +349,21 @@ int main(int argc, char *argv[])
         auto trig = MainConfig::trig_event.c_str();
 
         fds.fd = open(path, O_RDWR | O_NONBLOCK);
-        CHECK_ERR(fds.fd < 0, "%s open error", path);
+        CHECK_ERR_RN1(fds.fd < 0, "%s open error", path);
         fds.events = POLLPRI;
-        CHECK_ERR(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
+        CHECK_ERR_RN1(write(fds.fd, trig, strlen(trig) + 1) < 0, "%s write error", path);
         fprintf(stderr, _RED "Waiting for events...\n" _RE);
     }
     fprintf(stderr, _RED "Running for %lus or Hit Ctrl-C to end.\n" _RE, MainConfig::run_time);
-    for (; (uint64_t)time(NULL) < stop_time && (MainConfig::target_pid < 0 || !kill(MainConfig::target_pid, 0));)
+    for (; (uint64_t)time(NULL) < stop_time && (MainConfig::target_tgid < 0 || !kill(MainConfig::target_tgid, 0));)
     {
         if (fds.fd >= 0)
         {
             while (true)
             {
                 int n = poll(&fds, 1, -1);
-                CHECK_ERR(n < 0, "Poll error");
-                CHECK_ERR(fds.revents & POLLERR, "Got POLLERR, event source is gone");
+                CHECK_ERR_RN1(n < 0, "Poll error");
+                CHECK_ERR_RN1(fds.revents & POLLERR, "Got POLLERR, event source is gone");
                 if (fds.revents & POLLPRI)
                 {
                     fprintf(stderr, _RED "Event triggered!\n" _RE);

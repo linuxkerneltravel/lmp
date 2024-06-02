@@ -31,22 +31,17 @@ COMMON_VALS;
 static __always_inline int trace_event(__u64 sample_period, bool miss, struct bpf_perf_event_data *ctx)
 {
     CHECK_ACTIVE;
-    CHECK_FREQ;
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    // perf 中已设置目标tgid，这里无需再次过滤tgid
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-    if (BPF_CORE_READ(curr, flags) & PF_KTHREAD)
-        return 0;
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if ((!pid) || (pid == self_pid) || (target_pid > 0 && pid != target_pid))
-        return 0;
-    if (target_tgid > 0 && BPF_CORE_READ(curr, tgid) != target_tgid)
-        return 0;
-    SET_KNODE(curr, knode);
-    if (target_cgroupid > 0 && BPF_CORE_READ(knode, id) != target_cgroupid)
-        return 0;
-
-    SAVE_TASK_INFO(pid, curr, knode);
-    psid apsid = GET_COUNT_KEY(pid, ctx);
+    u32 pid = BPF_CORE_READ(curr, pid);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     llc_stat *infop = bpf_map_lookup_elem(&psid_count_map, &apsid);
     if (!infop)
     {
