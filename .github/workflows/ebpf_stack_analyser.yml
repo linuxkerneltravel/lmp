@@ -23,7 +23,7 @@ jobs:
 
       - name: Install native lib dependencies
         run: |
-          git submodule update --init --recursive eBPF_Supermarket/Stack_Analyser/ MagicEyes/
+          git submodule update --init --recursive eBPF_Supermarket/lib/ MagicEyes/
           sudo apt install clang libelf1 libelf-dev zlib1g-dev
         
       - name: Compile test examples

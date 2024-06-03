@@ -61,21 +61,34 @@ Stack_Analyzer是一个基于eBPF的按照指定时间间隔（默认为5s）来
 
 ## 编译要求
 
-Ubuntu下需要安装一下依赖，其他发行版类似
+初始化并更新libbpf和bpftool的代码仓库：
 
 ```shell
-$ git submodule update --init --recursive
-$ apt install clang libelf1 libelf-dev zlib1g-dev
+git submodule update --init --recursive ../lib/*
+```
+需要安装一下依赖：
+
+Ubuntu下
+
+```shell
+sudo apt update
+sudo apt install -y clang libelf1 libelf-dev zlib1g-dev bpftool
 ```
 
-g++-10以上，clang-12以上
+CentOS下
+
+```shell
+sudo dnf install clang elfutils-libelf elfutils-libelf-devel zlib-devel bpftool
+```
+
+clang-12以上
 
 # 使用方法
 
 ## 工具编译
 
 ```shell
-$ make
+$ make -j$(nproc)
 ```
 
 ## 命令使用方法
