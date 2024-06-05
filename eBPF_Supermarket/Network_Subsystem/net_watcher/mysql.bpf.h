@@ -13,28 +13,66 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
+// mysql
 
 #include "common.bpf.h"
-static __always_inline
-int __handle_mysql_start(struct pt_regs *ctx)
-{
-    //dispatch_command(THD *thd, const COM_DATA *com_data, enum enum_server_command command)
+#include "mysql_helper.bpf.h"
+static __always_inline int __handle_mysql_start(struct pt_regs *ctx) {
+    // dispatch_command(THD *thd, const COM_DATA *com_data, enum
     char comm[16];
-    //struct mysql_query data = {};
-    enum  enum_server_command command = PT_REGS_PARM3(ctx);
-    union COM_DATA  *com_data = (union COM_DATA *)PT_REGS_PARM2(ctx);
-    
+    enum enum_server_command command = PT_REGS_PARM3(ctx);
+    union COM_DATA *com_data = (union COM_DATA *)PT_REGS_PARM2(ctx);
+
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
-    bpf_get_current_comm(&comm, sizeof(comm));
     void *thd = (void *)PT_REGS_PARM1(ctx);
-    char *sql;  
+    char *sql;
     u32 size = 0;
-    if(command != COM_QUERY)
-    {
+
+    if (command != COM_QUERY) {
         return 0;
     }
-    bpf_probe_read(&size, sizeof(size), &com_data->com_query.length);
+
+    u64 start_time = bpf_ktime_get_ns()/1000;
+    bpf_map_update_elem(&mysql_time, &pid, &start_time, BPF_ANY);
+
+    struct mysql_query *message =
+        bpf_ringbuf_reserve(&mysql_rb, sizeof(*message), 0);
+    if (!message) {
+        return 0;
+    }
+
+    bpf_probe_read(&message->size, sizeof(message->size),
+                   &com_data->com_query.length);
     bpf_probe_read_str(&sql, sizeof(sql), &com_data->com_query.query);
-    bpf_printk("pid======%d,comm========%s,size=======%u,sql=========%s", pid,comm,size,sql);
+    bpf_probe_read_str(&message->msql, sizeof(message->msql), sql);
+
+    message->pid = pid;
+    bpf_get_current_comm(&message->comm, sizeof(comm));
+
+    bpf_ringbuf_submit(message, 0);
+    return 0;
+}
+
+static __always_inline int __handle_mysql_end(struct pt_regs *ctx) {
+
+    pid_t pid = bpf_get_current_pid_tgid() >> 32;
+    u64 *start_time_ptr, duration;
+    u64 end_time = bpf_ktime_get_ns()/1000;
+    start_time_ptr = bpf_map_lookup_elem(&mysql_time, &pid);
+    if (!start_time_ptr) {
+        return 0;
+    }
+
+    duration = end_time - *start_time_ptr;
+    struct mysql_query *message =
+        bpf_ringbuf_reserve(&mysql_rb, sizeof(*message), 0);
+    if (!message) {
+        return 0;
+    }
+
+    message->duratime = duration;
+
+    bpf_ringbuf_submit(message, 0);
+    bpf_map_delete_elem(&mysql_time, &pid);
     return 0;
 }
