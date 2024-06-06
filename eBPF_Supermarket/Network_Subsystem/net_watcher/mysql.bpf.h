@@ -45,6 +45,7 @@ static __always_inline int __handle_mysql_start(struct pt_regs *ctx) {
                    &com_data->com_query.length);
     bpf_probe_read_str(&sql, sizeof(sql), &com_data->com_query.query);
     bpf_probe_read_str(&message->msql, sizeof(message->msql), sql);
+    bpf_printk("%s",sql);
 
     message->pid = pid;
     bpf_get_current_comm(&message->comm, sizeof(comm));

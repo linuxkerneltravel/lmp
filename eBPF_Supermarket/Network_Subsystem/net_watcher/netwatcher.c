@@ -16,7 +16,6 @@
 //
 // netwatcher libbpf 用户态代码
 
-
 #include "netwatcher.h"
 #include "dropreason.h"
 #include "netwatcher.skel.h"
@@ -44,7 +43,7 @@ static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
-           time_load = 0, dns_info = 0,stack_info=0, mysql_info = 0; // flag
+           time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -76,10 +75,10 @@ static const struct argp_option opts[] = {
      "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd "
      "问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr "
      "域名、rx 收发包 "},
+    {"stack", 'A', 0, 0, "set to trace of stack "},
     {"mysql", 'M', 0, 0,
      "set to trace mysql information info include Pid 进程id、Comm "
      "进程名、Size sql语句字节大小、Sql 语句"},
-    {"stack", 'A', 0, 0, "set to trace of stack "},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -133,10 +132,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'D':
         dns_info = 1;
         break;
-    case 'M':
-        mysql_info = 1;
     case 'A':
         stack_info = 1;
+        break;
+    case 'M':
+        mysql_info = 1;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -409,8 +409,8 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->tcp_info = tcp_info;
     skel->rodata->icmp_info = icmp_info;
     skel->rodata->dns_info = dns_info;
-    skel->rodata->mysql_info = mysql_info;
     skel->rodata->stack_info = stack_info;
+    skel->rodata->mysql_info = mysql_info;
 }
 static void set_disable_load(struct netwatcher_bpf *skel) {
 
@@ -1067,8 +1067,8 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
 
-    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d\n",
-           s_str, d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
+    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d\n", s_str,
+           d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
            domain_name, pack_info->rx);
 
@@ -1130,6 +1130,7 @@ static int print_trace(void *_ctx, void *data, size_t size) {
     printf("\n");
     return 0;
 }
+
 int attach_uprobe(struct netwatcher_bpf *skel) {
     ATTACH_UPROBE_CHECKED(
         skel, _Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command,
@@ -1196,16 +1197,19 @@ int main(int argc, char **argv) {
     }
 
     /* Attach tracepoint handler */
-    err = attach_uprobe(skel);
-    if (err) {
-        fprintf(stderr, "failed to attach uprobes\n");
+    if (mysql_info) {
+        err = attach_uprobe(skel);
+        if (err) {
+            fprintf(stderr, "failed to attach uprobes\n");
 
-        goto cleanup;
-    }
-    err = netwatcher_bpf__attach(skel);
-    if (err) {
-        fprintf(stderr, "Failed to attach BPF skeleton\n");
-        goto cleanup;
+            goto cleanup;
+        }
+    } else {
+        err = netwatcher_bpf__attach(skel);
+        if (err) {
+            fprintf(stderr, "Failed to attach BPF skeleton\n");
+            goto cleanup;
+        }
     }
     enum MonitorMode mode = get_monitor_mode();
 
