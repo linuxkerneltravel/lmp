@@ -271,10 +271,10 @@ packet{sock="0xffff13235ac8ac8e",seq="1318124482",ack="2468218244",reason="Inval
 ```c
 sudo ./netwatcher -i
 SOCK                   Saddr                Sport    Daddr                Dport    MAC_TIME/μs    IP_TIME/μs     TRAN_TIME/μs   RX/direction    HTTP            
-0xffff93911049d100     192.168.60.136       44152    1.1.1.1              80       0          0          0          0                            -         
-0xffff93911049d100     1.1.1.1              80       192.168.60.136       44152    0          0          0          1                            HTTP/1.1 301 Moved Permanently
-0xffff9391601a6c00     192.168.60.136       44154    1.1.1.1              80       0          0          0          0                            -         
-0xffff9391601a6c00     1.1.1.1              80       192.168.60.136       44154    0          0          0          1                            HTTP/1.1 301 Moved Permanently
+0xffff93911049d100     192.168.60.136       44152    1.1.1.1              80       0          0          0          0             0              -         
+0xffff93911049d100     1.1.1.1              80       192.168.60.136       44152    0          0          0          1             1              HTTP/1.1 301 Moved Permanently
+0xffff9391601a6c00     192.168.60.136       44154    1.1.1.1              80       0          0          0          0             0              -         
+0xffff9391601a6c00     1.1.1.1              80       192.168.60.136       44154    0          0          0          1             1              HTTP/1.1 301 Moved Permanently
 ```
 
 #### 3.2.3 过滤指定目的端口、源端口
