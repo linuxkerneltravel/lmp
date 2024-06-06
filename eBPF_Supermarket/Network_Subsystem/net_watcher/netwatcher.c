@@ -16,6 +16,7 @@
 //
 // netwatcher libbpf 用户态代码
 
+
 #include "netwatcher.h"
 #include "dropreason.h"
 #include "netwatcher.skel.h"
@@ -43,7 +44,7 @@ static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
-           time_load = 0, dns_info = 0, mysql_info = 0; // flag
+           time_load = 0, dns_info = 0,stack_info=0, mysql_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -78,6 +79,7 @@ static const struct argp_option opts[] = {
     {"mysql", 'M', 0, 0,
      "set to trace mysql information info include Pid 进程id、Comm "
      "进程名、Size sql语句字节大小、Sql 语句"},
+    {"stack", 'A', 0, 0, "set to trace of stack "},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -133,6 +135,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'M':
         mysql_info = 1;
+    case 'A':
+        stack_info = 1;
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -406,6 +410,7 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->icmp_info = icmp_info;
     skel->rodata->dns_info = dns_info;
     skel->rodata->mysql_info = mysql_info;
+    skel->rodata->stack_info = stack_info;
 }
 static void set_disable_load(struct netwatcher_bpf *skel) {
 
@@ -552,48 +557,48 @@ static void print_header(enum MonitorMode mode) {
                "UDP "
                "INFORMATION===================================================="
                "====\n");
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr",
-               "sprot", "dprot", "udp_time/μs", "rx/direction", "len/byte");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "Saddr", "Daddr",
+               "Sprot", "Dprot", "udp_time/μs", "RX/direction", "len/byte");
         break;
     case MODE_NET_FILTER:
         printf("==============================================================="
-               "===NET FILTER "
+               "===NETFILTER "
                "INFORMATION===================================================="
                "=======\n");
         printf("%-20s %-20s %-12s %-12s %-8s %-8s %-7s %-8s %-8s %-8s\n",
-               "saddr", "daddr", "dprot", "sprot", "PreRT/μs", "L_IN/μs",
-               "FW/μs", "PostRT/μs", "L_OUT/μs", "rx/direction");
+               "Saddr", "Daddr", "Sprot", "Dprot", "PreRT/μs", "L_IN/μs",
+               "FW/μs", "PostRT/μs", "L_OUT/μs", "RX/direction");
         break;
     case MODE_DROP_REASON:
         printf("==============================================================="
                "DROP "
                "INFORMATION===================================================="
                "====\n");
-        printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "time",
-               "saddr", "daddr", "sprot", "dprot", "prot", "addr", "reason");
+        printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "Time",
+               "Saddr", "Daddr", "Sprot", "Dprot", "prot", "addr", "reason");
         break;
     case MODE_ICMP:
         printf("=================================================ICMP "
                "INFORMATION==============================================\n");
-        printf("%-20s %-20s %-20s %-20s\n", "saddr", "daddr", "icmp_time/μs",
-               "tx//direction");
+        printf("%-20s %-20s %-20s %-20s\n", "Saddr", "Daddr", "icmp_time/μs",
+               "RX/direction");
         break;
     case MODE_TCP:
         printf("==============================================================="
                "TCP STATE "
                "INFORMATION===================================================="
                "====\n");
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "saddr", "daddr",
-               "sport", "dport", "oldstate", "newstate", "time/μs");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "Saddr", "Daddr",
+               "Sport", "Dport", "oldstate", "newstate", "time/μs");
         break;
     case MODE_DNS:
         printf("==============================================================="
                "====================DNS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-12s %-12s %-12s %-12s %-12s %-11s %-47s %5s \n",
-               "saddr", "daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
-               "rx/direction");
+        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %5s \n",
+               "Saddr", "Daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
+               "RX/direction");
         break;
     case MODE_MYSQL:
         printf("==============================================================="
@@ -609,12 +614,19 @@ static void print_header(enum MonitorMode mode) {
                "======================\n");
         printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-15s %-15s \n",
                "SOCK", "Saddr", "Sport", "Daddr", "Dport", "MAC_TIME/μs",
-               "IP_TIME/μs", "TRAN_TIME/μs", "RX//direction", "HTTP");
+               "IP_TIME/μs", "TRAN_TIME/μs", "RX/direction", "HTTP");
         break;
     }
 }
 
 static void open_log_files() {
+    FILE *connect_file = fopen(connects_file_path, "w+");
+    if (connect_file == NULL) {
+        fprintf(stderr, "Failed to open connect.log: (%s)\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    fclose(connect_file);
+
     FILE *err_file = fopen(err_file_path, "w+");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
@@ -1055,7 +1067,7 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
 
-    printf("%-20s %-20s %-#12x %-#12x %-12x %-12x %-12x %-11x %-47s %-10d\n",
+    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d\n",
            s_str, d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
            domain_name, pack_info->rx);
