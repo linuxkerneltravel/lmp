@@ -165,7 +165,7 @@ Watch tcp/ip in network subsystem
 - 指定 `-T` 参数将捕获到的丢包事件虚拟地址转换成函数名+偏移量形式。
 - 指定 `-L` 参数监测网络协议栈数据包经过各层的时延，采用指数加权移动法对异常的时延数据进行监控并发出警告信息。
 - 指定 `-D` 参数监测DNS协议包信息。截取UDP包，对DNS协议包进行解析，获取其基本指标，包含事务ID、标志字段、问题部分计数、应答记录计数、域名等相关信息。
-- 指定 `-M` 参数监测Mysql信息。实现用户态下mysql监控，获取其sql语句及sql执行耗时，单位μs。
+- 指定 `-M` 参数监测Mysql信息。实现用户态下mysql监控，获取其sql语句、sql字节数、sql执行耗时，单位μs。
 
 ### 3.1 监控连接信息
 `netwatcher`会将保存在内存中的连接相关信息实时地在`data/connects.log`中更新。默认情况下，为节省资源消耗，`netwatcher`会实时删除已CLOSED的TCP连接相关信息，并只会保存每个TCP连接的基本信息。
@@ -346,7 +346,7 @@ Saddr                Daddr                Id           Flags        Qd    An    
 
 #### 3.2.9 Mysql监控
 
-利用uprobe和uretprobe挂载mysql-server层的命令分发处理函数`dispatch_command`，探测该函数获取进程pid、进程名comm、sql语句、sql执行耗时(μs)。
+利用uprobe和uretprobe挂载mysql-server层的命令分发处理函数`dispatch_command`，探测该函数获取进程pid、进程名comm、sql语句、sql字节数Size 、sql执行耗时(μs)。
 
 ```C
 sudo ./netwatcher -M
