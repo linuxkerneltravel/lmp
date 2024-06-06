@@ -29,6 +29,7 @@
 #include <linux/perf_event.h>
 #include <asm/unistd.h>
 #include "cpu_watcher.h"
+#include "cpu_watcher_helper.h"
 #include "sar.skel.h"
 #include "cs_delay.skel.h"
 #include "sc_delay.skel.h"
@@ -64,6 +65,8 @@ static struct env {
     bool SCHEDULE_DELAY;
 	bool MQ_DELAY;
     int freq;
+	bool EWMA;
+	int cycle;
 } env = {
     .time = 0,
 	.period = 1,
@@ -75,7 +78,9 @@ static struct env {
     .PREEMPT = false,
     .SCHEDULE_DELAY = false,
 	.MQ_DELAY = false,
-    .freq = 99
+    .freq = 99,
+	.EWMA = false,
+	.cycle = 0,
 };
 
 
@@ -119,6 +124,8 @@ static const struct argp_option opts[] = {
 	{"preempt_time", 'p',	0,0,"print preempt_time (the data of preempt_schedule)"},
 	{"schedule_delay", 'd',	0,0,"print schedule_delay (the data of cpu)"},
 	{"mq_delay", 'm',	0,0,"print mq_delay(the data of proc)"},
+	{"ewma", 'e',	0,0,"dynamic filte the data"},
+	{"cycle", 'T',	"CYCLE",0,"Periods of the ewma"},
 	{ NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{0},
 };
@@ -153,6 +160,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'm':
 			env.MQ_DELAY = true;
 			break;
+		case 'e':
+			env.EWMA = true;
+			break;
+		case 'T':
+			env.cycle = strtol(arg, NULL, 10);;
+			break;			
 		case 'h':
 			argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 			break;
@@ -458,13 +471,23 @@ static void histogram()
 	printf("per_len = %d\n",per_len);
 }
 
-
+struct ewma_info ewma_syscall_delay = {};
 static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 {
-
 	const struct syscall_events *e = data;
-	printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
+	if(env.EWMA==0){
+		printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
 		e->pid,e->comm,e->syscall_id,e->delay);
+	}
+	else{
+		ewma_syscall_delay.cycle = env.cycle;
+		if(dynamic_filter(&ewma_syscall_delay,e->delay)){
+			printf("yes!!!!\n");
+			printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
+			e->pid,e->comm,e->syscall_id,e->delay);		
+		}
+	}
+
 	return 0;
 }
 
