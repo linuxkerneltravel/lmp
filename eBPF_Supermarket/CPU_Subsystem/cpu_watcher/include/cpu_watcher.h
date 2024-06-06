@@ -134,8 +134,14 @@ struct sum_schedule {
 	unsigned long long sum_delay;
 	unsigned long long max_delay;
 	unsigned long long min_delay;
-    int pid_max;
-	int pid_min;
+    char proc_name_max[TASK_COMM_LEN];
+	char proc_name_min[TASK_COMM_LEN];
+};
+
+struct proc_schedule {
+	int pid;
+	unsigned long long delay;
+	char proc_name[TASK_COMM_LEN];
 };
 
 /*----------------------------------------------*/
