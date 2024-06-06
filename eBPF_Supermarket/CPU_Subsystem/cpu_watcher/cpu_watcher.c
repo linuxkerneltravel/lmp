@@ -578,7 +578,7 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 	}else{
 		delay = (e->rcv_exit_time - e->send_enter_time)/1000000.0 + send_delay + rcv_delay;		
 	}
-	printf("%02d:%02d:%02d   %-8llu %-8lu %-8lu \t%-16ld %-16ld %-16ld %-16ld\t%-15.5f %-15.5f %-15.5f\n",
+	printf("%02d:%02d:%02d   %-8u %-8u %-8u \t%-16llu %-16llu %-16llu %-16llu\t%-15.5f %-15.5f %-15.5f\n",
 		localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
 		e->mqdes,e->send_pid,e->rcv_pid,
 		e->send_enter_time,e->send_exit_time,e->rcv_enter_time,e->rcv_exit_time,

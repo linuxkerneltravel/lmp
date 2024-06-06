@@ -81,11 +81,27 @@ struct filtertime {
     struct packet_tuple done;
     u64 time[nf_max];
 };
+
 struct ip_packet
 {
     unsigned int saddr;         // 源地址
     unsigned int daddr;         // 目的地址
 };
+
+struct dns_header {
+    u16 id;// 事务ID
+    u16 flags;// 标志字段
+    u16 qdcount;// 问题部分计数
+    u16 ancount;// 应答记录计数
+    u16 nscount;// 授权记录计数
+    u16 arcount;// 附加记录计数
+};
+
+struct dns_query {
+    struct dns_header header;// DNS头部
+    char data[64];// 可变长度数据（域名+类型+类）
+};
+
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -147,6 +163,15 @@ struct {
     __uint(max_entries, 256 * 1024);
 } tcp_rb SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} dns_rb SEC(".maps");
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} trace_rb SEC(".maps");
+
 // 存储每个tcp连接所对应的conn_t
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -202,9 +227,17 @@ struct {
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,drop_reason = 0,icmp_info = 0 ,tcp_info = 0;
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,
+                   drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0 ,stack_info = 0;
 
 /* help macro */
+
+#define FILTER                                          \
+    if(filter_dport&&filter_dport!= pkt_tuple.dport)    \
+        return 0;                                       \
+    if(filter_sport&&filter_sport!= pkt_tuple.sport)    \
+        return 0;                                       \
+
 
 // 连接的目标端口是否匹配于filter_dport的值
 #define FILTER_DPORT                                                           \
@@ -286,8 +319,6 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
     packet->sock = sk;                                                         \
     packet->ack = pkt_tuple.ack;                                               \
     packet->seq = pkt_tuple.seq;
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 /* help macro end */
 
@@ -386,5 +417,31 @@ void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
 
     pkt_tuple->tran_flag = 1; // tcp包
 }
+int getstack(void *ctx)
+{
+    int pid = bpf_get_current_pid_tgid() >> 32;
+	int cpu_id = bpf_get_smp_processor_id();
+	struct stacktrace_event *event;
+	int cp;
+
+	event = bpf_ringbuf_reserve(&trace_rb, sizeof(*event), 0);
+	if (!event)
+		return 1;
+
+	event->pid = pid;
+	event->cpu_id = cpu_id;
+
+	if (bpf_get_current_comm(event->comm, sizeof(event->comm)))
+		event->comm[0] = 0;
+
+	event->kstack_sz = bpf_get_stack(ctx, event->kstack, sizeof(event->kstack), 0);
+	bpf_ringbuf_submit(event, 0);
+
+	return 0;
+}
+
 /* help functions end */
+
+
+
 #endif

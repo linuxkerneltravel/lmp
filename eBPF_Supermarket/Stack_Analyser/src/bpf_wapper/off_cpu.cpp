@@ -34,14 +34,9 @@ uint64_t *OffCPUStackCollector::count_values(void *data)
     };
 };
 
-int OffCPUStackCollector::load(void)
+int OffCPUStackCollector::ready(void)
 {
-    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
-    return 0;
-}
-
-int OffCPUStackCollector::attach(void)
-{
+    EBPF_LOAD_OPEN_INIT();
     symbol sym;
     sym.name = "finish_task_switch";
     if (!g_symbol_parser.complete_kernel_symbol(sym))
@@ -52,13 +47,9 @@ int OffCPUStackCollector::attach(void)
     return 0;
 }
 
-void OffCPUStackCollector::detach(void)
+void OffCPUStackCollector::finish(void)
 {
     DETACH_PROTO;
-}
-
-void OffCPUStackCollector::unload(void)
-{
     UNLOAD_PROTO;
 }
 
@@ -67,6 +58,7 @@ void OffCPUStackCollector::activate(bool tf)
     ACTIVE_SET(tf);
 }
 
-const char *OffCPUStackCollector::getName(void) {
+const char *OffCPUStackCollector::getName(void)
+{
     return "OffCPUStackCollector";
 }

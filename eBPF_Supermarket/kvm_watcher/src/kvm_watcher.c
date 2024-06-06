@@ -32,6 +32,8 @@
 #include "uprobe_helpers.h"
 #include "kvm_watcher.skel.h"
 
+//可视化调整输出格式
+int is_first = 1;
 // 创建并打开临时文件
 FILE *create_temp_file(const char *filename) {
     const char *directory = "./temp";
@@ -736,7 +738,8 @@ static int print_event_head(struct env *env) {
             printf("Waiting vm_exit ... \n");
             break;
         case VCPU_LOAD:
-            printf("Waiting vm_vcpu_load ... \n");
+            //可视化调整输出格式
+            //printf("Waiting vm_vcpu_load ... \n");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -1020,22 +1023,25 @@ int print_vcpu_load_map(struct kvm_watcher_bpf *skel) {
     int fd = bpf_map__fd(skel->maps.load_map);
     int err;
     struct load_key lookup_key = {};
-    struct load_key next_key = {};
+    struct load_key next_key = {}; 
     struct load_value load_value = {};
-    int first = 1;
+    //可视化调整输出格式
+    //int first = 1;
     while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        if (first) {
-            first = 0;
-            printf("\nTIME:%s\n", getCurrentTimeFormatted());
+        if (is_first) {
+            is_first = 0;
+            //可视化调整输出格式
+            //printf("\nTIME:%s\n", getCurrentTimeFormatted());
             printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid",
                    "tid", "total_time", "max_time", "min_time", "counts",
                    "vcpuid", "pcpuid");
-            printf(
-                "------------ ------------ ------------ ------------ "
-                "------------ "
-                "------------ "
-                "------------ "
-                "------------\n");
+            //可视化调整输出格式
+            // printf(
+            //     "------------ ------------ ------------ ------------ "
+            //     "------------ "
+            //     "------------ "
+            //     "------------ "
+            //     "------------\n");
         }
         err = bpf_map_lookup_elem(fd, &next_key, &load_value);
         if (err < 0) {
@@ -1115,7 +1121,7 @@ void __print_exit_map(int fd, enum NameType name_type) {
 int print_exit_map(struct kvm_watcher_bpf *skel) {
     int exit_fd = bpf_map__fd(skel->maps.exit_map);
     int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
-    printf("\nTIME:%s\n", getCurrentTimeFormatted());
+    //printf("\nTIME:%s\n", getCurrentTimeFormatted());
     __print_exit_map(exit_fd, EXIT_NR);
     __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
@@ -1149,8 +1155,8 @@ int main(int argc, char **argv) {
     struct ring_buffer *rb = NULL;
     struct kvm_watcher_bpf *skel;
     int err;
-
-    print_logo();
+    //可视化调整输出格式
+    //print_logo();
 
     /*解析命令行参数*/
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
