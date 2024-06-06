@@ -1032,6 +1032,7 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+
 // 从DNS数据包中提取并打印域名
 static void print_domain_name(const unsigned char *data, char *output) {
     const unsigned char *next = data;
