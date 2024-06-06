@@ -868,6 +868,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+
 static int print_udp(void *ctx, void *packet_info, size_t size) {
     if (!udp_info)
         return 0;
