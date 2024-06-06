@@ -74,6 +74,7 @@ static __always_inline int __handle_mysql_end(struct pt_regs *ctx) {
     message->duratime = duration;
 
     bpf_ringbuf_submit(message, 0);
+    
     bpf_map_delete_elem(&mysql_time, &pid);
     return 0;
 }
