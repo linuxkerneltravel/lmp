@@ -33,6 +33,7 @@ jobs:
           sudo ./cpu_watcher 
 
        - name: Run test_cpuwatcher
+          
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/test
           make

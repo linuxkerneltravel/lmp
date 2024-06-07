@@ -151,6 +151,11 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
+} mysql_rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
 } kfree_rb SEC(".maps");
 
 struct {
@@ -224,12 +229,19 @@ struct {
 	__type(value, __u64);
 } tcp_state SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256*1024);
+	__type(key, __u32);
+	__type(value, __u64);
+} mysql_time SEC(".maps");
+
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
                    layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,
-                   drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0 ,stack_info = 0;
-
+                   drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0 ,stack_info = 0,mysql_info = 0;
+                 
 /* help macro */
 
 #define FILTER                                          \

@@ -76,7 +76,7 @@ int common_pin_map(struct bpf_map **bpf_map, const struct bpf_object *obj, const
 {
     int ret;
     
-    *bpf_map = bpf_object__find_map_by_name(obj, map_name);
+    *bpf_map = bpf_object__find_map_by_name(obj, map_name);//查找具有指定名称的 BPF 映射
     if (!*bpf_map) {
         fprintf(stderr, "Failed to find BPF map\n");
         return -1;
@@ -87,7 +87,7 @@ int common_pin_map(struct bpf_map **bpf_map, const struct bpf_object *obj, const
     if (ret){
         fprintf(stderr, "Failed to pin BPF map\n");
         return -1;
-    }
+    }//找到pin上
 	
     return 0;
 }

@@ -22,6 +22,7 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define TASK_RUNNING			0x0000
+
 const int ctrl_key = 0;
 BPF_HASH(has_scheduled,struct proc_id, bool, 10240);//记录该进程是否调度过
 BPF_HASH(enter_schedule,struct proc_id, struct schedule_event, 10240);//记录该进程上运行队列的时间
@@ -35,7 +36,6 @@ int BPF_PROG(sched_wakeup, struct task_struct *p) {
 	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
 	if(!sched_ctrl || !sched_ctrl->schedule_func)
 		return 0;
-
     pid_t pid = p->pid;
     int cpu = bpf_get_smp_processor_id();
     struct schedule_event *schedule_event;
@@ -66,7 +66,6 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p) {
 	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
 	if(!sched_ctrl || !sched_ctrl->schedule_func)
 		return 0;
-
     pid_t pid = p->pid;
     int cpu = bpf_get_smp_processor_id();
     struct proc_id id= {};

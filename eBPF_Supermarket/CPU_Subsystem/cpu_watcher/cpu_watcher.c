@@ -60,6 +60,8 @@ static struct env {
     bool SAR;
     bool CS_DELAY;
     bool SYSCALL_DELAY;
+    bool MIN_US_SET;
+    int MIN_US;
     bool PREEMPT;
     bool SCHEDULE_DELAY;
     bool MQ_DELAY;
@@ -74,6 +76,8 @@ static struct env {
     .SAR = false,
     .CS_DELAY = false,
     .SYSCALL_DELAY = false,
+    .MIN_US_SET = false,
+    .MIN_US = 10000,
     .PREEMPT = false,
     .SCHEDULE_DELAY = false,
     .MQ_DELAY = false,
@@ -518,6 +522,7 @@ static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 	return 0;
 }
 
+
 //抢占时间输出
 static int preempt_print(void *ctx, void *data, unsigned long data_sz)
 {
@@ -622,7 +627,7 @@ static int schedule_print()
             fprintf(stderr, "failed to lookup infos: %d\n", err);
             return -1;
         }
-        if (info.delay / 1000 > sd_ctrl.min_us&&info.pid!=0) { // 默认输出调度延迟大于10ms的
+        if (info.delay / 1000>sd_ctrl.min_us&&info.pid!=0) { 
             if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
                 printf("%-10d %-16s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
                 add_entry(info.pid, info.proc_name, info.delay / 1000);
@@ -815,7 +820,10 @@ int main(int argc, char **argv)
 			goto sc_delay_cleanup;		
 		}
 
+
 	}else if(env.SCHEDULE_DELAY){
+
+	
 		sd_skel = schedule_delay_bpf__open();
 		if (!sd_skel) {
 			fprintf(stderr, "Failed to open and load BPF skeleton\n");
