@@ -42,6 +42,7 @@ int __tp_kfree(struct trace_event_raw_kfree_skb *ctx)
     message->location = (long)ctx->location;
     message->drop_reason = ctx->reason;
     bpf_ringbuf_submit(message,0);
-    getstack(ctx);
+    if(stack_info)
+        getstack(ctx);
     return 0;
 } 

@@ -22,7 +22,7 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
 {
     int time =0;                                     
     struct netfilter *message;
-
+    FILTER
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if(!message){
         return 0;
@@ -116,7 +116,6 @@ int store_nf_time(struct sk_buff *skb, int hook)
             return 0;
         }
     }                
-
     tinfo->time[hook] = bpf_ktime_get_ns() / 1000;
     if(hook == e_ip_local_deliver_finish){
         submit_nf_time(tinfo->init, tinfo, 1);

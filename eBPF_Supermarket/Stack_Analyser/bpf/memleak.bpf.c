@@ -484,7 +484,7 @@ int memleak__mm_page_free(struct trace_event_raw_mm_page_free *ctx)
 SEC("tracepoint/percpu/percpu_alloc_percpu")
 int memleak__percpu_alloc_percpu(struct trace_event_raw_percpu_alloc_percpu *ctx)
 {
-    gen_alloc_enter(ctx->bytes_alloc);
+    gen_alloc_enter(ctx->size);
 
     return gen_alloc_exit2(ctx, (u64)(ctx->ptr));
 }
