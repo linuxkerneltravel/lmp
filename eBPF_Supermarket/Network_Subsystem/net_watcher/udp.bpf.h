@@ -23,6 +23,7 @@ static __always_inline int __udp_rcv(struct sk_buff *skb) {
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
@@ -40,6 +41,7 @@ static __always_inline int udp_enqueue_schedule_skb(struct sock *sk,
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -75,6 +77,7 @@ static __always_inline int __udp_send_skb(struct sk_buff *skb) {
     pkt_tuple.sport = sport;                                        // 源端口
     pkt_tuple.dport = __bpf_ntohs(dport); // 目的端口并进行字节序转换
     pkt_tuple.tran_flag = UDP;
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     bpf_printk("udp_send_skb%d %d %d %d", pkt_tuple.saddr, pkt_tuple.daddr,
                pkt_tuple.sport, pkt_tuple.dport);
@@ -93,8 +96,7 @@ static __always_inline int __ip_send_skb(struct sk_buff *skb) {
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-    bpf_printk("ip_send_skb%d %d %d %d", pkt_tuple.saddr, pkt_tuple.daddr,
-               pkt_tuple.sport, pkt_tuple.dport);
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
