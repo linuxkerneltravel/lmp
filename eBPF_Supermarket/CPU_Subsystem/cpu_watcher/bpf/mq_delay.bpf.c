@@ -23,10 +23,11 @@
 
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
+const int ctrl_key = 0;
 BPF_HASH(send_msg1,pid_t,struct send_events,1024);//记录pid->u_msg_ptr的关系；do_mq_timedsend入参
 BPF_HASH(send_msg2,u64,struct send_events,1024);//记录msg->time的关系；
 BPF_HASH(rcv_msg1,pid_t,struct rcv_events,1024);//记录pid->u_msg_ptr的关系；do_mq_timedsend入参
+BPF_ARRAY(mq_ctrl_map,int,struct mq_ctrl,1);
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
