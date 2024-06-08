@@ -587,31 +587,32 @@ static int update_addr_times(struct memleak_bpf *skel) {
 }
 
 // 在打印时间时，先将时间调整为相对于程序启动的时间
-static int print_time(struct memleak_bpf *skel) {
+int print_time(struct memleak_bpf *skel) {
     const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
 
-    // Iterate over the addr_times map to print address and time
-	for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
-		if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size)) {
-			if (errno == ENOENT) {
-				break; // no more keys, done!
-			}
-			perror("map get next key failed!");
-			return -errno;
-		}
+    printf("%-16s %9s\n", "AL_ADDR", "AL_Time");
 
-		// Read the timestamp for the current address
-		__u64 timestamp;
-		if (bpf_map__lookup_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0) == 0) {
-			printf("Address: 0x%llx, Time: %llds\n", curr_key, timestamp);
-		}
-		else {
-			perror("map lookup failed!");
-			return -errno;
-		}
-	}
-	printf("------------------------------------------------------\n");
-	return 0;
+    // Iterate over the addr_times map to print address and time
+    for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
+        if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size)) {
+            if (errno == ENOENT) {
+                break; // no more keys, done!
+            }
+            perror("map get next key failed!");
+            return -errno;
+        }
+
+        // Read the timestamp for the current address
+        __u64 timestamp;
+        if (bpf_map__lookup_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0) == 0) {
+            printf("0x%-16llx %llds\n", curr_key, timestamp); // 添加时间单位"s"
+        }
+        else {
+            perror("map lookup failed!");
+            return -errno;
+        }
+    }
+    return 0;
 }
 
 void disable_kernel_tracepoints(struct memleak_bpf *skel) {
@@ -907,6 +908,7 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
 	for (;;) {
 		if (!env.kernel_trace)
 			if (env.print_time) {
+				system("clear");
 				update_addr_times(skel_memleak);
 				print_time(skel_memleak);
 			}
