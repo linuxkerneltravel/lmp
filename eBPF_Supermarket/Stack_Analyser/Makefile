@@ -104,7 +104,7 @@ $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT) $(BPF_SKEL):
 	$(Q)mkdir -p $@
 
 # Build libbpf
-$(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
+$(LIBBPF_OBJ): $(LIBBPF_SRC) $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
 	$(call msg,LIB,$@)
 	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1  \
 		    OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@) \
@@ -112,7 +112,7 @@ $(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPU
 		    install
 
 # Build bpftool
-$(BPFTOOL): | $(BPFTOOL_OUTPUT)
+$(BPFTOOL): $(BPFTOOL_SRC) | $(BPFTOOL_OUTPUT)
 	$(call msg,BPFTOOL,$@)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
