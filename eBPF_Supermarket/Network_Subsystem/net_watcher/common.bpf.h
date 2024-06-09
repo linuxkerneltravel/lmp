@@ -233,6 +233,7 @@ struct {
 	__type(key, struct sock *);
 	__type(value, __u64);
 } tcp_state SEC(".maps");
+
 //sql 耗时
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -240,6 +241,7 @@ struct {
 	__type(key, __u32);
 	__type(value, __u64);
 } mysql_time SEC(".maps");
+
 //sql请求数
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -247,6 +249,7 @@ struct {
     __type(key,__u32);
     __type(value,__u64);
 } sql_count SEC(".maps");
+
 //dns计数根据每个saddr、daddr
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);

@@ -74,11 +74,11 @@ static const struct argp_option opts[] = {
     {"dns", 'D', 0, 0,
      "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd "
      "问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr "
-     "域名、rx 收发包 "},
+     "域名、rx 收发包 、Qc请求数、Sc响应数"},
     {"stack", 'A', 0, 0, "set to trace of stack "},
     {"mysql", 'M', 0, 0,
      "set to trace mysql information info include Pid 进程id、Comm "
-     "进程名、Size sql语句字节大小、Sql 语句"},
+     "进程名、Size sql语句字节大小、Sql 语句、Duration Sql耗时、Request Sql请求数"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {

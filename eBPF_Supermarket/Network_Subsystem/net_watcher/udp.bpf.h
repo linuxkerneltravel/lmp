@@ -155,8 +155,11 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
                           BPF_CORE_READ(skb, head) + dns_offset +
                               sizeof(struct dns_header));
     QR_flags = __bpf_ntohs(query.header.flags);
-    // 响应 QR=1
-    if (QR_flags & 0x8000) {
+    /*
+    1000 0000 0000 0000
+    &运算提取最高位QR， QR=1 Response QR=0 Request
+    */
+    if (QR_flags & 0x8000) { // 响应
         count_ptr = bpf_map_lookup_elem(&dns_response_count, &key);
         if (count_ptr) {
             response_count = *count_ptr + 1;
@@ -165,12 +168,12 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
         }
         bpf_map_update_elem(&dns_response_count, &key, &response_count,
                             BPF_ANY);
+        // 保留映射中的请求计数值
         count_ptr = bpf_map_lookup_elem(&dns_request_count, &key);
         if (count_ptr) {
             request_count = *count_ptr;
         }
-        //   bpf_printk("qr1=%d", response_count);
-    } else { // 请求 QR=0
+    } else { // 请求
         count_ptr = bpf_map_lookup_elem(&dns_request_count, &key);
         if (count_ptr) {
             request_count = *count_ptr + 1;
@@ -178,11 +181,11 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
             request_count = 1;
         }
         bpf_map_update_elem(&dns_request_count, &key, &request_count, BPF_ANY);
+        // 保留映射中的响应计数值
         count_ptr = bpf_map_lookup_elem(&dns_response_count, &key);
         if (count_ptr) {
             response_count = *count_ptr;
-        } 
-        // bpf_printk("qr2=%d", request_count);
+        }
     }
     message->saddr = rx ? pkt_tuple.saddr : pkt_tuple.daddr;
     message->daddr = rx ? pkt_tuple.daddr : pkt_tuple.saddr;
