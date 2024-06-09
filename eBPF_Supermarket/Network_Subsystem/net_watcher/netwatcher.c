@@ -78,7 +78,8 @@ static const struct argp_option opts[] = {
     {"stack", 'A', 0, 0, "set to trace of stack "},
     {"mysql", 'M', 0, 0,
      "set to trace mysql information info include Pid 进程id、Comm "
-     "进程名、Size sql语句字节大小、Sql 语句、Duration Sql耗时、Request Sql请求数"},
+     "进程名、Size sql语句字节大小、Sql 语句、Duration Sql耗时、Request "
+     "Sql请求数"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -357,6 +358,9 @@ struct LayerDelayInfo {
 #define GRANULARITY 3
 #define ALPHA 0.2 // 衰减因子
 #define MAXTIME 10000
+#define SLOW_QUERY_THRESHOLD 10000 //
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_RESET "\x1b[0m"
 
 // 全局变量用于存储每层的移动平均值
 float ewma_values[NUM_LAYERS] = {0};
@@ -596,9 +600,10 @@ static void print_header(enum MonitorMode mode) {
                "====================DNS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %-10s %-10s %-10s \n",
+        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %-10s %-10s "
+               "%-10s \n",
                "Saddr", "Daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
-               "Qc","Sc", "RX/direction");
+               "Qc", "Sc", "RX/direction");
         break;
     case MODE_MYSQL:
         printf("==============================================================="
@@ -921,9 +926,9 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if ((daddr & 0x0000FFFF) == 0x0000007F ||
-        (saddr & 0x0000FFFF) == 0x0000007F)
-        return 0;
+    // if ((daddr & 0x0000FFFF) == 0x0000007F ||
+    //     (saddr & 0x0000FFFF) == 0x0000007F)
+    //     return 0;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -1069,14 +1074,15 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
-    if(pack_info->daddr == 0)
-    {
+    if (pack_info->daddr == 0) {
         return 0;
     }
-    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d %-10d %-10d \n", s_str,
-           d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
+    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d %-10d "
+           "%-10d \n",
+           s_str, d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
-           domain_name, pack_info->request_count,pack_info->response_count,pack_info->rx);
+           domain_name, pack_info->request_count, pack_info->response_count,
+           pack_info->rx);
 
     return 0;
 }
@@ -1084,17 +1090,23 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
 static mysql_query last_query;
 
 static int print_mysql(void *ctx, void *packet_info, size_t size) {
+
     const mysql_query *pack_info = packet_info;
-    // 假设duratime总是0
+
     if (pack_info->duratime == 0) {
         // 存储开始事件数据
         memcpy(&last_query, pack_info, sizeof(mysql_query));
     } else {
-        // 结束事件 合并
-        printf("%-20d %-20d %-20s %-20u %-40s %-20llu %-20d\n", last_query.pid,
-               last_query.tid, last_query.comm, last_query.size,
-               last_query.msql, pack_info->duratime, pack_info->count);
-        // 重置
+        printf("%-20d %-20d %-20s %-20u %-40s ", last_query.pid, last_query.tid,
+               last_query.comm, last_query.size, last_query.msql);
+        if (pack_info->duratime > SLOW_QUERY_THRESHOLD) {
+            printf(ANSI_COLOR_RED);
+        }
+        printf("%-20llu", pack_info->duratime);
+        if (pack_info->duratime > SLOW_QUERY_THRESHOLD) {
+            printf(ANSI_COLOR_RESET);
+        }
+        printf(" %-20d\n", pack_info->count);
         memset(&last_query, 0, sizeof(last_query));
     }
     return 0;
