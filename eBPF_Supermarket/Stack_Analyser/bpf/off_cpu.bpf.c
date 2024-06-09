@@ -27,7 +27,7 @@
 COMMON_MAPS(u32);
 COMMON_VALS;
 // 记录进程运行的起始时间
-BPF_HASH(pid_offTs_map, u32, u64);
+BPF_HASH(pid_offTs_map, u32, u64, MAX_ENTRIES/10);
 
 const char LICENSE[] SEC("license") = "GPL";
 

@@ -28,7 +28,7 @@
 
 COMMON_MAPS(time_tuple);
 COMMON_VALS;
-BPF_HASH(starts, u32, u64);
+BPF_HASH(starts, u32, u64, MAX_ENTRIES/10);
 
 static int entry(void *ctx)
 {

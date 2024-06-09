@@ -31,8 +31,8 @@
 COMMON_MAPS(ra_tuple);
 COMMON_VALS;
 
-BPF_HASH(in_ra_map, u32, psid);
-BPF_HASH(page_psid_map, struct page *, psid);
+BPF_HASH(in_ra_map, u32, psid, MAX_ENTRIES/10);
+BPF_HASH(page_psid_map, struct page *, psid, MAX_ENTRIES);
 
 SEC("fentry/page_cache_ra_unbounded") // fentry在内核函数page_cache_ra_unbounded进入时触发的挂载点
 int BPF_PROG(page_cache_ra_unbounded)
