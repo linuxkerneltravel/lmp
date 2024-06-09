@@ -170,10 +170,12 @@ struct stacktrace_event {
 
 typedef struct mysql_query {
     int pid;
+    int tid;
     char comm[20];
     u32 size;
     char msql[256];
     u64 duratime;
+    int count;
 } mysql_query;
 
 #endif /* __NETWATCHER_H */

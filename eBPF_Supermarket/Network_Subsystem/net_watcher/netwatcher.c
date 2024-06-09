@@ -605,8 +605,8 @@ static void print_header(enum MonitorMode mode) {
                "====================MYSQL "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-20s %-40s %-20s \n", "Pid", "Comm", "Size", "Sql",
-               "duration/μs");
+        printf("%-20s %-20s %-20s %-20s %-40s %-20s %-20s  \n", "Pid","Tid", "Comm", "Size", "Sql",
+               "Duration/μs","Request");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
@@ -921,6 +921,9 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
+    if ((daddr & 0x0000FFFF) == 0x0000007F ||
+        (saddr & 0x0000FFFF) == 0x0000007F)
+        return 0;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -1085,9 +1088,9 @@ static int print_mysql(void *ctx, void *packet_info, size_t size) {
         memcpy(&last_query, pack_info, sizeof(mysql_query));
     } else {
         // 结束事件 合并
-        printf("%-20d %-20s %-20u %-40s %-20llu\n", last_query.pid,
+        printf("%-20d %-20d %-20s %-20u %-40s %-20llu %-20d\n", last_query.pid,last_query.tid,
                last_query.comm, last_query.size, last_query.msql,
-               pack_info->duratime);
+               pack_info->duratime,pack_info->count);
         // 重置
         memset(&last_query, 0, sizeof(last_query));
     }
@@ -1213,7 +1216,7 @@ int main(int argc, char **argv) {
     }
     enum MonitorMode mode = get_monitor_mode();
 
-    print_logo();
+   print_logo();
 
     print_header(mode);
 

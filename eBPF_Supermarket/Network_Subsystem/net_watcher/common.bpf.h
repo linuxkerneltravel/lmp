@@ -228,13 +228,20 @@ struct {
 	__type(key, struct sock *);
 	__type(value, __u64);
 } tcp_state SEC(".maps");
-
+//sql 耗时
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 256*1024);
 	__type(key, __u32);
 	__type(value, __u64);
 } mysql_time SEC(".maps");
+//sql请求数
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key,__u32);
+    __type(value,__u64);
+} sql_count SEC(".maps");
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
