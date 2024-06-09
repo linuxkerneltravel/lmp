@@ -155,6 +155,8 @@ struct dns_information {
     u16 arcount;
     char data[64];
     int rx;
+    int response_count;
+    int request_count;
 };
 #define MAX_STACK_DEPTH 128
 typedef u64 stack_trace_t[MAX_STACK_DEPTH];

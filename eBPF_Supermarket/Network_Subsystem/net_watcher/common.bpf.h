@@ -102,6 +102,11 @@ struct dns_query {
     char data[64];// 可变长度数据（域名+类型+类）
 };
 
+struct dns{
+    u32 saddr;       
+    u32 daddr;  
+};
+
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -242,6 +247,20 @@ struct {
     __type(key,__u32);
     __type(value,__u64);
 } sql_count SEC(".maps");
+//dns计数根据每个saddr、daddr
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key,struct dns);
+    __type(value,__u64);
+} dns_request_count SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key,struct dns);
+    __type(value,__u64);
+} dns_response_count SEC(".maps");
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;

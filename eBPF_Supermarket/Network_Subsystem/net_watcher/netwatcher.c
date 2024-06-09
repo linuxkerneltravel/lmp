@@ -596,17 +596,17 @@ static void print_header(enum MonitorMode mode) {
                "====================DNS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %5s \n",
+        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %-10s %-10s %-10s \n",
                "Saddr", "Daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
-               "RX/direction");
+               "Qc","Sc", "RX/direction");
         break;
     case MODE_MYSQL:
         printf("==============================================================="
                "====================MYSQL "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-20s %-20s %-40s %-20s %-20s  \n", "Pid","Tid", "Comm", "Size", "Sql",
-               "Duration/μs","Request");
+        printf("%-20s %-20s %-20s %-20s %-40s %-20s %-20s  \n", "Pid", "Tid",
+               "Comm", "Size", "Sql", "Duration/μs", "Request");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
@@ -1069,11 +1069,14 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
-
-    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d\n", s_str,
+    if(pack_info->daddr == 0)
+    {
+        return 0;
+    }
+    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d %-10d %-10d \n", s_str,
            d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
-           domain_name, pack_info->rx);
+           domain_name, pack_info->request_count,pack_info->response_count,pack_info->rx);
 
     return 0;
 }
@@ -1088,9 +1091,9 @@ static int print_mysql(void *ctx, void *packet_info, size_t size) {
         memcpy(&last_query, pack_info, sizeof(mysql_query));
     } else {
         // 结束事件 合并
-        printf("%-20d %-20d %-20s %-20u %-40s %-20llu %-20d\n", last_query.pid,last_query.tid,
-               last_query.comm, last_query.size, last_query.msql,
-               pack_info->duratime,pack_info->count);
+        printf("%-20d %-20d %-20s %-20u %-40s %-20llu %-20d\n", last_query.pid,
+               last_query.tid, last_query.comm, last_query.size,
+               last_query.msql, pack_info->duratime, pack_info->count);
         // 重置
         memset(&last_query, 0, sizeof(last_query));
     }
@@ -1216,7 +1219,7 @@ int main(int argc, char **argv) {
     }
     enum MonitorMode mode = get_monitor_mode();
 
-   print_logo();
+    print_logo();
 
     print_header(mode);
 
