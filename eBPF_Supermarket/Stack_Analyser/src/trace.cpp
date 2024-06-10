@@ -20,8 +20,8 @@
 #include <bpf/btf.h>
 #include <bpf/libbpf.h>
 #include <limits.h>
-#include "trace_helpers.h"
-#include "uprobe_helpers.h"
+#include "trace.h"
+#include "uprobe.h"
 
 #define min(x, y) ({				\
 	typeof(x) _min1 = (x);			\
@@ -29,14 +29,15 @@
 	(void) (&_min1 == &_min2);		\
 	_min1 < _min2 ? _min1 : _min2; })
 
-#define DISK_NAME_LEN	32
+#define DISK_NAME_LEN 32
 
-#define MINORBITS	20
-#define MINORMASK	((1U << MINORBITS) - 1)
+#define MINORBITS 20
+#define MINORMASK ((1U << MINORBITS) - 1)
 
-#define MKDEV(ma, mi)	(((ma) << MINORBITS) | (mi))
+#define MKDEV(ma, mi) (((ma) << MINORBITS) | (mi))
 
-struct ksyms {
+struct ksyms
+{
 	struct ksym *syms;
 	int syms_sz;
 	int syms_cap;
@@ -51,7 +52,8 @@ static int ksyms__add_symbol(struct ksyms *ksyms, const char *name, unsigned lon
 	struct ksym *ksym;
 	void *tmp;
 
-	if (ksyms->strs_sz + name_len > ksyms->strs_cap) {
+	if (ksyms->strs_sz + name_len > ksyms->strs_cap)
+	{
 		new_cap = ksyms->strs_cap * 4 / 3;
 		if (new_cap < ksyms->strs_sz + name_len)
 			new_cap = ksyms->strs_sz + name_len;
@@ -63,7 +65,8 @@ static int ksyms__add_symbol(struct ksyms *ksyms, const char *name, unsigned lon
 		ksyms->strs = (char *)tmp;
 		ksyms->strs_cap = new_cap;
 	}
-	if (ksyms->syms_sz + 1 > ksyms->syms_cap) {
+	if (ksyms->syms_sz + 1 > ksyms->syms_cap)
+	{
 		new_cap = ksyms->syms_cap * 4 / 3;
 		if (new_cap < 1024)
 			new_cap = 1024;
@@ -111,9 +114,10 @@ struct ksyms *ksyms__load(void)
 	if (!ksyms)
 		goto err_out;
 
-	while (true) {
+	while (true)
+	{
 		ret = fscanf(f, "%lx %c %s%*[^\n]\n",
-			     &sym_addr, &sym_type, sym_name);
+					 &sym_addr, &sym_type, sym_name);
 		if (ret == EOF && feof(f))
 			break;
 		if (ret != 3)
@@ -148,13 +152,14 @@ void ksyms__free(struct ksyms *ksyms)
 }
 
 const struct ksym *ksyms__map_addr(const struct ksyms *ksyms,
-				   unsigned long addr)
+								   unsigned long addr)
 {
 	int start = 0, end = ksyms->syms_sz - 1, mid;
 	unsigned long sym_addr;
 
 	/* find largest sym_addr <= addr using binary search */
-	while (start < end) {
+	while (start < end)
+	{
 		mid = start + (end - start + 1) / 2;
 		sym_addr = ksyms->syms[mid].addr;
 
@@ -170,11 +175,12 @@ const struct ksym *ksyms__map_addr(const struct ksyms *ksyms,
 }
 
 const struct ksym *ksyms__get_symbol(const struct ksyms *ksyms,
-				     const char *name)
+									 const char *name)
 {
 	int i;
 
-	for (i = 0; i < ksyms->syms_sz; i++) {
+	for (i = 0; i < ksyms->syms_sz; i++)
+	{
 		if (strcmp(ksyms->syms[i].name, name) == 0)
 			return &ksyms->syms[i];
 	}
@@ -182,13 +188,15 @@ const struct ksym *ksyms__get_symbol(const struct ksyms *ksyms,
 	return NULL;
 }
 
-struct load_range {
+struct load_range
+{
 	uint64_t start;
 	uint64_t end;
 	uint64_t file_off;
 };
 
-enum elf_type {
+enum elf_type
+{
 	EXEC,
 	DYN,
 	PERF_MAP,
@@ -196,7 +204,8 @@ enum elf_type {
 	UNKNOWN,
 };
 
-struct dso {
+struct dso
+{
 	char *name;
 	struct load_range *ranges;
 	int range_sz;
@@ -218,7 +227,8 @@ struct dso {
 	struct btf *btf;
 };
 
-struct map {
+struct map
+{
 	uint64_t start_addr;
 	uint64_t end_addr;
 	uint64_t file_off;
@@ -227,7 +237,8 @@ struct map {
 	uint64_t inode;
 };
 
-struct syms {
+struct syms
+{
 	struct dso *dsos;
 	int dso_sz;
 };
@@ -238,14 +249,15 @@ static bool is_file_backed(const char *mapname)
 	(!strncmp(mapname, prefix, sizeof(prefix) - 1))
 
 	return mapname[0] && !(
-		STARTS_WITH(mapname, "//anon") ||
-		STARTS_WITH(mapname, "/dev/zero") ||
-		STARTS_WITH(mapname, "/anon_hugepage") ||
-		STARTS_WITH(mapname, "[stack") ||
-		STARTS_WITH(mapname, "/SYSV") ||
-		STARTS_WITH(mapname, "[heap]") ||
-		STARTS_WITH(mapname, "[uprobes]") ||
-		STARTS_WITH(mapname, "[vsyscall]"));
+							 STARTS_WITH(mapname, "//anon") ||
+							 STARTS_WITH(mapname, "/dev/zero") ||
+							 STARTS_WITH(mapname, "/anon_hugepage") ||
+							 STARTS_WITH(mapname, "[stack") ||
+							 STARTS_WITH(mapname, "/SYSV") ||
+							 STARTS_WITH(mapname, "[heap]") ||
+							 STARTS_WITH(mapname, "[uprobes]") ||
+							 STARTS_WITH(mapname, "[vsyscall]") ||
+							 STARTS_WITH(mapname, "[vdso]"));
 }
 
 static bool is_perf_map(const char *path)
@@ -285,7 +297,7 @@ static int get_elf_type(const char *path)
 }
 
 static int get_elf_text_scn_info(const char *path, uint64_t *addr,
-				 uint64_t *offset)
+								 uint64_t *offset)
 {
 	Elf_Scn *section = NULL;
 	int fd = -1, err = -1;
@@ -302,12 +314,14 @@ static int get_elf_text_scn_info(const char *path, uint64_t *addr,
 		goto err_out;
 
 	err = -1;
-	while ((section = elf_nextscn(e, section)) != 0) {
+	while ((section = elf_nextscn(e, section)) != 0)
+	{
 		if (!gelf_getshdr(section, &header))
 			continue;
 
 		name = elf_strptr(e, stridx, header.sh_name);
-		if (name && !strcmp(name, ".text")) {
+		if (name && !strcmp(name, ".text"))
+		{
 			*addr = (uint64_t)header.sh_addr;
 			*offset = (uint64_t)header.sh_offset;
 			err = 0;
@@ -326,16 +340,19 @@ static int syms__add_dso(struct syms *syms, struct map *map, const char *name)
 	int i, type;
 	void *tmp;
 
-	for (i = 0; i < syms->dso_sz; i++) {
-		if (!strcmp(syms->dsos[i].name, name)) {
+	for (i = 0; i < syms->dso_sz; i++)
+	{
+		if (!strcmp(syms->dsos[i].name, name))
+		{
 			dso = &syms->dsos[i];
 			break;
 		}
 	}
 
-	if (!dso) {
+	if (!dso)
+	{
 		tmp = realloc(syms->dsos, (syms->dso_sz + 1) *
-			      sizeof(*syms->dsos));
+									  sizeof(*syms->dsos));
 		if (!tmp)
 			return -1;
 		syms->dsos = (struct dso *)tmp;
@@ -354,41 +371,55 @@ static int syms__add_dso(struct syms *syms, struct map *map, const char *name)
 	dso->ranges[dso->range_sz].file_off = map->file_off;
 	dso->range_sz++;
 	type = get_elf_type(name);
-	if (type == ET_EXEC) {
+	if (type == ET_EXEC)
+	{
 		dso->type = EXEC;
-	} else if (type == ET_DYN) {
+	}
+	else if (type == ET_DYN)
+	{
 		dso->type = DYN;
 		if (get_elf_text_scn_info(name, &dso->sh_addr, &dso->sh_offset) < 0)
 			return -1;
-	} else if (is_perf_map(name)) {
+	}
+	else if (is_perf_map(name))
+	{
 		dso->type = PERF_MAP;
-	} else if (is_vdso(name)) {
+	}
+	else if (is_vdso(name))
+	{
 		dso->type = VDSO;
-	} else {
+	}
+	else
+	{
 		dso->type = UNKNOWN;
 	}
 	return 0;
 }
 
 static struct dso *syms__find_dso(const struct syms *syms, unsigned long addr,
-				  uint64_t *offset)
+								  uint64_t *offset)
 {
 	struct load_range *range;
 	struct dso *dso;
 	int i, j;
 
-	for (i = 0; i < syms->dso_sz; i++) {
+	for (i = 0; i < syms->dso_sz; i++)
+	{
 		dso = &syms->dsos[i];
-		for (j = 0; j < dso->range_sz; j++) {
+		for (j = 0; j < dso->range_sz; j++)
+		{
 			range = &dso->ranges[j];
 			if (addr <= range->start || addr >= range->end)
 				continue;
-			if (dso->type == DYN || dso->type == VDSO) {
+			if (dso->type == DYN || dso->type == VDSO)
+			{
 				/* Offset within the mmap */
 				*offset = addr - range->start + range->file_off;
 				/* Offset within the ELF for dyn symbol lookup */
 				*offset += dso->sh_addr - dso->sh_offset;
-			} else {
+			}
+			else
+			{
 				*offset = addr;
 			}
 
@@ -405,7 +436,7 @@ static int dso__load_sym_table_from_perf_map(struct dso *dso)
 }
 
 static int dso__add_sym(struct dso *dso, const char *name, uint64_t start,
-			uint64_t size)
+						uint64_t size)
 {
 	struct sym *sym;
 	size_t new_cap;
@@ -416,7 +447,8 @@ static int dso__add_sym(struct dso *dso, const char *name, uint64_t start,
 	if (off < 0)
 		return off;
 
-	if (dso->syms_sz + 1 > dso->syms_cap) {
+	if (dso->syms_sz + 1 > dso->syms_cap)
+	{
 		new_cap = dso->syms_cap * 4 / 3;
 		if (new_cap < 1024)
 			new_cap = 1024;
@@ -447,17 +479,19 @@ static int sym_cmp(const void *p1, const void *p2)
 }
 
 static int dso__add_syms(struct dso *dso, Elf *e, Elf_Scn *section,
-			 size_t stridx, size_t symsize)
+						 size_t stridx, size_t symsize)
 {
 	Elf_Data *data = NULL;
 
-	while ((data = elf_getdata(section, data)) != 0) {
+	while ((data = elf_getdata(section, data)) != 0)
+	{
 		size_t i, symcount = data->d_size / symsize;
 
 		if (data->d_size % symsize)
 			return -1;
 
-		for (i = 0; i < symcount; ++i) {
+		for (i = 0; i < symcount; ++i)
+		{
 			const char *name;
 			GElf_Sym sym;
 
@@ -503,18 +537,19 @@ static int dso__load_sym_table_from_elf(struct dso *dso, int fd)
 	if (!e)
 		return -1;
 
-	while ((section = elf_nextscn(e, section)) != 0) {
+	while ((section = elf_nextscn(e, section)) != 0)
+	{
 		GElf_Shdr header;
 
 		if (!gelf_getshdr(section, &header))
 			continue;
 
 		if (header.sh_type != SHT_SYMTAB &&
-		    header.sh_type != SHT_DYNSYM)
+			header.sh_type != SHT_DYNSYM)
 			continue;
 
 		if (dso__add_syms(dso, e, section, header.sh_link,
-				  header.sh_entsize))
+						  header.sh_entsize))
 			goto err_out;
 	}
 
@@ -522,7 +557,7 @@ static int dso__load_sym_table_from_elf(struct dso *dso, int fd)
 	for (i = 0; i < dso->syms_sz; i++)
 		dso->syms[i].name =
 			btf__name_by_offset(dso->btf,
-					    (unsigned long)dso->syms[i].name);
+								(unsigned long)dso->syms[i].name);
 
 	qsort(dso->syms, dso->syms_sz, sizeof(*dso->syms), sym_cmp);
 
@@ -552,10 +587,11 @@ static int create_tmp_vdso_image(struct dso *dso)
 	if (!f)
 		return -1;
 
-	while (true) {
+	while (true)
+	{
 		ret = fscanf(f, "%llx-%llx %*s %*x %*x:%*x %*u%[^\n]",
-			     (long long*)&start_addr, (long long*)&end_addr,
-			     buf);
+					 (long long *)&start_addr, (long long *)&end_addr,
+					 buf);
 		if (ret == EOF && feof(f))
 			break;
 		if (ret != 3)
@@ -577,20 +613,22 @@ static int create_tmp_vdso_image(struct dso *dso)
 	memcpy(image, (void *)start_addr, sz);
 
 	snprintf(tmpfile, sizeof(tmpfile),
-		 "/tmp/libbpf_%ld_vdso_image_XXXXXX", pid);
+			 "/tmp/libbpf_%ld_vdso_image_XXXXXX", pid);
 	fd = mkostemp(tmpfile, O_CLOEXEC);
-	if (fd < 0) {
+	if (fd < 0)
+	{
 		fprintf(stderr, "failed to create temp file: %s\n",
-			strerror(errno));
+				strerror(errno));
 		goto err_out;
 	}
 	/* Unlink the file to avoid leaking */
 	if (unlink(tmpfile) == -1)
 		fprintf(stderr, "failed to unlink %s: %s\n", tmpfile,
-			strerror(errno));
-	if (write(fd, image, sz) == -1) {
+				strerror(errno));
+	if (write(fd, image, sz) == -1)
+	{
 		fprintf(stderr, "failed to write to vDSO image: %s\n",
-			strerror(errno));
+				strerror(errno));
 		close(fd);
 		fd = -1;
 		goto err_out;
@@ -636,7 +674,8 @@ static struct sym *dso__find_sym(struct dso *dso, uint64_t offset)
 	end = dso->syms_sz - 1;
 
 	/* find largest sym_addr <= addr using binary search */
-	while (start < end) {
+	while (start < end)
+	{
 		mid = start + (end - start + 1) / 2;
 		sym_addr = dso->syms[mid].start;
 
@@ -647,16 +686,17 @@ static struct sym *dso__find_sym(struct dso *dso, uint64_t offset)
 	}
 
 	if (start == end && dso->syms[start].start <= offset &&
-	    offset < dso->syms[start].start + dso->syms[start].size) {
+		offset < dso->syms[start].start + dso->syms[start].size)
+	{
 		(dso->syms[start]).offset = offset - dso->syms[start].start;
 		return &dso->syms[start];
 	}
 	return NULL;
 }
 
-struct syms *syms__load_file(const char *fname)
+struct syms *syms__load_file(const char *fname, pid_t tgid)
 {
-	char buf[PATH_MAX], perm[5];
+	char buf[PATH_MAX], perm[5], path[PATH_MAX];
 	struct syms *syms;
 	struct map map;
 	char *name;
@@ -671,17 +711,18 @@ struct syms *syms__load_file(const char *fname)
 	if (!syms)
 		goto err_out;
 
-	while (true) {
+	while (true)
+	{
 		ret = fscanf(f, "%llx-%llx %4s %llx %llx:%llx %llu%[^\n]",
-			     (long long*)&map.start_addr,
-			     (long long*)&map.end_addr, perm,
-			     (long long*)&map.file_off,
-			     (long long*)&map.dev_major,
-			     (long long*)&map.dev_minor,
-			     (long long*)&map.inode, buf);
+					 (long long *)&map.start_addr,
+					 (long long *)&map.end_addr, perm,
+					 (long long *)&map.file_off,
+					 (long long *)&map.dev_major,
+					 (long long *)&map.dev_minor,
+					 (long long *)&map.inode, buf);
 		if (ret == EOF && feof(f))
 			break;
-		if (ret != 8)	/* perf-<PID>.map */
+		if (ret != 8) /* perf-<PID>.map */
 			goto err_out;
 
 		if (perm[2] != 'x')
@@ -693,7 +734,8 @@ struct syms *syms__load_file(const char *fname)
 		if (!is_file_backed(name))
 			continue;
 
-		if (syms__add_dso(syms, &map, name))
+		sprintf(path, "/proc/%d/root/%s", tgid, name);
+		if (syms__add_dso(syms, &map, path))
 			goto err_out;
 	}
 
@@ -711,7 +753,7 @@ struct syms *syms__load_pid(pid_t tgid)
 	char fname[128];
 
 	snprintf(fname, sizeof(fname), "/proc/%ld/maps", (long)tgid);
-	return syms__load_file(fname);
+	return syms__load_file(fname, tgid);
 }
 
 void syms__free(struct syms *syms)
@@ -727,7 +769,7 @@ void syms__free(struct syms *syms)
 	free(syms);
 }
 
-const struct sym *syms__map_addr(const struct syms *syms, unsigned long addr)
+struct sym *syms__map_addr(const struct syms *syms, unsigned long addr)
 {
 	struct dso *dso;
 	uint64_t offset;
@@ -739,7 +781,7 @@ const struct sym *syms__map_addr(const struct syms *syms, unsigned long addr)
 }
 
 const struct sym *syms__map_addr_dso(const struct syms *syms, unsigned long addr,
-				     char **dso_name, unsigned long *dso_offset)
+									 char **dso_name, unsigned long *dso_offset)
 {
 	struct dso *dso;
 	uint64_t offset;
@@ -754,8 +796,10 @@ const struct sym *syms__map_addr_dso(const struct syms *syms, unsigned long addr
 	return dso__find_sym(dso, offset);
 }
 
-struct syms_cache {
-	struct {
+struct syms_cache
+{
+	struct
+	{
 		struct syms *syms;
 		int tgid;
 	} *data;
@@ -792,13 +836,14 @@ struct syms *syms_cache__get_syms(struct syms_cache *syms_cache, int tgid)
 	void *tmp;
 	int i;
 
-	for (i = 0; i < syms_cache->nr; i++) {
+	for (i = 0; i < syms_cache->nr; i++)
+	{
 		if (syms_cache->data[i].tgid == tgid)
 			return syms_cache->data[i].syms;
 	}
 
 	tmp = realloc(syms_cache->data, (syms_cache->nr + 1) *
-		      sizeof(*syms_cache->data));
+										sizeof(*syms_cache->data));
 	if (!tmp)
 		return NULL;
 	syms_cache->data = (typeof(syms_cache->data))tmp;
@@ -807,19 +852,20 @@ struct syms *syms_cache__get_syms(struct syms_cache *syms_cache, int tgid)
 	return syms_cache->data[syms_cache->nr++].syms;
 }
 
-struct partitions {
+struct partitions
+{
 	struct partition *items;
 	int sz;
 };
 
 static int partitions__add_partition(struct partitions *partitions,
-				     const char *name, unsigned int dev)
+									 const char *name, unsigned int dev)
 {
 	struct partition *partition;
 	void *tmp;
 
 	tmp = realloc(partitions->items, (partitions->sz + 1) *
-		sizeof(*partitions->items));
+										 sizeof(*partitions->items));
 	if (!tmp)
 		return -1;
 	partitions->items = (struct partition *)tmp;
@@ -848,15 +894,16 @@ struct partitions *partitions__load(void)
 	if (!partitions)
 		goto err_out;
 
-	while (fgets(buf, sizeof(buf), f) != NULL) {
+	while (fgets(buf, sizeof(buf), f) != NULL)
+	{
 		/* skip heading */
 		if (buf[0] != ' ' || buf[0] == '\n')
 			continue;
 		if (sscanf(buf, "%u %u %llu %s", &devmaj, &devmin, &nop,
-				part_name) != 4)
+				   part_name) != 4)
 			goto err_out;
 		if (partitions__add_partition(partitions, part_name,
-						MKDEV(devmaj, devmin)))
+									  MKDEV(devmaj, devmin)))
 			goto err_out;
 	}
 
@@ -887,7 +934,8 @@ partitions__get_by_dev(const struct partitions *partitions, unsigned int dev)
 {
 	int i;
 
-	for (i = 0; i < partitions->sz; i++) {
+	for (i = 0; i < partitions->sz; i++)
+	{
 		if (partitions->items[i].dev == dev)
 			return &partitions->items[i];
 	}
@@ -900,7 +948,8 @@ partitions__get_by_name(const struct partitions *partitions, const char *name)
 {
 	int i;
 
-	for (i = 0; i < partitions->sz; i++) {
+	for (i = 0; i < partitions->sz; i++)
+	{
 		if (strcmp(partitions->items[i].name, name) == 0)
 			return &partitions->items[i];
 	}
@@ -932,7 +981,8 @@ void print_log2_hist(unsigned int *vals, int vals_size, const char *val_type)
 	unsigned long long low, high;
 	int stars, width, i;
 
-	for (i = 0; i < vals_size; i++) {
+	for (i = 0; i < vals_size; i++)
+	{
 		val = vals[i];
 		if (val > 0)
 			idx_max = i;
@@ -944,14 +994,15 @@ void print_log2_hist(unsigned int *vals, int vals_size, const char *val_type)
 		return;
 
 	printf("%*s%-*s : count    distribution\n", idx_max <= 32 ? 5 : 15, "",
-		idx_max <= 32 ? 19 : 29, val_type);
+		   idx_max <= 32 ? 19 : 29, val_type);
 
 	if (idx_max <= 32)
 		stars = stars_max;
 	else
 		stars = stars_max / 2;
 
-	for (i = 0; i <= idx_max; i++) {
+	for (i = 0; i <= idx_max; i++)
+	{
 		low = (1ULL << (i + 1)) >> 1;
 		high = (1ULL << (i + 1)) - 1;
 		if (low == high)
@@ -965,14 +1016,16 @@ void print_log2_hist(unsigned int *vals, int vals_size, const char *val_type)
 }
 
 void print_linear_hist(unsigned int *vals, int vals_size, unsigned int base,
-		       unsigned int step, const char *val_type)
+					   unsigned int step, const char *val_type)
 {
 	int i, stars_max = 40, idx_min = -1, idx_max = -1;
 	unsigned int val, val_max = 0;
 
-	for (i = 0; i < vals_size; i++) {
+	for (i = 0; i < vals_size; i++)
+	{
 		val = vals[i];
-		if (val > 0) {
+		if (val > 0)
+		{
 			idx_max = i;
 			if (idx_min < 0)
 				idx_min = i;
@@ -985,7 +1038,8 @@ void print_linear_hist(unsigned int *vals, int vals_size, unsigned int base,
 		return;
 
 	printf("     %-13s : count     distribution\n", val_type);
-	for (i = idx_min; i <= idx_max; i++) {
+	for (i = idx_min; i <= idx_max; i++)
+	{
 		val = vals[i];
 		if (!val)
 			continue;
@@ -1013,10 +1067,12 @@ bool is_kernel_module(const char *name)
 	if (!f)
 		return false;
 
-	while (fgets(buf, sizeof(buf), f) != NULL) {
+	while (fgets(buf, sizeof(buf), f) != NULL)
+	{
 		if (sscanf(buf, "%s %*s\n", buf) != 1)
 			break;
-		if (!strcmp(buf, name)) {
+		if (!strcmp(buf, name))
+		{
 			found = true;
 			break;
 		}
@@ -1031,18 +1087,17 @@ static bool fentry_try_attach(int id)
 	int prog_fd, attach_fd;
 	char error[4096];
 	struct bpf_insn insns[] = {
-		{ .code = BPF_ALU64 | BPF_MOV | BPF_K, .dst_reg = BPF_REG_0, .imm = 0 },
-		{ .code = BPF_JMP | BPF_EXIT },
+		{.code = BPF_ALU64 | BPF_MOV | BPF_K, .dst_reg = BPF_REG_0, .imm = 0},
+		{.code = BPF_JMP | BPF_EXIT},
 	};
 	LIBBPF_OPTS(bpf_prog_load_opts, opts,
-			.expected_attach_type = BPF_TRACE_FENTRY,
-			.attach_btf_id = (__u32)id,
-			.log_size = sizeof(error),
-			.log_buf = error,
-	);
+				.expected_attach_type = BPF_TRACE_FENTRY,
+				.attach_btf_id = (__u32)id,
+				.log_size = sizeof(error),
+				.log_buf = error, );
 
 	prog_fd = bpf_prog_load(BPF_PROG_TYPE_TRACING, "test", "GPL", insns,
-			sizeof(insns) / sizeof(struct bpf_insn), &opts);
+							sizeof(insns) / sizeof(struct bpf_insn), &opts);
 	if (prog_fd < 0)
 		return false;
 
@@ -1066,7 +1121,8 @@ bool fentry_can_attach(const char *name, const char *mod)
 
 	btf = vmlinux_btf;
 
-	if (mod) {
+	if (mod)
+	{
 		module_btf = btf__load_module_btf(mod, vmlinux_btf);
 		err = libbpf_get_error(module_btf);
 		if (!err)
@@ -1100,8 +1156,7 @@ static const char *tracefs_path(void)
 
 static const char *tracefs_available_filter_functions(void)
 {
-	return use_debugfs() ? DEBUGFS"/available_filter_functions" :
-			       TRACEFS"/available_filter_functions";
+	return use_debugfs() ? DEBUGFS "/available_filter_functions" : TRACEFS "/available_filter_functions";
 }
 
 bool kprobe_exists(const char *name)
@@ -1115,15 +1170,18 @@ bool kprobe_exists(const char *name)
 	if (!f)
 		goto avail_filter;
 
-	while (true) {
+	while (true)
+	{
 		ret = fscanf(f, "%s %s%*[^\n]\n", addr_range, sym_name);
 		if (ret == EOF && feof(f))
 			break;
-		if (ret != 2) {
+		if (ret != 2)
+		{
 			fprintf(stderr, "failed to read symbol from kprobe blacklist\n");
 			break;
 		}
-		if (!strcmp(name, sym_name)) {
+		if (!strcmp(name, sym_name))
+		{
 			fclose(f);
 			return false;
 		}
@@ -1135,15 +1193,18 @@ avail_filter:
 	if (!f)
 		goto slow_path;
 
-	while (true) {
+	while (true)
+	{
 		ret = fscanf(f, "%s%*[^\n]\n", sym_name);
 		if (ret == EOF && feof(f))
 			break;
-		if (ret != 1) {
+		if (ret != 1)
+		{
 			fprintf(stderr, "failed to read symbol from available_filter_functions\n");
 			break;
 		}
-		if (!strcmp(name, sym_name)) {
+		if (!strcmp(name, sym_name))
+		{
 			fclose(f);
 			return true;
 		}
@@ -1157,15 +1218,18 @@ slow_path:
 	if (!f)
 		return false;
 
-	while (true) {
+	while (true)
+	{
 		ret = fscanf(f, "%*x %*c %s%*[^\n]\n", sym_name);
 		if (ret == EOF && feof(f))
 			break;
-		if (ret != 1) {
+		if (ret != 1)
+		{
 			fprintf(stderr, "failed to read symbol from kallsyms\n");
 			break;
 		}
-		if (!strcmp(name, sym_name)) {
+		if (!strcmp(name, sym_name))
+		{
 			fclose(f);
 			return true;
 		}
@@ -1203,7 +1267,8 @@ bool module_btf_exists(const char *mod)
 {
 	char sysfs_mod[80];
 
-	if (mod) {
+	if (mod)
+	{
 		snprintf(sysfs_mod, sizeof(sysfs_mod), "/sys/kernel/btf/%s", mod);
 		if (!access(sysfs_mod, R_OK))
 			return true;
@@ -1215,8 +1280,8 @@ bool probe_tp_btf(const char *name)
 {
 	LIBBPF_OPTS(bpf_prog_load_opts, opts, .expected_attach_type = BPF_TRACE_RAW_TP);
 	struct bpf_insn insns[] = {
-		{ .code = BPF_ALU64 | BPF_MOV | BPF_K, .dst_reg = BPF_REG_0, .imm = 0 },
-		{ .code = BPF_JMP | BPF_EXIT },
+		{.code = BPF_ALU64 | BPF_MOV | BPF_K, .dst_reg = BPF_REG_0, .imm = 0},
+		{.code = BPF_JMP | BPF_EXIT},
 	};
 	int fd, insn_cnt = sizeof(insns) / sizeof(struct bpf_insn);
 
@@ -1238,3 +1303,21 @@ bool probe_ringbuf()
 	close(map_fd);
 	return true;
 }
+
+const struct ksym *ksyms__find_symbol(const struct ksyms *ksyms,
+									  const char *name)
+{
+	for (int i = 0; i < ksyms->syms_sz; i++)
+	{
+		int j;
+		for (j = 0; name[j] && name[j] == ksyms->syms[i].name[j]; j++)
+			;
+		if (!name[j])
+			return &ksyms->syms[i];
+	}
+	return NULL;
+}
+
+struct ksyms *ksyms;
+struct syms_cache *syms_cache;
+struct syms *syms;
