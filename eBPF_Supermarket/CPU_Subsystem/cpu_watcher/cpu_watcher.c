@@ -28,7 +28,6 @@
 #include <string.h>
 #include <linux/perf_event.h>
 #include <asm/unistd.h>
-#include "cpu_watcher.h"
 #include "cpu_watcher_helper.h"
 #include "sar.skel.h"
 #include "cs_delay.skel.h"
@@ -96,6 +95,15 @@ struct preempt_bpf *preempt_skel;
 struct schedule_delay_bpf *sd_skel;
 struct mq_delay_bpf *mq_skel;
 
+static int csmap_fd;
+static int sarmap_fd;
+static int scmap_fd;
+static int preemptmap_fd;
+static int schedulemap_fd;
+static int mqmap_fd;
+
+//static int prev_watcher = 0;//上一个使用的工具，用于在切换使用功能时，打印不用功能的表头；
+
 u64 softirq = 0;
 u64 irqtime = 0;
 u64 idle = 0;
@@ -128,7 +136,6 @@ static const struct argp_option opts[] = {
     {"syscall_delay", 'S', 0, 0, "Print syscall_delay (the data of syscall)" },
     {"preempt_time", 'p', 0, 0, "Print preempt_time (the data of preempt_schedule)" },
     {"schedule_delay", 'd', 0, 0, "Print schedule_delay (the data of cpu)" },
-    {"schedule_delay_min_us_set", 'e', "THRESHOLD", 0, "Print scheduling delays that exceed the threshold (the data of cpu)" },
     {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" },
     {"ewma", 'E',0,0,"dynamic filte the data"},
     {"cycle", 'T',"CYCLE",0,"Periods of the ewma"},
@@ -163,18 +170,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
         case 'd':
             env.SCHEDULE_DELAY = true;
-            break;
-        case 'e':
-            env.MIN_US_SET = true;
-            if (arg) {
-                env.MIN_US = strtol(arg, NULL, 10);
-                if (env.MIN_US <= 0) {
-                    fprintf(stderr, "Invalid value for min_us: %d\n", env.MIN_US);
-                    argp_usage(state);
-                }
-            } else {
-                env.MIN_US = 10000;
-            }
             break;
         case 'm':
             env.MQ_DELAY = true;
@@ -495,21 +490,38 @@ static void histogram()
 struct ewma_info ewma_syscall_delay = {};
 static int syscall_delay_print(void *ctx, void *data,unsigned long data_sz)
 {
+	int err,key = 0;
+	struct sc_ctrl sc_ctrl ={};
+
+	err = bpf_map_lookup_elem(scmap_fd,&key,&sc_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!sc_ctrl.sc_func)	return 0;
+
 	const struct syscall_events *e = data;
+	if(e->delay<0||e->delay>1000000) return 0;
+	time_t now = time(NULL);// 获取当前时间
+	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构	
+
 	if(env.EWMA==0){
-		printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
-		e->pid,e->comm,e->syscall_id,e->delay);
+		printf("%02d:%02d:%02d     %-8u %-15lld %-15lld\n",
+			localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
+			e->pid,e->syscall_id,e->delay);
 	}
 	else{
 		ewma_syscall_delay.cycle = env.cycle;
 		if(dynamic_filter(&ewma_syscall_delay,e->delay)){
-			printf("pid: %-8u comm: %-10s syscall_id: %-8lld delay: %-8lld\n",
-			e->pid,e->comm,e->syscall_id,e->delay);		
+			printf("%02d:%02d:%02d     %-8u %-15lld %-15lld\n",
+					localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
+					e->pid,e->syscall_id,e->delay);
 		}
 	}
 
 	return 0;
 }
+
 
 //抢占时间输出
 static int preempt_print(void *ctx, void *data, unsigned long data_sz)
@@ -555,8 +567,36 @@ void add_entry(int pid, const char *comm, long long delay) {
 }
 static int schedule_print()
 {
-    int key = 0;
-	if(env.SCHEDULE_DELAY){
+
+    int err,key = 0;
+	struct schedule_ctrl sd_ctrl = {};
+	err = bpf_map_lookup_elem(schedulemap_fd,&key,&sd_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!sd_ctrl.schedule_func)	return 0;	
+
+	if(sd_ctrl.prev_watcher == SCHEDULE_WACTHER ){
+		printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs    max_proc_name    min_delay/μs   min_proc_name");
+		sd_ctrl.prev_watcher = SCHEDULE_WACTHER + 9;//打印表头功能关
+		err = bpf_map_update_elem(schedulemap_fd, &key, &sd_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}
+	else if(sd_ctrl.prev_watcher == SCHEDULE_WACTHER +1){
+			// printf("sd_ctrl.prev_watcher = %d\n",sd_ctrl.prev_watcher);
+			printf("调度延时大于%dms的进程:\n",sd_ctrl.min_us/1000);
+			printf("%s\n","pid        COMM                   schedule_delay/us");
+		sd_ctrl.prev_watcher = SCHEDULE_WACTHER + 9;//打印表头功能关.
+		err = bpf_map_update_elem(schedulemap_fd, &key, &sd_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}		
+	}
+
+	if(!sd_ctrl.min_us_set){
 		struct sum_schedule info;
 		int err, fd = bpf_map__fd(sd_skel->maps.sys_schedule);
 		time_t now = time(NULL);
@@ -577,7 +617,8 @@ static int schedule_print()
 			printf("%02d:%02d:%02d  %-15lf %-15lf  %10s %15lf  %15s\n",
 			hour, min, sec, avg_delay / 1000.0, info.max_delay / 1000.0,info.proc_name_max,info.min_delay / 1000.0,info.proc_name_min);
 		}
-	}else if(env.MIN_US_SET){
+	}
+	else{
 		struct proc_schedule info;
         int key = 0;  
         int err, fd = bpf_map__fd(sd_skel->maps.threshold_schedule);
@@ -586,13 +627,14 @@ static int schedule_print()
             fprintf(stderr, "failed to lookup infos: %d\n", err);
             return -1;
         }
-        if (info.delay / 1000 > env.MIN_US&&info.pid!=0) { // 默认输出调度延迟大于10ms的
+        if (info.delay / 1000>sd_ctrl.min_us&&info.pid!=0) { 
             if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
                 printf("%-10d %-16s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
                 add_entry(info.pid, info.proc_name, info.delay / 1000);
             }
         }
 	}
+
     return 0;
 }
 
@@ -627,6 +669,13 @@ static int mq_event(void *ctx, void *data,unsigned long data_sz)
 int main(int argc, char **argv)
 {
 	struct ring_buffer *rb = NULL;
+	struct bpf_map *cs_ctrl_map = NULL;
+	struct bpf_map *sar_ctrl_map = NULL;
+	struct bpf_map *sc_ctrl_map = NULL;
+	struct bpf_map *preempt_ctrl_map = NULL;
+	struct bpf_map *schedule_ctrl_map = NULL;
+	struct bpf_map *mq_ctrl_map = NULL;
+	int key = 0;
 	int err;
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
@@ -668,6 +717,19 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 			goto cs_delay_cleanup;
 		}
+
+		err = common_pin_map(&cs_ctrl_map,cs_skel->obj,"cs_ctrl_map",cs_ctrl_path);
+		if(err < 0){
+			goto cs_delay_cleanup;
+		}
+		csmap_fd = bpf_map__fd(cs_ctrl_map);
+		struct cs_ctrl init_value = {false,CS_WACTHER};
+		err = bpf_map_update_elem(csmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto cs_delay_cleanup;
+		}
+
 		/* Attach tracepoints */
 		err = cs_delay_bpf__attach(cs_skel);
 		if (err)
@@ -694,6 +756,17 @@ int main(int argc, char **argv)
 			goto preempt_cleanup;
 		}
 
+		err = common_pin_map(&preempt_ctrl_map,preempt_skel->obj,"preempt_ctrl_map",preempt_ctrl_path);
+		if(err < 0){
+			goto preempt_cleanup;
+		}
+		preemptmap_fd = bpf_map__fd(preempt_ctrl_map);
+		struct preempt_ctrl init_value = {false,PREEMPT_WACTHER};
+		err = bpf_map_update_elem(preemptmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto preempt_cleanup;
+		}
 		err = preempt_bpf__attach(preempt_skel);
 		if (err) {
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
@@ -721,6 +794,17 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 			goto sc_delay_cleanup;
 		}
+		err = common_pin_map(&sc_ctrl_map,sc_skel->obj,"sc_ctrl_map",sc_ctrl_path);
+		if(err < 0){
+			goto sc_delay_cleanup;
+		}
+		scmap_fd = bpf_map__fd(sc_ctrl_map);
+		struct sc_ctrl init_value = {false,SC_WACTHER};
+		err = bpf_map_update_elem(scmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto sc_delay_cleanup;
+		}
 		/* Attach tracepoints */
 		err = sc_delay_bpf__attach(sc_skel);
 		if (err)
@@ -728,13 +812,18 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sc_delay_cleanup;
 		}
+		printf("%-8s   %-8s   %-15s %-15s\n","Time","Pid","syscall_id","delay/ms");
 		rb = ring_buffer__new(bpf_map__fd(sc_skel->maps.rb), syscall_delay_print, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
 		if (!rb) {
 			err = -1;
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto sc_delay_cleanup;		
 		}
-	}else if(env.SCHEDULE_DELAY||env.MIN_US_SET){
+
+
+	}else if(env.SCHEDULE_DELAY){
+
+	
 		sd_skel = schedule_delay_bpf__open();
 		if (!sd_skel) {
 			fprintf(stderr, "Failed to open and load BPF skeleton\n");
@@ -745,16 +834,22 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 			goto schedule_cleanup;
 		}
+		err = common_pin_map(&schedule_ctrl_map,sd_skel->obj,"schedule_ctrl_map",schedule_ctrl_path);
+		if(err < 0){
+			goto schedule_cleanup;
+		}
+		schedulemap_fd = bpf_map__fd(schedule_ctrl_map);
+		struct schedule_ctrl init_value = {false,false,10000,SCHEDULE_WACTHER};
+
+		err = bpf_map_update_elem(schedulemap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto schedule_cleanup;
+		}
 		err = schedule_delay_bpf__attach(sd_skel);
 		if (err) {
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto schedule_cleanup;
-		}
-		if(env.MIN_US_SET){
-			printf("调度延时大于%dms的进程:\n",env.MIN_US/1000);
-			printf("%s\n","pid        COMM                   schedule_delay/us");
-		}else{
-			printf("%-8s %s\n",  "  TIME ", "avg_delay/μs     max_delay/μs    max_proc_name    min_delay/μs   min_proc_name");
 		}
 	}else if (env.SAR){
 		/* Load and verify BPF application */
@@ -777,6 +872,18 @@ int main(int argc, char **argv)
 		err = open_and_attach_perf_event(env.freq, sar_skel->progs.tick_update, links);
 		if (err)
 			goto sar_cleanup;
+
+		err = common_pin_map(&sar_ctrl_map,sar_skel->obj,"sar_ctrl_map",sar_ctrl_path);
+		if(err < 0){
+			goto sar_cleanup;
+		}
+		sarmap_fd = bpf_map__fd(sar_ctrl_map);
+		struct sar_ctrl init_value = {false,SAR_WACTHER};
+		err = bpf_map_update_elem(sarmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto sar_cleanup;
+		}
 
 		err = sar_bpf__attach(sar_skel);
 		if (err)
@@ -802,6 +909,19 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 			goto mq_delay_cleanup;
 		}
+
+		err = common_pin_map(&mq_ctrl_map,mq_skel->obj,"mq_ctrl_map",mq_ctrl_path);
+		if(err < 0){
+			goto mq_delay_cleanup;
+		}
+		mqmap_fd = bpf_map__fd(mq_ctrl_map);
+		struct mq_ctrl init_value = {false,MQ_WACTHER};
+		err = bpf_map_update_elem(mqmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto mq_delay_cleanup;
+		}
+
 		/* Attach tracepoints */
 		err = mq_delay_bpf__attach(mq_skel);
 		if (err)
@@ -854,11 +974,11 @@ int main(int argc, char **argv)
 				printf("Error polling perf buffer: %d\n", err);
 				break;
 			}
-			time_t now = time(NULL);// 获取当前时间
-			struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
-			printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-			printf("----------------------------------------------------------------------------------------------------------\n");
-			sleep(1);			
+			// time_t now = time(NULL);// 获取当前时间
+			// struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+			// printf("\n\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+			// printf("----------------------------------------------------------------------------------------------------------\n");
+			// sleep(1);			
 		}
 		else if (env.PREEMPT) {
 			err = ring_buffer__poll(rb, 100 /* timeout, ms */);
@@ -884,7 +1004,7 @@ int main(int argc, char **argv)
 			sum_preemptTime = 0;
 			sleep(2);
 		}
-		else if (env.SCHEDULE_DELAY||env.MIN_US_SET){
+		else if (env.SCHEDULE_DELAY){
 			err = schedule_print();
 			if (err == -EINTR) {
 				err = 0;
@@ -915,29 +1035,35 @@ int main(int argc, char **argv)
 	}
 
 cs_delay_cleanup:
+	bpf_map__unpin(cs_ctrl_map, cs_ctrl_path);
 	ring_buffer__free(rb);
 	cs_delay_bpf__destroy(cs_skel);
 	return err < 0 ? -err : 0;
 
 sar_cleanup:
+	bpf_map__unpin(sar_ctrl_map, sar_ctrl_path);
 	sar_bpf__destroy(sar_skel);
 	return err < 0 ? -err : 0;
 
 sc_delay_cleanup:
+	bpf_map__unpin(sc_ctrl_map, sc_ctrl_path);
 	ring_buffer__free(rb);
 	sc_delay_bpf__destroy(sc_skel);
 	return err < 0 ? -err : 0;
 
 preempt_cleanup:
+	bpf_map__unpin(preempt_ctrl_map, preempt_ctrl_path);	
 	ring_buffer__free(rb);
 	preempt_bpf__destroy(preempt_skel);
 	return err < 0 ? -err : 0;
 
 schedule_cleanup:
+	bpf_map__unpin(schedule_ctrl_map, schedule_ctrl_path);
 	schedule_delay_bpf__destroy(sd_skel);
 	return err < 0 ? -err : 0;
 
 mq_delay_cleanup:
+	bpf_map__unpin(mq_ctrl_map, mq_ctrl_path);
 	ring_buffer__free(rb);
 	mq_delay_bpf__destroy(mq_skel);
 	return err < 0 ? -err : 0;
