@@ -43,7 +43,7 @@ static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
-           time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0; // flag
+           time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,count_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -54,7 +54,6 @@ static const char *tcp_states[] = {
 };
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
-
 static const struct argp_option opts[] = {
     {"all", 'a', 0, 0, "set to trace CLOSED connection"},
     {"err", 'e', 0, 0, "set to trace TCP error packets"},
@@ -80,6 +79,7 @@ static const struct argp_option opts[] = {
      "set to trace mysql information info include Pid 进程id、Comm "
      "进程名、Size sql语句字节大小、Sql 语句、Duration Sql耗时、Request "
      "Sql请求数"},
+    {"count", 'C', "NUMBER", 0, "specify the time to count the number of requests"}, 
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -138,6 +138,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'M':
         mysql_info = 1;
+        break;
+    case 'C':
+        count_info =strtoul(arg,&end, 10);
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -254,7 +257,7 @@ static const char binary_path[] = "/usr/sbin/mysqld";
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name)                    \
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
-
+static time_t last_check_time = 0;
 struct SymbolEntry symbols[300000];
 int num_symbols = 0;
 // 定义快表
@@ -1059,6 +1062,15 @@ static void print_domain_name(const unsigned char *data, char *output) {
     output[pos] = '\0'; // 确保字符串正确结束
 }
 
+bool check_time()
+{
+    if(time(NULL)-last_check_time >= count_info){
+        last_check_time=time(NULL);
+        return true;
+    }
+    return false;
+}
+
 static int print_dns(void *ctx, void *packet_info, size_t size) {
     if (!packet_info)
         return 0;
@@ -1083,31 +1095,31 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
            domain_name, pack_info->request_count, pack_info->response_count,
            pack_info->rx);
-
     return 0;
 }
-
 static mysql_query last_query;
 
 static int print_mysql(void *ctx, void *packet_info, size_t size) {
+    if (!mysql_info) {
+        return 0; 
+    }
 
     const mysql_query *pack_info = packet_info;
-
     if (pack_info->duratime == 0) {
-        // 存储开始事件数据
+     
         memcpy(&last_query, pack_info, sizeof(mysql_query));
     } else {
-        printf("%-20d %-20d %-20s %-20u %-40s ", last_query.pid, last_query.tid,
+   
+        printf("%-20d %-20d %-20s %-20u %-40s", last_query.pid, last_query.tid,
                last_query.comm, last_query.size, last_query.msql);
-        if (pack_info->duratime > SLOW_QUERY_THRESHOLD) {
-            printf(ANSI_COLOR_RED);
+        // 当 duratime 大于 count_info 时，才打印 duratime 
+        if (pack_info->duratime > count_info) {
+            printf("%-21llu", pack_info->duratime);
+        }else {
+            printf("%-21s", "");
         }
-        printf("%-20llu", pack_info->duratime);
-        if (pack_info->duratime > SLOW_QUERY_THRESHOLD) {
-            printf(ANSI_COLOR_RESET);
-        }
-        printf(" %-20d\n", pack_info->count);
-        memset(&last_query, 0, sizeof(last_query));
+        printf("%-20d\n", pack_info->count);
+        memset(&last_query, 0, sizeof(mysql_query));
     }
     return 0;
 }
