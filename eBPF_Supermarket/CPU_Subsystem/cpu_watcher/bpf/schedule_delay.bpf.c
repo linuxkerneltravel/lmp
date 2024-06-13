@@ -31,12 +31,18 @@ BPF_ARRAY(threshold_schedule,int,struct proc_schedule,10240);//记录每个进�
 BPF_HASH(proc_histories,struct proc_id, struct proc_history, 10240);//记录每个进程运行前的两个进程
 BPF_ARRAY(schedule_ctrl_map,int,struct schedule_ctrl,1);
 
+static inline struct schedule_ctrl *get_schedule_ctrl(void) {
+    struct schedule_ctrl *sched_ctrl;
+    sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map, &ctrl_key);
+    if (!sched_ctrl || !sched_ctrl->schedule_func) {
+        return NULL;
+    }
+    return sched_ctrl;
+}//查找控制结构体
+
 SEC("tp_btf/sched_wakeup")
 int BPF_PROG(sched_wakeup, struct task_struct *p) {
-    struct schedule_ctrl *sched_ctrl;
-	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
-	if(!sched_ctrl || !sched_ctrl->schedule_func)
-		return 0;
+    struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
     pid_t pid = p->pid;
     int cpu = bpf_get_smp_processor_id();
     struct schedule_event *schedule_event;
@@ -63,7 +69,7 @@ int BPF_PROG(sched_wakeup, struct task_struct *p) {
 
 SEC("tp_btf/sched_wakeup_new")
 int BPF_PROG(sched_wakeup_new, struct task_struct *p) {
-    struct schedule_ctrl *sched_ctrl;
+   struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
 	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
 	if(!sched_ctrl || !sched_ctrl->schedule_func)
 		return 0;
@@ -87,7 +93,7 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p) {
 
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next) {
-    struct schedule_ctrl *sched_ctrl;
+    struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
 	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
 	if(!sched_ctrl || !sched_ctrl->schedule_func)
 		return 0;
@@ -195,11 +201,7 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 
 SEC("tracepoint/sched/sched_process_exit")
 int sched_process_exit(void *ctx) {
-    struct schedule_ctrl *sched_ctrl;
-	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
-	if(!sched_ctrl || !sched_ctrl->schedule_func)
-		return 0;
-
+    struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
     struct task_struct *p = (struct task_struct *)bpf_get_current_task();
     pid_t pid = BPF_CORE_READ(p, pid);
     int cpu = bpf_get_smp_processor_id();

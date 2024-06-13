@@ -55,13 +55,10 @@ struct msg_msg {
 static struct env {
     int time;
     int period;
-    bool percent;
     bool enable_proc;
     bool SAR;
     bool CS_DELAY;
     bool SYSCALL_DELAY;
-    bool MIN_US_SET;
-    int MIN_US;
     bool PREEMPT;
     bool SCHEDULE_DELAY;
     bool MQ_DELAY;
@@ -71,13 +68,10 @@ static struct env {
 } env = {
     .time = 0,
     .period = 1,
-    .percent = false,
     .enable_proc = false,
     .SAR = false,
     .CS_DELAY = false,
     .SYSCALL_DELAY = false,
-    .MIN_US_SET = false,
-    .MIN_US = 10000,
     .PREEMPT = false,
     .SCHEDULE_DELAY = false,
     .MQ_DELAY = false,
@@ -97,6 +91,7 @@ struct mq_delay_bpf *mq_skel;
 
 static int csmap_fd;
 static int sarmap_fd;
+struct sar_ctrl sar_ctrl= {};
 static int scmap_fd;
 static int preemptmap_fd;
 static int schedulemap_fd;
@@ -131,7 +126,6 @@ const char argp_program_doc[] = "cpu watcher is in use ....\n";
 static const struct argp_option opts[] = {
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
     { "period", 'i', "INTERVAL", 0, "Period interval in seconds" },
-    {"percent", 'P', 0, 0, "Format data as percentages" },
     {"libbpf_sar", 's', 0, 0, "Print sar_info (the data of cpu)" },
     {"cs_delay", 'c', 0, 0, "Print cs_delay (the data of cpu)" },
     {"syscall_delay", 'S', 0, 0, "Print syscall_delay (the data of syscall)" },
@@ -153,9 +147,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
         case 'i':
             env.period = strtol(arg, NULL, 10);
-            break;
-        case 'P':
-            env.percent = true;
             break;
         case 's':
             env.SAR = true;
@@ -265,6 +256,28 @@ u64 find_ksym(const char* target_symbol) {
 
 static int print_all()
 {
+	int err,key=0;
+	err = bpf_map_lookup_elem(sarmap_fd, &key, &sar_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!sar_ctrl.sar_func)	return 0;
+	if(sar_ctrl.prev_watcher == SAR_WACTHER + 1) {
+		printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
+		sar_ctrl.prev_watcher = SAR_WACTHER + 2;
+		err = bpf_map_update_elem(sarmap_fd, &key, &sar_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}else if (sar_ctrl.prev_watcher == SAR_WACTHER){
+		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
+		sar_ctrl.prev_watcher = SAR_WACTHER + 2;
+		err = bpf_map_update_elem(sarmap_fd, &key, &sar_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}
 	int nprocs = get_nprocs();
 	/*proc:*/
 	int key_proc = 1;
@@ -381,7 +394,7 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		if (env.percent == true){
+		if (sar_ctrl.percent == true){
 			printf("%02d:%02d:%02d %8llu %8llu %6d  ",localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc, __sched, runqlen);
 			// 大于百分之60的标红输出
 			double values[7] = {
@@ -893,7 +906,7 @@ int main(int argc, char **argv)
 			goto sar_cleanup;
 		}
 		sarmap_fd = bpf_map__fd(sar_ctrl_map);
-		struct sar_ctrl init_value = {false,SAR_WACTHER};
+		struct sar_ctrl init_value = {false,false,SAR_WACTHER};
 		err = bpf_map_update_elem(sarmap_fd, &key, &init_value, 0);
 		if(err < 0){
 			fprintf(stderr, "Failed to update elem\n");
@@ -906,9 +919,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		if (env.percent){
-			printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
-		}else{printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");}
 	}else if(env.MQ_DELAY){
 		/* Load and verify BPF application */
 		mq_skel = mq_delay_bpf__open();

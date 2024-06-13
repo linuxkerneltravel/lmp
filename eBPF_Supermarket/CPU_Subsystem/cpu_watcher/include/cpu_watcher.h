@@ -236,6 +236,7 @@ struct idleStruct {
 /*----------------------------------------------*/
 struct sar_ctrl{
 	bool sar_func;
+	bool percent;
 	int prev_watcher;
 };
 
