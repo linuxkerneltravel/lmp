@@ -141,10 +141,20 @@ struct sum_schedule {
 };
 
 struct proc_schedule {
-	int pid;
+	struct proc_id id;
 	unsigned long long delay;
 	char proc_name[TASK_COMM_LEN];
 };
+
+struct proc_info {
+    pid_t pid;
+    char comm[TASK_COMM_LEN];
+};
+
+struct proc_history {
+    struct proc_info last[2]; // 存储最后两个调度的进程信息
+};
+
 
 /*----------------------------------------------*/
 /*         mq_delay相关结构体                     */

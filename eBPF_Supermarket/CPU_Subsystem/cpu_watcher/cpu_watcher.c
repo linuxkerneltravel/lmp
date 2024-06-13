@@ -100,6 +100,7 @@ static int sarmap_fd;
 static int scmap_fd;
 static int preemptmap_fd;
 static int schedulemap_fd;
+struct schedule_ctrl sd_ctrl = {};
 static int mqmap_fd;
 
 //static int prev_watcher = 0;//上一个使用的工具，用于在切换使用功能时，打印不用功能的表头；
@@ -567,9 +568,7 @@ void add_entry(int pid, const char *comm, long long delay) {
 }
 static int schedule_print()
 {
-
     int err,key = 0;
-	struct schedule_ctrl sd_ctrl = {};
 	err = bpf_map_lookup_elem(schedulemap_fd,&key,&sd_ctrl);
 	if (err < 0) {
 		fprintf(stderr, "failed to lookup infos: %d\n", err);
@@ -620,18 +619,34 @@ static int schedule_print()
 	}
 	else{
 		struct proc_schedule info;
+		struct proc_id id_key;
+		struct proc_history prev_info;
         int key = 0;  
-        int err, fd = bpf_map__fd(sd_skel->maps.threshold_schedule);
-        err = bpf_map_lookup_elem(fd, &key, &info);
+        int err, fd1 = bpf_map__fd(sd_skel->maps.threshold_schedule),fd2 = bpf_map__fd(sd_skel->maps.proc_histories);
+        err = bpf_map_lookup_elem(fd1, &key, &info);
         if (err < 0) {
             fprintf(stderr, "failed to lookup infos: %d\n", err);
             return -1;
         }
-        if (info.delay / 1000>sd_ctrl.min_us&&info.pid!=0) { 
-            if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
-                printf("%-10d %-16s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
-                add_entry(info.pid, info.proc_name, info.delay / 1000);
+        if (info.delay / 1000 > sd_ctrl.min_us&&info.id.pid!=0) {
+			id_key.pid = info.id.pid;
+    		id_key.cpu_id = info.id.cpu_id;
+			err = bpf_map_lookup_elem(fd2, &id_key, &prev_info);
+			if (err < 0) {
+				fprintf(stderr, "Failed to lookup proc_histories with PID %d and CPU ID %d: %d\n", id_key.pid, id_key.cpu_id, err);
+				return -1;
+			}
+            if (!entry_exists(info.id.pid, info.proc_name, info.delay / 1000)) {
+                printf("%-10d %-16s %15lld", info.id.pid, info.proc_name, info.delay / 1000);
+                add_entry(info.id.pid, info.proc_name, info.delay / 1000);
+				for (int i = 0; i < 2; i++) {
+					if (prev_info.last[i].pid != 0) {
+						printf("          Previous Process %d: PID=%-10d Name=%-16s ", i+1, prev_info.last[i].pid, prev_info.last[i].comm);
+					}
+				}
+				printf("\n"); 
             }
+
         }
 	}
 
@@ -1013,7 +1028,7 @@ int main(int argc, char **argv)
 			if (err < 0) {
 				break;
 			}
-			if(env.SCHEDULE_DELAY){
+			if(env.SCHEDULE_DELAY&&!sd_ctrl.min_us_set){
 				sleep(1);
 			}	
 		}
