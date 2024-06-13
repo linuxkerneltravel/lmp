@@ -13,6 +13,8 @@
 // limitations under the License.
 //
 // author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
+#ifndef CPU_WATCHER_H
+#define CPU_WATCHER_H
 
 #include <asm/types.h>
 #include <linux/version.h>
@@ -134,8 +136,14 @@ struct sum_schedule {
 	unsigned long long sum_delay;
 	unsigned long long max_delay;
 	unsigned long long min_delay;
-    int pid_max;
-	int pid_min;
+    char proc_name_max[TASK_COMM_LEN];
+	char proc_name_min[TASK_COMM_LEN];
+};
+
+struct proc_schedule {
+	int pid;
+	unsigned long long delay;
+	char proc_name[TASK_COMM_LEN];
 };
 
 /*----------------------------------------------*/
@@ -212,3 +220,40 @@ struct idleStruct {
 	unsigned int state;
 	unsigned int cpu_id;
 };
+
+/*----------------------------------------------*/
+/*          控制板块                            */
+/*----------------------------------------------*/
+struct sar_ctrl{
+	bool sar_func;
+	int prev_watcher;
+};
+
+struct cs_ctrl{
+	bool cs_func;
+	int prev_watcher;
+};
+
+struct sc_ctrl{
+	bool sc_func;
+	int prev_watcher;
+};
+
+struct preempt_ctrl{
+	bool preempt_func;
+	int prev_watcher;
+};
+
+struct schedule_ctrl{
+	bool schedule_func;
+	bool min_us_set;
+	int min_us;
+	int prev_watcher;
+};
+
+struct mq_ctrl{
+	bool mq_func;
+	int prev_watcher;
+};
+
+#endif // CPU_WATCHER_H
