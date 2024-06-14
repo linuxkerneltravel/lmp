@@ -30,6 +30,8 @@
 
 #include "mysql.bpf.h"
 
+#include "redis.bpf.h"
+
 #include "drop.bpf.h"
 
 // accecpt an TCP connection
@@ -330,4 +332,9 @@ int BPF_KPROBE(query__start) {
 SEC("uretprobe/_Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command")
 int BPF_KPROBE(query__end){
     return __handle_mysql_end(ctx); 
+}
+
+SEC("uprobe/processCommand")
+int BPF_KPROBE(query__start_redis) { 
+    return __handle_redis_start(ctx); 
 }
