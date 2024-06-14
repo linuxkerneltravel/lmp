@@ -21,9 +21,10 @@
 #include "cpu_watcher.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
+const int ctrl_key = 0;
 //记录时间戳；
 BPF_ARRAY(start,int,u64,1);
+BPF_ARRAY(cs_ctrl_map,int,struct cs_ctrl,1);
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);

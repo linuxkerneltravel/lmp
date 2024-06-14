@@ -174,7 +174,9 @@ int main(int argc, char **argv){
     }
 
     if(env.preempt_test){
-    /*preempt_delay的测试代码*/
+         printf("PREEMPT_TEST----------------------------------------------\n");
+        //PREEMPT功能测试逻辑：无限循环的线程函数，不断调用 sched_yield() 来放弃 CPU 使用权，模拟高调度负载。
+         start_schedule_stress_test(10); // 创建10个线程进行调度压力测试
     }
 
     if(env.schedule_test){
@@ -186,7 +188,6 @@ int main(int argc, char **argv){
         printf("执行指令 sysbench --threads=32 --time=10 cpu run\n");
         execve("/usr/bin/sysbench", argvv, envp);
         perror("execve");
-        
         printf("\n");
     }
 
