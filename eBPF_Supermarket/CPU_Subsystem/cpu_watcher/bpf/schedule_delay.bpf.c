@@ -94,10 +94,6 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p) {
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next) {
     struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
-	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
-	if(!sched_ctrl || !sched_ctrl->schedule_func)
-		return 0;
-
     struct proc_history *history;
     struct proc_history new_history;
     u64 current_time = bpf_ktime_get_ns();
