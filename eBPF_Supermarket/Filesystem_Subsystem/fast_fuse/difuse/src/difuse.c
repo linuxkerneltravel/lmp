@@ -15,6 +15,7 @@
 #define FILE_TYPE 1
 #define DIRECTORY_TYPE 2
 
+uint32_t next_ino = 1;
 
 struct dfs_data
 {
@@ -44,10 +45,10 @@ struct dfs_dentry
 struct dfs_dentry *root;                    //根节点
 
 /*过程函数*/
-static struct dfs_inode *new_inode(uint32_t ino, int size, int dir_cnt)
+static struct dfs_inode *new_inode(int size, int dir_cnt)
 {
     struct dfs_inode *inode = (struct dfs_inode *)malloc(sizeof(struct dfs_inode));
-    inode->ino = ino;
+    inode->ino = next_ino++;
     inode->size = size;
     inode->dir_cnt = dir_cnt;
     inode->data_pointer = NULL;
@@ -72,18 +73,35 @@ void add_child_dentry(struct dfs_dentry *parent, struct dfs_dentry *child)
     parent->child = child;
 }
 
-struct dfs_dentry *look_up(struct dfs_dentry *dentrys, const char *path)
+struct dfs_dentry *traverse_path(struct dfs_dentry *start_dentry, const char *path, int ftype, int create)
 {
-    struct dfs_dentry *dentry = dentrys;
+    struct dfs_dentry *dentry = start_dentry;
     char *path_copy = strdup(path);
     char *token = strtok(path_copy, "/");
-    while (token != NULL && dentry != NULL)
+
+    while (token != NULL)
     {
         struct dfs_dentry *child = dentry->child;
         while (child != NULL && strcmp(child->fname, token) != 0)
         {
             child = child->brother;
         }
+
+        if (child == NULL)
+        {
+            if (create)
+            {
+                struct dfs_inode *new_inodes = new_inode(0, 0); // 创建新的 inode
+                child = new_dentry(token, ftype, dentry, new_inodes); // 创建新的目录项
+                add_child_dentry(dentry, child); // 将新目录项添加到父目录项的子目录列表中
+            }
+            else
+            {
+                free(path_copy);
+                return NULL;
+            }
+        }
+
         dentry = child;
         token = strtok(NULL, "/");
     }
@@ -92,8 +110,47 @@ struct dfs_dentry *look_up(struct dfs_dentry *dentrys, const char *path)
     return dentry;
 }
 
+struct dfs_dentry *look_up(struct dfs_dentry *dentrys, const char *path)
+{
+    return traverse_path(dentrys, path, 0, 0);
+}
+
+struct dfs_dentry *lookup_or_create_dentry(const char *path, struct dfs_dentry *start_dentry, int ftype)
+{
+    return traverse_path(start_dentry, path, ftype, 1);
+}
+
+
 
 /*功能函数*/
+
+static int di_mkdir(const char *path, mode_t mode)
+{
+    (void)mode;
+    struct dfs_dentry *dentry = lookup_or_create_dentry(path, root, DIRECTORY_TYPE);
+    if (dentry == NULL)
+    {
+        return -ENOENT;
+    }
+
+    return 0;
+}
+
+
+static int dfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+    (void)mode;
+    (void)fi;
+    struct dfs_dentry *dentry = lookup_or_create_dentry(path, root, FILE_TYPE);
+    if (dentry == NULL)
+    {
+        return -ENOENT;
+    }
+
+    return 0;
+}
+
+
 
 static int di_getattr(const char *path, struct stat *di_stat,
     struct fuse_file_info *fi)
@@ -189,41 +246,46 @@ static int di_read(const char *path, char *buf, size_t size, off_t offset,
 }
 
 
+
+
+
+
 static struct fuse_operations difs_ops = {
     .readdir = di_readdir,
     .getattr = di_getattr,
     .open = di_open,
     .read = di_read,
-    //.mkdir = di_mkdir,
+    .mkdir = di_mkdir,
+    .create = dfs_create,
 };
 
 int main(int argc, char *argv[])
 {
-    struct dfs_inode *root_inode = new_inode(1, 0, 2);
+    struct dfs_inode *root_inode = new_inode(0, 0);
     root = new_dentry("/", DIRECTORY_TYPE, NULL, root_inode);
 
     // 创建dir1目录
-    struct dfs_inode *dir1_inode = new_inode(2, 0, 2);
+    struct dfs_inode *dir1_inode = new_inode(0, 0);
     struct dfs_dentry *dir1 = new_dentry("dir1", DIRECTORY_TYPE, root, dir1_inode);
     add_child_dentry(root, dir1);
 
     // 创建dir2目录
-    struct dfs_inode *dir2_inode = new_inode(3, 0, 1);
+    struct dfs_inode *dir2_inode = new_inode(0, 0);
     struct dfs_dentry *dir2 = new_dentry("dir2", DIRECTORY_TYPE, root, dir2_inode);
     add_child_dentry(root, dir2);
 
     // 创建file1文件
-    struct dfs_inode *file1_inode = new_inode(4, 100, 0);
+    struct dfs_inode *file1_inode = new_inode(100, 0);
     struct dfs_dentry *file1 = new_dentry("file1", FILE_TYPE, dir1, file1_inode);
     add_child_dentry(dir1, file1);
 
     // 创建file2文件
-    struct dfs_inode *file2_inode = new_inode(5, 200, 0);
+    struct dfs_inode *file2_inode = new_inode(200, 0);
     struct dfs_dentry *file2 = new_dentry("file2", FILE_TYPE, dir1, file2_inode);
     add_child_dentry(dir1, file2);
 
     // 创建file3文件
-    struct dfs_inode *file3_inode = new_inode(6, 150, 0);
+    struct dfs_inode *file3_inode = new_inode(150, 0);
     struct dfs_dentry *file3 = new_dentry("file3", FILE_TYPE, dir2, file3_inode);
     add_child_dentry(dir2, file3);
 
