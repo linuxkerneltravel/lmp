@@ -393,12 +393,12 @@ int __tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 
     // TX HTTP info
     if (http_info) {
-        #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 1)
-            u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
-        #else
-            u8 *user_data = BPF_CORE_READ(msg, msg_iter.iov,iov_base);
-        #endif
-        //u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
+        // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 1)
+        //     u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
+        // #else
+        //     u8 *user_data = BPF_CORE_READ(msg, msg_iter.iov,iov_base);
+        // #endif
+        u8 *user_data = BPF_CORE_READ(msg, msg_iter.__iov, iov_base);
         tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(
             &timestamps, &pkt_tuple, &zero);
         if (tinfo == NULL) {
