@@ -43,7 +43,8 @@ static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
-           time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0; // flag
+           time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
+           count_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -54,7 +55,6 @@ static const char *tcp_states[] = {
 };
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
-
 static const struct argp_option opts[] = {
     {"all", 'a', 0, 0, "set to trace CLOSED connection"},
     {"err", 'e', 0, 0, "set to trace TCP error packets"},
@@ -74,11 +74,14 @@ static const struct argp_option opts[] = {
     {"dns", 'D', 0, 0,
      "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd "
      "问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr "
-     "域名、rx 收发包 "},
+     "域名、rx 收发包 、Qc请求数、Sc响应数"},
     {"stack", 'A', 0, 0, "set to trace of stack "},
     {"mysql", 'M', 0, 0,
      "set to trace mysql information info include Pid 进程id、Comm "
-     "进程名、Size sql语句字节大小、Sql 语句"},
+     "进程名、Size sql语句字节大小、Sql 语句、Duration Sql耗时、Request "
+     "Sql请求数"},
+    {"count", 'C', "NUMBER", 0,
+     "specify the time to count the number of requests"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -137,6 +140,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'M':
         mysql_info = 1;
+        break;
+    case 'C':
+        count_info = strtoul(arg, &end, 10);
         break;
     default:
         return ARGP_ERR_UNKNOWN;
@@ -253,7 +259,6 @@ static const char binary_path[] = "/usr/sbin/mysqld";
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name)                    \
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
-
 struct SymbolEntry symbols[300000];
 int num_symbols = 0;
 // 定义快表
@@ -357,6 +362,9 @@ struct LayerDelayInfo {
 #define GRANULARITY 3
 #define ALPHA 0.2 // 衰减因子
 #define MAXTIME 10000
+#define SLOW_QUERY_THRESHOLD 10000 //
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_RESET "\x1b[0m"
 
 // 全局变量用于存储每层的移动平均值
 float ewma_values[NUM_LAYERS] = {0};
@@ -596,17 +604,18 @@ static void print_header(enum MonitorMode mode) {
                "====================DNS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %5s \n",
+        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %-10s %-10s "
+               "%-10s \n",
                "Saddr", "Daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
-               "RX/direction");
+               "Qc", "Sc", "RX/direction");
         break;
     case MODE_MYSQL:
         printf("==============================================================="
                "====================MYSQL "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-20s %-40s %-20s \n", "Pid", "Comm", "Size", "Sql",
-               "duration/μs");
+        printf("%-20s %-20s %-20s %-20s %-40s %-20s %-20s  \n", "Pid", "Tid",
+               "Comm", "Size", "Sql", "Duration/μs", "Request");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
@@ -921,6 +930,9 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
+    // if ((daddr & 0x0000FFFF) == 0x0000007F ||
+    //     (saddr & 0x0000FFFF) == 0x0000007F)
+    //     return 0;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -1031,6 +1043,7 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+
 // 从DNS数据包中提取并打印域名
 static void print_domain_name(const unsigned char *data, char *output) {
     const unsigned char *next = data;
@@ -1066,30 +1079,41 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
-
-    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d\n", s_str,
-           d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
+    if (pack_info->daddr == 0) {
+        return 0;
+    }
+    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d %-10d "
+           "%-10d \n",
+           s_str, d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
-           domain_name, pack_info->rx);
-
+           domain_name, pack_info->request_count, pack_info->response_count,
+           pack_info->rx);
     return 0;
 }
-
 static mysql_query last_query;
 
 static int print_mysql(void *ctx, void *packet_info, size_t size) {
+    if (!mysql_info) {
+        return 0;
+    }
+
     const mysql_query *pack_info = packet_info;
-    // 假设duratime总是0
     if (pack_info->duratime == 0) {
-        // 存储开始事件数据
+
         memcpy(&last_query, pack_info, sizeof(mysql_query));
     } else {
-        // 结束事件 合并
-        printf("%-20d %-20s %-20u %-40s %-20llu\n", last_query.pid,
-               last_query.comm, last_query.size, last_query.msql,
-               pack_info->duratime);
-        // 重置
-        memset(&last_query, 0, sizeof(last_query));
+
+        printf("%-20d %-20d %-20s %-20u %-40s", last_query.pid, last_query.tid,
+               last_query.comm, last_query.size, last_query.msql);
+        // 当 duratime 大于 count_info 时，才打印 duratime
+        if (pack_info->duratime > count_info) {
+            printf("%-21llu", pack_info->duratime);
+        } else {
+            printf("%-21s", "");
+        }
+
+        printf("%-20d\n", pack_info->count);
+        memset(&last_query, 0, sizeof(mysql_query));
     }
     return 0;
 }
