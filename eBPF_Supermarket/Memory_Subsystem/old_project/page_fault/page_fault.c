@@ -6,8 +6,8 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
-#include "time.h"
-#include "time.skel.h"
+#include "page_fault.h"
+#include "page_fault.skel.h"
 
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
