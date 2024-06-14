@@ -590,7 +590,7 @@ static int update_addr_times(struct memleak_bpf *skel) {
 int print_time(struct memleak_bpf *skel) {
     const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
 
-    printf("%-16s %9s\n", "AL_ADDR", "AL_Time");
+    printf("%-16s %12s\n", "AL_ADDR", "AL_Time(s)");
 
     // Iterate over the addr_times map to print address and time
     for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
@@ -605,7 +605,7 @@ int print_time(struct memleak_bpf *skel) {
         // Read the timestamp for the current address
         __u64 timestamp;
         if (bpf_map__lookup_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0) == 0) {
-            printf("0x%-16llx %llds\n", curr_key, timestamp); // 添加时间单位"s"
+            printf("0x%-16llx %lld\n", curr_key, timestamp);
         }
         else {
             perror("map lookup failed!");
