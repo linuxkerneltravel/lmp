@@ -110,6 +110,7 @@ make start_service
 #进入lmp/eBPF_Visualization/eBPF_prometheus目录，执行以下操作
 #开启ebpf程序，并且向8090端口推送ebpf程序采集的数据，发送给prometheus服务端
 #这里以监测vcpu调度的数据来举例：
+#目前-e、-o、-i、-f -m功能的数据格式已经适配了可视化工具，请读者使用以上四种功能的数据来进行可视化展示
 ./data-visual collect lmp/eBPF_Supermarket/kvm_watcher/kvm_watcher -o -p [进程号]
 ```
 
