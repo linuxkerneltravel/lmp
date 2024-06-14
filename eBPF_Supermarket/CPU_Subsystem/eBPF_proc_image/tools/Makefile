@@ -42,7 +42,7 @@ INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(L
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = lifecycle_image lock_image newlife_image keytime_image
+APPS = lifecycle_image lock_image newlife_image keytime_image migrate_image
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
