@@ -17,13 +17,15 @@
 
 #include "common.bpf.h"
 #include "redis_helper.bpf.h"
-
+#define MAXEPOLL 10
 static __always_inline int __handle_redis_start(struct pt_regs *ctx) {
     struct client *cli = (struct client *)PT_REGS_PARM1(ctx);
-    int argc;               
-    char name; 
+    int argc;  
+    void *ptr;             
+    char name[100]=""; 
     int argv_len;          
     bpf_probe_read(&argc, sizeof(argc), &cli->argc);
+    bpf_printk("%d",argc);
     robj **arg0;
     robj *arg1;
     //unsigned type;
@@ -33,13 +35,24 @@ static __always_inline int __handle_redis_start(struct pt_regs *ctx) {
     bpf_probe_read(&arg0, sizeof(arg0), &cli->argv);
 
     // 读取 argv[0]，即第一个命令参数
-    bpf_probe_read(&arg1, sizeof(arg1), &arg0[1]);
+    bpf_probe_read(&arg1, sizeof(arg1), &arg0[0]);
 
+    for(int i=0;i<argc&&i<MAXEPOLL;i++)
+    {   
+        bpf_probe_read(&arg1, sizeof(arg1), &arg0[i]);
+        // 读取 argv[i]->ptr 中的字符串
+        bpf_probe_read(&ptr, sizeof(ptr),&arg1->ptr);
+        bpf_probe_read_str(name, sizeof(name),ptr);
+        bpf_printk("%s",name);
+    }
     // 读取 argv[0]->ptr 中的字符串
-    bpf_probe_read(&name, sizeof(name),&arg1->ptr);
+    bpf_probe_read(&ptr, sizeof(ptr),&arg1->ptr);
+    bpf_probe_read_str(name, sizeof(name),ptr);
+
+
     bpf_probe_read(&argv_len, sizeof(argv_len), &cli->argv_len_sum);
-;
-    bpf_printk("%d %s %d",argc,name,argv_len);
+
+    bpf_printk("%d",argv_len);
 
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
     return 0;

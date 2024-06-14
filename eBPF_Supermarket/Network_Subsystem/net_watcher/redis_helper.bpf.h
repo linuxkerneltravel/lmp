@@ -32,7 +32,7 @@
 typedef struct redisObject {
     unsigned type:4;
     unsigned encoding:4;
-    unsigned lru:LRU_BITS; 
+    unsigned lru:24; 
     int refcount;
     void *ptr;
 } robj;
