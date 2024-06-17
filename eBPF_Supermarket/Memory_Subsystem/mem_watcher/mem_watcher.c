@@ -209,10 +209,10 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         case 'n': env.part2 = true; break;
         case 'P': env.choose_pid = strtol(arg, NULL, 10); break;
         case 'R': env.rss = true; break;
-		case 'l': env.memleak = true; break;
-		case 'm': env.print_time = true; break;
-		case 'h': argp_state_help(state, stderr, ARGP_HELP_STD_HELP); break;
-		default: return ARGP_ERR_UNKNOWN;
+		    case 'l': env.memleak = true; break;
+		    case 'm': env.print_time = true; break;
+		    case 'h': argp_state_help(state, stderr, ARGP_HELP_STD_HELP); break;
+		    default: return ARGP_ERR_UNKNOWN;
     }
     return 0;
 }
@@ -245,6 +245,7 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
 static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
 static int update_addr_times(struct memleak_bpf *skel_memleak);
 static int print_time(struct memleak_bpf *skel_memleak);
+
 
 // Main function
 int main(int argc, char **argv) {

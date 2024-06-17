@@ -566,6 +566,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
         case PAGE_FAULT: {
             // 使用 e->page_fault_data 访问 PAGE_FAULT 特有成员
+            if (env.show) {
+                printf("%-18.6f %-10u %-6u %-10.4f\n", timestamp_ms,
+                       e->process.pid, e->page_fault_data.count,
+                       NS_TO_US_WITH_DECIMAL(e->page_fault_data.delay));
+                break;
+            }
             printf("%-18.6f %-15s %-10u %-12llx %-6u %-10.4f ", timestamp_ms,
                    e->process.comm, e->process.pid, e->page_fault_data.addr,
                    e->page_fault_data.count,
@@ -670,11 +676,19 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case IRQ_INJECT: {
-            printf("%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
-                   timestamp_ms, e->process.comm, e->process.pid,
-                   e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
-                   e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
-                   e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            if (env.show) {
+                printf("%-18.6f %-10d %-10lld %-10d %-10d %-10lld\n",
+                       timestamp_ms, e->process.pid, e->irq_inject_data.delay,
+                       e->irq_inject_data.irq_nr, e->irq_inject_data.vcpu_id,
+                       e->irq_inject_data.injections);
+            } else {
+                printf(
+                    "%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
+                    timestamp_ms, e->process.comm, e->process.pid,
+                    e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
+                    e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
+                    e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            }
             break;
         }
         case HYPERCALL: {
@@ -758,18 +772,29 @@ static int print_event_head(struct env *env) {
                    "USERSPACE_ADDR", "SLOT_ID");
             break;
         case PAGE_FAULT:
-            printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
-                   "TIME(ms)", "COMM", "PID", "GPA", "COUNT", "DELAY(us)",
-                   "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
+            if (env->show) {
+                printf("%-18s %-10s %-6s %-10s \n", "TIME(ms)", "PID", "COUNT",
+                       "DELAY(us)");
+            } else {
+                printf(
+                    "%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
+                    "TIME(ms)", "COMM", "PID", "GPA", "COUNT", "DELAY(us)",
+                    "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
+            }
             break;
         case IRQCHIP:
             printf("%-18s %-15s %-10s %-10s %-14s %-10s %-10s\n", "TIME(ms)",
                    "COMM", "PID", "DELAY", "TYPE/PIN", "DST/VEC", "OTHERS");
             break;
         case IRQ_INJECT:
-            printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
-                   "TIME(ms)", "COMM", "PID", "DELAY", "IRQ_NR", "VCPU_ID",
-                   "INJECTIONS", "TYPE");
+            if (env->show) {
+                printf("%-18s %-10s %-10s %-10s %-10s %-10s \n", "TIME(ms)",
+                       "PID", "DELAY", "IRQ_NR", "VCPU_ID", "INJECTIONS");
+            } else {
+                printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
+                       "TIME(ms)", "COMM", "PID", "DELAY", "IRQ_NR", "VCPU_ID",
+                       "INJECTIONS", "TYPE");
+            }
             break;
         case HYPERCALL: {
             printf("Waiting hypercall ... \n");
@@ -1202,9 +1227,6 @@ int main(int argc, char **argv) {
     struct ring_buffer *rb = NULL;
     struct kvm_watcher_bpf *skel;
     int err;
-    //可视化调整输出格式
-    // print_logo();
-
     /*解析命令行参数*/
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
     if (err)
@@ -1256,6 +1278,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Invalid env parm\n");
         goto cleanup;
     }
+    if (!env.show)
+        print_logo();
 
     /*打印信息头*/
     err = print_event_head(&env);
