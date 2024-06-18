@@ -144,6 +144,7 @@ static struct env {
 	bool sysstat;
 	bool memleak;
 	bool kernel_trace;
+	bool print_time;
 
 	bool part2;
 
@@ -157,6 +158,7 @@ static struct env {
 	.sysstat = false,
 	.memleak = false,
 	.kernel_trace = true,
+	.print_time = false,
 	.rss = false,
 	.part2 = false,
 	.choose_pid = 0,
@@ -186,8 +188,10 @@ static const struct argp_option opts[] = {
 	{0, 0, 0, 0, "memleak:", 8},
 	{"memleak", 'l', 0, 0, "print memleak (内核态内存泄漏检测)", 8},
 	{"choose_pid", 'P', "PID", 0, "选择进程号打印, print memleak (用户态内存泄漏检测)", 9},
+	{"print_time", 'm', 0, 0, "打印申请地址时间 (用户态)", 10},
 
-	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 10},
+
+	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 11},
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
@@ -203,11 +207,12 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         case 'r': env.procstat = true; break;
         case 's': env.sysstat = true; break;
         case 'n': env.part2 = true; break;
-        case 'h': argp_state_help(state, stderr, ARGP_HELP_STD_HELP); break;
         case 'P': env.choose_pid = strtol(arg, NULL, 10); break;
         case 'R': env.rss = true; break;
-        case 'l': env.memleak = true; break;
-        default: return ARGP_ERR_UNKNOWN;
+		    case 'l': env.memleak = true; break;
+		    case 'm': env.print_time = true; break;
+		    case 'h': argp_state_help(state, stderr, ARGP_HELP_STD_HELP); break;
+		    default: return ARGP_ERR_UNKNOWN;
     }
     return 0;
 }
@@ -237,6 +242,10 @@ static int process_pr(struct pr_bpf *skel_pr);
 static int process_procstat(struct procstat_bpf *skel_procstat);
 static int process_sysstat(struct sysstat_bpf *skel_sysstat);
 static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
+static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
+static int update_addr_times(struct memleak_bpf *skel_memleak);
+static int print_time(struct memleak_bpf *skel_memleak);
+
 
 // Main function
 int main(int argc, char **argv) {
@@ -518,6 +527,92 @@ int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid) {
         show_stack_trace(g_stacks, stack_sz, pid);
     }
 
+    return 0;
+}
+
+// 在更新时间之前获取当前时间并调整为相对于程序启动时的时间
+static __u64 adjust_time_to_program_start_time(__u64 first_query_time) {
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    //printf("current_time: %ld\n", current_time.tv_sec);
+    __u64 adjusted_time;
+    adjusted_time = current_time.tv_sec - first_query_time;
+
+    //printf("adjusted_time: %lld\n", adjusted_time);
+    return adjusted_time;
+}
+
+
+// 在更新时间时，先将时间调整为相对于程序启动的时间
+static int update_addr_times(struct memleak_bpf *skel) {
+    const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
+    const size_t first_time_key_size = bpf_map__key_size(skel->maps.first_time);
+    for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
+        if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size)) {
+            if (errno == ENOENT) {
+                break; // no more keys, done!
+            }
+
+            perror("map get next key failed!");
+            return -errno;
+        }
+
+        // Check if the address exists in the first_time map
+        __u64 first_query_time;
+        if (bpf_map__lookup_elem(skel->maps.first_time, &curr_key, first_time_key_size, &first_query_time, sizeof(first_query_time), 0)) {
+            // Address doesn't exist in the first_time map, add it with the current time
+            struct timespec first_time_alloc;
+            clock_gettime(CLOCK_MONOTONIC, &first_time_alloc);
+            if (bpf_map__update_elem(skel->maps.first_time, &curr_key, first_time_key_size, &first_time_alloc.tv_sec, sizeof(first_time_alloc.tv_sec), 0)) {
+                perror("map update failed!");
+                return -errno;
+            }
+        }
+        else {
+            // Address exists in the first_time map
+            // This is the first time updating timestamp
+            __u64 adjusted_time = adjust_time_to_program_start_time(first_query_time);
+            //printf("update_addr_times adjusted_time: %lld\n", adjusted_time);
+
+            // Save the adjusted time to addr_times map
+            __u64 timestamp = adjusted_time;
+
+            // write the updated timestamp back to the map
+            if (bpf_map__update_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0)) {
+                perror("map update failed!");
+                return -errno;
+            }
+        }
+    }
+    return 0;
+}
+
+// 在打印时间时，先将时间调整为相对于程序启动的时间
+int print_time(struct memleak_bpf *skel) {
+    const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
+
+    printf("%-16s %12s\n", "AL_ADDR", "AL_Time(s)");
+
+    // Iterate over the addr_times map to print address and time
+    for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
+        if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size)) {
+            if (errno == ENOENT) {
+                break; // no more keys, done!
+            }
+            perror("map get next key failed!");
+            return -errno;
+        }
+
+        // Read the timestamp for the current address
+        __u64 timestamp;
+        if (bpf_map__lookup_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0) == 0) {
+            printf("0x%-16llx %lld\n", curr_key, timestamp);
+        }
+        else {
+            perror("map lookup failed!");
+            return -errno;
+        }
+    }
     return 0;
 }
 
@@ -813,7 +908,13 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
 
 	for (;;) {
 		if (!env.kernel_trace)
-			print_outstanding_combined_allocs(skel_memleak, attach_pid);
+			if (env.print_time) {
+				system("clear");
+				update_addr_times(skel_memleak);
+				print_time(skel_memleak);
+			}
+			else
+				print_outstanding_combined_allocs(skel_memleak, attach_pid);
 		else
 			print_outstanding_allocs(skel_memleak);
 
