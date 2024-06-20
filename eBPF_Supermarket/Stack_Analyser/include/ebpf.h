@@ -19,7 +19,7 @@
 #ifndef STACK_ANALYZER_EBPF
 #define STACK_ANALYZER_EBPF
 
-#include "sa_common.h"
+#include "common.h"
 #include <linux/version.h>
 
 #define PF_KTHREAD 0x00200000

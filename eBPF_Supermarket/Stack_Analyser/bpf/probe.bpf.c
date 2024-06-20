@@ -22,7 +22,7 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/usdt.bpf.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "bpf_wapper/probe.h"
 #include "task.h"
 
