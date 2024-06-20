@@ -1,32 +1,12 @@
-# Copyright 2023 The LMP Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# author: zhangziheng0525@163.com
-#
-# compile the current folder code
-
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 OUTPUT := .output
 CLANG ?= clang
 LIBBPF_SRC := $(abspath ../../libbpf/src)
 BPFTOOL_SRC := $(abspath ../../bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
-BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
+BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/../bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
-LIBBLAZESYM_SRC := $(abspath ../../blazesym/)
-LIBBLAZESYM_INC := $(abspath $(LIBBLAZESYM_SRC)/include)
-LIBBLAZESYM_OBJ := $(abspath $(OUTPUT)/libblazesym.a)
+
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/arm.*/arm/' \
 			 | sed 's/aarch64/arm64/' \
@@ -38,25 +18,11 @@ VMLINUX := ../../vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC)
+INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = lifecycle_image lock_image newlife_image keytime_image migrate_image
-
-CARGO ?= $(shell which cargo)
-ifeq ($(strip $(CARGO)),)
-BZS_APPS :=
-else
-BZS_APPS := profile
-APPS += $(BZS_APPS)
-# Required by libblazesym
-ALL_LDFLAGS += -lrt -ldl -lpthread -lm
-endif
-
-COMMON_OBJ = \
-	$(OUTPUT)/trace_helpers.o \
-	$(OUTPUT)/uprobe_helpers.o \
+APPS = time
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
@@ -66,7 +32,7 @@ COMMON_OBJ = \
 #
 # Use '-idirafter': Don't interfere with include mechanics except where the
 # build would have failed anyways.
-CLANG_BPF_SYS_INCLUDES ?= $(shell $(CLANG) -v -E - </dev/null 2>&1 \
+CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
 ifeq ($(V),1)
@@ -115,14 +81,6 @@ $(BPFTOOL): | $(BPFTOOL_OUTPUT)
 	$(call msg,BPFTOOL,$@)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
-
-$(LIBBLAZESYM_SRC)/target/release/libblazesym.a::
-	$(Q)cd $(LIBBLAZESYM_SRC) && $(CARGO) build --release
-
-$(LIBBLAZESYM_OBJ): $(LIBBLAZESYM_SRC)/target/release/libblazesym.a | $(OUTPUT)
-	$(call msg,LIB, $@)
-	$(Q)cp $(LIBBLAZESYM_SRC)/target/release/libblazesym.a $@
-
 # Build BPF code
 $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
 	$(call msg,BPF,$@)
@@ -143,12 +101,8 @@ $(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
 	$(call msg,CC,$@)
 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
-$(patsubst %,$(OUTPUT)/%.o,$(BZS_APPS)): $(LIBBLAZESYM_OBJ)
-
-$(BZS_APPS): $(LIBBLAZESYM_OBJ)
-
 # Build application binary
-$(APPS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
 
@@ -157,3 +111,4 @@ $(APPS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
+

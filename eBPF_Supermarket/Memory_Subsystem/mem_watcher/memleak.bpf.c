@@ -62,6 +62,20 @@ struct {
     __type(value, u64); // 用户态指针变量 memptr
 } memptrs SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64); /* alloc return address */
+    __type(value, u64); /* timestamp */
+    __uint(max_entries, 10240);
+} addr_times SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64); /* alloc return address */
+    __type(value, u64); /* timestamp */
+    __uint(max_entries, 10240);
+} first_time SEC(".maps");
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 static int gen_alloc_enter(size_t size) {
@@ -91,6 +105,10 @@ static int gen_alloc_exit2(void *ctx, u64 address) {
         info.stack_id = bpf_get_stackid(ctx, &stack_traces, stack_flags);
 
         bpf_map_update_elem(&allocs, &addr, &info, BPF_ANY);
+
+        // Initialize the addr_times map to 0
+        __u64 zero_ts = 0;
+        bpf_map_update_elem(&addr_times, &addr, &zero_ts, BPF_ANY);
 
         union combined_alloc_info add_cinfo = {
             .total_size = info.size,
@@ -134,6 +152,10 @@ static int gen_free_enter(const void *address) {
     __sync_fetch_and_sub(&exist_cinfo->bits, sub_cinfo.bits);
 
     bpf_map_delete_elem(&allocs, &addr);
+
+    // Initialize the addr_times map to 0
+    __u64 zero_ts = 0;
+    bpf_map_update_elem(&addr_times, &addr, &zero_ts, BPF_ANY);
 
     return 0;
 }

@@ -43,7 +43,8 @@ static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
-           time_load = 0, dns_info = 0; // flag
+           time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
+           count_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -54,7 +55,6 @@ static const char *tcp_states[] = {
 };
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
-
 static const struct argp_option opts[] = {
     {"all", 'a', 0, 0, "set to trace CLOSED connection"},
     {"err", 'e', 0, 0, "set to trace TCP error packets"},
@@ -74,7 +74,14 @@ static const struct argp_option opts[] = {
     {"dns", 'D', 0, 0,
      "set to trace dns information info include Id 事务ID、Flags 标志字段、Qd "
      "问题部分计数、An 应答记录计数、Ns 授权记录计数、Ar 附加记录计数、Qr "
-     "域名、rx 收发包 "},
+     "域名、rx 收发包 、Qc请求数、Sc响应数"},
+    {"stack", 'A', 0, 0, "set to trace of stack "},
+    {"mysql", 'M', 0, 0,
+     "set to trace mysql information info include Pid 进程id、Comm "
+     "进程名、Size sql语句字节大小、Sql 语句、Duration Sql耗时、Request "
+     "Sql请求数"},
+    {"count", 'C', "NUMBER", 0,
+     "specify the time to count the number of requests"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -128,6 +135,15 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'D':
         dns_info = 1;
         break;
+    case 'A':
+        stack_info = 1;
+        break;
+    case 'M':
+        mysql_info = 1;
+        break;
+    case 'C':
+        count_info = strtoul(arg, &end, 10);
+        break;
     default:
         return ARGP_ERR_UNKNOWN;
     }
@@ -152,6 +168,7 @@ enum MonitorMode {
     MODE_ICMP,
     MODE_TCP,
     MODE_DNS,
+    MODE_MYSQL,
     MODE_DEFAULT
 };
 
@@ -168,6 +185,8 @@ enum MonitorMode get_monitor_mode() {
         return MODE_TCP;
     } else if (dns_info) {
         return MODE_DNS;
+    } else if (mysql_info) {
+        return MODE_MYSQL;
     } else {
         return MODE_DEFAULT;
     }
@@ -208,7 +227,38 @@ void print_logo() {
 
     pclose(lolcat_pipe);
 }
+static const char binary_path[] = "/usr/sbin/mysqld";
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)                \
+    do {                                                                       \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,      \
+                    .retprobe = is_retprobe);                                  \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts(               \
+            skel->progs.prog_name, -1, binary_path, 0, &uprobe_opts);          \
+    } while (false)
 
+#define __CHECK_PROGRAM(skel, prog_name)                                       \
+    do {                                                                       \
+        if (!skel->links.prog_name) {                                          \
+            perror("no program attached for " #prog_name);                     \
+            return -errno;                                                     \
+        }                                                                      \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe)        \
+    do {                                                                       \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);               \
+        __CHECK_PROGRAM(skel, prog_name);                                      \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name)                               \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name)                            \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name)                       \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name)                    \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 struct SymbolEntry symbols[300000];
 int num_symbols = 0;
 // 定义快表
@@ -312,6 +362,9 @@ struct LayerDelayInfo {
 #define GRANULARITY 3
 #define ALPHA 0.2 // 衰减因子
 #define MAXTIME 10000
+#define SLOW_QUERY_THRESHOLD 10000 //
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_RESET "\x1b[0m"
 
 // 全局变量用于存储每层的移动平均值
 float ewma_values[NUM_LAYERS] = {0};
@@ -364,6 +417,8 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->tcp_info = tcp_info;
     skel->rodata->icmp_info = icmp_info;
     skel->rodata->dns_info = dns_info;
+    skel->rodata->stack_info = stack_info;
+    skel->rodata->mysql_info = mysql_info;
 }
 static void set_disable_load(struct netwatcher_bpf *skel) {
 
@@ -497,6 +552,10 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.icmp_reply, icmp_info ? true : false);
     bpf_program__set_autoload(skel->progs.handle_set_state,
                               tcp_info ? true : false);
+    bpf_program__set_autoload(skel->progs.query__start,
+                              mysql_info ? true : false);
+    bpf_program__set_autoload(skel->progs.query__end,
+                              mysql_info ? true : false);
 }
 
 static void print_header(enum MonitorMode mode) {
@@ -506,48 +565,57 @@ static void print_header(enum MonitorMode mode) {
                "UDP "
                "INFORMATION===================================================="
                "====\n");
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "saddr", "daddr",
-               "sprot", "dprot", "udp_time/μs", "rx/direction", "len/byte");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s\n", "Saddr", "Daddr",
+               "Sprot", "Dprot", "udp_time/μs", "RX/direction", "len/byte");
         break;
     case MODE_NET_FILTER:
         printf("==============================================================="
-               "===NET FILTER "
+               "===NETFILTER "
                "INFORMATION===================================================="
                "=======\n");
         printf("%-20s %-20s %-12s %-12s %-8s %-8s %-7s %-8s %-8s %-8s\n",
-               "saddr", "daddr", "dprot", "sprot", "PreRT/μs", "L_IN/μs",
-               "FW/μs", "PostRT/μs", "L_OUT/μs", "rx/direction");
+               "Saddr", "Daddr", "Sprot", "Dprot", "PreRT/μs", "L_IN/μs",
+               "FW/μs", "PostRT/μs", "L_OUT/μs", "RX/direction");
         break;
     case MODE_DROP_REASON:
         printf("==============================================================="
                "DROP "
                "INFORMATION===================================================="
                "====\n");
-        printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "time",
-               "saddr", "daddr", "sprot", "dprot", "prot", "addr", "reason");
+        printf("%-13s %-17s %-17s %-10s %-10s %-9s %-33s %-30s\n", "Time",
+               "Saddr", "Daddr", "Sprot", "Dprot", "prot", "addr", "reason");
         break;
     case MODE_ICMP:
         printf("=================================================ICMP "
                "INFORMATION==============================================\n");
-        printf("%-20s %-20s %-20s %-20s\n", "saddr", "daddr", "icmp_time/μs",
-               "tx//direction");
+        printf("%-20s %-20s %-20s %-20s\n", "Saddr", "Daddr", "icmp_time/μs",
+               "RX/direction");
         break;
     case MODE_TCP:
         printf("==============================================================="
                "TCP STATE "
                "INFORMATION===================================================="
                "====\n");
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "saddr", "daddr",
-               "sport", "dport", "oldstate", "newstate", "time/μs");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s %-20s \n", "Saddr", "Daddr",
+               "Sport", "Dport", "oldstate", "newstate", "time/μs");
         break;
     case MODE_DNS:
         printf("==============================================================="
                "====================DNS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-12s %-12s %-12s %-12s %-12s %-11s %-47s %5s \n",
-               "saddr", "daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
-               "rx/direction");
+        printf("%-20s %-20s %-12s %-12s %-5s %-5s %-5s %-5s %-47s %-10s %-10s "
+               "%-10s \n",
+               "Saddr", "Daddr", "Id", "Flags", "Qd", "An", "Ns", "Ar", "Qr",
+               "Qc", "Sc", "RX/direction");
+        break;
+    case MODE_MYSQL:
+        printf("==============================================================="
+               "====================MYSQL "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-20s %-20s %-20s %-20s %-40s %-20s %-20s  \n", "Pid", "Tid",
+               "Comm", "Size", "Sql", "Duration/μs", "Request");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
@@ -555,12 +623,19 @@ static void print_header(enum MonitorMode mode) {
                "======================\n");
         printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-15s %-15s \n",
                "SOCK", "Saddr", "Sport", "Daddr", "Dport", "MAC_TIME/μs",
-               "IP_TIME/μs", "TRAN_TIME/μs", "RX//direction", "HTTP");
+               "IP_TIME/μs", "TRAN_TIME/μs", "RX/direction", "HTTP");
         break;
     }
 }
 
 static void open_log_files() {
+    FILE *connect_file = fopen(connects_file_path, "w+");
+    if (connect_file == NULL) {
+        fprintf(stderr, "Failed to open connect.log: (%s)\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    fclose(connect_file);
+
     FILE *err_file = fopen(err_file_path, "w+");
     if (err_file == NULL) {
         fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
@@ -690,7 +765,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
     if (udp_info || net_filter || drop_reason || icmp_info || tcp_info ||
-        dns_info)
+        dns_info || mysql_info)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME ||
@@ -815,7 +890,8 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if(pack_info->tran_time > MAXTIME||(daddr & 0x0000FFFF) == 0x0000007F || (saddr & 0x0000FFFF) == 0x0000007F)
+    if (pack_info->tran_time > MAXTIME || (daddr & 0x0000FFFF) == 0x0000007F ||
+        (saddr & 0x0000FFFF) == 0x0000007F)
         return 0;
     printf("%-20s %-20s %-20u %-20u %-20llu %-20d %-20d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
@@ -854,6 +930,9 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         return 0;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
+    // if ((daddr & 0x0000FFFF) == 0x0000007F ||
+    //     (saddr & 0x0000FFFF) == 0x0000007F)
+    //     return 0;
     printf("%-20s %-20s %-12d %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
@@ -964,6 +1043,7 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+
 // 从DNS数据包中提取并打印域名
 static void print_domain_name(const unsigned char *data, char *output) {
     const unsigned char *next = data;
@@ -999,56 +1079,92 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
-
-    printf("%-20s %-20s %-#12x %-#12x %-12x %-12x %-12x %-11x %-47s %-10d\n",
+    if (pack_info->daddr == 0) {
+        return 0;
+    }
+    printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d %-10d "
+           "%-10d \n",
            s_str, d_str, pack_info->id, pack_info->flags, pack_info->qdcount,
            pack_info->ancount, pack_info->nscount, pack_info->arcount,
-           domain_name, pack_info->rx);
-
+           domain_name, pack_info->request_count, pack_info->response_count,
+           pack_info->rx);
     return 0;
 }
+static mysql_query last_query;
 
+static int print_mysql(void *ctx, void *packet_info, size_t size) {
+    if (!mysql_info) {
+        return 0;
+    }
+
+    const mysql_query *pack_info = packet_info;
+    if (pack_info->duratime == 0) {
+
+        memcpy(&last_query, pack_info, sizeof(mysql_query));
+    } else {
+
+        printf("%-20d %-20d %-20s %-20u %-40s", last_query.pid, last_query.tid,
+               last_query.comm, last_query.size, last_query.msql);
+        // 当 duratime 大于 count_info 时，才打印 duratime
+        if (pack_info->duratime > count_info) {
+            printf("%-21llu", pack_info->duratime);
+        } else {
+            printf("%-21s", "");
+        }
+
+        printf("%-20d\n", pack_info->count);
+        memset(&last_query, 0, sizeof(mysql_query));
+    }
+    return 0;
+}
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {
     return vfprintf(stderr, format, args);
 }
-static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid)
-{
+static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
     int i;
     printf("-----------------------------------\n");
-	for (i = 1; i < stack_sz; i++) {
-        if(addr_to_func)
-        {
-            struct SymbolEntry data= findfunc(stack[i]);
+    for (i = 1; i < stack_sz; i++) {
+        if (addr_to_func) {
+            struct SymbolEntry data = findfunc(stack[i]);
             char result[40];
             sprintf(result, "%s+0x%llx", data.name, stack[i] - data.addr);
-		    printf("%-10d [<%016llx>]=%s\n", i, stack[i], result);
-        }
-        else
-        {
+            printf("%-10d [<%016llx>]=%s\n", i, stack[i], result);
+        } else {
             printf("%-10d [<%016llx>]\n", i, stack[i]);
         }
-	}
+    }
     printf("-----------------------------------\n");
 }
-static int print_trace(void *_ctx, void *data, size_t size)
-{
+static int print_trace(void *_ctx, void *data, size_t size) {
     struct stacktrace_event *event = data;
 
-	if (event->kstack_sz <= 0 && event->ustack_sz <= 0)
-		return 1;
+    if (event->kstack_sz <= 0 && event->ustack_sz <= 0)
+        return 1;
 
-	printf("COMM: %s (pid=%d) @ CPU %d\n", event->comm, event->pid, event->cpu_id);
+    printf("COMM: %s (pid=%d) @ CPU %d\n", event->comm, event->pid,
+           event->cpu_id);
 
-	if (event->kstack_sz > 0) {
-		printf("Kernel:\n");
-		show_stack_trace(event->kstack, event->kstack_sz / sizeof(__u64), 0);
-	} else {
-		printf("No Kernel Stack\n");
-	}
-	printf("\n");
-	return 0;
+    if (event->kstack_sz > 0) {
+        printf("Kernel:\n");
+        show_stack_trace(event->kstack, event->kstack_sz / sizeof(__u64), 0);
+    } else {
+        printf("No Kernel Stack\n");
+    }
+    printf("\n");
+    return 0;
 }
+
+int attach_uprobe(struct netwatcher_bpf *skel) {
+    ATTACH_UPROBE_CHECKED(
+        skel, _Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command,
+        query__start);
+    ATTACH_URETPROBE_CHECKED(
+        skel, _Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command,
+        query__end);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
     if (last_slash) {
@@ -1070,6 +1186,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *tcp_rb = NULL;
     struct ring_buffer *dns_rb = NULL;
     struct ring_buffer *trace_rb = NULL;
+    struct ring_buffer *mysql_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -1104,10 +1221,19 @@ int main(int argc, char **argv) {
     }
 
     /* Attach tracepoint handler */
-    err = netwatcher_bpf__attach(skel);
-    if (err) {
-        fprintf(stderr, "Failed to attach BPF skeleton\n");
-        goto cleanup;
+    if (mysql_info) {
+        err = attach_uprobe(skel);
+        if (err) {
+            fprintf(stderr, "failed to attach uprobes\n");
+
+            goto cleanup;
+        }
+    } else {
+        err = netwatcher_bpf__attach(skel);
+        if (err) {
+            fprintf(stderr, "Failed to attach BPF skeleton\n");
+            goto cleanup;
+        }
     }
     enum MonitorMode mode = get_monitor_mode();
 
@@ -1157,8 +1283,16 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(dns)\n");
         goto cleanup;
     }
-    trace_rb =ring_buffer__new(bpf_map__fd(skel->maps.trace_rb), print_trace, NULL, NULL);
+    trace_rb = ring_buffer__new(bpf_map__fd(skel->maps.trace_rb), print_trace,
+                                NULL, NULL);
     if (!trace_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(trace)\n");
+        goto cleanup;
+    }
+    mysql_rb = ring_buffer__new(bpf_map__fd(skel->maps.mysql_rb), print_mysql,
+                                NULL, NULL);
+    if (!mysql_rb) {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
@@ -1183,6 +1317,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(tcp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(dns_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(trace_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(mysql_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

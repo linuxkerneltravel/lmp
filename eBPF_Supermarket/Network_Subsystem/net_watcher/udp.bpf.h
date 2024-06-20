@@ -23,6 +23,7 @@ static __always_inline int __udp_rcv(struct sk_buff *skb) {
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     tinfo = (struct ktime_info *)bpf_map_lookup_or_try_init(&timestamps,
                                                             &pkt_tuple, &zero);
@@ -40,6 +41,7 @@ static __always_inline int udp_enqueue_schedule_skb(struct sock *sk,
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -75,6 +77,7 @@ static __always_inline int __udp_send_skb(struct sk_buff *skb) {
     pkt_tuple.sport = sport;                                        // 源端口
     pkt_tuple.dport = __bpf_ntohs(dport); // 目的端口并进行字节序转换
     pkt_tuple.tran_flag = UDP;
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     bpf_printk("udp_send_skb%d %d %d %d", pkt_tuple.saddr, pkt_tuple.daddr,
                pkt_tuple.sport, pkt_tuple.dport);
@@ -93,8 +96,7 @@ static __always_inline int __ip_send_skb(struct sk_buff *skb) {
     struct udphdr *udp = skb_to_udphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_udp_pkt_tuple(&pkt_tuple, ip, udp);
-    bpf_printk("ip_send_skb%d %d %d %d", pkt_tuple.saddr, pkt_tuple.daddr,
-               pkt_tuple.sport, pkt_tuple.dport);
+    FILTER
     struct ktime_info *tinfo, zero = {0};
     tinfo = bpf_map_lookup_elem(&timestamps, &pkt_tuple);
     if (tinfo == NULL) {
@@ -121,7 +123,8 @@ static __always_inline int __ip_send_skb(struct sk_buff *skb) {
 static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
     if (skb == NULL)
         return 0;
-
+    u16 QR_flags;
+    u64 *count_ptr, response_count = 0, request_count = 0;
     struct sock *sk = BPF_CORE_READ(skb, sk);
     struct packet_tuple pkt_tuple = {
         .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),
@@ -129,6 +132,8 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
         .sport = BPF_CORE_READ(sk, __sk_common.skc_num),
         .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),
         .tran_flag = UDP};
+    // 使用saddr、daddr作为key
+    struct dns key = {.saddr = pkt_tuple.saddr, .daddr = pkt_tuple.daddr};
 
     if ((pkt_tuple.sport != 53) && (pkt_tuple.dport != 53))
         return 0;
@@ -149,7 +154,39 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
     bpf_probe_read_kernel(message->data, sizeof(message->data),
                           BPF_CORE_READ(skb, head) + dns_offset +
                               sizeof(struct dns_header));
-
+    QR_flags = __bpf_ntohs(query.header.flags);
+    /*
+    1000 0000 0000 0000
+    &运算提取最高位QR， QR=1 Response QR=0 Request
+    */
+    if (QR_flags & 0x8000) { // 响应
+        count_ptr = bpf_map_lookup_elem(&dns_response_count, &key);
+        if (count_ptr) {
+            response_count = *count_ptr + 1;
+        } else {
+            response_count = 1;
+        }
+        bpf_map_update_elem(&dns_response_count, &key, &response_count,
+                            BPF_ANY);
+        // 保留映射中的请求计数值
+        count_ptr = bpf_map_lookup_elem(&dns_request_count, &key);
+        if (count_ptr) {
+            request_count = *count_ptr;
+        }
+    } else { // 请求
+        count_ptr = bpf_map_lookup_elem(&dns_request_count, &key);
+        if (count_ptr) {
+            request_count = *count_ptr + 1;
+        } else {
+            request_count = 1;
+        }
+        bpf_map_update_elem(&dns_request_count, &key, &request_count, BPF_ANY);
+        // 保留映射中的响应计数值
+        count_ptr = bpf_map_lookup_elem(&dns_response_count, &key);
+        if (count_ptr) {
+            response_count = *count_ptr;
+        }
+    }
     message->saddr = rx ? pkt_tuple.saddr : pkt_tuple.daddr;
     message->daddr = rx ? pkt_tuple.daddr : pkt_tuple.saddr;
     message->id = __bpf_ntohs(query.header.id);
@@ -158,6 +195,8 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
     message->ancount = __bpf_ntohs(query.header.ancount);
     message->nscount = __bpf_ntohs(query.header.nscount);
     message->arcount = __bpf_ntohs(query.header.arcount);
+    message->request_count = request_count;
+    message->response_count = response_count;
     message->rx = rx;
 
     bpf_ringbuf_submit(message, 0);

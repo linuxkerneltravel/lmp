@@ -155,16 +155,29 @@ struct dns_information {
     u16 arcount;
     char data[64];
     int rx;
+    int response_count;
+    int request_count;
 };
 #define MAX_STACK_DEPTH 128
 typedef u64 stack_trace_t[MAX_STACK_DEPTH];
 struct stacktrace_event {
-	u32 pid;
-	u32 cpu_id;
-	char comm[16];
-	signed int kstack_sz;
-	signed int ustack_sz;
-	stack_trace_t kstack;
-	stack_trace_t ustack;
+    u32 pid;
+    u32 cpu_id;
+    char comm[16];
+    signed int kstack_sz;
+    signed int ustack_sz;
+    stack_trace_t kstack;
+    stack_trace_t ustack;
 };
+
+typedef struct mysql_query {
+    int pid;
+    int tid;
+    char comm[20];
+    u32 size;
+    char msql[256];
+    u64 duratime;
+    int count;
+} mysql_query;
+
 #endif /* __NETWATCHER_H */

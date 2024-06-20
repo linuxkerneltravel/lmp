@@ -34,6 +34,8 @@ netwatcher能够追踪TCP、UDP、ICMP协议数据包从应用程序发出开始
 - TCP、UDP、ICMP相关信息监测：追踪TCP、UDP、ICMP协议数据包，并实现对主机接收和发送的所有相关数据包的时延数据和流量信息
 - 监测TCP连接状态信息：包括三次握手以及四次挥手的状态转变和时延数据
 - 丢包事件的监控：分析导致丢包的地址以及丢包原因
+- DNS协议相关信息监控：通过截取UDP包，对DNS协议包进行解析，获取事务ID、标志字段、问题部分计数、应答记录计数、授权记录计数、附加记录计数、域名等信息
+- 主机环境下对用户态mysql的分析：uprobe实现对mysql的监测，其监测内容有进程pid、进程名、sql语句、sql语句执行时间。
 
 #### TODO
 - [ ] 应用层协议的支持
@@ -72,6 +74,8 @@ netwatcher能够追踪TCP、UDP、ICMP协议数据包从应用程序发出开始
 - dropreason.h ：skb_drop_reason定义77种丢包原因。
 - icmp.bpf.h： icmp时延具体实现细节。
 - comm.bpf.h ：辅助函数、宏、BPF映射、以及内核中使用到的结构体。
+- mysql,bpf.h : 处理mysql的具体实现逻辑。
+- mysql_helper.bpf ： mysql相关数据结构。
 
 ## 二、快速开始
 ### 2.1 安装依赖
@@ -98,13 +102,25 @@ sudo make test # 测试
 ```bash
 Usage: netwatcher [OPTION...]
 Watch tcp/ip in network subsystem
+Usage: netwatcher [OPTION...]
+Watch tcp/ip in network subsystem
+
   -a, --all                  set to trace CLOSED connection
+  -A, --stack                set to trace of stack 
   -d, --dport=DPORT          trace this destination port only
+  -D, --dns                  set to trace dns information info include Id
+                             事务ID、Flags 标志字段、Qd
+                             问题部分计数、An 应答记录计数、Ns
+                             授权记录计数、Ar 附加记录计数、Qr
+                             域名、rx 收发包 
   -e, --err                  set to trace TCP error packets
   -i, --http                 set to trace http info
   -I, --icmptime             set to trace layer time of icmp
   -k, --drop_reason          trace kfree 
   -L, --timeload             analysis time load
+  -M, --mysql                set to trace mysql information info include Pid
+                             进程id、Comm 进程名、Size
+                             sql语句字节大小、Sql 语句
   -n, --net_filter           trace ipv4 packget filter 
   -r, --retrans              set to trace extra retrans info
   -s, --sport=SPORT          trace this source port only
@@ -114,6 +130,7 @@ Watch tcp/ip in network subsystem
   -u, --udp                  trace the udp message
   -x, --extra                set to trace extra conn info
   -?, --help                 Give this help list
+      --usage                Give a short usage message
 
 ```
 - 参数`-d`,`-s`用于指定监控某个源端口/目的端口
@@ -149,6 +166,8 @@ Watch tcp/ip in network subsystem
 - 指定 `-I` 参数监控ICMP协议数据包收发过程中的时延。
 - 指定 `-T` 参数将捕获到的丢包事件虚拟地址转换成函数名+偏移量形式。
 - 指定 `-L` 参数监测网络协议栈数据包经过各层的时延，采用指数加权移动法对异常的时延数据进行监控并发出警告信息。
+- 指定 `-D` 参数监测DNS协议包信息。截取UDP包，对DNS协议包进行解析，获取其基本指标，包含事务ID、标志字段、问题部分计数、应答记录计数、域名等相关信息。
+- 指定 `-M` 参数监测Mysql信息。实现用户态下mysql监控，获取其sql语句及sql执行耗时，单位μs。
 
 ### 3.1 监控连接信息
 `netwatcher`会将保存在内存中的连接相关信息实时地在`data/connects.log`中更新。默认情况下，为节省资源消耗，`netwatcher`会实时删除已CLOSED的TCP连接相关信息，并只会保存每个TCP连接的基本信息。
@@ -194,30 +213,34 @@ packet{sock="0xffff9d1ecb3ba300",seq="279168002",ack="629372873",mac_time="-",ip
 
 ```c
 sudo ./netwatcher -t   
-SOCK                 SEQ        ACK        MAC_TIME   IP_TIME    TRAN_TIME  RX    HTTP
-0xffffa069b1271200   3401944293 1411917682 4          15         15         0     -
-0xffffa06982943600   537486036  4194537197 16         14         123        1     -
-0xffffa06982943600   537486036  4194537197 16         14         130        1     -
-0xffffa06982946c00   3341452281 1920160519 3          13         12         0     -
+SOCK                   Saddr                Sport    Daddr                Dport    MAC_TIME/μs    IP_TIME/μs     TRAN_TIME/μs   RX/direction    HTTP            
+0xffff939118a9ad00     192.168.60.136       36236    1.1.1.1              80       2              5              11             0               -               
+0xffff939118a9ad00     1.1.1.1              80       192.168.60.136       36236    6              10             111            1               -               
+0xffff93911049b600     192.168.60.136       36244    1.1.1.1              80       6              18             38             0               -               
+0xffff93911049b600     1.1.1.1              80       192.168.60.136       36244    14             17             263            1               -               
+0xffff93911049ad00     192.168.60.136       36246    1.1.1.1              80       2              4              16             0               -  
 ```
 
 指定参数`-u`，查看UDP数据包处理时延并记录于`data/udp.log`中，单位为微妙。
 
 ```c
 sudo ./netwatcher -u
-saddr         daddr          sprot    dprot     udp_time     rx          len    
-192.168.60.2  192.168.60.136 38151    53        7            1            119
-192.168.60.2  192.168.60.136 36524    53        5            1            89 
+Saddr                Daddr                Sprot                Dprot                udp_time/μs         RX/direction         len/byte            
+192.168.60.136       192.168.60.2         53643                53                   2                    0                    39                  
+192.168.60.136       192.168.60.2         34272                53                   3                    0                    42                  
+192.168.60.2         192.168.60.136       53                   53643                12                   1                    230    
+192.168.60.136       192.168.60.2         34442                53                   1                    0                    40                  
+192.168.60.2         192.168.60.136       53                   59996                2                    1                    190     
 ```
 
 指定参数`-I`，查看ICMP数据包处理时延，单位为微妙。
 
 ```c
 sudo ./netwatcher -I
-saddr          daddr              time     flag             
-192.168.60.136 192.168.60.136     11        1  
-192.168.60.136 192.168.60.136     5         0  
-192.168.60.136 192.168.60.136     80        1  
+Saddr                Daddr                icmp_time/μs        RX/direction            
+192.168.60.136       192.168.60.136         11                    1  
+192.168.60.136       192.168.60.136         5                     0  
+192.168.60.136       192.168.60.136         80                    1  
 ```
 
 指定参数`-n`，查看数据包在Netfilter框架（包括PRE_ROUTING、LOCAL_IN、FORWARD、LOCAL_OUT、POST_ROUTING链中处理的时间），单位为微妙，其网络数据包路径为：
@@ -228,11 +251,11 @@ saddr          daddr              time     flag
 
 ```c
 sudo ./netwatcher -n
-saddr          daddr        dprot  sprot   PreRT  L_IN  FW   PostRT  L_OUT    rx      
-192.168.60.136 192.168.60.1 22     51729   0      0     0    2        3        0       
-192.168.60.136 192.168.60.1 22     51729   0      0     0    1        3        0       
-127.0.0.1      127.0.0.1    771    10787   2      2     0    0        0        1
-127.0.0.1      127.0.0.1    771    15685   2      2     0    0        0        1   
+Saddr                Daddr                Sprot        Dprot        PreRT/μs L_IN/μs FW/μs  PostRT/μs L_OUT/μs RX/direction
+127.0.0.53           127.0.0.1            53           60590        3        2        0       0        0        1       
+127.0.0.1            127.0.0.1            55858        40327        0        0        0       2        4        0       
+127.0.0.1            127.0.0.1            55858        40327        1        1        0       0        0        1       
+127.0.0.1            127.0.0.1            40327        55858        0        0        0       1        5        0     
 ```
 
 #### 3.2.2 监控错误数据包
@@ -249,9 +272,11 @@ packet{sock="0xffff13235ac8ac8e",seq="1318124482",ack="2468218244",reason="Inval
 
 ```c
 sudo ./netwatcher -i
-SOCK                   SEQ        ACK        MAC_TIME   IP_TIME    TCP_TIME   RX    HTTP
-0xffff9d1ecb3b9180     3705894662 522176002  -          -          -          0     GET / HTTP/1.1
-0xffff9d1ecb3b9180     522176002  3705894739 -          -          -          1     HTTP/1.1 200 OK
+SOCK                   Saddr                Sport    Daddr                Dport    MAC_TIME/μs    IP_TIME/μs     TRAN_TIME/μs   RX/direction    HTTP            
+0xffff93911049d100     192.168.60.136       44152    1.1.1.1              80       0          0          0          0             0              -         
+0xffff93911049d100     1.1.1.1              80       192.168.60.136       44152    0          0          0          1             1              HTTP/1.1 301 Moved Permanently
+0xffff9391601a6c00     192.168.60.136       44154    1.1.1.1              80       0          0          0          0             0              -         
+0xffff9391601a6c00     1.1.1.1              80       192.168.60.136       44154    0          0          0          1             1              HTTP/1.1 301 Moved Permanently
 ```
 
 #### 3.2.3 过滤指定目的端口、源端口
@@ -266,9 +291,10 @@ sudo ./netwatcher -d 80 或者 sudo ./netwatcher -s 80
 
 ```C
 sudo ./netwatcher -S   
-saddr            daddr     sport    dport   oldstate    newstate      time  
-192.168.60.136   1.1.1.1   41586    80      FIN_WAIT1   FIN_WAIT2     386             
-192.168.60.136   1.1.1.1   41586    80      FIN_WAIT2   CLOSE         19  
+Saddr                Daddr                Sport                Dport                oldstate             newstate             time/μs             
+192.168.60.136       1.1.1.1              0                    80                   CLOSE                SYN_SENT              0                   
+192.168.60.136       1.1.1.1              41312                80                   SYN_SENT             ESTABLISHED           181270              
+192.168.60.136       1.1.1.1              41312                80                   ESTABLISHED          FIN_WAIT1             183729  
 ```
 
 #### 3.2.5 捕捉丢包及原因
@@ -277,18 +303,20 @@ saddr            daddr     sport    dport   oldstate    newstate      time
 
 ```c
 sudo ./netwatcher -k
-time      saddr      daddr     sprot   dprot   prot    addr                     
-reason    
-14:45:11  127.0.0.1  127.0.0.1 51162   36623   ipv4    ffffffff920fbf89       SKB_DROP_REASON_TCP_OLD_DATA
+Time          Saddr             Daddr             Sprot      Dprot      prot      addr                              reason                        
+13:44:03      1.1.1.1           192.168.60.136    80         49668      ipv4      ffffffff9c914464                  SKB_DROP_REASON_NOT_SPECIFIED
+13:44:03      1.1.1.1           192.168.60.136    80         49680      ipv4      ffffffff9c914464                  SKB_DROP_REASON_NOT_SPECIFIED
 ```
 
-指定参数`-T`，可以将虚拟地址转换成函数名+偏移的形式，在此处可以捕捉发生丢包的内核函数名称。 
+指定参数`-k -T`，可以将虚拟地址转换成函数名+偏移的形式，在此处可以捕捉发生丢包的内核函数名称。 
 
 ```C
 sudo ./netwatcher -k -T
-time      saddr           daddr          sprot   dprot  prot  addr                     reason                        
-14:48:54  192.168.60.136  192.168.60.136 45828   8090   ipv4  tcp_v4_rcv+0x84         SKB_DROP_REASON_NO_SOCKET
-14:49:04  118.105.115.105 110.103.32.49  26210   24435  other unix_dgram_sendmsg+0x521 SKB_DROP_REASON_NOT_SPECIFIED
+Time          Saddr             Daddr             Sprot      Dprot      prot      addr                              reason                        
+13:44:22      1.1.1.1           192.168.60.136    80         37078      ipv4      tcp_v4_rcv+0x84                   SKB_DROP_REASON_NOT_SPECIFIED
+13:44:22      1.1.1.1           192.168.60.136    80         37092      ipv4      tcp_v4_rcv+0x84                   SKB_DROP_REASON_NOT_SPECIFIED
+13:44:24      1.1.1.1           192.168.60.136    80         37104      ipv4      tcp_v4_rcv+0x84                   SKB_DROP_REASON_NOT_SPECIFIED
+13:44:24      1.1.1.1           192.168.60.136    80         37118      ipv4      tcp_v4_rcv+0x84                   SKB_DROP_REASON_NOT_SPECIFIED
 ```
 
 #### 3.2.7 异常时延监控
@@ -297,8 +325,38 @@ time      saddr           daddr          sprot   dprot  prot  addr              
 
 ```C
 sudo ./netwatcher -t -L
-saddr     daddr       sprot    dprot   udp_time     rx       len     
-127.0.0.1 127.0.0.53  44530    53      1593         0        51      abnoermal data
+SOCK                   Saddr                Sport    Daddr                Dport    MAC_TIME/μs    IP_TIME/μs     TRAN_TIME/μs   RX/direction    HTTP   
+0xffff939118a9c800     192.168.60.136       53788    1.1.1.1              80       2              4              20             0               -               
+0xffff939118a9c800     1.1.1.1              80       192.168.60.136       53788    14             22             345            1               -               
+0xffff9391601a7500     192.168.60.136       53790    1.1.1.1              80       3              11             31             0               -               
+0xffff9391601a7500     1.1.1.1              80       192.168.60.136       53790    22             37             170            1               -  
+0xffff9391107dec00     113.137.56.223       443      192.168.60.136       34104    11             10             1442           1              abnormal data  
+```
+
+#### 3.2.8 DNS协议包监控
+
+选择`udp_rcv`和`udp_send_skb`挂载捕获DNS收包和发包相关信息，从UDP头部开始分析并定位DNS数据部分获取其信息，头部信息存储在`query.header`，数据部分读取存储于`data`，可以获取到DNS协议包的事务ID、标志字段、问题部分计数、应答记录计数、授权记录计数、附加记录计数、域名等信息。
+
+```C
+sudo ./netwatcher -D
+Saddr                Daddr                Id           Flags        Qd    An    Ns    Ar    Qr                                              RX/direction        
+192.168.60.2         192.168.60.136       0x7894       0x8180       1     2     0     0     baidu.com                                       0         
+127.0.0.53           0.0.0.0              0xc247       0x8180       1     2     0     1     baidu.com                                       1              
+127.0.0.1            127.0.0.53           0x7637       0x120        1     0     0     1     contile.services.mozilla.com                    1         
+192.168.60.136       192.168.60.2         0x2c35       0x100        1     0     0     0     contile.services.mozilla.com                    1    
+```
+
+#### 3.2.9 Mysql监控
+
+利用uprobe和uretprobe挂载mysql-server层的命令分发处理函数`dispatch_command`，探测该函数获取进程pid、进程名comm、sql语句、sql执行耗时(μs)。
+
+```C
+sudo ./netwatcher -M
+Pid                  Comm                 Size                 Sql                                      duration/μs         
+1121                 connection           32                   select @@version_comment limit 1         295                 
+1121                 connection           17                   SELECT DATABASE()                        277                 
+1121                 connection           14                   show databases                           1361                
+1121                 connection           11                   show tables                              1080     
 ```
 
 ### 3.3 与Prometheus连接进行可视化

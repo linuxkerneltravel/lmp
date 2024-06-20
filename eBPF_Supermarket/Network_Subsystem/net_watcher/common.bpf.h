@@ -102,6 +102,11 @@ struct dns_query {
     char data[64];// 可变长度数据（域名+类型+类）
 };
 
+struct dns{
+    u32 saddr;       
+    u32 daddr;  
+};
+
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -147,6 +152,11 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } netfilter_rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} mysql_rb SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -224,12 +234,51 @@ struct {
 	__type(value, __u64);
 } tcp_state SEC(".maps");
 
+//sql 耗时
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256*1024);
+	__type(key, __u32);
+	__type(value, __u64);
+} mysql_time SEC(".maps");
+
+//sql请求数
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key,__u32);
+    __type(value,__u64);
+} sql_count SEC(".maps");
+
+//dns计数根据每个saddr、daddr
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key,struct dns);
+    __type(value,__u64);
+} dns_request_count SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key,struct dns);
+    __type(value,__u64);
+} dns_response_count SEC(".maps");
+
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0;
-
+                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,
+                   drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0 ,stack_info = 0,mysql_info = 0;
+                 
 /* help macro */
+
+#define FILTER                                          \
+    if(filter_dport&&filter_dport!= pkt_tuple.dport)    \
+        return 0;                                       \
+    if(filter_sport&&filter_sport!= pkt_tuple.sport)    \
+        return 0;                                       \
+
 
 // 连接的目标端口是否匹配于filter_dport的值
 #define FILTER_DPORT                                                           \
