@@ -55,13 +55,10 @@ struct msg_msg {
 static struct env {
     int time;
     int period;
-    bool percent;
     bool enable_proc;
     bool SAR;
     bool CS_DELAY;
     bool SYSCALL_DELAY;
-    bool MIN_US_SET;
-    int MIN_US;
     bool PREEMPT;
     bool SCHEDULE_DELAY;
     bool MQ_DELAY;
@@ -71,13 +68,10 @@ static struct env {
 } env = {
     .time = 0,
     .period = 1,
-    .percent = false,
     .enable_proc = false,
     .SAR = false,
     .CS_DELAY = false,
     .SYSCALL_DELAY = false,
-    .MIN_US_SET = false,
-    .MIN_US = 10000,
     .PREEMPT = false,
     .SCHEDULE_DELAY = false,
     .MQ_DELAY = false,
@@ -97,9 +91,11 @@ struct mq_delay_bpf *mq_skel;
 
 static int csmap_fd;
 static int sarmap_fd;
+struct sar_ctrl sar_ctrl= {};
 static int scmap_fd;
 static int preemptmap_fd;
 static int schedulemap_fd;
+struct schedule_ctrl sd_ctrl = {};
 static int mqmap_fd;
 
 //static int prev_watcher = 0;//上一个使用的工具，用于在切换使用功能时，打印不用功能的表头；
@@ -130,7 +126,6 @@ const char argp_program_doc[] = "cpu watcher is in use ....\n";
 static const struct argp_option opts[] = {
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
     { "period", 'i', "INTERVAL", 0, "Period interval in seconds" },
-    {"percent", 'P', 0, 0, "Format data as percentages" },
     {"libbpf_sar", 's', 0, 0, "Print sar_info (the data of cpu)" },
     {"cs_delay", 'c', 0, 0, "Print cs_delay (the data of cpu)" },
     {"syscall_delay", 'S', 0, 0, "Print syscall_delay (the data of syscall)" },
@@ -152,9 +147,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
         case 'i':
             env.period = strtol(arg, NULL, 10);
-            break;
-        case 'P':
-            env.percent = true;
             break;
         case 's':
             env.SAR = true;
@@ -264,6 +256,28 @@ u64 find_ksym(const char* target_symbol) {
 
 static int print_all()
 {
+	int err,key=0;
+	err = bpf_map_lookup_elem(sarmap_fd, &key, &sar_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!sar_ctrl.sar_func)	return 0;
+	if(sar_ctrl.prev_watcher == SAR_WACTHER + 1) {
+		printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
+		sar_ctrl.prev_watcher = SAR_WACTHER + 2;
+		err = bpf_map_update_elem(sarmap_fd, &key, &sar_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}else if (sar_ctrl.prev_watcher == SAR_WACTHER){
+		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
+		sar_ctrl.prev_watcher = SAR_WACTHER + 2;
+		err = bpf_map_update_elem(sarmap_fd, &key, &sar_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}
 	int nprocs = get_nprocs();
 	/*proc:*/
 	int key_proc = 1;
@@ -380,7 +394,7 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		if (env.percent == true){
+		if (sar_ctrl.percent == true){
 			printf("%02d:%02d:%02d %8llu %8llu %6d  ",localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc, __sched, runqlen);
 			// 大于百分之60的标红输出
 			double values[7] = {
@@ -567,9 +581,7 @@ void add_entry(int pid, const char *comm, long long delay) {
 }
 static int schedule_print()
 {
-
     int err,key = 0;
-	struct schedule_ctrl sd_ctrl = {};
 	err = bpf_map_lookup_elem(schedulemap_fd,&key,&sd_ctrl);
 	if (err < 0) {
 		fprintf(stderr, "failed to lookup infos: %d\n", err);
@@ -620,18 +632,34 @@ static int schedule_print()
 	}
 	else{
 		struct proc_schedule info;
+		struct proc_id id_key;
+		struct proc_history prev_info;
         int key = 0;  
-        int err, fd = bpf_map__fd(sd_skel->maps.threshold_schedule);
-        err = bpf_map_lookup_elem(fd, &key, &info);
+        int err, fd1 = bpf_map__fd(sd_skel->maps.threshold_schedule),fd2 = bpf_map__fd(sd_skel->maps.proc_histories);
+        err = bpf_map_lookup_elem(fd1, &key, &info);
         if (err < 0) {
             fprintf(stderr, "failed to lookup infos: %d\n", err);
             return -1;
         }
-        if (info.delay / 1000>sd_ctrl.min_us&&info.pid!=0) { 
-            if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
-                printf("%-10d %-16s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
-                add_entry(info.pid, info.proc_name, info.delay / 1000);
+        if (info.delay / 1000 > sd_ctrl.min_us&&info.id.pid!=0) {
+			id_key.pid = info.id.pid;
+    		id_key.cpu_id = info.id.cpu_id;
+			err = bpf_map_lookup_elem(fd2, &id_key, &prev_info);
+			if (err < 0) {
+				fprintf(stderr, "Failed to lookup proc_histories with PID %d and CPU ID %d: %d\n", id_key.pid, id_key.cpu_id, err);
+				return -1;
+			}
+            if (!entry_exists(info.id.pid, info.proc_name, info.delay / 1000)) {
+                printf("%-10d %-16s %15lld", info.id.pid, info.proc_name, info.delay / 1000);
+                add_entry(info.id.pid, info.proc_name, info.delay / 1000);
+				for (int i = 0; i < 2; i++) {
+					if (prev_info.last[i].pid != 0) {
+						printf("          Previous Process %d: PID=%-10d Name=%-16s ", i+1, prev_info.last[i].pid, prev_info.last[i].comm);
+					}
+				}
+				printf("\n"); 
             }
+
         }
 	}
 
@@ -878,7 +906,7 @@ int main(int argc, char **argv)
 			goto sar_cleanup;
 		}
 		sarmap_fd = bpf_map__fd(sar_ctrl_map);
-		struct sar_ctrl init_value = {false,SAR_WACTHER};
+		struct sar_ctrl init_value = {false,false,SAR_WACTHER};
 		err = bpf_map_update_elem(sarmap_fd, &key, &init_value, 0);
 		if(err < 0){
 			fprintf(stderr, "Failed to update elem\n");
@@ -891,9 +919,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		if (env.percent){
-			printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
-		}else{printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");}
 	}else if(env.MQ_DELAY){
 		/* Load and verify BPF application */
 		mq_skel = mq_delay_bpf__open();
@@ -1013,7 +1038,7 @@ int main(int argc, char **argv)
 			if (err < 0) {
 				break;
 			}
-			if(env.SCHEDULE_DELAY){
+			if(env.SCHEDULE_DELAY&&!sd_ctrl.min_us_set){
 				sleep(1);
 			}	
 		}

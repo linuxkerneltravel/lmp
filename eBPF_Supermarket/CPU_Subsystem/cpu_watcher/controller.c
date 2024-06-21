@@ -30,6 +30,7 @@ static struct env {
     // 1代表activate；2代表unactivate；3代表finish
     int usemode;
     bool SAR;
+    bool percent;
     bool CS_DELAY;
     bool SYSCALL_DELAY;
     bool MIN_US_SET;
@@ -41,6 +42,7 @@ static struct env {
 } env = {
     .usemode = 0,
     .SAR = false,
+    .percent = false,
     .CS_DELAY = false,
     .SYSCALL_DELAY = false,
     .MIN_US_SET = false,
@@ -58,22 +60,13 @@ static const struct argp_option opts[] = {
     { "unactivate", 'u', NULL, 0, "Initialize to the original unactivated state" },
     { "finish", 'f', NULL, 0, "Finish to run eBPF tool" },
     {"libbpf_sar", 's', 0, 0, "Print sar_info (the data of cpu)" },
+    {"percent", 'P', 0, 0, "Format data as percentages" },
     {"cs_delay", 'c', 0, 0, "Print cs_delay (the data of cpu)" },
     {"syscall_delay", 'S', 0, 0, "Print syscall_delay (the data of syscall)" },
     {"preempt_time", 'p', 0, 0, "Print preempt_time (the data of preempt_schedule)" },
     {"schedule_delay", 'd', 0, 0, "Print schedule_delay (the data of cpu)" },
     {"schedule_delay_min_us_set", 'e', "THRESHOLD", 0, "Print scheduling delays that exceed the threshold (the data of cpu)" },
     {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" },    
-	// { "pid", 'p', "PID", 0, "Process ID to trace" },
-    // { "tgid", 'P', "TGID", 0, "Thread group to trace" },
-    // { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
-    // { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
-    // { "myproc", 'm', NULL, 0, "Trace the process of the tool itself (not tracked by default)" },
-    // { "resource", 'r', NULL, 0, "Collects resource usage information about processes" },
-    // { "keytime", 'k', "KEYTIME", 0, "Collects keytime information about processes(0:except CPU kt_info,1:all kt_info,any 0 or 1 when deactivated)" },
-    // { "lock", 'l', NULL, 0, "Collects lock information about processes" },
-    // { "syscall", 's', "SYSCALLS", 0, "Collects syscall sequence (1~50) information about processes(any 1~50 when deactivated)" },
-    // { "schedule", 'S', NULL, 0, "Collects schedule information about processes (trace tool process)" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
     {},
 };
@@ -93,6 +86,8 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         case 's':
             env.SAR = true;
             break;
+        case 'P':
+            env.percent = true;
         case 'c':
             env.CS_DELAY = true;
             break;
@@ -134,7 +129,7 @@ int deactivate_mode(){
     int err;
 
     if(env.SAR){
-        struct sar_ctrl sar_ctrl = {false,0};
+        struct sar_ctrl sar_ctrl = {false,false,0};
         err = update_sar_ctrl_map(sar_ctrl);
         if(err < 0) return err;
     }
@@ -190,9 +185,9 @@ int main(int argc, char **argv)
 
     if(env.usemode == 1){                   // activate mode
         if(env.SAR){
-            struct sar_ctrl sar_ctrl = {true,SAR_WACTHER};
-            err = update_sar_ctrl_map(sar_ctrl);
-            if(err < 0) return err;
+        struct sar_ctrl sar_ctrl = {true,env.percent,SAR_WACTHER+env.percent};
+        err = update_sar_ctrl_map(sar_ctrl);
+        if(err < 0) return err;
         }
 
         if(env.CS_DELAY){
