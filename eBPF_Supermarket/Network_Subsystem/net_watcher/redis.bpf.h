@@ -13,48 +13,58 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
-// mysql
+// redis
 
 #include "common.bpf.h"
 #include "redis_helper.bpf.h"
-#define MAXEPOLL 10
+#define MAXEPOLL 4
 static __always_inline int __handle_redis_start(struct pt_regs *ctx) {
     struct client *cli = (struct client *)PT_REGS_PARM1(ctx);
-    int argc;  
+    struct redis_query start={};
     void *ptr;             
     char name[100]=""; 
     int argv_len;          
-    bpf_probe_read(&argc, sizeof(argc), &cli->argc);
-    bpf_printk("%d",argc);
+    bpf_probe_read(&start.argc, sizeof(start.argc), &cli->argc);
     robj **arg0;
     robj *arg1;
-    //unsigned type;
-    unsigned encoding;
-    unsigned lru; 
-    int refcount;
     bpf_probe_read(&arg0, sizeof(arg0), &cli->argv);
-
-    // 读取 argv[0]，即第一个命令参数
     bpf_probe_read(&arg1, sizeof(arg1), &arg0[0]);
-
-    for(int i=0;i<argc&&i<MAXEPOLL;i++)
-    {   
+    for(int i=0;i<start.argc&&i<MAXEPOLL;i++)
+    {    
         bpf_probe_read(&arg1, sizeof(arg1), &arg0[i]);
-        // 读取 argv[i]->ptr 中的字符串
         bpf_probe_read(&ptr, sizeof(ptr),&arg1->ptr);
-        bpf_probe_read_str(name, sizeof(name),ptr);
-        bpf_printk("%s",name);
+        bpf_probe_read_str(&start.redis[i], sizeof(start.redis[i]), ptr);
+        //bpf_printk("%s",start.redis[i]);
     }
-    // 读取 argv[0]->ptr 中的字符串
-    bpf_probe_read(&ptr, sizeof(ptr),&arg1->ptr);
-    bpf_probe_read_str(name, sizeof(name),ptr);
-
-
-    bpf_probe_read(&argv_len, sizeof(argv_len), &cli->argv_len_sum);
-
-    bpf_printk("%d",argv_len);
-
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
+    u64 start_time = bpf_ktime_get_ns() / 1000;
+    start.begin_time=start_time;
+    bpf_map_update_elem(&redis_time, &pid, &start, BPF_ANY);
     return 0;
 }
 
+static __always_inline int __handle_redis_end(struct pt_regs *ctx) {
+    pid_t pid = bpf_get_current_pid_tgid() >> 32;
+    struct redis_query *start;
+    u64 end_time = bpf_ktime_get_ns() / 1000;
+    start = bpf_map_lookup_elem(&redis_time, &pid);
+    if (!start) {
+        return 0;
+    }
+    struct redis_query *message = bpf_ringbuf_reserve(&redis_rb, sizeof(*message), 0);
+    if (!message) {
+        return 0;
+    }
+    message->pid = pid;
+    message->argc = start->argc;
+    bpf_get_current_comm(&message->comm, sizeof(message->comm));
+    for(int i=0;i<start->argc&&i<MAXEPOLL;i++)
+    {    
+        bpf_probe_read_str(&message->redis[i], sizeof(message->redis[i]), start->redis[i]);
+    }
+    bpf_probe_read_str(&message->redis, sizeof(start->redis), start->redis);
+    message->duratime = end_time - start->begin_time;
+    bpf_printk("%llu - %llu = %llu",end_time,start->begin_time,message->duratime);
+    bpf_ringbuf_submit(message, 0);
+    return 0;
+}

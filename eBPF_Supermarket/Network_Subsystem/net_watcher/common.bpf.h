@@ -161,6 +161,11 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
+} redis_rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
 } kfree_rb SEC(".maps");
 
 struct {
@@ -234,12 +239,20 @@ struct {
 	__type(value, __u64);
 } tcp_state SEC(".maps");
 
+//redis 耗时
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256*1024);
+	__type(key, __u32);
+	__type(value, struct redis_query);
+} redis_time SEC(".maps");
+
 //sql 耗时
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 256*1024);
 	__type(key, __u32);
-	__type(value, __u64);
+	__type(value, struct redis_query);
 } mysql_time SEC(".maps");
 
 //sql请求数

@@ -566,6 +566,8 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                               mysql_info ? true : false);
     bpf_program__set_autoload(skel->progs.query__start_redis,
                               redis_info ? true : false);
+    bpf_program__set_autoload(skel->progs.query__end_redis,
+                              redis_info ? true : false);
 }
 
 static void print_header(enum MonitorMode mode) {
@@ -625,14 +627,14 @@ static void print_header(enum MonitorMode mode) {
                "INFORMATION===================================================="
                "============================\n");
         printf("%-20s %-20s %-20s %-20s %-40s %-20s %-20s  \n", "Pid", "Tid",
-               "Comm", "Size", "Sql", "Duration/μs", "Request");
+               "Comm", "Size", "redis", "Duration/μs", "Request");
         break;
     case MODE_REDIS:
         printf("==============================================================="
-               "====================MYSQL "
+               "====================REDIS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-20s %-40s %-20s \n", "Pid", "Comm", "Size", "Sql",
+        printf("%-20s %-20s %-20s %-20s %-20s \n", "Pid", "Comm", "Size", "Sql",
                "duration/μs");
         break;
     case MODE_DEFAULT:
@@ -1135,6 +1137,23 @@ static int print_mysql(void *ctx, void *packet_info, size_t size) {
     }
     return 0;
 }
+static int print_redis(void *ctx, void *packet_info, size_t size) {
+    const struct redis_query *pack_info = packet_info;
+    int i=0;
+    char redis[64];
+    for(i=0;i<pack_info->argc;i++)
+    {   
+        strcat(redis, pack_info->redis[i]);
+        strcat(redis, " ");
+    }
+     printf("%-20d %-20s %-20d %-20s %-21llu\n", pack_info->pid,
+            pack_info->comm,pack_info->argc, redis,pack_info->duratime);
+    //  if (pack_info->duratime > count_info) {
+    //      printf("%-21llu", pack_info->duratime);
+    //  }
+    strcpy(redis,"");
+    return 0;
+}
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {
     return vfprintf(stderr, format, args);
@@ -1185,8 +1204,11 @@ int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
 }
 int attach_uprobe_redis(struct netwatcher_bpf *skel) {
     ATTACH_UPROBE_CHECKED(
-        skel, processCommand,
+        skel, call,
         query__start_redis);
+    ATTACH_UPROBE_CHECKED(
+        skel, call,
+        query__end_redis);
     return 0;
 }
 int main(int argc, char **argv) {
@@ -1208,9 +1230,10 @@ int main(int argc, char **argv) {
     struct ring_buffer *kfree_rb = NULL;
     struct ring_buffer *icmp_rb = NULL;
     struct ring_buffer *tcp_rb = NULL;
-    struct ring_buffer *dns_rb = NULL;
+    struct ring_buffer *dns_rb = NULL; 
     struct ring_buffer *trace_rb = NULL;
     struct ring_buffer *mysql_rb = NULL;
+    struct ring_buffer *redis_rb = NULL; 
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -1333,6 +1356,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
+    redis_rb = ring_buffer__new(bpf_map__fd(skel->maps.redis_rb), print_redis,
+                                NULL, NULL);
+    if (!redis_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(trace)\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
@@ -1354,6 +1384,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(dns_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(trace_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(mysql_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(redis_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */
