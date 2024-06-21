@@ -82,6 +82,8 @@ int tracepoint_sched_migrate_task(struct trace_event_raw_sched_migrate_task *arg
         per_migrate.time = time;
         per_migrate.orig_cpu = args->orig_cpu;
         per_migrate.dest_cpu = args->dest_cpu;
+        per_migrate.pload_avg = BPF_CORE_READ(task,se.avg.load_avg);//进程的量化负载；
+        per_migrate.putil_avg = BPF_CORE_READ(task,se.avg.util_avg);//进程的实际算力；
         per_migrate.mem_usage = BPF_CORE_READ(task,mm,total_vm) << PAGE_SHIFT;
 
 
