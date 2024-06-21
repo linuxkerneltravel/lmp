@@ -23,14 +23,25 @@
 
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
+const int ctrl_key = 0;
 BPF_HASH(send_msg1,pid_t,struct send_events,1024);//记录pid->u_msg_ptr的关系；do_mq_timedsend入参
 BPF_HASH(send_msg2,u64,struct send_events,1024);//记录msg->time的关系；
 BPF_HASH(rcv_msg1,pid_t,struct rcv_events,1024);//记录pid->u_msg_ptr的关系；do_mq_timedsend入参
+BPF_ARRAY(mq_ctrl_map,int,struct mq_ctrl,1);
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
+
+static inline struct mq_ctrl *get_mq_ctrl(void) {
+    struct mq_ctrl *mq_ctrl;
+    mq_ctrl = bpf_map_lookup_elem(&mq_ctrl_map, &ctrl_key);
+    if (!mq_ctrl || !mq_ctrl->mq_func) {
+        return NULL;
+    }
+    return mq_ctrl;
+}
+
 
 // int print_send_info(struct send_events * mq_send_info,int flag){
 // 	bpf_printk("---------------------test----------------------------test--------------------------test--------------------------------------------test---------------------test---------------------test\n");
@@ -63,6 +74,7 @@ int BPF_KPROBE(mq_timedsend,mqd_t mqdes, const char *u_msg_ptr,
 		size_t msg_len, unsigned int msg_prio,
 		struct timespec64 *ts)
 {
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	u64 send_enter_time = bpf_ktime_get_ns();//开始发送信息时间；
 	int pid = bpf_get_current_pid_tgid();//发送端pid
 
@@ -82,6 +94,7 @@ int BPF_KPROBE(mq_timedsend,mqd_t mqdes, const char *u_msg_ptr,
 /*仅获取mq_send_info -> src*/
 SEC("kprobe/load_msg")
 int BPF_KPROBE(load_msg_enter,const void *src, size_t len){
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	int pid = bpf_get_current_pid_tgid();//发送端pid
 	/*记录load入参src*/
 	struct send_events *mq_send_info = bpf_map_lookup_elem(&send_msg1, &pid);
@@ -96,6 +109,7 @@ int BPF_KPROBE(load_msg_enter,const void *src, size_t len){
 /*获取消息块作为key，并建立 message -> mq_send_info 的哈希表*/
 SEC("kretprobe/load_msg")
 int BPF_KRETPROBE(load_msg_exit,void *ret){
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	int pid = bpf_get_current_pid_tgid();//发送端pid
 	/*构建消息块结构体，作为key*/
 	struct send_events *mq_send_info = bpf_map_lookup_elem(&send_msg1, &pid);
@@ -121,6 +135,7 @@ int BPF_KRETPROBE(load_msg_exit,void *ret){
 SEC("kretprobe/do_mq_timedsend")
 int BPF_KRETPROBE(do_mq_timedsend_exit,void *ret)
 {
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	bpf_printk("do_mq_timedsend_exit----------------------------------------------------------------\n");
 	u64 send_exit_time = bpf_ktime_get_ns();//开始发送信息时间；
 	int pid = bpf_get_current_pid_tgid();//发送端pid
@@ -148,6 +163,7 @@ int BPF_KPROBE(mq_timedreceive_entry,mqd_t mqdes, const char __user *u_msg_ptr,
 		size_t msg_len, unsigned int msg_prio,
 		struct timespec64 *ts)
 {
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	u64 rcv_enter_time = bpf_ktime_get_ns();
 	int pid = bpf_get_current_pid_tgid();
 
@@ -165,6 +181,7 @@ int BPF_KPROBE(mq_timedreceive_entry,mqd_t mqdes, const char __user *u_msg_ptr,
 SEC("kprobe/store_msg")
 int BPF_KPROBE(store_msg,void __user *dest, struct msg_msg *msg, size_t len)
 {
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	int pid = bpf_get_current_pid_tgid();
 	
 	/*make key*/
@@ -192,6 +209,7 @@ int BPF_KPROBE(store_msg,void __user *dest, struct msg_msg *msg, size_t len)
 
 SEC("kretprobe/do_mq_timedreceive")
 int BPF_KRETPROBE(do_mq_timedreceive_exit,void *ret){
+	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
 	u64 rcv_exit_time = bpf_ktime_get_ns();
 	int pid = bpf_get_current_pid_tgid();
 	u64 send_enter_time,delay;
