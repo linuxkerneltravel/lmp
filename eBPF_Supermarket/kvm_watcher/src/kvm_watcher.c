@@ -329,6 +329,7 @@ static struct env {
     bool execute_timer;
     bool verbose;
     bool show;
+    bool execute_container_syscall;
     int monitoring_time;
     pid_t vm_pid;
     enum EventType event_type;
@@ -349,6 +350,7 @@ static struct env {
     .monitoring_time = 0,
     .vm_pid = -1,
     .show = false,
+    .execute_container_syscall = false,
     .event_type = NONE_TYPE,
 };
 
@@ -359,6 +361,7 @@ int option_selected = 0;  // 功能标志变量,确保激活子功能
 // 具体解释命令行参数
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
+    {"container_syscall", 'a', NULL, 0, "Monitoring the syscall of container."},
     {"vcpu_load", 'o', NULL, 0, "Monitoring the load of vcpu."},
     {"vm_exit", 'e', NULL, 0,
      "Monitoring the event of vm exit(including exiting to KVM and user "
@@ -391,6 +394,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
         case 's':
             env.show = true;
+            break;
+        case 'a':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_container_syscall);
             break;
         case 'H':
             argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -516,6 +522,8 @@ static int determineEventType(struct env *env) {
         env->event_type = VCPU_LOAD;
     } else if (env->execute_timer) {
         env->event_type = TIMER;
+    }else if(env->execute_container_syscall){
+        env->event_type = CONTAINER_SYSCALL;
     } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
@@ -542,6 +550,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case VCPU_LOAD: {
+            break;
+        }
+        case CONTAINER_SYSCALL:{
+            printf("%-15u %-15lld %-15lld \n",
+            e->syscall_data.pid,e->syscall_data.delay,e->syscall_data.syscall_id);
             break;
         }
         case HALT_POLL: {
@@ -754,6 +767,10 @@ static int print_event_head(struct env *env) {
                    "DUR_HALT(ms)", "COMM", "PID/TID", "VCPU_ID", "WAIT/POLL",
                    "VAILD?");
             break;
+        case CONTAINER_SYSCALL:
+            printf("%-8s %-18s %6s %15s\n", "PID",
+                   "DELAY(ns)", "SyscallID", "COMM");
+            break;
         case EXIT:
             //可视化调整输出格式
             // printf("Waiting vm_exit ... \n");
@@ -862,7 +879,10 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     if (env.execute_hypercall) {
         SET_KP_OR_FENTRY_LOAD(kvm_emulate_hypercall, kvm);
     }
-
+    bpf_program__set_autoload(skel->progs.tp_container_sys_entry,
+                              env.execute_container_syscall ? true : false);
+    bpf_program__set_autoload(skel->progs.tracepoint__syscalls__sys_exit,
+                              env.execute_container_syscall ? true : false);                         
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
     bpf_program__set_autoload(skel->progs.tp_exit,

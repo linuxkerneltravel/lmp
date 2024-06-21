@@ -1,4 +1,4 @@
-// Copyright 2023 The LMP Authors.
+// Copyright 2023 The LMP Authors.#define TASK_COMM_
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,6 +93,7 @@ static const char binary_path[] = "/bin/qemu-system-x86_64";
 #define IOAPIC_NUM_PINS 24
 
 #define PFERR_RSVD_MASK (1UL << 3)  // mmio
+
 
 // 定时器模式
 #define APIC_LVT_TIMER_ONESHOT (0 << 17)      // 单次触发
@@ -232,6 +233,7 @@ struct process {
     char comm[TASK_COMM_LEN];
 };
 
+
 enum EventType {
     NONE_TYPE,
     VCPU_WAKEUP,
@@ -244,6 +246,7 @@ enum EventType {
     IRQ_INJECT,
     HYPERCALL,
     IOCTL,
+    CONTAINER_SYSCALL,
     TIMER,
 } event_type;
 
@@ -342,6 +345,13 @@ struct common_event {
             __u32 vcpu_id;
             // HYPERCALL 特有成员
         } hypercall_data;
+
+        struct{
+            __u64 pid;
+            __u64 syscall_id;
+            __u64 delay;
+            
+        } syscall_data;
     };
 };
 
