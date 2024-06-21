@@ -5,12 +5,11 @@
 #define TASK_COMM_LEN 16
 #endif
 
-struct fs_t {
-	int pid;
-	unsigned long long uid;
-    	int fd;
-    	unsigned long long ts;
-    	char comm[TASK_COMM_LEN];
+struct event {
+	int pid_;
+	char path_name_[path_size];
+	int n_;
+	char comm[TASK_COMM_LEN];
 };
 
 #endif /* __OPEN_H */

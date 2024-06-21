@@ -20,6 +20,7 @@
 #define STACK_ANALYZER_EBPF
 
 #include "sa_common.h"
+#include <linux/version.h>
 
 #define PF_KTHREAD 0x00200000
 
@@ -79,6 +80,9 @@
 
 #define TS bpf_ktime_get_ns()
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+#define CHECK_FREQ(_ts)
+#else
 /*
  内置函数:
     bool __atomic_compare_exchange_n (
@@ -113,6 +117,7 @@
                 __ATOMIC_RELAXED, __ATOMIC_RELAXED))  \
             return 0;                                 \
     }
+#endif
 
 #define GET_CURR \
     (struct task_struct *)bpf_get_current_task()
@@ -129,9 +134,15 @@
 #define GET_KNODE(_task) \
     BPF_CORE_READ(_task, cgroups, dfl_cgrp, kn)
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+#define CHECK_CGID(_knode)                                                      \
+    if (target_cgroupid > 0 && BPF_CORE_READ(_knode, id.id) != target_cgroupid) \
+        return 0;
+#else
 #define CHECK_CGID(_knode)                                                   \
     if (target_cgroupid > 0 && BPF_CORE_READ(_knode, id) != target_cgroupid) \
         return 0;
+#endif
 
 #define TRY_SAVE_INFO(_task, _pid, _tgid, _knode)                                                  \
     if (!bpf_map_lookup_elem(&pid_info_map, &_pid))                                                \
