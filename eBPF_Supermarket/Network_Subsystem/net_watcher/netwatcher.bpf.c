@@ -334,7 +334,11 @@ int BPF_KPROBE(query__end){
     return __handle_mysql_end(ctx); 
 }
 
-SEC("uprobe/processCommand")
+SEC("uprobe/call")
 int BPF_KPROBE(query__start_redis) { 
     return __handle_redis_start(ctx); 
+}
+SEC("uretprobe/call")
+int BPF_KPROBE(query__end_redis){
+    return __handle_redis_end(ctx); 
 }

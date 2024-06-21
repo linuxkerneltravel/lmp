@@ -180,4 +180,15 @@ typedef struct mysql_query {
     int count;
 } mysql_query;
 
+struct redis_query {
+    int pid;
+    int tid;
+    char comm[20];
+    u32 size;
+    char redis[4][8];
+    u64 duratime;
+    int count;
+    u64 begin_time;
+    int argc;
+};
 #endif /* __NETWATCHER_H */
