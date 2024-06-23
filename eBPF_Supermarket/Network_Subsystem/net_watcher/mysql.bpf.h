@@ -27,7 +27,7 @@ static __always_inline int __handle_mysql_start(struct pt_regs *ctx) {
     struct query_info info;
     u32 size = 0;
     char *sql;
-    
+
     if (command != COM_QUERY) {
         return 0;
     }
@@ -46,7 +46,7 @@ static __always_inline int __handle_mysql_end(struct pt_regs *ctx) {
     char comm[16];
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
     pid_t tid = bpf_get_current_pid_tgid();
-    struct query_info *info = bpf_map_lookup_elem(&queries, &tsid);
+    struct query_info *info = bpf_map_lookup_elem(&queries, &tid);
     if (!info) {
         return 0;
     }
