@@ -17,7 +17,7 @@
 // mem ebpf程序的包装类，实现接口和一些自定义方法
 
 #include "bpf_wapper/memleak.h"
-#include "trace_helpers.h"
+#include "trace.h"
 #include <cmath>
 
 uint64_t *MemleakStackCollector::count_values(void *d)

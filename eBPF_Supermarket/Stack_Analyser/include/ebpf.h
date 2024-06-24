@@ -19,7 +19,7 @@
 #ifndef STACK_ANALYZER_EBPF
 #define STACK_ANALYZER_EBPF
 
-#include "sa_common.h"
+#include "common.h"
 #include <linux/version.h>
 
 #define PF_KTHREAD 0x00200000
@@ -39,13 +39,13 @@
 /// @param name 新散列表的名字
 /// @param type1 键的类型
 /// @param type2 值的类型
-#define BPF_HASH(name, type1, type2)       \
-    struct                                 \
-    {                                      \
-        __uint(type, BPF_MAP_TYPE_HASH);   \
-        __uint(key_size, sizeof(type1));   \
-        __uint(value_size, sizeof(type2)); \
-        __uint(max_entries, MAX_ENTRIES);  \
+#define BPF_HASH(name, _kt, _vt, _cap)   \
+    struct                               \
+    {                                    \
+        __uint(type, BPF_MAP_TYPE_HASH); \
+        __type(key, _kt);                \
+        __type(value, _vt);              \
+        __uint(max_entries, _cap);       \
     } name SEC(".maps")
 
 /**
@@ -56,12 +56,12 @@
  * pid_comm 存储 <pid, comm> 键值对，记录pid以及对应的命令名
  * type：指定count值的类型
  */
-#define COMMON_MAPS(count_type)                 \
-    BPF_HASH(psid_count_map, psid, count_type); \
-    BPF_STACK_TRACE(sid_trace_map);             \
-    BPF_HASH(tgid_cgroup_map, __u32,            \
-             char[CONTAINER_ID_LEN]);           \
-    BPF_HASH(pid_info_map, u32, task_info);
+#define COMMON_MAPS(count_type)                              \
+    BPF_HASH(psid_count_map, psid, count_type, MAX_ENTRIES); \
+    BPF_STACK_TRACE(sid_trace_map);                          \
+    BPF_HASH(tgid_cgroup_map, __u32,                         \
+             char[CONTAINER_ID_LEN], MAX_ENTRIES / 100);     \
+    BPF_HASH(pid_info_map, u32, task_info, MAX_ENTRIES / 10);
 
 #define COMMON_VALS                           \
     const volatile bool trace_user = false;   \
@@ -123,7 +123,7 @@
     (struct task_struct *)bpf_get_current_task()
 
 // 如果没有设置目标进程，则检查被采集进程是否为内核线程，是则退出采集
-#define CHECK_KTHREAD(_task)                                     \
+#define CHECK_KTHREAD(_task)                                      \
     if (!target_tgid && BPF_CORE_READ(_task, flags) & PF_KTHREAD) \
         return 0;
 
