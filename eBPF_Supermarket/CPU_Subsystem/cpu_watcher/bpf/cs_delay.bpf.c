@@ -30,9 +30,19 @@ struct {
 	__uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
+static inline struct cs_ctrl *get_cs_ctrl(void) {
+    struct cs_ctrl *cs_ctrl;
+    cs_ctrl = bpf_map_lookup_elem(&cs_ctrl_map, &ctrl_key);
+    if (!cs_ctrl || !cs_ctrl->cs_func) {
+        return NULL;
+    }
+    return cs_ctrl;
+}
+
 SEC("kprobe/schedule")
 int BPF_KPROBE(schedule)
 {
+	struct cs_ctrl *cs_ctrl = get_cs_ctrl();
 	u64 t1;
 	t1 = bpf_ktime_get_ns()/1000;
 	int key =0;
@@ -43,6 +53,7 @@ int BPF_KPROBE(schedule)
 SEC("kretprobe/schedule")
 int BPF_KRETPROBE(schedule_exit)
 {	
+	struct cs_ctrl *cs_ctrl = get_cs_ctrl();
 	u64 t2 = bpf_ktime_get_ns()/1000;
 	u64 t1,delay;
 	int key = 0;

@@ -29,15 +29,14 @@
 #include "bpf_wapper/io.h"
 #include "bpf_wapper/readahead.h"
 #include "bpf_wapper/probe.h"
-#include "sa_user.h"
+#include "user.h"
 #include "clipp.h"
+#include "cgroup.h"
+#include "trace.h"
 
-uint64_t stop_time = -1;
 bool timeout = false;
-uint64_t IntTmp;
-std::string StrTmp;
-clipp::man_page *man_page;
 std::vector<StackCollector *> StackCollectorList;
+void end_handle(void);
 
 namespace MainConfig
 {
@@ -54,89 +53,14 @@ namespace MainConfig
     bool trace_kernel = false;
 }
 
-namespace helper
-{
-#include <sys/vfs.h>
-#include <linux/magic.h>
-    struct cgid_file_handle
-    {
-        // struct file_handle handle;
-        unsigned int handle_bytes;
-        int handle_type;
-        uint64_t cgid;
-    };
-    uint64_t get_cgroupid(const char *pathname)
-    {
-        struct statfs fs;
-        int err;
-        struct cgid_file_handle *h;
-        int mount_id;
-        uint64_t ret;
-
-        err = statfs(pathname, &fs);
-        if (err != 0)
-        {
-            fprintf(stderr, "statfs on %s failed: %s\n", pathname, strerror(errno));
-            exit(1);
-        }
-
-        if ((fs.f_type != (typeof(fs.f_type))CGROUP2_SUPER_MAGIC))
-        {
-            fprintf(stderr, "File %s is not on a cgroup2 mount.\n", pathname);
-            exit(1);
-        }
-
-        h = (cgid_file_handle *)malloc(sizeof(struct cgid_file_handle));
-        if (!h)
-        {
-            fprintf(stderr, "Cannot allocate memory.\n");
-            exit(1);
-        }
-
-        h->handle_bytes = 8;
-        err = name_to_handle_at(AT_FDCWD, pathname, (struct file_handle *)h, &mount_id, 0);
-        if (err != 0)
-        {
-            fprintf(stderr, "name_to_handle_at failed: %s\n", strerror(errno));
-            exit(1);
-        }
-
-        if (h->handle_bytes != 8)
-        {
-            fprintf(stderr, "Unexpected handle size: %d. \n", h->handle_bytes);
-            exit(1);
-        }
-
-        ret = h->cgid;
-        free(h);
-
-        return ret;
-    }
-}
-
-void end_handle(void)
-{
-    signal(SIGINT, SIG_IGN);
-    for (auto Item : StackCollectorList)
-    {
-        Item->activate(false);
-        if (!timeout)
-        {
-            std::cout << std::string(*Item) << std::endl;
-        }
-        Item->finish();
-    }
-    if (MainConfig::command.length())
-    {
-        kill(MainConfig::target_tgid, SIGTERM);
-    }
-}
-
 int main(int argc, char *argv[])
 {
-    man_page = new clipp::man_page();
+    uint64_t stop_time = -1;
+    clipp::man_page man_page;
     clipp::group cli;
     {
+        uint64_t IntTmp;
+        std::string StrTmp;
         auto OnCpuOption = (clipp::option("on_cpu")
                                 .call([]
                                       { StackCollectorList.push_back(new OnCPUStackCollector()); }) %
@@ -172,31 +96,31 @@ int main(int argc, char *argv[])
                                  COLLECTOR_INFO("llc_stat") &
                              ((clipp::option("-P") &
                                clipp::value("period", IntTmp)
-                                   .call([]
+                                   .call([IntTmp]
                                          { static_cast<LlcStatStackCollector *>(StackCollectorList.back())
                                                ->setScale(IntTmp); })) %
                               "Set sampling period; default is 100");
 
         auto ProbeOption = clipp::option("probe")
-                                         .call([]
-                                               { StackCollectorList.push_back(new ProbeStackCollector()); }) %
-                                     COLLECTOR_INFO("probe") &
-                                 (clipp::value("probe", StrTmp)
-                                      .call([]
-                                            { static_cast<ProbeStackCollector *>(StackCollectorList.back())
-                                                  ->setScale(StrTmp); }) %
-                                  "Set the probe string; specific use is:\n"
-                                  "<func> | p::<func>             -- probe a kernel function;\n"
-                                  "<lib>:<func> | p:<lib>:<func>  -- probe a user-space function in the library 'lib';\n"
-                                  "t:<class>:<func>               -- probe a kernel tracepoint;\n"
-                                  "u:<lib>:<probe>                -- probe a USDT tracepoint");
+                                   .call([]
+                                         { StackCollectorList.push_back(new ProbeStackCollector()); }) %
+                               COLLECTOR_INFO("probe") &
+                           (clipp::value("probe", StrTmp)
+                                .call([&StrTmp]
+                                      { static_cast<ProbeStackCollector *>(StackCollectorList.back())
+                                            ->setScale(StrTmp); }) %
+                            "Set the probe string; specific use is:\n"
+                            "<func> | p::<func>             -- probe a kernel function;\n"
+                            "<lib>:<func> | p:<lib>:<func>  -- probe a user-space function in the library 'lib';\n"
+                            "t:<class>:<func>               -- probe a kernel tracepoint;\n"
+                            "u:<lib>:<probe>                -- probe a USDT tracepoint");
 
         auto MainOption = _GREEN "Some overall options" _RE %
                           ((
                                ((clipp::option("-g") &
                                  clipp::value("cgroup path", StrTmp)
-                                     .call([]
-                                           { MainConfig::target_cgroup = helper::get_cgroupid(StrTmp.c_str()); printf("Trace cgroup %ld\n", MainConfig::target_cgroup); })) %
+                                     .call([&StrTmp]
+                                           { MainConfig::target_cgroup = get_cgroupid(StrTmp.c_str()); printf("Trace cgroup %ld\n", MainConfig::target_cgroup); })) %
                                 "Set the cgroup of the process to be tracked; default is -1, which keeps track of all cgroups") |
                                ((clipp::option("-p") &
                                  clipp::value("pid", MainConfig::target_tgid)) %
@@ -215,7 +139,7 @@ int main(int argc, char *argv[])
                                "Set the output delay time (seconds); default is 5",
                            (clipp::option("-d") &
                             clipp::value("duration", MainConfig::run_time)
-                                .call([]
+                                .call([&stop_time]
                                       { stop_time = time(NULL) + MainConfig::run_time; })) %
                                "Set the total sampling time; default is __INT_MAX__",
                            (clipp::option("-u")
@@ -241,8 +165,8 @@ int main(int argc, char *argv[])
                                 { std::cout << "verion 2.0\n\n"; }) %
                       "Show version"),
                      (clipp::option("-h", "--help")
-                          .call([]
-                                { std::cout << *man_page << std::endl; exit(0); }) %
+                          .call([&man_page]
+                                { std::cout << man_page << std::endl; exit(0); }) %
                       "Show man page"));
 
         cli = (OnCpuOption,
@@ -260,13 +184,13 @@ int main(int argc, char *argv[])
                        .first_column(3)
                        .doc_column(25)
                        .last_column(128);
-        *man_page = clipp::make_man_page(cli, argv[0], fmt)
-                        .prepend_section("DESCRIPTION", _RED "Count the function call stack associated with some metric.\n" _RE BANNER)
-                        .append_section("LICENSE", _RED "Apache Licence 2.0" _RE);
+        man_page = clipp::make_man_page(cli, argv[0], fmt)
+                       .prepend_section("DESCRIPTION", _RED "Count the function call stack associated with some metric.\n" _RE BANNER)
+                       .append_section("LICENSE", _RED "Apache Licence 2.0" _RE);
     }
     if (!clipp::parse(argc, argv, cli))
     {
-        std::cerr << *man_page << std::endl;
+        std::cerr << man_page << std::endl;
         return -1;
     }
     if (StackCollectorList.size() == 0)
@@ -306,6 +230,19 @@ int main(int argc, char *argv[])
         }
     }
 
+    ksyms = ksyms__load();
+    if (!ksyms)
+    {
+        fprintf(stderr, "failed to load kallsyms\n");
+        exit(1);
+    }
+    syms_cache = syms_cache__new(0);
+    if (!syms_cache)
+    {
+        fprintf(stderr, "failed to create syms_cache\n");
+        exit(1);
+    }
+    
     for (auto Item = StackCollectorList.begin(); Item != StackCollectorList.end();)
     {
         fprintf(stderr, _RED "Attach collecotor%d %s.\n" _RE,
@@ -381,4 +318,22 @@ int main(int argc, char *argv[])
     }
     timeout = true;
     return 0;
-}
+};
+
+void end_handle(void)
+{
+    signal(SIGINT, SIG_IGN);
+    for (auto Item : StackCollectorList)
+    {
+        Item->activate(false);
+        if (!timeout)
+        {
+            std::cout << std::string(*Item) << std::endl;
+        }
+        Item->finish();
+    }
+    if (MainConfig::command.length())
+    {
+        kill(MainConfig::target_tgid, SIGTERM);
+    }
+};
