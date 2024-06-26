@@ -39,7 +39,7 @@ jobs:
           # run
           cd net_manager
           sudo timeout -s SIGINT 5 ./xdp_loader -d ens33 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo ./xdp_loader -d ens33 -S
+          sudo ./xdp_loader -d lo -S
           sudo xdp-loader unload ens33 --all
   
        
