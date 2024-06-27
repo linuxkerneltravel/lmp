@@ -17,7 +17,7 @@
 // off cpu ebpf程序的包装类，实现接口和一些自定义方法
 
 #include "bpf_wapper/off_cpu.h"
-#include "dt_symbol.h"
+#include "trace.h"
 
 OffCPUStackCollector::OffCPUStackCollector()
 {
@@ -37,13 +37,11 @@ uint64_t *OffCPUStackCollector::count_values(void *data)
 int OffCPUStackCollector::ready(void)
 {
     EBPF_LOAD_OPEN_INIT();
-    symbol sym;
-    sym.name = "finish_task_switch";
-    if (!g_symbol_parser.complete_kernel_symbol(sym))
-    {
+    const char *name = "finish_task_switch";
+    const struct ksym *ksym = ksyms__find_symbol(ksyms, name);
+    if (!ksym)
         return -1;
-    }
-    skel->links.do_stack = bpf_program__attach_kprobe(skel->progs.do_stack, false, sym.name.c_str());
+    skel->links.do_stack = bpf_program__attach_kprobe(skel->progs.do_stack, false, ksym->name);
     return 0;
 }
 

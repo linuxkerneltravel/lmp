@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include <vector>
 #include <string>
-#include "sa_user.h"
+#include "user.h"
 
 struct Scale
 {
@@ -62,7 +62,7 @@ public:
     uint32_t freq = 49;
     uint64_t cgroup = 0;
     uint32_t tgid = 0;
-    int err = 0;      // 用于保存错误代码
+    int err = 0; // 用于保存错误代码
 
     bool ustack = false; // 是否跟踪用户栈
     bool kstack = false; // 是否跟踪内核栈
@@ -94,25 +94,25 @@ public:
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define EBPF_LOAD_OPEN_INIT(...)                       \
-    {                                                  \
-        skel = skel->open(NULL);                       \
+#define EBPF_LOAD_OPEN_INIT(...)                           \
+    {                                                      \
+        skel = skel->open(NULL);                           \
         CHECK_ERR_RN1(!skel, "Fail to open BPF skeleton"); \
-        __VA_ARGS__;                                   \
-        skel->rodata->trace_user = ustack;             \
-        skel->rodata->trace_kernel = kstack;           \
-        skel->rodata->self_tgid = self_tgid;             \
-        skel->rodata->target_tgid = tgid;              \
-        skel->rodata->target_cgroupid = cgroup;        \
-        skel->rodata->freq = freq;                     \
-        err = skel->load(skel);                        \
+        __VA_ARGS__;                                       \
+        skel->rodata->trace_user = ustack;                 \
+        skel->rodata->trace_kernel = kstack;               \
+        skel->rodata->self_tgid = self_tgid;               \
+        skel->rodata->target_tgid = tgid;                  \
+        skel->rodata->target_cgroupid = cgroup;            \
+        skel->rodata->freq = freq;                         \
+        err = skel->load(skel);                            \
         CHECK_ERR_RN1(err, "Fail to load BPF skeleton");   \
-        obj = skel->obj;                               \
+        obj = skel->obj;                                   \
     }
 
-#define ATTACH_PROTO                                     \
-    {                                                    \
-        err = skel->attach(skel);                        \
+#define ATTACH_PROTO                                         \
+    {                                                        \
+        err = skel->attach(skel);                            \
         CHECK_ERR_RN1(err, "Failed to attach BPF skeleton"); \
     }
 
