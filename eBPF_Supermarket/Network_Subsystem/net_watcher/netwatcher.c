@@ -1146,7 +1146,7 @@ static int print_redis(void *ctx, void *packet_info, size_t size) {
         strcat(redis, pack_info->redis[i]);
         strcat(redis, " ");
     }
-     printf("%-20d %-20s %-20d %-20s %-21llu\n", pack_info->pid,
+    printf("%-20d %-20s %-20d %-20s %-21llu\n", pack_info->pid,
             pack_info->comm,pack_info->argc, redis,pack_info->duratime);
     strcpy(redis,"");
     return 0;
