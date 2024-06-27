@@ -1189,7 +1189,9 @@ int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
         query__end);
     return 0;
 }
+
 int attach_uprobe_redis(struct netwatcher_bpf *skel) {
+    
     ATTACH_UPROBE_CHECKED(skel, processCommand, query__start_redis);
     ATTACH_UPROBE_CHECKED(
         skel, call,
