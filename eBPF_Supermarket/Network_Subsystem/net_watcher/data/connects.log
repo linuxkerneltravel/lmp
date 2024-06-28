@@ -1,1 +1,0 @@
-connection{pid="214827",sock="0xffff944e0c3dda00",src="192.168.239.132:35422",dst="20.189.173.1:443",is_server="0",backlog="-",maxbacklog="-",cwnd="-",ssthresh="-",sndbuf="-",wmem_queued="-",rx_bytes="-",tx_bytes="-",srtt="-",duration="-",total_retrans="-",fast_retrans="-",timeout_retrans="-"}

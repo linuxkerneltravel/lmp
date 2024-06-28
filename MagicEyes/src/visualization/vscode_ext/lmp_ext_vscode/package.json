@@ -1,0 +1,185 @@
+{
+  "name": "grafana-vscode",
+  "author": "Grafana Labs",
+  "displayName": "lmp_Grafana",
+  "description": "Grafana Editor for lmp",
+  "icon": "public/grafana_icon.png",
+  "version": "0.0.16",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grafana/grafana-vs-code-extension"
+  },
+  "engines": {
+    "vscode": "^1.76.0"
+  },
+  "publisher": "Grafana",
+  "categories": [
+    "Visualization"
+  ],
+  "keywords": [
+    "Grafana",
+    "dashboards"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "grafana.dashboard",
+        "displayName": "Grafana",
+        "selector": [
+          {
+            "filenamePattern": "*.grafana"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "grafana-vscode.openUrl",
+        "title": "Edit in Grafana"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "grafana-vscode.openUrl",
+          "when": "false"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "grafana-vscode.openUrl",
+          "when": "resourceExtname == .json"
+        }
+      ]
+    },
+    "iconThemes": [
+      {
+        "id": "grafana",
+        "label": "Grafana",
+        "path": "./public/icon-theme.json"
+      }
+    ],
+    "configuration": {
+      "title": "Grafana",
+      "properties": {
+        "grafana-vscode.URL": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Grafana instance URL",
+          "order": 1
+        },
+        "grafana-vscode.service-account-token": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A service account token for your Grafana instance. Click the link below to add this to secure storage.\n\n[Set your token, securely](command:grafana-vscode.setPassword)",
+          "order": 2
+        },
+        "grafana-vscode.theme": {
+          "type": "string",
+          "default": "inherit",
+          "enum": ["inherit", "fixed", "dark", "light"],
+          "enumDescriptions": [
+            "Inherit Grafana theme from VSCode",
+            "Use Grafana's own default theme",
+            "Use dark Grafana theme",
+            "Use light Grafana theme"
+          ]
+        },
+        "grafana-vscode.telemetry": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enable basic telemetry. All data is anonymous and only used to help with feature prioritization/gloating/etc.",
+          "order": 3
+        },
+        "grafana-vscode.default_panel_path": {
+          "type": "string",
+          "default": "/home/fzy/Desktop/panels/",
+          "description": "the default panels search path",
+          "order": 4
+        }   
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lmp_visualization",
+          "title": "lmp_visualization",
+          "icon": "media/StartTV.svg"
+        }
+      ]
+    },
+    "views": {
+      "lmp_visualization": [
+        {
+          "id": "lmp_visualization.panel",
+          "name": "Panel"
+        },
+        {
+          "id": "lmp_visualization.about",
+          "name": "about"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "lmp_visualization.panel",
+        "contents": "this is welcome content",
+        "when": "true"
+      },
+      {
+        "view": "lmp_visualization.about",
+        "contents": "基于grafana与prometheus的vscode可视化插件, 隶属于智能车载OS诊断与优化专家系统",
+        "when": "true"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "yarn run compile-tests && yarn run compile && yarn run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/glob": "^8.1.0",
+    "@types/http-proxy": "^1.17.10",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@types/source-map-support": "^0.5.8",
+    "@types/vscode": "^1.76.0",
+    "@typescript-eslint/eslint-plugin": "^5.53.0",
+    "@typescript-eslint/parser": "^5.53.0",
+    "@vscode/test-electron": "^2.2.3",
+    "eslint": "^8.34.0",
+    "glob": "^8.1.0",
+    "mocha": "^10.2.0",
+    "prettier": "3.0.2",
+    "ts-loader": "^9.4.2",
+    "typescript": "^4.9.5",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.1"
+  },
+  "dependencies": {
+    "@types/uuid": "^9.0.6",
+    "axios": "^1.4.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "http-proxy": "^1.18.1",
+    "http-proxy-middleware": "^2.0.6",
+    "open": "^8.4.2",
+    "source-map-support": "^0.5.21",
+    "transformer-proxy": "^0.3.5",
+    "uuid": "^9.0.1"
+  }
+}
