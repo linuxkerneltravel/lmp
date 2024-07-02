@@ -28,43 +28,42 @@
 #include <bpf/bpf_tracing.h>
 #include <string.h>
 
-struct ktime_info {                // us time stamp info发送数据包
+struct ktime_info { // us time stamp info发送数据包
     u64 qdisc_time; // tx包离开mac层时间戳
     u64 mac_time;   // tx、rx包到达mac层时间戳
     u64 ip_time;    // tx、rx包到达ip层时间戳
     // u64 tcp_time;      // tx、rx包到达tcp层时间戳
-    u64 tran_time;        // tx、rx包到达传输层时间戳
-    u64 app_time;         // rx包离开tcp层时间戳
-    void *sk;                            // 此包所属 socket套接字
+    u64 tran_time;            // tx、rx包到达传输层时间戳
+    u64 app_time;             // rx包离开tcp层时间戳
+    void *sk;                 // 此包所属 socket套接字
     u8 data[MAX_HTTP_HEADER]; // 用户层数据
 };
 
 struct packet_tuple {
     unsigned __int128 saddr_v6; // ipv6 源地址
     unsigned __int128 daddr_v6; // ipv6 目的地址
-    u32 saddr;         // 源地址
-    u32 daddr;         // 目的地址
-    u16 sport;       // 源端口号
-    u16 dport;       // 目的端口号
-    u32 seq;           // seq报文序号
-    u32 ack;           // ack确认号
-    u32 tran_flag;     // 1:tcp 2:udp
+    u32 saddr;                  // 源地址
+    u32 daddr;                  // 目的地址
+    u16 sport;                  // 源端口号
+    u16 dport;                  // 目的端口号
+    u32 seq;                    // seq报文序号
+    u32 ack;                    // ack确认号
+    u32 tran_flag;              // 1:tcp 2:udp
     u32 len;
 };
 
 struct tcpstate {
-    u32 saddr;       
-    u32 daddr;   
+    u32 saddr;
+    u32 daddr;
     u16 sport;
-	u16 dport;    
+    u16 dport;
     u16 family;
-	int oldstate;
-	int newstate;
+    int oldstate;
+    int newstate;
     u64 time;
 };
 
-enum
-{
+enum {
     e_ip_rcv = 0,
     e_ip_local_deliver,
     e_ip_local_deliver_finish,
@@ -74,37 +73,42 @@ enum
     e_ip_finish_output,
     e_ip_forward,
     nf_max
-}nf_hook;
+} nf_hook;
 
-struct filtertime {           
+struct filtertime {
     struct packet_tuple init;
     struct packet_tuple done;
     u64 time[nf_max];
 };
 
-struct ip_packet
-{
-    unsigned int saddr;         // 源地址
-    unsigned int daddr;         // 目的地址
+struct ip_packet {
+    unsigned int saddr; // 源地址
+    unsigned int daddr; // 目的地址
 };
 
 struct dns_header {
-    u16 id;// 事务ID
-    u16 flags;// 标志字段
-    u16 qdcount;// 问题部分计数
-    u16 ancount;// 应答记录计数
-    u16 nscount;// 授权记录计数
-    u16 arcount;// 附加记录计数
+    u16 id;      // 事务ID
+    u16 flags;   // 标志字段
+    u16 qdcount; // 问题部分计数
+    u16 ancount; // 应答记录计数
+    u16 nscount; // 授权记录计数
+    u16 arcount; // 附加记录计数
 };
 
 struct dns_query {
-    struct dns_header header;// DNS头部
-    char data[64];// 可变长度数据（域名+类型+类）
+    struct dns_header header; // DNS头部
+    char data[64];            // 可变长度数据（域名+类型+类）
 };
 
-struct dns{
-    u32 saddr;       
-    u32 daddr;  
+struct dns {
+    u32 saddr;
+    u32 daddr;
+};
+
+struct query_info {
+    char msql[256];
+    u32 size;
+    u64 start_time;
 };
 
 // 操作BPF映射的一个辅助函数
@@ -223,76 +227,83 @@ struct {
     __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, int);
     __type(value, struct packet_tuple);
-} kfree  SEC(".maps");
+} kfree SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
-    __uint(max_entries, MAX_CONN * MAX_PACKET);
+    __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, struct ip_packet);
-    __type(value,unsigned long long);
+    __type(value, unsigned long long);
 } icmp_time SEC(".maps");
 
 struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 256*1024);
-	__type(key, struct sock *);
-	__type(value, __u64);
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256 * 1024);
+    __type(key, struct sock *);
+    __type(value, __u64);
 } tcp_state SEC(".maps");
 
-//sql 耗时
+// sql 耗时
 struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 256*1024);
-	__type(key, __u32);
-	__type(value, __u64);
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256 * 1024);
+    __type(key, __u32);
+    __type(value, __u64);
 } mysql_time SEC(".maps");
 
-//redis 耗时
+// redis 耗时
 struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 256*1024);
-	__type(key, __u32);
-	__type(value, struct redis_query);
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256 * 1024);
+    __type(key, __u32);
+    __type(value, struct redis_query);
 } redis_time SEC(".maps");
 
-//sql请求数
+// sql请求数
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
-    __type(key,__u32);
-    __type(value,__u64);
+    __type(key, __u32);
+    __type(value, __u64);
 } sql_count SEC(".maps");
 
-//dns计数根据每个saddr、daddr
+// dns计数根据每个saddr、daddr
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
-    __type(key,struct dns);
-    __type(value,__u64);
+    __type(key, struct dns);
+    __type(value, __u64);
 } dns_request_count SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
-    __type(key,struct dns);
-    __type(value,__u64);
+    __type(key, struct dns);
+    __type(value, __u64);
 } dns_response_count SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, __u32);
+    __type(value, struct query_info);
+} queries SEC(".maps");
 
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
-                   layer_time = 0, http_info = 0, retrans_info = 0, udp_info =0,net_filter = 0,
-                   drop_reason = 0,icmp_info = 0 ,tcp_info = 0 ,dns_info = 0 ,stack_info = 0,
-                   mysql_info = 0, redis_info = 0;
-                 
+                   layer_time = 0, http_info = 0, retrans_info = 0,
+                   udp_info = 0, net_filter = 0, drop_reason = 0, icmp_info = 0,
+                   tcp_info = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
+                   redis_info = 0;
+
 /* help macro */
 
-#define FILTER                                          \
-    if(filter_dport&&filter_dport!= pkt_tuple.dport)    \
-        return 0;                                       \
-    if(filter_sport&&filter_sport!= pkt_tuple.sport)    \
-        return 0;                                       \
-
+#define FILTER                                                                 \
+    if (filter_dport && filter_dport != pkt_tuple.dport)                       \
+        return 0;                                                              \
+    if (filter_sport && filter_sport != pkt_tuple.sport)                       \
+        return 0;
 
 // 连接的目标端口是否匹配于filter_dport的值
 #define FILTER_DPORT                                                           \
@@ -363,7 +374,6 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
 
 #define CONN_INFO_TRANSFER tinfo->sk = conn->sock; // 将conn->sock赋给tinfo->sk
 
-
 #define PACKET_INIT_WITH_COMMON_INFO                                           \
     struct pack_t *packet;                                                     \
     packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);                     \
@@ -379,33 +389,29 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
 
 /* help functions */
 // 将struct sock类型的指针转化为struct tcp_sock类型的指针
-static __always_inline 
-struct tcp_sock *tcp_sk(const struct sock *sk) {
+static __always_inline struct tcp_sock *tcp_sk(const struct sock *sk) {
     return (struct tcp_sock *)sk;
 }
 // 将struct sk_buff类型的指针转化为struct udphdr类型的指针
-static __always_inline 
-struct udphdr *skb_to_udphdr(const struct sk_buff *skb) {
+static __always_inline struct udphdr *skb_to_udphdr(const struct sk_buff *skb) {
     return (struct udphdr *)((
         BPF_CORE_READ(skb, head) +              // 报文头部偏移
         BPF_CORE_READ(skb, transport_header))); // 传输层部分偏移
 }
 // 将struct sk_buff类型的指针转化为struct tcphdr类型的指针
-static __always_inline 
-struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb) {
+static __always_inline struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb) {
     return (struct tcphdr *)((
         BPF_CORE_READ(skb, head) +              // 报文头部偏移
         BPF_CORE_READ(skb, transport_header))); // 传输层部分偏移
 }
 // 将struct sk_buff类型的指针转化为struct iphdr类型的指针
-static __always_inline 
-struct iphdr *skb_to_iphdr(const struct sk_buff *skb) {
+static __always_inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb) {
     return (struct iphdr *)(BPF_CORE_READ(skb, head) +
                             BPF_CORE_READ(skb, network_header));
 }
 // 将struct sk_buff类型的指针转化为struct ipv6hdr类型的指针
-static __always_inline 
-struct ipv6hdr *skb_to_ipv6hdr(const struct sk_buff *skb) {
+static __always_inline struct ipv6hdr *
+skb_to_ipv6hdr(const struct sk_buff *skb) {
     return (struct ipv6hdr *)(BPF_CORE_READ(skb, head) +
                               BPF_CORE_READ(skb, network_header));
 }
@@ -416,9 +422,9 @@ static void get_ip_pkt_tuple(struct ip_packet *ipk, struct iphdr *ip) {
 }
 
 // 初始化packet_tuple结构指针pkt_tuple
-static __always_inline  
-void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
-                          struct tcphdr *tcp) {
+static __always_inline void get_pkt_tuple(struct packet_tuple *pkt_tuple,
+                                          struct iphdr *ip,
+                                          struct tcphdr *tcp) {
     pkt_tuple->saddr = BPF_CORE_READ(ip, saddr);
     pkt_tuple->daddr = BPF_CORE_READ(ip, daddr);
     u16 sport = BPF_CORE_READ(tcp, source);
@@ -439,9 +445,9 @@ void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
     pkt_tuple->len = 0;
 }
 // 初始化packet_tuple结构指针pkt_tuple
-static __always_inline 
-void get_udp_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
-                              struct udphdr *udp) {
+static __always_inline void get_udp_pkt_tuple(struct packet_tuple *pkt_tuple,
+                                              struct iphdr *ip,
+                                              struct udphdr *udp) {
     pkt_tuple->saddr = BPF_CORE_READ(ip, saddr);
     pkt_tuple->daddr = BPF_CORE_READ(ip, daddr);
     u16 sport = BPF_CORE_READ(udp, source);
@@ -454,9 +460,9 @@ void get_udp_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip,
     pkt_tuple->tran_flag = UDP; // udp包
 }
 
-static __always_inline 
-void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
-                             struct ipv6hdr *ip6h, struct tcphdr *tcp) {
+static __always_inline void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
+                                             struct ipv6hdr *ip6h,
+                                             struct tcphdr *tcp) {
     bpf_probe_read_kernel(&pkt_tuple->saddr_v6, sizeof(pkt_tuple->saddr_v6),
                           &ip6h->saddr.in6_u.u6_addr32);
     bpf_probe_read_kernel(&pkt_tuple->daddr_v6, sizeof(pkt_tuple->daddr_v6),
@@ -472,31 +478,29 @@ void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
 
     pkt_tuple->tran_flag = 1; // tcp包
 }
-int getstack(void *ctx)
-{
+int getstack(void *ctx) {
     int pid = bpf_get_current_pid_tgid() >> 32;
-	int cpu_id = bpf_get_smp_processor_id();
-	struct stacktrace_event *event;
-	int cp;
+    int cpu_id = bpf_get_smp_processor_id();
+    struct stacktrace_event *event;
+    int cp;
 
-	event = bpf_ringbuf_reserve(&trace_rb, sizeof(*event), 0);
-	if (!event)
-		return 1;
+    event = bpf_ringbuf_reserve(&trace_rb, sizeof(*event), 0);
+    if (!event)
+        return 1;
 
-	event->pid = pid;
-	event->cpu_id = cpu_id;
+    event->pid = pid;
+    event->cpu_id = cpu_id;
 
-	if (bpf_get_current_comm(event->comm, sizeof(event->comm)))
-		event->comm[0] = 0;
+    if (bpf_get_current_comm(event->comm, sizeof(event->comm)))
+        event->comm[0] = 0;
 
-	event->kstack_sz = bpf_get_stack(ctx, event->kstack, sizeof(event->kstack), 0);
-	bpf_ringbuf_submit(event, 0);
+    event->kstack_sz =
+        bpf_get_stack(ctx, event->kstack, sizeof(event->kstack), 0);
+    bpf_ringbuf_submit(event, 0);
 
-	return 0;
+    return 0;
 }
 
 /* help functions end */
-
-
 
 #endif
