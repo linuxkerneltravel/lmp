@@ -563,9 +563,9 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                               mysql_info ? true : false);
     bpf_program__set_autoload(skel->progs.query__end,
                               mysql_info ? true : false);
-    bpf_program__set_autoload(skel->progs.query__start_redis,
-                              redis_info ? true : false);
     bpf_program__set_autoload(skel->progs.query__end_redis,
+                              redis_info ? true : false);
+    bpf_program__set_autoload(skel->progs.query__start_redis_process,
                               redis_info ? true : false);
 }
 
@@ -1190,8 +1190,12 @@ int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
     return 0;
 }
 int attach_uprobe_redis(struct netwatcher_bpf *skel) {
-    ATTACH_UPROBE_CHECKED(skel, call, query__start_redis);
-    ATTACH_UPROBE_CHECKED(skel, call, query__end_redis);
+    ATTACH_UPROBE_CHECKED(
+        skel, call,
+        query__end_redis);
+    ATTACH_UPROBE_CHECKED(
+        skel, processCommand,
+        query__start_redis_process);
     return 0;
 }
 int main(int argc, char **argv) {
