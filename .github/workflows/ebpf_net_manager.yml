@@ -33,8 +33,8 @@ jobs:
        
       - name: Build and Run
         run: |
-          ip a
           cd eBPF_Supermarket/Network_Subsystem/net_manager/
+          ip a
           sudo ./configure
           sudo make
           # run
