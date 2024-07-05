@@ -332,6 +332,7 @@ static struct env {
     bool execute_container_syscall;
     int monitoring_time;
     pid_t vm_pid;
+    char hostname[64];
     enum EventType event_type;
 } env = {
     .execute_vcpu_wakeup = false,
@@ -349,6 +350,7 @@ static struct env {
     .verbose = false,
     .monitoring_time = 0,
     .vm_pid = -1,
+    .hostname = "",
     .show = false,
     .execute_container_syscall = false,
     .event_type = NONE_TYPE,
@@ -553,8 +555,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case CONTAINER_SYSCALL:{
-            printf("%-15u %-15lld %-15lld \n",
-            e->syscall_data.pid,e->syscall_data.delay,e->syscall_data.syscall_id);
+            printf("%-8u %-22s %-10lld %-10lld %-16s\n",
+            e->syscall_data.pid,e->syscall_data.container_id,e->syscall_data.delay,e->syscall_data.syscall_id,e->syscall_data.comm);
             break;
         }
         case HALT_POLL: {
@@ -768,8 +770,8 @@ static int print_event_head(struct env *env) {
                    "VAILD?");
             break;
         case CONTAINER_SYSCALL:
-            printf("%-8s %-18s %6s %15s\n", "PID",
-                   "DELAY(ns)", "SyscallID", "COMM");
+            printf("%-8s %-22s %-9s %10s %-16s\n", "PID","CONTAINER_ID",
+                   "DELAY(us)", "SYSCALLID", "COMM");
             break;
         case EXIT:
             //可视化调整输出格式
@@ -1241,7 +1243,15 @@ int attach_probe(struct kvm_watcher_bpf *skel) {
     }
     return kvm_watcher_bpf__attach(skel);
 }
-
+void get_hostname() {
+    char hostname[64];
+    int result = gethostname(hostname, sizeof(hostname));
+    if (result == 0) {
+        strcpy(env.hostname,hostname); 
+    } else {
+        perror("gethostname");
+    }
+}
 int main(int argc, char **argv) {
     // 定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
@@ -1253,7 +1263,8 @@ int main(int argc, char **argv) {
         return err;
     /*设置libbpf的错误和调试信息回调*/
     libbpf_set_print(libbpf_print_fn);
-
+    //获取hostname
+    get_hostname();
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -1267,7 +1278,7 @@ int main(int argc, char **argv) {
 
     /* Parameterize BPF code with parameter */
     skel->rodata->vm_pid = env.vm_pid;
-
+    strcpy(skel->rodata->hostname,env.hostname);
     /* 禁用或加载内核挂钩函数 */
     set_disable_load(skel);
 

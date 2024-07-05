@@ -1,4 +1,4 @@
-// Copyright 2023 The LMP Authors.#define TASK_COMM_
+// Copyright 2023 The LMP Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -191,7 +191,9 @@ struct exit_value {
     __u32 count;
     __u32 pad;
 };
-
+struct container_id{
+    char container_id[20];
+};
 struct dirty_page_info {
     __u64 gfn;
     __u64 rel_gfn;
@@ -350,7 +352,8 @@ struct common_event {
             __u64 pid;
             __u64 syscall_id;
             __u64 delay;
-            
+            char comm[20];
+            char container_id[20];
         } syscall_data;
     };
 };
