@@ -17,10 +17,15 @@ struct per_migrate{//每次迁移,记录该次迁移信息;
 	u64 time;
 	u32 orig_cpu;
 	u32 dest_cpu;
-	u64 orig_cpu_load;
+	
+	u64 orig_cpu_load;//cfs->avg.runnale_avg 就绪队列所有调度实体；量化负载总和
 	u64 dest_cpu_load;
+	int cpu_capacity;//计算机算力
+	int cpu_capacity_orig;//额定算力
+	u64 cpu_load_avg;
 	u64 pload_avg;
 	u64 putil_avg;
+
 	int on_cpu;
     u64 mem_usage;
     u64 read_bytes;

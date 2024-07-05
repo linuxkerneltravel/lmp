@@ -126,8 +126,8 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 static int migrate_print(){
 	time_t now = time(NULL);// 获取当前时间
 	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
-	printf("Time: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-	printf("---------------------------------------------------------------------------------\n");
+	printf("\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+	printf("---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 	int err,migrate_fd =bpf_map__fd(skel->maps.migrate),migrate_info_fd =bpf_map__fd(skel->maps.migrate_info);
 
 	pid_t lookup_key = -1 ,next_key;
@@ -144,6 +144,7 @@ static int migrate_print(){
 		}
 		u64 last_time_stamp = 0;
 		printf("\npid:%d\tprio:%d\tcount:%d\trear:%d\n",migrate_event.pid,migrate_event.prio,migrate_event.count,migrate_event.rear);
+		printf("---------------------------------------------------------------------------------\n");
 		for(int i=migrate_event.rear;i<=migrate_event.count;i++){
 			struct per_migrate migrate_info;
 			struct minfo_key mkey;	
@@ -154,9 +155,10 @@ static int migrate_print(){
 				fprintf(stderr, "failed to lookup infos err %d mkey_pid: %d mkey_count: %d\n", err,mkey.pid,i);
 				continue;
 			}
-			printf("time_stamp:%llu\t%d->%d\tpload_avg:%llu\tputil_avg:%llu\t",
+			printf("time_stamp:%llu\t%d->%d \t PROC_LOAD:%llu \t PROC_UTIL:%llu\t",
 					migrate_info.time,migrate_info.orig_cpu,migrate_info.dest_cpu,migrate_info.pload_avg,migrate_info.putil_avg);
-			printf("mmem_usage:%llu kb\tread:%llu kb\twite:%llu kb\tcontext_switch:%llu\t",
+			printf("CPU_LOAD: %ld \t Cpu_Capacity:[%ld:%ld] \t ",migrate_info.cpu_load_avg,migrate_info.cpu_capacity,migrate_info.cpu_capacity_orig);
+			printf("mmem_usage:%llu kb \t\t read:%llu kb \t\t wite:%llu kb \t\t context_switch:%llu\t",
 					migrate_info.mem_usage/1024,migrate_info.read_bytes/1024,migrate_info.write_bytes/1024,
         			migrate_info.context_switches);
 

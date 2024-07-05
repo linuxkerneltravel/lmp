@@ -35,14 +35,20 @@ struct {
 	__uint(max_entries, 1024);
 } migrate_info SEC(".maps");
 
-
-
 SEC("tracepoint/sched/sched_migrate_task")
 int tracepoint_sched_migrate_task(struct trace_event_raw_sched_migrate_task *args){
     u64 time = bpf_ktime_get_ns();//当前转移时间点;
     pid_t pid = args->pid;
     struct migrate_event *migrate_event;
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    struct rq *orig_rq = BPF_CORE_READ(task,se.cfs_rq,rq);
+    struct cfs_rq *orig_cfs = BPF_CORE_READ(task,se.cfs_rq);
+
+    bpf_printk("[se]:Pload_avg:%llu\tPutil_avg:%llu\n",BPF_CORE_READ(task,se.avg.load_avg),BPF_CORE_READ(task,se.avg.util_avg));
+    bpf_printk("[rq]: nr_running :%d  cpu_capacity : %ld  cpu_capacity_orig : %ld\n",
+                BPF_CORE_READ(orig_rq,cpu),BPF_CORE_READ(orig_rq,nr_running),
+                BPF_CORE_READ(orig_rq,cpu_capacity),BPF_CORE_READ(orig_rq,cpu_capacity_orig));  
+    bpf_printk("Cload_avg:%ld\n",BPF_CORE_READ(orig_cfs,avg.runnable_avg));
     migrate_event = bpf_map_lookup_elem(&migrate,&pid);
     if(!migrate_event){
         struct migrate_event migrate_event = {};
@@ -57,7 +63,12 @@ int tracepoint_sched_migrate_task(struct trace_event_raw_sched_migrate_task *arg
         per_migrate.time = time;
         per_migrate.orig_cpu = args->orig_cpu;
         per_migrate.dest_cpu = args->dest_cpu;
-        bpf_printk("load_avg:%llu\tutil_avg:%llu\n",BPF_CORE_READ(task,se.avg.load_avg),BPF_CORE_READ(task,se.avg.util_avg));
+
+        per_migrate.cpu_capacity = BPF_CORE_READ(orig_rq,cpu_capacity);
+        per_migrate.cpu_capacity_orig = BPF_CORE_READ(orig_rq,cpu_capacity_orig);
+        per_migrate.cpu_load_avg = BPF_CORE_READ(orig_cfs,avg.runnable_avg);
+
+
         per_migrate.pload_avg = BPF_CORE_READ(task,se.avg.load_avg);//进程的量化负载；
         per_migrate.putil_avg = BPF_CORE_READ(task,se.avg.util_avg);//进程的实际算力；
         per_migrate.mem_usage = BPF_CORE_READ(task,mm,total_vm) << PAGE_SHIFT;
@@ -82,6 +93,11 @@ int tracepoint_sched_migrate_task(struct trace_event_raw_sched_migrate_task *arg
         per_migrate.time = time;
         per_migrate.orig_cpu = args->orig_cpu;
         per_migrate.dest_cpu = args->dest_cpu;
+
+        per_migrate.cpu_capacity = BPF_CORE_READ(orig_rq,cpu_capacity);
+        per_migrate.cpu_capacity_orig = BPF_CORE_READ(orig_rq,cpu_capacity_orig);
+        per_migrate.cpu_load_avg = BPF_CORE_READ(orig_cfs,avg.runnable_avg);
+
         per_migrate.pload_avg = BPF_CORE_READ(task,se.avg.load_avg);//进程的量化负载；
         per_migrate.putil_avg = BPF_CORE_READ(task,se.avg.util_avg);//进程的实际算力；
         per_migrate.mem_usage = BPF_CORE_READ(task,mm,total_vm) << PAGE_SHIFT;
