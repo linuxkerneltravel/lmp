@@ -42,7 +42,7 @@ INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(L
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS =cs_delay sar sc_delay preempt schedule_delay mq_delay
+APPS =cs_delay sar sc_delay preempt schedule_delay mq_delay mutrace
 TARGETS=cpu_watcher
 CONTROLLER := controller
 
