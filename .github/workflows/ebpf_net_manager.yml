@@ -37,6 +37,9 @@ jobs:
           sudo ./configure
           sudo make
           # run
+          cd testenv
+          sudo ./testenv.sh setup --name veth-basic02
+          cd ..
           cd net_manager
           sudo ../testenv/testenv.sh setup --name veth-basic02
           sudo timeout -s SIGINT 5 ./xdp_loader -d ens33 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
