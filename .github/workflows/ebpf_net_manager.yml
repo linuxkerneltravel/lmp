@@ -34,14 +34,14 @@ jobs:
       - name: Build and Run
         run: |
           cd eBPF_Supermarket/Network_Subsystem/net_manager/
-          ip a
           sudo ./configure
           sudo make
+          sudo ../testenv/testenv.sh setup --name veth-basic02
           # run
           cd net_manager
           sudo timeout -s SIGINT 5 ./xdp_loader -d ens33 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo ./xdp_loader -d eth0 -S
-          sudo xdp-loader unload ens33 --all
+          sudo ./xdp_loader -d veth-basic02 -S
+          sudo xdp-loader unload veth-basic02 --all
   
        
          
