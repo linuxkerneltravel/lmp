@@ -168,7 +168,7 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let command_cpu_watcher = {
               title: cpu_watcher_label,
               command: 'itemClick',
-              tooltip: "点击将呈现net_watcher的grafana的可视化面板",
+              tooltip: "点击将呈现cpu_watcher的grafana的可视化面板",
               arguments: [
                 cpu_watcher_label
               ]
@@ -182,7 +182,7 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let command_proc_image = {
               title: proc_iamge_label,
               command: 'itemClick',
-              tooltip: "点击将呈现net_watcher的grafana的可视化面板",
+              tooltip: "点击将呈现proc_image的grafana的可视化面板",
               arguments: [
                 proc_iamge_label
               ]
@@ -214,7 +214,7 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let command_net_manager = {
               title: net_manager_label,
               command: 'itemClick',
-              tooltip: "点击将呈现net_watcher的grafana的可视化面板",
+              tooltip: "点击将呈现net_manager的grafana的可视化面板",
               arguments: [
                 net_manager_label
               ]
@@ -231,7 +231,7 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let command_mem_watcher = {
               title: mem_watcher_label,
               command: 'itemClick',
-              tooltip: "点击将呈现net_watcher的grafana的可视化面板",
+              tooltip: "点击将呈现mem_watcher的grafana的可视化面板",
               arguments: [
                 mem_watcher_label
               ]
@@ -248,7 +248,7 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let command_stack_analyzer = {
               title: stack_analyzer_label,
               command: 'itemClick',
-              tooltip: "点击将呈现net_watcher的grafana的可视化面板",
+              tooltip: "点击将呈现stack_analyzer的grafana的可视化面板",
               arguments: [
                 stack_analyzer_label
               ]
@@ -265,7 +265,7 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let command_kvm_watcher = {
               title: kvm_watcher_label,
               command: 'itemClick',
-              tooltip: "点击将呈现net_watcher的grafana的可视化面板",
+              tooltip: "点击将呈现kvm_watcher的grafana的可视化面板",
               arguments: [
                 kvm_watcher_label
               ]
