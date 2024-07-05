@@ -39,7 +39,7 @@
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
-#define HASH_SIZE 1024
+
 
 
 struct list_head {
@@ -557,41 +557,7 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
 }
 
 
-typedef struct {
-    uint64_t ptr;
-    uint64_t count;
-} lock_count_t;
 
-lock_count_t lock_counts[HASH_SIZE];
-
-static uint64_t hash(uint64_t ptr) {
-    return ptr % HASH_SIZE;
-}
-
-static void increment_lock_count(uint64_t ptr) {
-    uint64_t h = hash(ptr);
-    while (lock_counts[h].ptr != 0 && lock_counts[h].ptr != ptr) {
-        h = (h + 1) % HASH_SIZE;
-    }
-    if (lock_counts[h].ptr == 0) {
-        lock_counts[h].ptr = ptr;
-        lock_counts[h].count = 1;
-    } else {
-        lock_counts[h].count++;
-    }
-}
-
-static uint64_t get_lock_count(uint64_t ptr) {
-    uint64_t h = hash(ptr);
-    while (lock_counts[h].ptr != 0 && lock_counts[h].ptr != ptr) {
-        h = (h + 1) % HASH_SIZE;
-    }
-    if (lock_counts[h].ptr == 0) {
-        return 0;
-    } else {
-        return lock_counts[h].count;
-    }
-}
 //mutrace输出
 static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
     const struct mutex_contention_event *e = data;
@@ -606,38 +572,7 @@ static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
 }
 
 
-// 定义一个结构来存储已输出的条目
-struct output_entry {
-    int pid;
-    char comm[16];
-    long long delay;
-};
 
-// 定义一个数组来存储已输出的条目
-struct output_entry seen_entries[MAX_ENTRIES];
-int seen_count = 0;
-
-// 检查条目是否已存在
-bool entry_exists(int pid, const char *comm, long long delay) {
-    for (int i = 0; i < seen_count; i++) {
-        if (seen_entries[i].pid == pid &&
-            strcmp(seen_entries[i].comm, comm) == 0 &&
-            seen_entries[i].delay == delay) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// 添加条目到已输出的条目列表
-void add_entry(int pid, const char *comm, long long delay) {
-    if (seen_count < MAX_ENTRIES) {
-        seen_entries[seen_count].pid = pid;
-        strncpy(seen_entries[seen_count].comm, comm, sizeof(seen_entries[seen_count].comm));
-        seen_entries[seen_count].delay = delay;
-        seen_count++;
-    }
-}
 static int schedule_print()
 {
     int err,key = 0;
