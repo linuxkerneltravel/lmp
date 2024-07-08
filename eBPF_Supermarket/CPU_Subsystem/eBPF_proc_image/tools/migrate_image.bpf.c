@@ -25,55 +25,91 @@ struct {
 	__uint(type, BPF_MAP_TYPE_HASH); 
 	__uint(key_size, sizeof(pid_t));
 	__uint(value_size, sizeof(struct migrate_event));
-	__uint(max_entries, 128);
+	__uint(max_entries, 1024);
 } migrate SEC(".maps");
+
 struct { 
-	__uint(type, BPF_MAP_TYPE_ARRAY); 
-	__uint(key_size, sizeof(int)); 
-	__uint(value_size, sizeof(int)); 
-	__uint(max_entries, 16); 
-} t SEC(".maps");
+	__uint(type, BPF_MAP_TYPE_HASH); 
+	__uint(key_size, sizeof(struct minfo_key));
+	__uint(value_size, sizeof(struct per_migrate));
+	__uint(max_entries, 1024);
+} migrate_info SEC(".maps");
 
 SEC("tracepoint/sched/sched_migrate_task")
 int tracepoint_sched_migrate_task(struct trace_event_raw_sched_migrate_task *args){
     u64 time = bpf_ktime_get_ns();//当前转移时间点;
     pid_t pid = args->pid;
     struct migrate_event *migrate_event;
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    struct rq *orig_rq = BPF_CORE_READ(task,se.cfs_rq,rq);
+    struct cfs_rq *orig_cfs = BPF_CORE_READ(task,se.cfs_rq);
+
+    bpf_printk("[se]:Pload_avg:%llu\tPutil_avg:%llu\n",BPF_CORE_READ(task,se.avg.load_avg),BPF_CORE_READ(task,se.avg.util_avg));
+    bpf_printk("[rq]: nr_running :%d  cpu_capacity : %ld  cpu_capacity_orig : %ld\n",
+                BPF_CORE_READ(orig_rq,cpu),BPF_CORE_READ(orig_rq,nr_running),
+                BPF_CORE_READ(orig_rq,cpu_capacity),BPF_CORE_READ(orig_rq,cpu_capacity_orig));  
+    bpf_printk("Cload_avg:%ld\n",BPF_CORE_READ(orig_cfs,avg.runnable_avg));
     migrate_event = bpf_map_lookup_elem(&migrate,&pid);
     if(!migrate_event){
-        int key = 0,*count=bpf_map_lookup_elem(&t,&key);
-        if(!count){
-            int init = 1;
-            bpf_map_update_elem(&t,&key,&init,BPF_ANY);
-        }
-        else *count +=1;
-
         struct migrate_event migrate_event = {};
+        struct per_migrate per_migrate = {};
+        struct minfo_key mkey = {};
+        mkey.pid = pid;
+        mkey.count = 1;
         migrate_event.pid = pid;
         migrate_event.prio = args->prio;
-        migrate_event.migrate_info[0].time = time;
-        migrate_event.migrate_info[0].orig_cpu = args->orig_cpu;
-        migrate_event.migrate_info[0].dest_cpu = args->dest_cpu;
         migrate_event.count = 1;
+        migrate_event.rear = 1;
+        per_migrate.time = time;
+        per_migrate.orig_cpu = args->orig_cpu;
+        per_migrate.dest_cpu = args->dest_cpu;
+
+        per_migrate.cpu_capacity = BPF_CORE_READ(orig_rq,cpu_capacity);
+        per_migrate.cpu_capacity_orig = BPF_CORE_READ(orig_rq,cpu_capacity_orig);
+        per_migrate.cpu_load_avg = BPF_CORE_READ(orig_cfs,avg.runnable_avg);
+
+
+        per_migrate.pload_avg = BPF_CORE_READ(task,se.avg.load_avg);//进程的量化负载；
+        per_migrate.putil_avg = BPF_CORE_READ(task,se.avg.util_avg);//进程的实际算力；
+        per_migrate.mem_usage = BPF_CORE_READ(task,mm,total_vm) << PAGE_SHIFT;
+
+
+        per_migrate.read_bytes = BPF_CORE_READ(task,ioac.read_bytes);
+        per_migrate.write_bytes = BPF_CORE_READ(task,ioac.write_bytes);
+
+        per_migrate.context_switches =  BPF_CORE_READ(task,nvcsw) + BPF_CORE_READ(task,nivcsw);
+        // per_migrate.runtime =  BPF_CORE_READ(task,se.sum_exec_runtime);
+        bpf_map_update_elem(&migrate_info, &mkey, &per_migrate, BPF_ANY);
         bpf_map_update_elem(&migrate, &pid, &migrate_event, BPF_ANY);
     }
     /*&& (migrate_event->migrate_info + migrate_event->count) < (migrate_event->migrate_info + MAX_MIGRATE)*/
-    else if(migrate_event->count>0 && migrate_event->count<MAX_MIGRATE
-            && (migrate_event->migrate_info + migrate_event->count) < (migrate_event->migrate_info + MAX_MIGRATE)  )
+    else if(migrate_event->count>0 && migrate_event->count<MAX_MIGRATE)
     {
-        migrate_event->migrate_info[migrate_event->count].time = time;
-        migrate_event->migrate_info[migrate_event->count].orig_cpu = args->orig_cpu;
-        migrate_event->migrate_info[migrate_event->count++].dest_cpu = args->dest_cpu;
-    } 
-    else if(migrate_event->count>=MAX_MIGRATE)
-    {   
-        migrate_event->migrate_info[migrate_event->count % MAX_MIGRATE].time = time;
-        migrate_event->migrate_info[migrate_event->count % MAX_MIGRATE].orig_cpu = args->orig_cpu;
-        migrate_event->migrate_info[migrate_event->count % MAX_MIGRATE].dest_cpu = args->dest_cpu;
+        struct per_migrate per_migrate = {};
+        struct minfo_key mkey = {};
         migrate_event->count++;
-        migrate_event->rear ++;
-    }   
+        mkey.pid = pid;
+        mkey.count =  migrate_event->count;  
+        per_migrate.time = time;
+        per_migrate.orig_cpu = args->orig_cpu;
+        per_migrate.dest_cpu = args->dest_cpu;
 
-    //bpf_printk("Time:%llu\tpid:%d\tcomm:%s\tprio:%d\torig_cpu:%d\tdest_cpu:%d\t\n",time,args->pid,args->comm,args->prio,args->orig_cpu,args->dest_cpu);
+        per_migrate.cpu_capacity = BPF_CORE_READ(orig_rq,cpu_capacity);
+        per_migrate.cpu_capacity_orig = BPF_CORE_READ(orig_rq,cpu_capacity_orig);
+        per_migrate.cpu_load_avg = BPF_CORE_READ(orig_cfs,avg.runnable_avg);
+
+        per_migrate.pload_avg = BPF_CORE_READ(task,se.avg.load_avg);//进程的量化负载；
+        per_migrate.putil_avg = BPF_CORE_READ(task,se.avg.util_avg);//进程的实际算力；
+        per_migrate.mem_usage = BPF_CORE_READ(task,mm,total_vm) << PAGE_SHIFT;
+
+
+        per_migrate.read_bytes = BPF_CORE_READ(task,ioac.read_bytes);
+        per_migrate.write_bytes = BPF_CORE_READ(task,ioac.write_bytes);
+
+        per_migrate.context_switches =  BPF_CORE_READ(task,nvcsw) + BPF_CORE_READ(task,nivcsw);
+        // per_migrate.runtime =  BPF_CORE_READ(task,se.sum_exec_runtime);
+
+        bpf_map_update_elem(&migrate_info, &mkey, &per_migrate, BPF_ANY);
+    } 
     return 0;
 }
