@@ -17,7 +17,7 @@
 
 #include "common.bpf.h"
 #include "redis_helper.bpf.h"
-#define MAXEPOLL 4
+#define MAXEPOLL 5
 static __always_inline int __handle_redis_start(struct pt_regs *ctx) {
     struct client *cli = (struct client *)PT_REGS_PARM1(ctx);
     struct redis_query start={};
@@ -34,7 +34,6 @@ static __always_inline int __handle_redis_start(struct pt_regs *ctx) {
         bpf_probe_read(&arg1, sizeof(arg1), &arg0[i]);
         bpf_probe_read(&ptr, sizeof(ptr),&arg1->ptr);
         bpf_probe_read_str(&start.redis[i], sizeof(start.redis[i]), ptr);
-        //bpf_printk("%s",start.redis[i]);
     }
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
     u64 start_time = bpf_ktime_get_ns() / 1000;
@@ -64,7 +63,6 @@ static __always_inline int __handle_redis_end(struct pt_regs *ctx) {
     }
     bpf_probe_read_str(&message->redis, sizeof(start->redis), start->redis);
     message->duratime = end_time - start->begin_time;
-    bpf_printk("%llu - %llu = %llu",end_time,start->begin_time,message->duratime);
     bpf_ringbuf_submit(message, 0);
     return 0;
 }
