@@ -35,9 +35,11 @@
 #include "preempt.skel.h"
 #include "schedule_delay.skel.h"
 #include "mq_delay.skel.h"
+#include "mutrace.skel.h"
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
+
 
 
 struct list_head {
@@ -65,6 +67,7 @@ static struct env {
     int freq;
     bool EWMA;
     int cycle;
+	int MUTRACE;
 } env = {
     .time = 0,
     .period = 1,
@@ -78,6 +81,7 @@ static struct env {
     .freq = 99,
     .EWMA = false,
     .cycle = 0,
+	.MUTRACE = false,
 };
 
 
@@ -88,6 +92,7 @@ struct sc_delay_bpf *sc_skel;
 struct preempt_bpf *preempt_skel;
 struct schedule_delay_bpf *sd_skel;
 struct mq_delay_bpf *mq_skel;
+struct mutrace_bpf *mu_skel;
 
 static int csmap_fd;
 static int sarmap_fd;
@@ -132,6 +137,7 @@ static const struct argp_option opts[] = {
     {"preempt_time", 'p', 0, 0, "Print preempt_time (the data of preempt_schedule)" },
     {"schedule_delay", 'd', 0, 0, "Print schedule_delay (the data of cpu)" },
     {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" },
+	{"mutrace", 'x', 0, 0, "Print mutrace data(the data of cpu)" },
     {"ewma", 'E',0,0,"dynamic filte the data"},
     {"cycle", 'T',"CYCLE",0,"Periods of the ewma"},
     { NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
@@ -166,6 +172,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         case 'm':
             env.MQ_DELAY = true;
             break;
+		case 'x':
+			env.MUTRACE = true;
+			break;
 		case 'E':
 			env.EWMA = true;
 			break;
@@ -547,38 +556,23 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
     return 0;
 }
 
-// 定义一个结构来存储已输出的条目
-struct output_entry {
-    int pid;
-    char comm[16];
-    long long delay;
-};
 
-// 定义一个数组来存储已输出的条目
-struct output_entry seen_entries[MAX_ENTRIES];
-int seen_count = 0;
 
-// 检查条目是否已存在
-bool entry_exists(int pid, const char *comm, long long delay) {
-    for (int i = 0; i < seen_count; i++) {
-        if (seen_entries[i].pid == pid &&
-            strcmp(seen_entries[i].comm, comm) == 0 &&
-            seen_entries[i].delay == delay) {
-            return true;
-        }
+//mutrace输出
+static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
+    const struct mutex_contention_event *e = data;
+    if (e->owner_pid == 0 || e->contender_pid == 0||e->owner_pid == 1) {
+        return 0;
     }
-    return false;
+    // 增加锁争用次数
+    increment_lock_count(e->ptr);
+    uint64_t contention_count = get_lock_count(e->ptr);
+    printf("%15llu %15d %15s %15d %15d %15s %15d %15ld\n", e->ptr, e->owner_pid, e->owner_name, e->owner_prio,e->contender_pid, e->contender_name, e->contender_prio,contention_count);
+    return 0;
 }
 
-// 添加条目到已输出的条目列表
-void add_entry(int pid, const char *comm, long long delay) {
-    if (seen_count < MAX_ENTRIES) {
-        seen_entries[seen_count].pid = pid;
-        strncpy(seen_entries[seen_count].comm, comm, sizeof(seen_entries[seen_count].comm));
-        seen_entries[seen_count].delay = delay;
-        seen_count++;
-    }
-}
+
+
 static int schedule_print()
 {
     int err,key = 0;
@@ -961,6 +955,40 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto mq_delay_cleanup;
 		}
+	}else if (env.MUTRACE) {
+		mu_skel = mutrace_bpf__open();
+		if (!mu_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+
+		err = mutrace_bpf__load(mu_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto mutrace_cleanup;
+		}
+		//ctrl
+		if(err < 0){
+			goto mutrace_cleanup;
+		}
+		//ctrl
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto mutrace_cleanup;
+		}
+		err = mutrace_bpf__attach(mu_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto mutrace_cleanup;
+		}
+
+		rb = ring_buffer__new(bpf_map__fd(mu_skel->maps.rb), mutrace_print, NULL, NULL);
+		printf("%s\n","    lock_ptr               owner_pid       owner_comm       owner_prio   contender_pid     contender_comm  contender_prio   contender_count");
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto mutrace_cleanup;
+		}
 	}
 	while (!exiting) {
 		if(env.SAR){
@@ -1053,6 +1081,17 @@ int main(int argc, char **argv)
 				break;
 			}
 		}
+		else if (env.MUTRACE) {
+			err = ring_buffer__poll(rb, 100 /* timeout, ms */);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+		}
 		else {
 			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n-p	打印preempt_time:\t对抢占调度时间输出;\n");
 			break;
@@ -1091,5 +1130,10 @@ mq_delay_cleanup:
 	bpf_map__unpin(mq_ctrl_map, mq_ctrl_path);
 	ring_buffer__free(rb);
 	mq_delay_bpf__destroy(mq_skel);
+	return err < 0 ? -err : 0;
+
+mutrace_cleanup:
+	ring_buffer__free(rb);
+	mutrace_bpf__destroy(mu_skel);
 	return err < 0 ? -err : 0;
 }
