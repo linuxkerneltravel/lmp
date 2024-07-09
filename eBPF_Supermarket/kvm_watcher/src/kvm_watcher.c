@@ -398,7 +398,15 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             env.show = true;
             break;
         case 'a':
-            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_container_syscall);
+            SET_OPTION_AND_CHECK_USAGE(option_selected,
+                                       env.execute_container_syscall);
+            char hostname[64];
+            int result = gethostname(hostname, sizeof(hostname));
+            if (result == 0) {
+                strcpy(env.hostname, hostname);
+            } else {
+                perror("gethostname");
+            }
             break;
         case 'H':
             argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -524,7 +532,7 @@ static int determineEventType(struct env *env) {
         env->event_type = VCPU_LOAD;
     } else if (env->execute_timer) {
         env->event_type = TIMER;
-    }else if(env->execute_container_syscall){
+    } else if (env->execute_container_syscall) {
         env->event_type = CONTAINER_SYSCALL;
     } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
@@ -554,9 +562,10 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         case VCPU_LOAD: {
             break;
         }
-        case CONTAINER_SYSCALL:{
-            printf("%-8u %-22s %-10lld %-10lld %-16s\n",
-            e->syscall_data.pid,e->syscall_data.container_id,e->syscall_data.delay,e->syscall_data.syscall_id,e->syscall_data.comm);
+        case CONTAINER_SYSCALL: {
+            printf("%-8u %-22s %-10lld %-10lld %-16s\n", e->syscall_data.pid,
+                   e->syscall_data.container_id, e->syscall_data.delay,
+                   e->syscall_data.syscall_id, e->syscall_data.comm);
             break;
         }
         case HALT_POLL: {
@@ -770,7 +779,7 @@ static int print_event_head(struct env *env) {
                    "VAILD?");
             break;
         case CONTAINER_SYSCALL:
-            printf("%-8s %-22s %-9s %10s %-16s\n", "PID","CONTAINER_ID",
+            printf("%-8s %-22s %-9s %10s %-16s\n", "PID", "CONTAINER_ID",
                    "DELAY(us)", "SYSCALLID", "COMM");
             break;
         case EXIT:
@@ -884,7 +893,7 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.tp_container_sys_entry,
                               env.execute_container_syscall ? true : false);
     bpf_program__set_autoload(skel->progs.tracepoint__syscalls__sys_exit,
-                              env.execute_container_syscall ? true : false);                         
+                              env.execute_container_syscall ? true : false);
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
                               env.execute_vcpu_wakeup ? true : false);
     bpf_program__set_autoload(skel->progs.tp_exit,
@@ -1243,15 +1252,6 @@ int attach_probe(struct kvm_watcher_bpf *skel) {
     }
     return kvm_watcher_bpf__attach(skel);
 }
-void get_hostname() {
-    char hostname[64];
-    int result = gethostname(hostname, sizeof(hostname));
-    if (result == 0) {
-        strcpy(env.hostname,hostname); 
-    } else {
-        perror("gethostname");
-    }
-}
 int main(int argc, char **argv) {
     // 定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
@@ -1263,8 +1263,6 @@ int main(int argc, char **argv) {
         return err;
     /*设置libbpf的错误和调试信息回调*/
     libbpf_set_print(libbpf_print_fn);
-    //获取hostname
-    get_hostname();
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -1278,7 +1276,7 @@ int main(int argc, char **argv) {
 
     /* Parameterize BPF code with parameter */
     skel->rodata->vm_pid = env.vm_pid;
-    strcpy(skel->rodata->hostname,env.hostname);
+    strcpy(skel->rodata->hostname, env.hostname);
     /* 禁用或加载内核挂钩函数 */
     set_disable_load(skel);
 

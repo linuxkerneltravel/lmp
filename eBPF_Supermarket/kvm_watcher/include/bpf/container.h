@@ -50,7 +50,7 @@ struct {
 static int trace_container_sys_entry(struct trace_event_raw_sys_enter *args){
     u64 st = bpf_ktime_get_ns();
     pid_t pid = bpf_get_current_pid_tgid();
-    u64 syscall_id = (u64)args->id;
+    u64 syscall_id = (u64)args->id; 
     bpf_map_update_elem(&time_info,&pid,&st,BPF_ANY);
     bpf_map_update_elem(&id,&pid,&syscall_id,BPF_ANY);
     return 0;

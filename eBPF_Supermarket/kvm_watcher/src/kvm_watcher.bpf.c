@@ -248,23 +248,22 @@ int BPF_KPROBE(kp_start_sw_timer, struct kvm_lapic *apic) {
 
 //采集容器的系统用调用信息
 SEC("tracepoint/raw_syscalls/sys_enter")
-int tp_container_sys_entry(struct trace_event_raw_sys_enter *args){
+int tp_container_sys_entry(struct trace_event_raw_sys_enter *args) {
     //过滤进程
     bool is_container = is_container_task(hostname);
-    if(is_container){
+    if (is_container) {
         return trace_container_sys_entry(args);
-    }else{
+    } else {
         return 0;
     }
 }
 SEC("tracepoint/raw_syscalls/sys_exit")
-int tracepoint__syscalls__sys_exit(struct trace_event_raw_sys_exit *args){
+int tracepoint__syscalls__sys_exit(struct trace_event_raw_sys_exit *args) {
     //过滤进程
     bool is_container = is_container_task(hostname);
-    if(is_container){
-        return trace_container_sys_exit(args,&rb,e);
-    }else{
+    if (is_container) {
+        return trace_container_sys_exit(args, &rb, e);
+    } else {
         return 0;
     }
-    
 }
