@@ -1,0 +1,37 @@
+name: fraginfo
+
+on:
+  push:
+    branches:
+      - "*"
+    paths: 
+      - 'eBPF_Supermarket/Memory_Subsystem/frag/**'
+      - '.github/workflows/ebpf_frag.yml'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+       - 'eBPF_Supermarket/Memory_Subsystem/frag/**'
+      - '.github/workflows/ebpf_frag.yml'
+      
+
+jobs:
+  fraginfo-build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install  dependencies
+        run: |
+          sudo apt update
+          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential linux-tools-$(uname -r)
+          git submodule update --init --recursive
+        
+      - name: Run fraginfo
+        continue-on-error: true
+        run: |
+          cd eBPF_Supermarket/Memory_Subsystem/frag
+          bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+          make
+          sudo ./fraginfo -i 5
+        
