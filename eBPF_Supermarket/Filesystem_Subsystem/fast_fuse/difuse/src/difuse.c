@@ -124,6 +124,19 @@ struct dfs_dentry *lookup_or_create_dentry(const char *path, struct dfs_dentry *
 
 /*功能函数*/
 
+static int di_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi)
+{
+    (void)fi;
+    struct dfs_dentry *dentry = look_up(root, path);
+    if (dentry == NULL)
+    {
+        return -ENOENT;
+    }
+
+    return 0;
+}
+
+
 static int di_mkdir(const char *path, mode_t mode)
 {
     (void)mode;
@@ -141,6 +154,11 @@ static int dfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     (void)mode;
     (void)fi;
+    struct dfs_dentry *existing = look_up(root, path);
+    if (existing != NULL)
+    {
+        return -EEXIST;  // 文件已存在，返回错误
+    }
     struct dfs_dentry *dentry = lookup_or_create_dentry(path, root, FILE_TYPE);
     if (dentry == NULL)
     {
@@ -180,10 +198,11 @@ static int di_getattr(const char *path, struct stat *di_stat,
 
 /*遍历目录项*/
 static int di_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-    off_t offset, struct fuse_file_info *fi)
+    off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
     (void)fi;
     (void)offset;
+    (void)flags;
     struct dfs_dentry *dentry = look_up(root, path);
 
     if (dentry == NULL)
@@ -245,22 +264,11 @@ static int di_read(const char *path, char *buf, size_t size, off_t offset,
     return size;
 }
 
-
-
-
-
-
-static struct fuse_operations difs_ops = {
-    .readdir = di_readdir,
-    .getattr = di_getattr,
-    .open = di_open,
-    .read = di_read,
-    .mkdir = di_mkdir,
-    .create = dfs_create,
-};
-
-int main(int argc, char *argv[])
+static void *di_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
+    (void)conn;  // 如果不使用这个参数，可以忽略它
+
+    // 创建并初始化根目录的 inode 和 dentry
     struct dfs_inode *root_inode = new_inode(0, 0);
     root = new_dentry("/", DIRECTORY_TYPE, NULL, root_inode);
 
@@ -288,6 +296,28 @@ int main(int argc, char *argv[])
     struct dfs_inode *file3_inode = new_inode(150, 0);
     struct dfs_dentry *file3 = new_dentry("file3", FILE_TYPE, dir2, file3_inode);
     add_child_dentry(dir2, file3);
+
+    // 可以在此进行其他初始化操作
+
+    return 0;  // 可以返回一个自定义的结构体，如果不需要则返回 NULL
+}
+
+
+static struct fuse_operations difs_ops = {
+    .init = di_init,
+    .readdir = di_readdir,
+    .getattr = di_getattr,
+    .open = di_open,
+    .read = di_read,
+    .mkdir = di_mkdir,
+    .create = dfs_create,
+    .utimens = di_utimens,
+};
+
+int main(int argc, char *argv[])
+{
+
+
 
     return fuse_main(argc, argv, &difs_ops, NULL);
 }
