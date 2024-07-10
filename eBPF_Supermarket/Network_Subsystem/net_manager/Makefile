@@ -12,7 +12,7 @@ MAKEFLAGS += --no-print-directory -s
 Q = @
 endif
 
-PROJ := xacl_ip router xacl_mac xstate
+PROJ := xacl_ip router xacl_mac xstate net_manager
 
 
 

@@ -23,17 +23,27 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 #define TIF_NEED_RESCHED 3
-
+const int ctrl_key = 0;
 // 记录时间戳
 BPF_HASH(preemptTime, pid_t, u64, 4096);
-
+BPF_ARRAY(preempt_ctrl_map,int,struct preempt_ctrl,1);
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
+static inline struct preempt_ctrl *get_preempt_ctrl(void) {
+    struct preempt_ctrl *preempt_ctrl;
+    preempt_ctrl = bpf_map_lookup_elem(&preempt_ctrl_map, &ctrl_key);
+    if (!preempt_ctrl || !preempt_ctrl->preempt_func) {
+        return NULL;
+    }
+    return preempt_ctrl;
+}
+
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next) {
+    struct preempt_ctrl *preempt_ctrl = get_preempt_ctrl();
     u64 start_time = bpf_ktime_get_ns();
     pid_t prev_pid = BPF_CORE_READ(prev, pid);
     
@@ -52,6 +62,7 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 // SEC("kprobe/finish_task_switch") 
 SEC("kprobe/finish_task_switch.isra.0") 
 int BPF_KPROBE(finish_task_switch, struct task_struct *prev) {
+    struct preempt_ctrl *preempt_ctrl = get_preempt_ctrl();
     u64 end_time = bpf_ktime_get_ns();
     pid_t pid = BPF_CORE_READ(prev, pid);
     u64 *val;

@@ -1,10 +1,38 @@
+// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+/* Copyright (c) 2020 Facebook */
+#include <signal.h>
 #include <stdio.h>
-#include <unistd.h>
+#include <time.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
-#include <signal.h>
-#include "open.skel.h"	//包含了 BPF 字节码和相关的管理函数
-#include "open.h"
+#include <bpf/bpf.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include "open.skel.h"
+#include <inttypes.h>
+#include <linux/fs.h>
+#include <errno.h>
+
+#define path_size 256
+#define TASK_COMM_LEN 16
+
+struct event {
+	int pid_;
+	char path_name_[path_size];
+	int n_;
+    char comm[TASK_COMM_LEN];
+};
+
+#define warn(...) fprintf(stderr, __VA_ARGS__)
+
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
+			   va_list args)
+{
+	return vfprintf(stderr, format, args);
+}
 
 static volatile bool exiting = false;
 
@@ -13,18 +41,34 @@ static void sig_handler(int sig)
 	exiting = true;
 }
 
-static int handle_event(void *ctx, void *data,unsigned long data_sz)
+static int handle(void *ctx, void *data, size_t data_sz)
 {
-	const struct fs_t *e = data;
-	printf("pid:%d uid:%llu time:%llu fd:%d comm:%s\n",e->pid,e->uid,e->ts,e->fd,e->comm);
-	
-	return 0;
-}
-	
+	struct event *e = (struct event *)data;
+	char *filename = strrchr(e->path_name_, '/');
+	++filename;
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
-{
-	return vfprintf(stderr, format, args);
+	char fd_path[path_size];
+	char actual_path[path_size];
+    char comm[TASK_COMM_LEN];
+	int i = 0;
+    int map_fd = *(int *)ctx;//传递map得文件描述符
+    
+	for (; i < e->n_; ++i) {
+		snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", e->pid_,i);
+		ssize_t len = readlink(fd_path, actual_path, sizeof(actual_path) - 1);
+		if (len != -1) {
+			actual_path[len] = '\0';
+			int result = strcmp(e->path_name_, actual_path);
+			if (result == 0) {
+                if(bpf_map_lookup_elem(map_fd,&e->pid_,&comm)==0){
+                    printf("get     ,   filename:%s    ,  fd:%d	, pid:%d  ,comm:%s\n", e->path_name_, i,e->pid_,comm);
+                }else{
+                    fprintf(stderr, "Failed to lookup value for key %d\n", e->pid_);
+                    }
+			    }
+		    }
+	    }
+	return 0;
 }
 
 int main(int argc, char **argv)
@@ -33,50 +77,51 @@ int main(int argc, char **argv)
 	struct open_bpf *skel;
 	int err;
 
-	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-	/* 设置libbpf错误和调试信息回调 */
+	/* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
 
-	/* 更干净地处理Ctrl-C
-	   SIGINT：由Interrupt Key产生，通常是CTRL+C或者DELETE。发送给所有ForeGround Group的进程
-       SIGTERM：请求中止进程，kill命令发送
-	*/
-	signal(SIGINT, sig_handler);		//signal设置某一信号的对应动作
+	/* Cleaner handling of Ctrl-C */
+	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
 
-	/* 打开BPF应用程序 */
+	/* Load and verify BPF application */
 	skel = open_bpf__open();
 	if (!skel) {
-		fprintf(stderr, "Failed to open BPF skeleton\n");
+		fprintf(stderr, "Failed to open and load BPF skeleton\n");
 		return 1;
 	}
-	
-	/* 加载并验证BPF程序 */
+
+	/* Load & verify BPF programs */
 	err = open_bpf__load(skel);
 	if (err) {
 		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
 		goto cleanup;
 	}
-	
-	/* 附加跟踪点处理程序 */
-	err = open_bpf__attach(skel);
-	if (err) {
+
+	int attach = open_bpf__attach(skel);
+	if (attach) {
 		fprintf(stderr, "Failed to attach BPF skeleton\n");
+		err = -1;
 		goto cleanup;
 	}
-	
-	/* 设置环形缓冲区轮询 */
-	rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);	//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+
+    int map_fd = bpf_map__fd(skel->maps.data);
+    if(!map_fd){
+        fprintf(stderr, "Failed to find BPF map\n");
+        return -1;
+    }
+
+	rb = ring_buffer__new(
+		bpf_map__fd(skel->maps.rb), handle, &map_fd, NULL); // 创建一个环形缓冲区，并设置好缓冲区的回调函数
 	if (!rb) {
 		err = -1;
 		fprintf(stderr, "Failed to create ring buffer\n");
 		goto cleanup;
 	}
-	
-	/* 处理事件 */
+
 	while (!exiting) {
-		err = ring_buffer__poll(rb, 100 /* timeout, ms */);		//ring_buffer__poll(),轮询打开ringbuf缓冲区。如果有事件，handle_event函数会执行
-		/* Ctrl-C will cause -EINTR */
+		err = ring_buffer__poll(rb, 100);
+
 		if (err == -EINTR) {
 			err = 0;
 			break;
@@ -85,15 +130,11 @@ int main(int argc, char **argv)
 			printf("Error polling perf buffer: %d\n", err);
 			break;
 		}
-		
-		//exiting = true;			//使用该程序时,将该行代码注释掉 
-		
 	}
-	
-/* 卸载BPF程序 */
 cleanup:
+	/* Clean up */
 	ring_buffer__free(rb);
 	open_bpf__destroy(skel);
-	
+
 	return err < 0 ? -err : 0;
 }

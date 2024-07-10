@@ -22,13 +22,13 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/usdt.bpf.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "bpf_wapper/probe.h"
 #include "task.h"
 
 COMMON_MAPS(time_tuple);
 COMMON_VALS;
-BPF_HASH(starts, u32, u64);
+BPF_HASH(starts, u32, u64, MAX_ENTRIES/10);
 
 static int entry(void *ctx)
 {

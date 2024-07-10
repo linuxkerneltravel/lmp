@@ -35,9 +35,11 @@
 #include "preempt.skel.h"
 #include "schedule_delay.skel.h"
 #include "mq_delay.skel.h"
+#include "mutrace.skel.h"
 
 typedef long long unsigned int u64;
 typedef unsigned int u32;
+
 
 
 struct list_head {
@@ -55,35 +57,31 @@ struct msg_msg {
 static struct env {
     int time;
     int period;
-    bool percent;
     bool enable_proc;
     bool SAR;
     bool CS_DELAY;
     bool SYSCALL_DELAY;
-    bool MIN_US_SET;
-    int MIN_US;
     bool PREEMPT;
     bool SCHEDULE_DELAY;
     bool MQ_DELAY;
     int freq;
     bool EWMA;
     int cycle;
+	int MUTRACE;
 } env = {
     .time = 0,
     .period = 1,
-    .percent = false,
     .enable_proc = false,
     .SAR = false,
     .CS_DELAY = false,
     .SYSCALL_DELAY = false,
-    .MIN_US_SET = false,
-    .MIN_US = 10000,
     .PREEMPT = false,
     .SCHEDULE_DELAY = false,
     .MQ_DELAY = false,
     .freq = 99,
     .EWMA = false,
     .cycle = 0,
+	.MUTRACE = false,
 };
 
 
@@ -94,12 +92,15 @@ struct sc_delay_bpf *sc_skel;
 struct preempt_bpf *preempt_skel;
 struct schedule_delay_bpf *sd_skel;
 struct mq_delay_bpf *mq_skel;
+struct mutrace_bpf *mu_skel;
 
 static int csmap_fd;
 static int sarmap_fd;
+struct sar_ctrl sar_ctrl= {};
 static int scmap_fd;
 static int preemptmap_fd;
 static int schedulemap_fd;
+struct schedule_ctrl sd_ctrl = {};
 static int mqmap_fd;
 
 //static int prev_watcher = 0;//上一个使用的工具，用于在切换使用功能时，打印不用功能的表头；
@@ -130,13 +131,13 @@ const char argp_program_doc[] = "cpu watcher is in use ....\n";
 static const struct argp_option opts[] = {
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
     { "period", 'i', "INTERVAL", 0, "Period interval in seconds" },
-    {"percent", 'P', 0, 0, "Format data as percentages" },
     {"libbpf_sar", 's', 0, 0, "Print sar_info (the data of cpu)" },
     {"cs_delay", 'c', 0, 0, "Print cs_delay (the data of cpu)" },
     {"syscall_delay", 'S', 0, 0, "Print syscall_delay (the data of syscall)" },
     {"preempt_time", 'p', 0, 0, "Print preempt_time (the data of preempt_schedule)" },
     {"schedule_delay", 'd', 0, 0, "Print schedule_delay (the data of cpu)" },
     {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" },
+	{"mutrace", 'x', 0, 0, "Print mutrace data(the data of cpu)" },
     {"ewma", 'E',0,0,"dynamic filte the data"},
     {"cycle", 'T',"CYCLE",0,"Periods of the ewma"},
     { NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help" },
@@ -152,9 +153,6 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
         case 'i':
             env.period = strtol(arg, NULL, 10);
-            break;
-        case 'P':
-            env.percent = true;
             break;
         case 's':
             env.SAR = true;
@@ -174,6 +172,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         case 'm':
             env.MQ_DELAY = true;
             break;
+		case 'x':
+			env.MUTRACE = true;
+			break;
 		case 'E':
 			env.EWMA = true;
 			break;
@@ -264,6 +265,28 @@ u64 find_ksym(const char* target_symbol) {
 
 static int print_all()
 {
+	int err,key=0;
+	err = bpf_map_lookup_elem(sarmap_fd, &key, &sar_ctrl);
+	if (err < 0) {
+		fprintf(stderr, "failed to lookup infos: %d\n", err);
+		return -1;
+	}
+	if(!sar_ctrl.sar_func)	return 0;
+	if(sar_ctrl.prev_watcher == SAR_WACTHER + 1) {
+		printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
+		sar_ctrl.prev_watcher = SAR_WACTHER + 2;
+		err = bpf_map_update_elem(sarmap_fd, &key, &sar_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}else if (sar_ctrl.prev_watcher == SAR_WACTHER){
+		printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");
+		sar_ctrl.prev_watcher = SAR_WACTHER + 2;
+		err = bpf_map_update_elem(sarmap_fd, &key, &sar_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
+	}
 	int nprocs = get_nprocs();
 	/*proc:*/
 	int key_proc = 1;
@@ -380,7 +403,7 @@ static int print_all()
 	if(env.enable_proc){
 		time_t now = time(NULL);
 		struct tm *localTime = localtime(&now);
-		if (env.percent == true){
+		if (sar_ctrl.percent == true){
 			printf("%02d:%02d:%02d %8llu %8llu %6d  ",localTime->tm_hour, localTime->tm_min, localTime->tm_sec,__proc, __sched, runqlen);
 			// 大于百分之60的标红输出
 			double values[7] = {
@@ -533,43 +556,26 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
     return 0;
 }
 
-// 定义一个结构来存储已输出的条目
-struct output_entry {
-    int pid;
-    char comm[16];
-    long long delay;
-};
 
-// 定义一个数组来存储已输出的条目
-struct output_entry seen_entries[MAX_ENTRIES];
-int seen_count = 0;
 
-// 检查条目是否已存在
-bool entry_exists(int pid, const char *comm, long long delay) {
-    for (int i = 0; i < seen_count; i++) {
-        if (seen_entries[i].pid == pid &&
-            strcmp(seen_entries[i].comm, comm) == 0 &&
-            seen_entries[i].delay == delay) {
-            return true;
-        }
+//mutrace输出
+static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
+    const struct mutex_contention_event *e = data;
+    if (e->owner_pid == 0 || e->contender_pid == 0||e->owner_pid == 1) {
+        return 0;
     }
-    return false;
+    // 增加锁争用次数
+    increment_lock_count(e->ptr);
+    uint64_t contention_count = get_lock_count(e->ptr);
+    printf("%15llu %15d %15s %15d %15d %15s %15d %15ld\n", e->ptr, e->owner_pid, e->owner_name, e->owner_prio,e->contender_pid, e->contender_name, e->contender_prio,contention_count);
+    return 0;
 }
 
-// 添加条目到已输出的条目列表
-void add_entry(int pid, const char *comm, long long delay) {
-    if (seen_count < MAX_ENTRIES) {
-        seen_entries[seen_count].pid = pid;
-        strncpy(seen_entries[seen_count].comm, comm, sizeof(seen_entries[seen_count].comm));
-        seen_entries[seen_count].delay = delay;
-        seen_count++;
-    }
-}
+
+
 static int schedule_print()
 {
-
     int err,key = 0;
-	struct schedule_ctrl sd_ctrl = {};
 	err = bpf_map_lookup_elem(schedulemap_fd,&key,&sd_ctrl);
 	if (err < 0) {
 		fprintf(stderr, "failed to lookup infos: %d\n", err);
@@ -620,18 +626,34 @@ static int schedule_print()
 	}
 	else{
 		struct proc_schedule info;
+		struct proc_id id_key;
+		struct proc_history prev_info;
         int key = 0;  
-        int err, fd = bpf_map__fd(sd_skel->maps.threshold_schedule);
-        err = bpf_map_lookup_elem(fd, &key, &info);
+        int err, fd1 = bpf_map__fd(sd_skel->maps.threshold_schedule),fd2 = bpf_map__fd(sd_skel->maps.proc_histories);
+        err = bpf_map_lookup_elem(fd1, &key, &info);
         if (err < 0) {
             fprintf(stderr, "failed to lookup infos: %d\n", err);
             return -1;
         }
-        if (info.delay / 1000>sd_ctrl.min_us&&info.pid!=0) { 
-            if (!entry_exists(info.pid, info.proc_name, info.delay / 1000)) {
-                printf("%-10d %-16s %15lld\n", info.pid, info.proc_name, info.delay / 1000);
-                add_entry(info.pid, info.proc_name, info.delay / 1000);
+        if (info.delay / 1000 > sd_ctrl.min_us&&info.id.pid!=0) {
+			id_key.pid = info.id.pid;
+    		id_key.cpu_id = info.id.cpu_id;
+			err = bpf_map_lookup_elem(fd2, &id_key, &prev_info);
+			if (err < 0) {
+				fprintf(stderr, "Failed to lookup proc_histories with PID %d and CPU ID %d: %d\n", id_key.pid, id_key.cpu_id, err);
+				return -1;
+			}
+            if (!entry_exists(info.id.pid, info.proc_name, info.delay / 1000)) {
+                printf("%-10d %-16s %15lld", info.id.pid, info.proc_name, info.delay / 1000);
+                add_entry(info.id.pid, info.proc_name, info.delay / 1000);
+				for (int i = 0; i < 2; i++) {
+					if (prev_info.last[i].pid != 0) {
+						printf("          Previous Process %d: PID=%-10d Name=%-16s ", i+1, prev_info.last[i].pid, prev_info.last[i].comm);
+					}
+				}
+				printf("\n"); 
             }
+
         }
 	}
 
@@ -878,7 +900,7 @@ int main(int argc, char **argv)
 			goto sar_cleanup;
 		}
 		sarmap_fd = bpf_map__fd(sar_ctrl_map);
-		struct sar_ctrl init_value = {false,SAR_WACTHER};
+		struct sar_ctrl init_value = {false,false,SAR_WACTHER};
 		err = bpf_map_update_elem(sarmap_fd, &key, &init_value, 0);
 		if(err < 0){
 			fprintf(stderr, "Failed to update elem\n");
@@ -891,9 +913,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto sar_cleanup;
 		}
-		if (env.percent){
-			printf("  time       proc/s  cswch/s  runqlen  irqTime/%%  softirq/%%  idle/%%    kthread/%%    sysc/%%     utime/%%     sys/%% \n");
-		}else{printf("  time    proc/s  cswch/s  runqlen  irqTime/us  softirq/us  idle/ms  kthread/us  sysc/ms  utime/ms  sys/ms \n");}
 	}else if(env.MQ_DELAY){
 		/* Load and verify BPF application */
 		mq_skel = mq_delay_bpf__open();
@@ -935,6 +954,40 @@ int main(int argc, char **argv)
 			err = -1;
 			fprintf(stderr, "Failed to create ring buffer\n");
 			goto mq_delay_cleanup;
+		}
+	}else if (env.MUTRACE) {
+		mu_skel = mutrace_bpf__open();
+		if (!mu_skel) {
+			fprintf(stderr, "Failed to open and load BPF skeleton\n");
+			return 1;
+		}
+
+		err = mutrace_bpf__load(mu_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+			goto mutrace_cleanup;
+		}
+		//ctrl
+		if(err < 0){
+			goto mutrace_cleanup;
+		}
+		//ctrl
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto mutrace_cleanup;
+		}
+		err = mutrace_bpf__attach(mu_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF skeleton\n");
+			goto mutrace_cleanup;
+		}
+
+		rb = ring_buffer__new(bpf_map__fd(mu_skel->maps.rb), mutrace_print, NULL, NULL);
+		printf("%s\n","    lock_ptr               owner_pid       owner_comm       owner_prio   contender_pid     contender_comm  contender_prio   contender_count");
+		if (!rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create ring buffer\n");
+			goto mutrace_cleanup;
 		}
 	}
 	while (!exiting) {
@@ -1013,7 +1066,7 @@ int main(int argc, char **argv)
 			if (err < 0) {
 				break;
 			}
-			if(env.SCHEDULE_DELAY){
+			if(env.SCHEDULE_DELAY&&!sd_ctrl.min_us_set){
 				sleep(1);
 			}	
 		}
@@ -1025,6 +1078,17 @@ int main(int argc, char **argv)
 			}
 			if (err < 0) {
         	    printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+		}
+		else if (env.MUTRACE) {
+			err = ring_buffer__poll(rb, 100 /* timeout, ms */);
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
 				break;
 			}
 		}
@@ -1066,5 +1130,10 @@ mq_delay_cleanup:
 	bpf_map__unpin(mq_ctrl_map, mq_ctrl_path);
 	ring_buffer__free(rb);
 	mq_delay_bpf__destroy(mq_skel);
+	return err < 0 ? -err : 0;
+
+mutrace_cleanup:
+	ring_buffer__free(rb);
+	mutrace_bpf__destroy(mu_skel);
 	return err < 0 ? -err : 0;
 }
