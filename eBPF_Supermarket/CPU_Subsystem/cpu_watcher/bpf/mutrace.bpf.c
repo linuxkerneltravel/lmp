@@ -167,27 +167,27 @@ int BPF_KPROBE(trace_mutex_unlock, struct mutex *lock) {
 /*                用户态互斥锁                   */
 /*----------------------------------------------*/
 
-SEC("uprobe")
-int BPF_KPROBE(pthread_mutex_lock_init, void *__mutex){
+// SEC("uprobe")
+// int BPF_KPROBE(pthread_mutex_lock_init, void *__mutex){
 
-}
+// }
 
-SEC("uprobe")
-int BPF_KPROBE(pthread_mutex_lock,void *__mutex){
+// SEC("uprobe")
+// int BPF_KPROBE(pthread_mutex_lock,void *__mutex){
     
-}
+// }
 
-SEC("uprobe")
-int BPF_KPROBE(pthread_mutex_trylock, void *__mutex){
+// SEC("uprobe")
+// int BPF_KPROBE(pthread_mutex_trylock, void *__mutex){
     
-}
+// }
 
-SEC("uprobe")
-int BPF_KPROBE(pthread_mutex_unlock, void *__mutex){
+// SEC("uprobe")
+// int BPF_KPROBE(pthread_mutex_unlock, void *__mutex){
     
-}
+// }
 
-SEC("uprobe")
-int BPF_KPROBE(pthread_mutex_destroy,void *__mutex){
+// SEC("uprobe")
+// int BPF_KPROBE(pthread_mutex_destroy,void *__mutex){
     
-}
+// }

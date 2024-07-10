@@ -601,7 +601,7 @@ static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
 static int mutex_detail(){
 	int fd = bpf_map__fd(mu_skel->maps.mutex_info_map);
 		u64 key,next_key;
-		struct mutex_info info;
+		struct mutex_info_kernel info;
 		while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
 			int err = bpf_map_lookup_elem(fd, &next_key, &info);
 			printf(" %15llu %15llu %15llu %15llu %15d %15d %20s\n",
