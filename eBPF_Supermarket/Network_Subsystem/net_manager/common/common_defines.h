@@ -27,6 +27,13 @@ struct config {
 	int xsk_if_queue;
 	bool xsk_poll_mode;
 	bool unload_all;
+	bool show_stats;  // 数据统计
+	bool ip_filter;   //ip过滤
+	bool mac_filter;  //mac过滤
+	bool router;  //路由
+	bool state;       //会话保持
+	bool clear;       //清理
+
 };
 
 /* Defined in common_params.o */

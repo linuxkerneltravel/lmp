@@ -141,9 +141,40 @@ struct sum_schedule {
 };
 
 struct proc_schedule {
-	int pid;
+	struct proc_id id;
 	unsigned long long delay;
 	char proc_name[TASK_COMM_LEN];
+};
+
+struct proc_info {
+    pid_t pid;
+    char comm[TASK_COMM_LEN];
+};
+
+struct proc_history {
+    struct proc_info last[2]; // 存储最后两个调度的进程信息
+};
+
+/*----------------------------------------------*/
+/*         mutrace相关结构体                     */
+/*----------------------------------------------*/
+struct mutex_info {
+    u64 locked_total;//锁被持有的总时间
+    u64 locked_max;//锁被持有的最长时间
+    u64 contended_total;//锁发生竞争的总时间
+    pid_t last_owner;//最后一次持有该锁的线程 ID
+	u64 acquire_time; // 锁每次被获取的时间戳，方便后续计算
+    u64 ptr;//地址
+};
+
+struct mutex_contention_event {
+	u64 ptr;//锁地址
+	pid_t owner_pid;//持有者pid
+    pid_t contender_pid;//抢占者pid
+    char contender_name[TASK_COMM_LEN];
+    char owner_name[TASK_COMM_LEN];
+	int owner_prio;
+	int contender_prio;
 };
 
 /*----------------------------------------------*/
@@ -226,6 +257,7 @@ struct idleStruct {
 /*----------------------------------------------*/
 struct sar_ctrl{
 	bool sar_func;
+	bool percent;
 	int prev_watcher;
 };
 

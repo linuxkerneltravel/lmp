@@ -21,7 +21,7 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "task.h"
 #include "bpf_wapper/memleak.h"
 
@@ -31,9 +31,9 @@ const volatile bool wa_missing_free = false;
 const volatile size_t page_size = 4096;
 const volatile bool trace_all = false;
 
-BPF_HASH(pid_size_map, u32, u64);             // 记录了对应进程使用malloc,calloc等函数申请内存的大小
-BPF_HASH(piddr_meminfo_map, piddr, mem_info); // 记录了每次申请的内存空间的起始地址等信息
-BPF_HASH(memptrs_map, u32, u64);
+BPF_HASH(pid_size_map, u32, u64, MAX_ENTRIES);             // 记录了对应进程使用malloc,calloc等函数申请内存的大小
+BPF_HASH(piddr_meminfo_map, piddr, mem_info, MAX_ENTRIES); // 记录了每次申请的内存空间的起始地址等信息
+BPF_HASH(memptrs_map, u32, u64, MAX_ENTRIES);
 
 const char LICENSE[] SEC("license") = "GPL";
 
