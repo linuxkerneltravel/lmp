@@ -598,16 +598,19 @@ static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
     return 0;
 }
 
-static int mutex_detail(){
-	int fd = bpf_map__fd(mu_skel->maps.mutex_info_map);
-		u64 key,next_key;
-		struct mutex_info_kernel info;
-		while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
-			int err = bpf_map_lookup_elem(fd, &next_key, &info);
-			printf(" %15llu %15llu %15llu %15llu %15d %15d %20s\n",
-				next_key, info.locked_total, info.locked_max, info.contended_total,info.count ,info.last_owner,info.last_name);
-			key = next_key;
-    	}
+static int mutex_detail() {
+    int fd = bpf_map__fd(mu_skel->maps.mutex_info_map);
+    u64 key, next_key;
+    struct mutex_info_kernel info;
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        int err = bpf_map_lookup_elem(fd, &next_key, &info);
+        if (err == 0 && info.contended_total != 0) { // 添加过滤条件
+            printf(" %15llu %15lluns %15lluns %15lluns %15d %15d %20s\n",
+                   next_key, info.locked_total, info.locked_max, info.contended_total, info.count, info.last_owner, info.last_name);
+        }
+        key = next_key;
+    }
+    return 0;
 }
 
 static int schedule_print()
