@@ -126,45 +126,53 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 static int migrate_print(){
 	time_t now = time(NULL);// 获取当前时间
 	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
-	printf("Time: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
-	printf("---------------------------------------------------------------------------------\n");
-	int err,migrate_fd =bpf_map__fd(skel->maps.migrate),t_fd =bpf_map__fd(skel->maps.t);
-	int key =0,count;
-	err = bpf_map_lookup_elem(t_fd,&key,&count);
-	if (err < 0) {
-		fprintf(stderr, "failed to lookup infos: %d\n", err);
-		return -1;
-	}
-	printf("total process %d\n",count);
-	count = 0;
-	bpf_map_update_elem(t_fd,&key,&count,BPF_ANY);
+	printf("\nTime: %02d:%02d:%02d\n",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+	printf("---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+	int err,migrate_fd =bpf_map__fd(skel->maps.migrate),migrate_info_fd =bpf_map__fd(skel->maps.migrate_info);
 
 	pid_t lookup_key = -1 ,next_key;
 	struct migrate_event migrate_event;
 	while(!bpf_map_get_next_key(migrate_fd, &lookup_key, &next_key)){//遍历打印hash map
 		err = bpf_map_lookup_elem(migrate_fd,&next_key,&migrate_event);
 		if (err < 0) {
-			fprintf(stderr, "failed to lookup infos: %d\n", err);
+			fprintf(stderr, "failed to lookup infos2: %d\n", err);
 			return -1;
 		}
-		if(migrate_event.count == migrate_event.rear) {
+		if(migrate_event.count <= migrate_event.rear) {
 			lookup_key = next_key;
 			continue;
 		}
 		u64 last_time_stamp = 0;
 		printf("\npid:%d\tprio:%d\tcount:%d\trear:%d\n",migrate_event.pid,migrate_event.prio,migrate_event.count,migrate_event.rear);
-		for(int i=migrate_event.rear;i<migrate_event.count;i++){
-			printf("time_stamp:%llu\t%d->%d\t",
-					migrate_event.migrate_info[i%MAX_MIGRATE].time,migrate_event.migrate_info[i%MAX_MIGRATE].orig_cpu,migrate_event.migrate_info[i%MAX_MIGRATE].dest_cpu);
+		printf("---------------------------------------------------------------------------------\n");
+		for(int i=migrate_event.rear;i<=migrate_event.count;i++){
+			struct per_migrate migrate_info;
+			struct minfo_key mkey;	
+			mkey.pid = migrate_event.pid;
+			mkey.count = i;
+			err = bpf_map_lookup_elem(migrate_info_fd,&mkey,&migrate_info);
+			if (err < 0) {
+				fprintf(stderr, "failed to lookup infos err %d mkey_pid: %d mkey_count: %d\n", err,mkey.pid,i);
+				continue;
+			}
+			printf("time_stamp:%llu\t%d->%d \t PROC_LOAD:%llu \t PROC_UTIL:%llu\t",
+					migrate_info.time,migrate_info.orig_cpu,migrate_info.dest_cpu,migrate_info.pload_avg,migrate_info.putil_avg);
+			printf("CPU_LOAD: %ld \t Cpu_Capacity:[%ld:%ld] \t ",migrate_info.cpu_load_avg,migrate_info.cpu_capacity,migrate_info.cpu_capacity_orig);
+			printf("mmem_usage:%llu kb \t\t read:%llu kb \t\t wite:%llu kb \t\t context_switch:%llu\t",
+					migrate_info.mem_usage/1024,migrate_info.read_bytes/1024,migrate_info.write_bytes/1024,
+        			migrate_info.context_switches);
+
 			if(i==migrate_event.rear && last_time_stamp == 0) {
-				last_time_stamp = migrate_event.migrate_info[i%MAX_MIGRATE].time;
+				last_time_stamp = migrate_info.time;
 				printf("delay: /\n");
 			}else{
-				printf("delay: %d us\n",(migrate_event.migrate_info[i%MAX_MIGRATE].time - last_time_stamp)/1000);
-				last_time_stamp = migrate_event.migrate_info[i%MAX_MIGRATE].time;
+				printf("delay: %d us\n",(migrate_info.time - last_time_stamp)/1000);
+				last_time_stamp = migrate_info.time;
 			}
+			bpf_map_delete_elem(migrate_info_fd,&mkey);//删除已经打印了的数据
+
 		}
-		migrate_event.rear = migrate_event.count;
+		migrate_event.rear = migrate_event.count + 1;
 		bpf_map_update_elem(migrate_fd,&next_key,&migrate_event,BPF_ANY);
 		lookup_key = next_key;
 	}
@@ -235,7 +243,7 @@ int main(int argc, char **argv)
 			break;
 		}
 		if (err < 0) {
-            printf("Error polling perf buffer: %d\n", err);
+            printf("Error: %d\n", err);
 			break;
 		}	
 	}
