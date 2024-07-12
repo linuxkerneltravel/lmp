@@ -65,6 +65,7 @@ static struct env {
 	int lock_prev_tgid;
 	int sched_prev_tgid;
 	int sc_prev_tgid;
+	char hostname[64];
 } env = {
 	.output_resourse = false,
 	.output_schedule = false,
@@ -88,6 +89,7 @@ static struct env {
 	.lock_prev_tgid = 0,
 	.sched_prev_tgid = 0,
 	.sc_prev_tgid = 0,
+	.hostname = "",
 };
 
 struct hashmap *map = NULL;
@@ -723,6 +725,16 @@ static void sig_handler(int signo)
 	exiting = true;
 }
 
+void get_hostname() {
+    char hostname[64];
+    int result = gethostname(hostname, sizeof(hostname));
+    if (result == 0) {
+        strcpy(env.hostname,hostname); 
+    } else {
+        perror("gethostname");
+    }
+}
+
 int main(int argc, char **argv)
 {
 	struct resource_image_bpf *resource_skel = NULL;
@@ -802,7 +814,9 @@ int main(int argc, char **argv)
 		}
 
 		syscall_skel->rodata->ignore_tgid = env.ignore_tgid;
-
+		get_hostname();
+		strcpy(syscall_skel->rodata->hostname,env.hostname);
+		
 		err = syscall_image_bpf__load(syscall_skel);
 		if (err) {
 			fprintf(stderr, "Failed to load and verify BPF syscall skeleton\n");

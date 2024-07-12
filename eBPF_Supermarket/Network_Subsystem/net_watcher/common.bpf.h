@@ -500,7 +500,11 @@ int getstack(void *ctx) {
 
     return 0;
 }
-
+#if KERNEL_VERSION(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH) >= KERNEL_VERSION(6, 3, 1)
+#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.__iov, iov_base)
+#else
+#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.iov, iov_base)
+#endif
 /* help functions end */
 
 #endif

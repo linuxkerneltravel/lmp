@@ -25,6 +25,7 @@
 #define PREEMPT_WACTHER 40
 #define SCHEDULE_WACTHER 50
 #define MQ_WACTHER 60
+#define HASH_SIZE 1024
 
 /*----------------------------------------------*/
 /*          ewma算法                            */
@@ -64,7 +65,9 @@ bool dynamic_filter(struct ewma_info *ewma_syscall_delay, double dataPoint) {
     return 0;
 }
 
-
+/*----------------------------------------------*/
+/*              bpf file system                 */
+/*----------------------------------------------*/
 const char *sar_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/sar_ctrl_map";
 const char *cs_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/cs_ctrl_map";
 const char *sc_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/sc_ctrl_map";
@@ -198,5 +201,82 @@ int update_mq_ctrl_map(struct mq_ctrl mq_ctrl){
     }
 
     return 0;
+}
+
+/*----------------------------------------------*/
+/*              mutex_count                     */
+/*----------------------------------------------*/
+
+typedef struct {
+    uint64_t ptr;
+    uint64_t count;
+} lock_count_t;
+
+lock_count_t lock_counts[HASH_SIZE];
+
+static uint64_t hash(uint64_t ptr) {
+    return ptr % HASH_SIZE;
+}
+
+static void increment_lock_count(uint64_t ptr) {
+    uint64_t h = hash(ptr);
+    while (lock_counts[h].ptr != 0 && lock_counts[h].ptr != ptr) {
+        h = (h + 1) % HASH_SIZE;
+    }
+    if (lock_counts[h].ptr == 0) {
+        lock_counts[h].ptr = ptr;
+        lock_counts[h].count = 1;
+    } else {
+        lock_counts[h].count++;
+    }
+}
+
+static uint64_t get_lock_count(uint64_t ptr) {
+    uint64_t h = hash(ptr);
+    while (lock_counts[h].ptr != 0 && lock_counts[h].ptr != ptr) {
+        h = (h + 1) % HASH_SIZE;
+    }
+    if (lock_counts[h].ptr == 0) {
+        return 0;
+    } else {
+        return lock_counts[h].count;
+    }
+}
+
+/*----------------------------------------------*/
+/*                    hash                      */
+/*----------------------------------------------*/
+
+
+struct output_entry {
+    int pid;
+    char comm[16];
+    long long delay;
+};
+
+
+struct output_entry seen_entries[MAX_ENTRIES];
+int seen_count = 0;
+
+
+bool entry_exists(int pid, const char *comm, long long delay) {
+    for (int i = 0; i < seen_count; i++) {
+        if (seen_entries[i].pid == pid &&
+            strcmp(seen_entries[i].comm, comm) == 0 &&
+            seen_entries[i].delay == delay) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+void add_entry(int pid, const char *comm, long long delay) {
+    if (seen_count < MAX_ENTRIES) {
+        seen_entries[seen_count].pid = pid;
+        strncpy(seen_entries[seen_count].comm, comm, sizeof(seen_entries[seen_count].comm));
+        seen_entries[seen_count].delay = delay;
+        seen_count++;
+    }
 }
 #endif // CPU_WATCHER_HELPER_H
