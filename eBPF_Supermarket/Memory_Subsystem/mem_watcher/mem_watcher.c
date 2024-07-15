@@ -59,7 +59,24 @@ struct allocation
 	__u64 size;
 	size_t count;
 };
+// ============================= fraginfo====================================
+struct order_entry {
+    struct order_zone okey;
+    struct ctg_info oinfo;
+};
 
+int compare_entries(const void *a, const void *b) {
+    struct order_entry *entryA = (struct order_entry *)a;
+    struct order_entry *entryB = (struct order_entry *)b;
+
+    if (entryA->okey.zone_ptr != entryB->okey.zone_ptr) {
+        return (entryA->okey.zone_ptr < entryB->okey.zone_ptr) ? -1 : 1;
+    } else {
+        return (entryA->okey.order < entryB->okey.order) ? -1 : 1;
+    }
+}
+
+// ============================= fraginfo====================================
 static struct allocation *allocs;
 
 static volatile bool exiting = false;
@@ -1125,6 +1142,33 @@ void print_zones(int fd) {
     }
 
 }
+void print_orders(int fd) {
+    struct order_zone okey = {};
+    struct ctg_info oinfo;
+    struct order_entry entries[256];
+    int entry_count = 0;
+
+    while (bpf_map_get_next_key(fd, &okey, &okey) == 0) {
+        if (bpf_map_lookup_elem(fd, &okey, &oinfo) == 0) {
+            entries[entry_count].okey = okey;
+            entries[entry_count].oinfo = oinfo;
+            entry_count++;
+        }
+    }
+
+	//排序
+    qsort(entries, entry_count, sizeof(struct order_entry), compare_entries);
+
+    // 打印排序后的
+    printf(" Order     Zone_PTR                Free Pages         Free Blocks Total    Free Blocks Suitable\n");
+    for (int i = 0; i < entry_count; i++) {
+        printf(" %-8u 0x%-25llx %-20lu %-20lu %-20lu\n",
+               entries[i].okey.order, entries[i].okey.zone_ptr, entries[i].oinfo.free_pages,
+               entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable);
+    }
+}
+
+
 static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo)
 {
 
@@ -1146,6 +1190,9 @@ static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo)
         print_nodes(bpf_map__fd(skel_fraginfo->maps.nodes));
         printf("\n");
         print_zones(bpf_map__fd(skel_fraginfo->maps.zones));
+		printf("\n");
+        print_orders(bpf_map__fd(skel_fraginfo->maps.orders));
+        printf("\n");
 	}
 
 fraginfo_cleanup:
