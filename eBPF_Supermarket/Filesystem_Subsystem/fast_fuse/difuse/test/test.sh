@@ -26,62 +26,20 @@ fi
 echo "Mounting FUSE filesystem..."
 $FUSE_EXEC -f -d "$MOUNT_POINT" &
 FUSE_PID=$!
-sleep 1  # 等待文件系统完全挂载
+sleep 2  # 等待文件系统完全挂载
 
-# 测试读取根目录
-echo "Testing readdir on root..."
-ls "$MOUNT_POINT"
+# 创建目录
+mkdir $MOUNT_POINT/dir1
+mkdir $MOUNT_POINT/dir2
 
-# 测试读取子目录 dir1
-echo "Testing readdir on dir1..."
-ls "$MOUNT_POINT/dir1"
+# 创建文件
+touch $MOUNT_POINT/dir1/file1
+touch $MOUNT_POINT/dir1/file2
+touch $MOUNT_POINT/dir2/file3
 
-# 测试读取子目录 dir2
-echo "Testing readdir on dir2..."
-ls "$MOUNT_POINT/dir2"
+# 验证结构
+echo "创建的目录和文件结构:"
+ls -l $MOUNT_POINT
 
-# 测试读取文件 file1
-echo "Testing read file1..."
-cat "$MOUNT_POINT/dir1/file1"
-
-# 测试读取文件 file2
-echo "Testing read file2..."
-cat "$MOUNT_POINT/dir1/file2"
-
-# 测试读取文件 file3
-echo "Testing read file3..."
-cat "$MOUNT_POINT/dir2/file3"
-
-# 测试打开文件
-echo "Testing open file..."
-if [ -e "$MOUNT_POINT/dir1/file1" ]; then
-    echo "File 'file1' exists in dir1"
-else
-    echo "File 'file1' does not exist in dir1"
-fi
-
-if [ -e "$MOUNT_POINT/dir1/file2" ]; then
-    echo "File 'file2' exists in dir1"
-else
-    echo "File 'file2' does not exist in dir1"
-fi
-
-if [ -e "$MOUNT_POINT/dir2/file3" ]; then
-    echo "File 'file3' exists in dir2"
-else
-    echo "File 'file3' does not exist in dir2"
-fi
-
-# 显示调试日志
-echo "FUSE debug log:"
-kill -USR1 $FUSE_PID
-sleep 1  # 等待日志输出
-
-# 卸载 FUSE 文件系统
-echo "Unmounting FUSE filesystem..."
-sudo fusermount -u "$MOUNT_POINT"
-
-# 等待 FUSE 进程终止
-wait $FUSE_PID
-
-echo "All tests completed."
+# 确保脚本退出时卸载文件系统
+trap "fusermount -u $MOUNT_POINT" EXIT

@@ -8,12 +8,13 @@
 #include <fcntl.h>
 #include <stddef.h>
 #include <assert.h>
-#include <errno.h> 
 
 /*相关数据结构*/
 
 #define FILE_TYPE 1
 #define DIRECTORY_TYPE 2
+#define MAX_INODES 1000  //最大 inode 数量
+#define HASH_SIZE 1024
 
 uint32_t next_ino = 1;
 
@@ -30,6 +31,8 @@ struct dfs_inode
     int size;                           //文件大小
     int dir_cnt;                        // 如果是目录类型文件，下面有几个目录项
     struct dfs_data *data_pointer;      //指向数据块的指针
+    struct dfs_inode *prev;  // LRU 链表前驱指针
+    struct dfs_inode *next;  // LRU 链表后继指针
 };
 
 struct dfs_dentry
@@ -40,9 +43,80 @@ struct dfs_dentry
     struct dfs_dentry *brother;
     struct dfs_dentry *child;
     struct dfs_inode *inode;            //指向对应的inode
+    struct dfs_dentry *prev;            //LRU 链表前驱指针
+    struct dfs_dentry *next;            //LRU 链表后继指针
 };
 
 struct dfs_dentry *root;                    //根节点
+struct dfs_dentry *lru_head = NULL;         //LRU 链表头
+struct dfs_dentry *lru_tail = NULL;         //LRU 链表尾
+struct dfs_dentry *hash_table[HASH_SIZE];   //哈希表
+
+/*缓存管理*/
+
+static unsigned int hash(const char *path)
+{
+    unsigned int hash = 0;
+    while (*path)
+    {
+        hash = (hash << 5) + *path++;
+    }
+    return hash % HASH_SIZE;
+}
+
+static void lru_remove(struct dfs_dentry *dentry)
+{
+    if (dentry->prev)
+    {
+        dentry->prev->next = dentry->next;
+    }
+    else
+    {
+        lru_head = dentry->next;
+    }
+    if (dentry->next)
+    {
+        dentry->next->prev = dentry->prev;
+    }
+    else
+    {
+        lru_tail = dentry->prev;
+    }
+}
+
+static void lru_insert(struct dfs_dentry *dentry)
+{
+    dentry->next = lru_head;
+    dentry->prev = NULL;
+    if (lru_head)
+    {
+        lru_head->prev = dentry;
+    }
+    lru_head = dentry;
+    if (!lru_tail)
+    {
+        lru_tail = dentry;
+    }
+}
+
+static void lru_access(struct dfs_dentry *dentry)
+{
+    lru_remove(dentry);
+    lru_insert(dentry);
+}
+
+static void lru_evict()
+{
+    if (lru_tail)
+    {
+        struct dfs_dentry *evict = lru_tail;
+        lru_remove(evict);
+        unsigned int index = hash(evict->fname);
+        hash_table[index] = NULL;
+        free(evict->inode);
+        free(evict);
+    }
+}
 
 /*过程函数*/
 static struct dfs_inode *new_inode(int size, int dir_cnt)
@@ -52,6 +126,8 @@ static struct dfs_inode *new_inode(int size, int dir_cnt)
     inode->size = size;
     inode->dir_cnt = dir_cnt;
     inode->data_pointer = NULL;
+    inode->prev = NULL;
+    inode->next = NULL;
     return inode;
 }
 
@@ -64,6 +140,8 @@ static struct dfs_dentry *new_dentry(char *fname, int ftype, struct dfs_dentry *
     dentry->parent = parent;
     dentry->child = NULL;
     dentry->ftype = ftype;
+    dentry->prev = NULL;
+    dentry->next = NULL;
     return dentry;
 }
 
@@ -117,13 +195,31 @@ struct dfs_dentry *look_up(struct dfs_dentry *dentrys, const char *path)
 
 struct dfs_dentry *lookup_or_create_dentry(const char *path, struct dfs_dentry *start_dentry, int ftype)
 {
-    return traverse_path(start_dentry, path, ftype, 1);
+    unsigned int index = hash(path);
+    struct dfs_dentry *dentry = hash_table[index];
+
+    if (dentry)
+    {
+        lru_access(dentry);
+        return dentry;
+    }
+
+    dentry = traverse_path(start_dentry, path, ftype, 1);
+    if (dentry)
+    {
+        lru_insert(dentry);
+        hash_table[index] = dentry;
+        if (next_ino > MAX_INODES)
+        {
+            lru_evict();
+        }
+    }
+
+    return dentry;
 }
 
 
-
 /*功能函数*/
-
 static int di_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi)
 {
     (void)fi;
@@ -136,7 +232,6 @@ static int di_utimens(const char *path, const struct timespec ts[2], struct fuse
     return 0;
 }
 
-
 static int di_mkdir(const char *path, mode_t mode)
 {
     (void)mode;
@@ -148,7 +243,6 @@ static int di_mkdir(const char *path, mode_t mode)
 
     return 0;
 }
-
 
 static int dfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
@@ -168,10 +262,7 @@ static int dfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     return 0;
 }
 
-
-
-static int di_getattr(const char *path, struct stat *di_stat,
-    struct fuse_file_info *fi)
+static int di_getattr(const char *path, struct stat *di_stat, struct fuse_file_info *fi)
 {
     (void)fi;
     int ret = 0;
@@ -197,8 +288,7 @@ static int di_getattr(const char *path, struct stat *di_stat,
 }
 
 /*遍历目录项*/
-static int di_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-    off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
+static int di_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
     (void)fi;
     (void)offset;
@@ -237,12 +327,7 @@ static int di_open(const char *path, struct fuse_file_info *fi)
     return 0;
 }
 
-/*
-确保我们尝试从文件中读取的起始位置（偏移量）在文件范围内。
-如果偏移量超出了文件内容的长度，说明请求读取的位置在文件的末尾或之后，这种情况下不能读取任何数据。
-*/
-static int di_read(const char *path, char *buf, size_t size, off_t offset,
-    struct fuse_file_info *fi)
+static int di_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     struct dfs_dentry *dentry = look_up(root, path);
 
@@ -256,7 +341,7 @@ static int di_read(const char *path, char *buf, size_t size, off_t offset,
     {
         if (offset + size > dentry->inode->size)
             size = dentry->inode->size - offset;
-        memcpy(buf, "dummy_content", size);  // Replace with actual file data handling
+        memcpy(buf, "dummy_content", size);
     }
     else
         size = 0;
@@ -266,42 +351,14 @@ static int di_read(const char *path, char *buf, size_t size, off_t offset,
 
 static void *di_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
-    (void)conn;  // 如果不使用这个参数，可以忽略它
+    (void)conn;
 
     // 创建并初始化根目录的 inode 和 dentry
     struct dfs_inode *root_inode = new_inode(0, 0);
     root = new_dentry("/", DIRECTORY_TYPE, NULL, root_inode);
 
-    // 创建dir1目录
-    struct dfs_inode *dir1_inode = new_inode(0, 0);
-    struct dfs_dentry *dir1 = new_dentry("dir1", DIRECTORY_TYPE, root, dir1_inode);
-    add_child_dentry(root, dir1);
-
-    // 创建dir2目录
-    struct dfs_inode *dir2_inode = new_inode(0, 0);
-    struct dfs_dentry *dir2 = new_dentry("dir2", DIRECTORY_TYPE, root, dir2_inode);
-    add_child_dentry(root, dir2);
-
-    // 创建file1文件
-    struct dfs_inode *file1_inode = new_inode(100, 0);
-    struct dfs_dentry *file1 = new_dentry("file1", FILE_TYPE, dir1, file1_inode);
-    add_child_dentry(dir1, file1);
-
-    // 创建file2文件
-    struct dfs_inode *file2_inode = new_inode(200, 0);
-    struct dfs_dentry *file2 = new_dentry("file2", FILE_TYPE, dir1, file2_inode);
-    add_child_dentry(dir1, file2);
-
-    // 创建file3文件
-    struct dfs_inode *file3_inode = new_inode(150, 0);
-    struct dfs_dentry *file3 = new_dentry("file3", FILE_TYPE, dir2, file3_inode);
-    add_child_dentry(dir2, file3);
-
-    // 可以在此进行其他初始化操作
-
-    return 0;  // 可以返回一个自定义的结构体，如果不需要则返回 NULL
+    return 0;
 }
-
 
 static struct fuse_operations difs_ops = {
     .init = di_init,
@@ -316,8 +373,5 @@ static struct fuse_operations difs_ops = {
 
 int main(int argc, char *argv[])
 {
-
-
-
     return fuse_main(argc, argv, &difs_ops, NULL);
 }
