@@ -1,0 +1,80 @@
+{
+    "name" : "lmp_tool_vscode_extension_config",
+    "version" : "0.0.1",
+    "subsystem_list" : [
+        "CPU",
+        "memory",
+        "fs",
+        "network",
+        "system_diagnosis",
+        "hypervisor"
+    ],
+    "subsystem" : [
+        {
+            "description" : "Linux CPU子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "cpu_watcher",
+                    "description" : "cpu观测"
+                },
+                {
+                    "name": "proc_image",
+                    "description" : "进程画像"
+                }
+            ]
+        },
+        {
+            "description" : "Linux 内存子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "mem_watcher",
+                    "description" : "内存观测"
+                }
+            ]
+        },
+        {
+            "description" : "Linux 文件子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "fast_fuse",
+                    "description" : "FUSE 性能优化"
+                }
+            ]
+        },
+        {
+            "description" : "Linux 网络子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "net_watcher",
+                    "description" : "网络观测"
+                },
+                {
+                    "name": "net_manager",
+                    "description" : "网络优化与加速"
+                }
+            ]
+        },
+        {
+            "description" : "Linux 系统诊断子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "stack_analyzer",
+                    "description" : "栈调用分析器"
+                }
+            ]
+        },
+        {
+            "description" : "Linux 虚拟化子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "kvm_watcher",
+                    "description" : "kvm状态分析"
+                }
+            ]
+        }
+    ]
+}
+    
+
+        
+
