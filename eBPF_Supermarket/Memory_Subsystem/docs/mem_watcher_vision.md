@@ -17,7 +17,7 @@
 - 执行`make start_service`指令，配置下载docker镜像并启动grafana和prometheus服务
 - 执行如下指令开始采集数据以及相关处理：
 ```c
- ./data-visual collect /home/ubuntu/lmp/eBPF_Supermarket/Memory_Subsystem/mem_watcher -p
+ ./data-visual collect lmp/eBPF_Supermarket/Memory_Subsystem/mem_watcher/mem_watcher -p
 ```
 切记根据自己的文件所在目录进行修改，如果不知道或者不确定的可以在自己的程序文件下输入`pwd`命令进行查看，如果目录出现错误会失败。
 

@@ -49,6 +49,7 @@ static struct env {
     bool enable_lock;
     bool enable_syscall;
     bool enable_schedule;
+    bool is_container;
 }  env = {
     .usemode = 0,
     .pid = -1,
@@ -68,6 +69,7 @@ static struct env {
     .enable_lock = false,
     .enable_syscall = false,
     .enable_schedule = false,
+    .is_container = false,
 };
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
@@ -78,6 +80,7 @@ static const struct argp_option opts[] = {
     { "finish", 'f', NULL, 0, "Finish to run eBPF tool" },
 	{ "pid", 'p', "PID", 0, "Process ID to trace" },
     { "tgid", 'P', "TGID", 0, "Thread group to trace" },
+    { "containerproc", 'o', NULL, 0, "Thread of containerproc to trace" },
     { "cpuid", 'c', "CPUID", 0, "Set For Tracing  per-CPU Process(other processes don't need to set this parameter)" },
     { "time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)" },
     { "myproc", 'm', NULL, 0, "Trace the process of the tool itself (not tracked by default)" },
@@ -143,6 +146,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'm':
 				env.enable_myproc = true;
 				break;
+        case 'o':
+				env.is_container = true;
+				break;
 		case 'r':
 				env.enable_resource = true;
 				break;
@@ -201,7 +207,7 @@ int deactivate_mode(){
     }
 
     if(env.enable_syscall){
-        struct sc_ctrl sc_ctrl = {false,false,-1,-1,0};
+        struct sc_ctrl sc_ctrl = {false,false,false,-1,-1,0};
         err = update_sc_ctrl_map(sc_ctrl);
         if(err < 0) return err;
     }
@@ -257,7 +263,7 @@ int main(int argc, char **argv)
         }
 
         if(env.enable_syscall){
-            struct sc_ctrl sc_ctrl = {true,env.enable_myproc,env.pid,env.tgid,env.syscalls};
+            struct sc_ctrl sc_ctrl = {true,env.enable_myproc, env.is_container,env.pid,env.tgid,env.syscalls};
             err = update_sc_ctrl_map(sc_ctrl);
             if(err < 0) return err;
         }
