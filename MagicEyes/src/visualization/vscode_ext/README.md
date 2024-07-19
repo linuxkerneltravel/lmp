@@ -26,7 +26,7 @@
 
 ![set_token](./images/set_token.png)
 
-设置可视化面板存放路径
+- 设置可视化面板存放路径
 
 > 注意：别忘记面板路径后面加 "/"
 
@@ -39,6 +39,50 @@
 若面板不存在，或路径，或名称不对，将出现如下错误提示：
 
 ![](./images/error_info.png)
+
+- 设置工具配置文件
+
+请将配置文件路径输入在设置中，如`/home/fzy/lmp_tool_ext_config.json`，输入完成后，敲击enter键，程序将根据配置文件中的子系统与工具，生成左侧侧边栏的按钮。
+
+配置文件写法参照 `.../MagicEyes/src/visualization/vscode_ext/tool_config_sample/lmp_tool_ext_config.json`
+
+#### 2.3 如何增加工具
+
+配置文件如下。假如有一个工具，名为 mem_checker，输入 memory子系统，则 subsystem_list 不用修改，只需要在内存子系统处增加即可。如果有一个工具，名为 V4L2_tracer，属于 media子系统，则需要在subsystem_list中增加 media 子系统，并在 subsystem 下相应增加，不再赘述。
+
+```json
+{
+    "name" : "lmp_tool_vscode_extension_config",
+    "version" : "0.0.1",
+    "subsystem_list" : [
+        "CPU",      
+        "memory",
+        "fs",
+        "network",
+        "system_diagnosis",
+        "hypervisor"
+    ],
+    "subsystem" : [
+        {
+            "description" : "Linux CPU子系统观测工具集",
+            "tools" : [......]
+        },
+        {
+            "description" : "Linux 内存子系统观测工具集",
+            "tools" : [
+                {
+                    "name": "mem_watcher",
+                    "description" : "内存观测"
+                },
+        		{
+                    "name": "mem_checker",
+                    "description" : "内存检查"
+                }
+            ]
+        }
+} 
+```
+
 
 ### 3. 插件开发
 
@@ -68,6 +112,13 @@
     // "noUnusedParameters": true,  /* Report errors on unused parameters. */
   }
 }
+```
+
+3.  打包vsix
+
+```bash
+# 进入插件开发文件夹
+vsce package
 ```
 
 
