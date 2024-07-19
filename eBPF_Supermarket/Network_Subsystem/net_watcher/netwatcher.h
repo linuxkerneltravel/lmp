@@ -26,6 +26,7 @@ typedef unsigned long long u64;
 
 #define ETH_P_IP 0x0800   /* Internet Protocol packet	*/
 #define ETH_P_IPV6 0x86DD /* IPv6 over bluebook		*/
+#define MAX_SLOTS 27
 
 #ifndef AF_INET
 #define AF_INET 2
@@ -190,5 +191,13 @@ struct redis_query {
     int count;
     u64 begin_time;
     int argc;
+};
+
+struct RTT {
+    u32 saddr;
+    u32 daddr;
+    u64 slots[64];
+    u64 latency;
+    u64 cnt;
 };
 #endif /* __NETWATCHER_H */

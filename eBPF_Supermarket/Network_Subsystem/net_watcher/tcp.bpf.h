@@ -17,9 +17,7 @@
 
 #include "common.bpf.h"
 
-static __always_inline
-int __inet_csk_accept(struct sock *sk)
-{
+static __always_inline int __inet_csk_accept(struct sock *sk) {
     if (sk == NULL) { // newsk is null
         // bpf_printk("inet_accept_ret err: newsk is null\n");
         return 0;
@@ -29,11 +27,11 @@ int __inet_csk_accept(struct sock *sk)
     CONN_INIT // 初始化conn_t结构中基本信息
         conn.is_server = 1;
 
-    FILTER_DPORT     // 过滤目标端口
+    FILTER_DPORT // 过滤目标端口
 
-    FILTER_SPORT // 过滤源端口
-    
-    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+        FILTER_SPORT // 过滤源端口
+
+            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         // 更新/插入conns_info中的键值对
         int err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
@@ -45,9 +43,7 @@ int __inet_csk_accept(struct sock *sk)
     return 0;
 }
 
-static __always_inline
-int __tcp_v4_connect(const struct sock *sk)
-{
+static __always_inline int __tcp_v4_connect(const struct sock *sk) {
     u64 ptid = bpf_get_current_pid_tgid(); // 获取当前pid
     int err = bpf_map_update_elem(&sock_stores, &ptid, &sk, BPF_ANY);
     // 更新/插入sock_stores中的键值对
@@ -58,9 +54,7 @@ int __tcp_v4_connect(const struct sock *sk)
     return 0;
 }
 
-static __always_inline
-int __tcp_v4_connect_exit(int ret)
-{
+static __always_inline int __tcp_v4_connect_exit(int ret) {
     u64 ptid = bpf_get_current_pid_tgid(); // 获取当前pid
     struct sock **skp = bpf_map_lookup_elem(&sock_stores, &ptid);
     // 获得sock_stores中ptid对应的*sk 用skp指向
@@ -75,13 +69,13 @@ int __tcp_v4_connect_exit(int ret)
     }
     struct sock *sk = *skp;
     CONN_INIT               // 初始化conn_t结构中基本信息
-    conn.is_server = 0; // 主动连接
+        conn.is_server = 0; // 主动连接
 
-    FILTER_DPORT     // 过滤目标端口
+    FILTER_DPORT // 过滤目标端口
 
-    FILTER_SPORT // 过滤源端口
+        FILTER_SPORT // 过滤源端口
 
-    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
         long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
@@ -91,9 +85,7 @@ int __tcp_v4_connect_exit(int ret)
     return 0;
 }
 
-static __always_inline
-int __tcp_v6_connect(const struct sock *sk)
-{
+static __always_inline int __tcp_v6_connect(const struct sock *sk) {
     u64 pid = bpf_get_current_pid_tgid(); // 获取pid
     int err = bpf_map_update_elem(&sock_stores, &pid, &sk, BPF_ANY);
     // 更新sock_stores中对应pid对应的sk
@@ -103,9 +95,7 @@ int __tcp_v6_connect(const struct sock *sk)
     return 0;
 }
 
-static __always_inline
-int __tcp_v6_connect_exit(int ret)
-{
+static __always_inline int __tcp_v6_connect_exit(int ret) {
     u64 ptid = bpf_get_current_pid_tgid(); // 获取pid
     struct sock **skp = bpf_map_lookup_elem(&sock_stores, &ptid);
     // 获得sock_stores中ptid对应的*sk 用skp指向
@@ -119,15 +109,15 @@ int __tcp_v6_connect_exit(int ret)
     struct sock *sk = *skp;
 
     CONN_INIT               // 初始化conn_t结构中基本信息
-    conn.is_server = 0; // 主动连接
+        conn.is_server = 0; // 主动连接
 
-    FILTER_DPORT     // 过滤目标端口
+    FILTER_DPORT // 过滤目标端口
 
-    FILTER_SPORT // 过滤源端口
+        FILTER_SPORT // 过滤源端口
 
-    CONN_ADD_ADDRESS // conn_t结构中增加地址信息
+            CONN_ADD_ADDRESS // conn_t结构中增加地址信息
 
-    long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
+        long err = bpf_map_update_elem(&conns_info, &sk, &conn, BPF_ANY);
     // 更新conns_info中sk对应的conn
     if (err) {
         return 0;
@@ -135,9 +125,7 @@ int __tcp_v6_connect_exit(int ret)
     // bpf_printk("tcp_v4_connect_exit update sk: %p.\n", sk);
     return 0;
 }
-static __always_inline
-int __tcp_set_state( struct sock *sk, int state)
-{
+static __always_inline int __tcp_set_state(struct sock *sk, int state) {
     if (all_conn) {
         return 0;
     }
@@ -152,9 +140,8 @@ int __tcp_set_state( struct sock *sk, int state)
 }
 
 // receive error packet
-static __always_inline
-int __tcp_validate_incoming(struct sock *sk, struct sk_buff *skb)
-{
+static __always_inline int __tcp_validate_incoming(struct sock *sk,
+                                                   struct sk_buff *skb) {
     if (!err_packet) {
         return 0;
     }
@@ -210,9 +197,7 @@ int __tcp_validate_incoming(struct sock *sk, struct sk_buff *skb)
     bpf_ringbuf_submit(packet, 0);
     return 0;
 }
-static __always_inline
-int skb_checksum_complete(int ret)
-{
+static __always_inline int skb_checksum_complete(int ret) {
     if (!err_packet) {
         return 0;
     }
@@ -243,9 +228,7 @@ int skb_checksum_complete(int ret)
     return 0;
 }
 ////retrans packet
-static __always_inline
-int __tcp_enter_recovery(struct sock *sk)
-{
+static __always_inline int __tcp_enter_recovery(struct sock *sk) {
     if (!retrans_info) {
         return 0;
     }
@@ -259,9 +242,7 @@ int __tcp_enter_recovery(struct sock *sk)
 
     return 0;
 }
-static __always_inline
-int __tcp_enter_loss(struct sock *sk)
-{
+static __always_inline int __tcp_enter_loss(struct sock *sk) {
     if (!retrans_info) {
         return 0;
     }
@@ -272,9 +253,8 @@ int __tcp_enter_loss(struct sock *sk)
     conn->timeout += 1;
     return 0;
 }
-static __always_inline
-int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
-{
+static __always_inline int
+__handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx) {
     if (ctx->protocol != IPPROTO_TCP)
         return 0;
 
@@ -282,7 +262,7 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     __u64 *before_time, new_time, time;
 
     before_time = bpf_map_lookup_elem(&tcp_state, &sk);
-    new_time= bpf_ktime_get_ns();
+    new_time = bpf_ktime_get_ns();
     if (!before_time)
         time = 0;
     else
@@ -293,17 +273,19 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     tcpstate.family = ctx->family;
     tcpstate.sport = ctx->sport;
     tcpstate.dport = ctx->dport;
-    bpf_probe_read_kernel(&tcpstate.saddr, sizeof(tcpstate.saddr), &sk->__sk_common.skc_rcv_saddr);
-    bpf_probe_read_kernel(&tcpstate.daddr, sizeof(tcpstate.daddr), &sk->__sk_common.skc_daddr);
+    bpf_probe_read_kernel(&tcpstate.saddr, sizeof(tcpstate.saddr),
+                          &sk->__sk_common.skc_rcv_saddr);
+    bpf_probe_read_kernel(&tcpstate.daddr, sizeof(tcpstate.daddr),
+                          &sk->__sk_common.skc_daddr);
     tcpstate.time = time;
     if (ctx->newstate == TCP_CLOSE)
         bpf_map_delete_elem(&tcp_state, &sk);
     else
         bpf_map_update_elem(&tcp_state, &sk, &new_time, BPF_ANY);
 
-    struct tcp_state  *message;
+    struct tcp_state *message;
     message = bpf_ringbuf_reserve(&tcp_rb, sizeof(*message), 0);
-    if(!message){
+    if (!message) {
         return 0;
     }
     message->saddr = tcpstate.saddr;
@@ -312,7 +294,61 @@ int __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx)
     message->dport = tcpstate.dport;
     message->oldstate = tcpstate.oldstate;
     message->newstate = tcpstate.newstate;
-    message->time =  tcpstate.time;
+    message->time = tcpstate.time;
+    bpf_ringbuf_submit(message, 0);
+    return 0;
+}
+
+static __always_inline int __tcp_rcv_established(struct sock *sk,
+                                                 struct sk_buff *skb) {
+    const struct inet_sock *inet = (struct inet_sock *)(sk);
+    struct tcp_sock *ts;
+    struct hist *histp;
+    u64 slot;
+    u32 srtt;
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+    struct packet_tuple pkt_tuple = {0};
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
+    //  INIT_PACKET_TCP_TUPLE(sk, pkt_tuple);
+    struct ip_packet key = {.saddr = pkt_tuple.saddr, .daddr = pkt_tuple.daddr};
+
+    histp = bpf_map_lookup_elem(&hists, &key);
+    if (!histp) {
+        // 初始化值
+        struct hist zero = {};
+        bpf_map_update_elem(&hists, &key, &zero, BPF_ANY);
+        histp = bpf_map_lookup_elem(&hists, &key);
+        if (!histp)
+            return 0; // 如果仍然查找失败，则返回
+    }
+    ts = (struct tcp_sock *)(sk);
+
+    // 读取并处理SRTT（平滑往返时间）
+    srtt = BPF_CORE_READ(ts, srtt_us) >> 3;
+    // 计算对数值，根据得到的结果决定数据应该归入直方图的哪个槽位
+    slot = log2l(srtt);
+    if (slot >= MAX_SLOTS)
+        slot = MAX_SLOTS - 1; // 确保槽位置不超过最大槽数
+
+    // 更新
+    __sync_fetch_and_add(&histp->slots[slot], 1);
+    __sync_fetch_and_add(&histp->latency, srtt);
+    __sync_fetch_and_add(&histp->cnt, 1);
+
+    struct RTT *message;
+    message = bpf_ringbuf_reserve(&rtt_rb, sizeof(*message), 0);
+    if (!message) {
+        return 0;
+    }
+    message->saddr = pkt_tuple.saddr;
+    message->daddr = pkt_tuple.daddr;
+    bpf_printk("Saddr:%u Daddr:%u", pkt_tuple.saddr, pkt_tuple.daddr);
+    bpf_probe_read_kernel(message->slots, sizeof(message->slots), histp->slots);
+    message->latency = histp->latency;
+    message->cnt = histp->cnt;
+    // bpf_printk("Updating histogram: latency %llu, cnt %llu, slot %llu,
+    // slot_count %llu", histp->latency, histp->cnt, slot, histp->slots[slot]);
     bpf_ringbuf_submit(message, 0);
     return 0;
 }
