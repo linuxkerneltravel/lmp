@@ -39,6 +39,57 @@
 
 #include "blazesym.h"
 
+// 定义标志结构体
+typedef struct {
+    int flag;
+    const char *name;
+} Flag;
+
+// 定义所有组合修饰符和单独标志位
+Flag gfp_combined_list[] = {
+    {GFP_ATOMIC, "GFP_ATOMIC"},
+    {GFP_KERNEL, "GFP_KERNEL"},
+    {GFP_KERNEL_ACCOUNT, "GFP_KERNEL_ACCOUNT"},
+    {GFP_NOWAIT, "GFP_NOWAIT"},
+    {GFP_NOIO, "GFP_NOIO"},
+    {GFP_NOFS, "GFP_NOFS"},
+    {GFP_USER, "GFP_USER"},
+    {GFP_DMA, "GFP_DMA"},
+    {GFP_DMA32, "GFP_DMA32"},
+    {GFP_HIGHUSER, "GFP_HIGHUSER"},
+    {GFP_HIGHUSER_MOVABLE, "GFP_HIGHUSER_MOVABLE"},
+    {GFP_TRANSHUGE_LIGHT, "GFP_TRANSHUGE_LIGHT"},
+    {GFP_TRANSHUGE, "GFP_TRANSHUGE"},
+};
+
+Flag gfp_separate_list[] = {
+    {___GFP_DMA, "___GFP_DMA"},
+    {___GFP_HIGHMEM, "___GFP_HIGHMEM"},
+    {___GFP_DMA32, "___GFP_DMA32"},
+    {___GFP_MOVABLE, "___GFP_MOVABLE"},
+    {___GFP_RECLAIMABLE, "___GFP_RECLAIMABLE"},
+    {___GFP_HIGH, "___GFP_HIGH"},
+    {___GFP_IO, "___GFP_IO"},
+    {___GFP_FS, "___GFP_FS"},
+    {___GFP_ZERO, "___GFP_ZERO"},
+    {___GFP_ATOMIC, "___GFP_ATOMIC"},
+    {___GFP_DIRECT_RECLAIM, "___GFP_DIRECT_RECLAIM"},
+    {___GFP_KSWAPD_RECLAIM, "___GFP_KSWAPD_RECLAIM"},
+    {___GFP_WRITE, "___GFP_WRITE"},
+    {___GFP_NOWARN, "___GFP_NOWARN"},
+    {___GFP_RETRY_MAYFAIL, "___GFP_RETRY_MAYFAIL"},
+    {___GFP_NOFAIL, "___GFP_NOFAIL"},
+    {___GFP_NORETRY, "___GFP_NORETRY"},
+    {___GFP_MEMALLOC, "___GFP_MEMALLOC"},
+    {___GFP_COMP, "___GFP_COMP"},
+    {___GFP_NOMEMALLOC, "___GFP_NOMEMALLOC"},
+    {___GFP_HARDWALL, "___GFP_HARDWALL"},
+    {___GFP_THISNODE, "___GFP_THISNODE"},
+    {___GFP_ACCOUNT, "___GFP_ACCOUNT"},
+    {___GFP_ZEROTAGS, "___GFP_ZEROTAGS"},
+    {___GFP_SKIP_KASAN_POISON, "___GFP_SKIP_KASAN_POISON"},
+};
+
 static const int perf_max_stack_depth = 127;	// stack id 对应的堆栈的深度
 static const int stack_map_max_entries = 10240; // 最大允许存储多少个stack_id
 static __u64 *g_stacks = NULL;
@@ -773,22 +824,14 @@ static void setup_signals(void)
 static void print_flag_modifiers(int flag) {
     char combined[512] = {0}; // 用于保存组合修饰符
     char separate[512] = {0}; // 用于保存单独标志位
-    char buffer[64]; // 用于临时存储每个修饰符
 
     // 检查组合修饰符
-    if ((flag & GFP_ATOMIC) == GFP_ATOMIC)                   strcat(combined, "GFP_ATOMIC | ");
-    if ((flag & GFP_KERNEL) == GFP_KERNEL)                   strcat(combined, "GFP_KERNEL | ");
-    if ((flag & GFP_KERNEL_ACCOUNT) == GFP_KERNEL_ACCOUNT)   strcat(combined, "GFP_KERNEL_ACCOUNT | ");
-    if ((flag & GFP_NOWAIT) == GFP_NOWAIT)                   strcat(combined, "GFP_NOWAIT | ");
-    if ((flag & GFP_NOIO) == GFP_NOIO)                       strcat(combined, "GFP_NOIO | ");
-    if ((flag & GFP_NOFS) == GFP_NOFS)                       strcat(combined, "GFP_NOFS | ");
-    if ((flag & GFP_USER) == GFP_USER)                       strcat(combined, "GFP_USER | ");
-    if ((flag & GFP_DMA) == GFP_DMA)                         strcat(combined, "GFP_DMA | ");
-    if ((flag & GFP_DMA32) == GFP_DMA32)                     strcat(combined, "GFP_DMA32 | ");
-    if ((flag & GFP_HIGHUSER) == GFP_HIGHUSER)               strcat(combined, "GFP_HIGHUSER | ");
-    if ((flag & GFP_HIGHUSER_MOVABLE) == GFP_HIGHUSER_MOVABLE) strcat(combined, "GFP_HIGHUSER_MOVABLE | ");
-    if ((flag & GFP_TRANSHUGE_LIGHT) == GFP_TRANSHUGE_LIGHT) strcat(combined, "GFP_TRANSHUGE_LIGHT | ");
-    if ((flag & GFP_TRANSHUGE) == GFP_TRANSHUGE)             strcat(combined, "GFP_TRANSHUGE | ");
+    for (int i = 0; i < sizeof(gfp_combined_list) / sizeof(gfp_combined_list[0]); ++i) {
+        if ((flag & gfp_combined_list[i].flag) == gfp_combined_list[i].flag) {
+            strcat(combined, gfp_combined_list[i].name);
+            strcat(combined, " | ");
+        }
+    }
 
     // 移除最后一个 " | " 字符串的末尾
     if (strlen(combined) > 3) {
@@ -796,31 +839,12 @@ static void print_flag_modifiers(int flag) {
     }
 
     // 检查单独标志位
-    if (flag & ___GFP_DMA)           strcat(separate, "___GFP_DMA | ");
-    if (flag & ___GFP_HIGHMEM)       strcat(separate, "___GFP_HIGHMEM | ");
-    if (flag & ___GFP_DMA32)         strcat(separate, "___GFP_DMA32 | ");
-    if (flag & ___GFP_MOVABLE)       strcat(separate, "___GFP_MOVABLE | ");
-    if (flag & ___GFP_RECLAIMABLE)   strcat(separate, "___GFP_RECLAIMABLE | ");
-    if (flag & ___GFP_HIGH)          strcat(separate, "___GFP_HIGH | ");
-    if (flag & ___GFP_IO)            strcat(separate, "___GFP_IO | ");
-    if (flag & ___GFP_FS)            strcat(separate, "___GFP_FS | ");
-    if (flag & ___GFP_ZERO)          strcat(separate, "___GFP_ZERO | ");
-    if (flag & ___GFP_ATOMIC)        strcat(separate, "___GFP_ATOMIC | ");
-    if (flag & ___GFP_DIRECT_RECLAIM) strcat(separate, "___GFP_DIRECT_RECLAIM | ");
-    if (flag & ___GFP_KSWAPD_RECLAIM) strcat(separate, "___GFP_KSWAPD_RECLAIM | ");
-    if (flag & ___GFP_WRITE)         strcat(separate, "___GFP_WRITE | ");
-    if (flag & ___GFP_NOWARN)        strcat(separate, "___GFP_NOWARN | ");
-    if (flag & ___GFP_RETRY_MAYFAIL) strcat(separate, "___GFP_RETRY_MAYFAIL | ");
-    if (flag & ___GFP_NOFAIL)        strcat(separate, "___GFP_NOFAIL | ");
-    if (flag & ___GFP_NORETRY)       strcat(separate, "___GFP_NORETRY | ");
-    if (flag & ___GFP_MEMALLOC)      strcat(separate, "___GFP_MEMALLOC | ");
-    if (flag & ___GFP_COMP)          strcat(separate, "___GFP_COMP | ");
-    if (flag & ___GFP_NOMEMALLOC)    strcat(separate, "___GFP_NOMEMALLOC | ");
-    if (flag & ___GFP_HARDWALL)      strcat(separate, "___GFP_HARDWALL | ");
-    if (flag & ___GFP_THISNODE)      strcat(separate, "___GFP_THISNODE | ");
-    if (flag & ___GFP_ACCOUNT)       strcat(separate, "___GFP_ACCOUNT | ");
-    if (flag & ___GFP_ZEROTAGS)      strcat(separate, "___GFP_ZEROTAGS | ");
-    if (flag & ___GFP_SKIP_KASAN_POISON) strcat(separate, "___GFP_SKIP_KASAN_POISON | ");
+    for (int i = 0; i < sizeof(gfp_separate_list) / sizeof(gfp_separate_list[0]); ++i) {
+        if (flag & gfp_separate_list[i].flag) {
+            strcat(separate, gfp_separate_list[i].name);
+            strcat(separate, " | ");
+        }
+    }
 
     // 移除最后一个 " | " 字符串的末尾
     if (strlen(separate) > 3) {
