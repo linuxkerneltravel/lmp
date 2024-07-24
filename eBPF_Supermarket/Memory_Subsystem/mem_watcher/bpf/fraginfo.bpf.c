@@ -50,7 +50,7 @@ SEC("kprobe/get_page_from_freelist")
 int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int alloc_flags,
 	       const struct alloc_context *ac)
 {
-	bpf_printk("1111");
+	// bpf_printk("1111");
 	struct pgdat_info node_info = {};
 	struct zone_info zone_data = {};
 
@@ -82,11 +82,16 @@ int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int a
                     zone_data.order = a_order;
 					struct order_zone order_key = {};
 					order_key.order = a_order;
+					if ((u64)z == 0) break;
 					order_key.zone_ptr = (u64)z;
                     struct contig_page_info ctg_info = {};
                     fill_contig_page_info(z, a_order, &ctg_info);
                     bpf_map_update_elem(&orders,&order_key,&ctg_info,BPF_ANY);
-                }
+					bpf_printk("Order: %d, Free pages: %lu, Free blocks total: %lu, Free blocks suitable: %lu", 
+				a_order, ctg_info.free_pages, ctg_info.free_blocks_total, ctg_info.free_blocks_suitable);
+				bpf_printk("2");
+		}
+                
 		bpf_map_update_elem(&zones, &zone_key, &zone_data, BPF_ANY);
 	}
 
