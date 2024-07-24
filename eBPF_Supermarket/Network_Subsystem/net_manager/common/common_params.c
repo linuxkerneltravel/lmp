@@ -151,7 +151,7 @@ void parse_cmdline_args(int argc, char **argv,
 	}
 
 	/* 解析命令行参数 */
-	while ((opt = getopt_long(argc, argv, "hd:r:L:R:ASNFU:MQ:czpq:i:m:k:g:n:t",
+	while ((opt = getopt_long(argc, argv, "hd:r:L:R:ASNFUMQ:czpq:i:m:k:g:n:t",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'd':
