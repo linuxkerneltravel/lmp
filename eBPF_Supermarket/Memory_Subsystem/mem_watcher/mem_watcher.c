@@ -39,6 +39,57 @@
 
 #include "blazesym.h"
 
+// 定义标志结构体
+typedef struct {
+    int flag;
+    const char *name;
+} Flag;
+
+// 定义所有组合修饰符和单独标志位
+Flag gfp_combined_list[] = {
+    {GFP_ATOMIC, "GFP_ATOMIC"},
+    {GFP_KERNEL, "GFP_KERNEL"},
+    {GFP_KERNEL_ACCOUNT, "GFP_KERNEL_ACCOUNT"},
+    {GFP_NOWAIT, "GFP_NOWAIT"},
+    {GFP_NOIO, "GFP_NOIO"},
+    {GFP_NOFS, "GFP_NOFS"},
+    {GFP_USER, "GFP_USER"},
+    {GFP_DMA, "GFP_DMA"},
+    {GFP_DMA32, "GFP_DMA32"},
+    {GFP_HIGHUSER, "GFP_HIGHUSER"},
+    {GFP_HIGHUSER_MOVABLE, "GFP_HIGHUSER_MOVABLE"},
+    {GFP_TRANSHUGE_LIGHT, "GFP_TRANSHUGE_LIGHT"},
+    {GFP_TRANSHUGE, "GFP_TRANSHUGE"},
+};
+
+Flag gfp_separate_list[] = {
+    {___GFP_DMA, "___GFP_DMA"},
+    {___GFP_HIGHMEM, "___GFP_HIGHMEM"},
+    {___GFP_DMA32, "___GFP_DMA32"},
+    {___GFP_MOVABLE, "___GFP_MOVABLE"},
+    {___GFP_RECLAIMABLE, "___GFP_RECLAIMABLE"},
+    {___GFP_HIGH, "___GFP_HIGH"},
+    {___GFP_IO, "___GFP_IO"},
+    {___GFP_FS, "___GFP_FS"},
+    {___GFP_ZERO, "___GFP_ZERO"},
+    {___GFP_ATOMIC, "___GFP_ATOMIC"},
+    {___GFP_DIRECT_RECLAIM, "___GFP_DIRECT_RECLAIM"},
+    {___GFP_KSWAPD_RECLAIM, "___GFP_KSWAPD_RECLAIM"},
+    {___GFP_WRITE, "___GFP_WRITE"},
+    {___GFP_NOWARN, "___GFP_NOWARN"},
+    {___GFP_RETRY_MAYFAIL, "___GFP_RETRY_MAYFAIL"},
+    {___GFP_NOFAIL, "___GFP_NOFAIL"},
+    {___GFP_NORETRY, "___GFP_NORETRY"},
+    {___GFP_MEMALLOC, "___GFP_MEMALLOC"},
+    {___GFP_COMP, "___GFP_COMP"},
+    {___GFP_NOMEMALLOC, "___GFP_NOMEMALLOC"},
+    {___GFP_HARDWALL, "___GFP_HARDWALL"},
+    {___GFP_THISNODE, "___GFP_THISNODE"},
+    {___GFP_ACCOUNT, "___GFP_ACCOUNT"},
+    {___GFP_ZEROTAGS, "___GFP_ZEROTAGS"},
+    {___GFP_SKIP_KASAN_POISON, "___GFP_SKIP_KASAN_POISON"},
+};
+
 static const int perf_max_stack_depth = 127;	// stack id 对应的堆栈的深度
 static const int stack_map_max_entries = 10240; // 最大允许存储多少个stack_id
 static __u64 *g_stacks = NULL;
@@ -313,6 +364,7 @@ static int handle_event_pr(void *ctx, void *data, size_t data_sz);
 static int handle_event_procstat(void *ctx, void *data, size_t data_sz);
 static int handle_event_sysstat(void *ctx, void *data, size_t data_sz);
 static int attach_uprobes(struct memleak_bpf *skel);
+static void print_flag_modifiers(int flag);
 static int process_paf(struct paf_bpf *skel_paf);
 static int process_pr(struct pr_bpf *skel_pr);
 static int process_procstat(struct procstat_bpf *skel_procstat);
@@ -786,36 +838,40 @@ static void setup_signals(void)
 	signal(SIGALRM, sig_handler);
 }
 
-/*
-static char* flags(int flag)
-{
-	if(flag & GFP_ATOMIC)
-		return "GFP_ATOMIC";
-	if(flag & GFP_KERNEL)
-		return "GFP_KERNEL";
-	if(flag & GFP_KERNEL_ACCOUNT)
-		return "GFP_KERNEL_ACCOUNT";
-	if(flag & GFP_NOWAIT)
-		return "GFP_NOWAIT";
-	if(flag & GFP_NOIO )
-		return "GFP_NOIO ";
-	if(flag & GFP_NOFS)
-		return "GFP_NOFS";
-	if(flag & GFP_USER)
-		return "GFP_USER";
-	if(flag & GFP_DMA)
-		return "GFP_DMA";
-	if(flag & GFP_DMA32)
-		return "GFP_DMA32";
-	if(flag & GFP_HIGHUSER)
-		return "GFP_HIGHUSER";
-	if(flag & GFP_HIGHUSER_MOVABLE)
-		return "GFP_HIGHUSER_MOVABLE";
-	if(flag & GFP_TRANSHUGE_LIGHT)
-		return "GFP_TRANSHUGE_LIGHT";
-	return;
+static void print_flag_modifiers(int flag) {
+    char combined[512] = {0}; // 用于保存组合修饰符
+    char separate[512] = {0}; // 用于保存单独标志位
+
+    // 检查组合修饰符
+    for (int i = 0; i < sizeof(gfp_combined_list) / sizeof(gfp_combined_list[0]); ++i) {
+        if ((flag & gfp_combined_list[i].flag) == gfp_combined_list[i].flag) {
+            strcat(combined, gfp_combined_list[i].name);
+            strcat(combined, " | ");
+        }
+    }
+
+    // 移除最后一个 " | " 字符串的末尾
+    if (strlen(combined) > 3) {
+        combined[strlen(combined) - 3] = '\0';
+    }
+
+    // 检查单独标志位
+    for (int i = 0; i < sizeof(gfp_separate_list) / sizeof(gfp_separate_list[0]); ++i) {
+        if (flag & gfp_separate_list[i].flag) {
+            strcat(separate, gfp_separate_list[i].name);
+            strcat(separate, " | ");
+        }
+    }
+
+    // 移除最后一个 " | " 字符串的末尾
+    if (strlen(separate) > 3) {
+        separate[strlen(separate) - 3] = '\0';
+    }
+
+    // 打印组合修饰符和单独标志位
+    printf("%-50s %-100s\n", combined, separate);
 }
-*/
+
 static int handle_event_paf(void *ctx, void *data, size_t data_sz)
 {
 	const struct paf_event *e = data;
@@ -827,8 +883,10 @@ static int handle_event_paf(void *ctx, void *data, size_t data_sz)
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
-	printf("%-8lu %-8lu  %-8lu %-8lu %-8x\n",
-		   e->min, e->low, e->high, e->present, e->flag);
+	printf("%-8lu %-8lu %-8lu %-8lu %-8x ",
+		e->min, e->low, e->high, e->present, e->flag);
+	print_flag_modifiers(e->flag);
+	printf("\n");
 
 	return 0;
 }
