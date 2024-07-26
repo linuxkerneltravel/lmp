@@ -31,6 +31,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 static volatile bool exiting = false;
 

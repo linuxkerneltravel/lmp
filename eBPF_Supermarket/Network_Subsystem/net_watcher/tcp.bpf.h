@@ -380,16 +380,21 @@ static __always_inline int ret(void *ctx, __u8 direction, __u16 sport,
         message->daddr_v6 = 0;
     } else if (message->family == AF_INET6) {
         if (direction == 0) { // Send
-            BPF_CORE_READ_INTO(&message->saddr_v6, sk,
-                               __sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
-            BPF_CORE_READ_INTO(&message->daddr_v6, sk,
-                               __sk_common.skc_v6_daddr.in6_u.u6_addr32);
+            bpf_probe_read_kernel(
+                &message->saddr_v6, sizeof(message->saddr_v6),
+                &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+            bpf_probe_read_kernel(
+                &message->daddr_v6, sizeof(message->daddr_v6),
+                &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
         } else { // Receive
-            BPF_CORE_READ_INTO(&message->saddr_v6, sk,
-                               __sk_common.skc_v6_daddr.in6_u.u6_addr32);
-            BPF_CORE_READ_INTO(&message->daddr_v6, sk,
-                               __sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+            bpf_probe_read_kernel(
+                &message->saddr_v6, sizeof(message->saddr_v6),
+                &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
+            bpf_probe_read_kernel(
+                &message->daddr_v6, sizeof(message->daddr_v6),
+                &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
         }
+
         message->saddr = 0;
         message->daddr = 0;
     }
@@ -424,7 +429,7 @@ __handle_send_reset(struct trace_event_raw_tcp_send_reset *ctx) {
     struct sock *sk = (struct sock *)ctx->skaddr;
     if (!sk)
         return 0;
-    bpf_printk("Send reset: sport=%u, dport=%u\n", ctx->sport, ctx->dport);
+    //   bpf_printk("Send reset: sport=%u, dport=%u\n", ctx->sport, ctx->dport);
     return ret((void *)ctx->skaddr, 0, ctx->sport, ctx->dport);
 }
 
@@ -433,6 +438,7 @@ __handle_receive_reset(struct trace_event_raw_tcp_receive_reset *ctx) {
     struct sock *sk = (struct sock *)ctx->skaddr;
     if (!sk)
         return 0;
-    bpf_printk("Receive reset: sport=%u, dport=%u\n", ctx->sport, ctx->dport);
+    //  bpf_printk("Receive reset: sport=%u, dport=%u\n", ctx->sport,
+    //  ctx->dport);
     return ret((void *)ctx->skaddr, 1, ctx->sport, ctx->dport);
 }
