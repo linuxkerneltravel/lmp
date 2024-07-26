@@ -44,7 +44,7 @@ static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
            time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
-           redis_info = 0, count_info = 0; // flag
+           redis_info = 0, count_info = 0, rtt_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -67,7 +67,7 @@ static const struct argp_option opts[] = {
     {"udp", 'u', 0, 0, "trace the udp message"},
     {"net_filter", 'n', 0, 0, "trace ipv4 packget filter "},
     {"drop_reason", 'k', 0, 0, "trace kfree "},
-    {"addr_to_func", 'T', 0, 0, "translation addr to func and offset"},
+    {"addr_to_func", 'F', 0, 0, "translation addr to func and offset"},
     {"icmptime", 'I', 0, 0, "set to trace layer time of icmp"},
     {"tcpstate", 'S', 0, 0, "set to trace tcpstate"},
     {"timeload", 'L', 0, 0, "analysis time load"},
@@ -82,6 +82,8 @@ static const struct argp_option opts[] = {
     {"redis", 'R', 0, 0},
     {"count", 'C', "NUMBER", 0,
      "specify the time to count the number of requests"},
+    {"rtt", 'T', 0, 0, "set to trace rtt"},
+
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -120,7 +122,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'k':
         drop_reason = 1;
         break;
-    case 'T':
+    case 'F':
         addr_to_func = 1;
         break;
     case 'I':
@@ -143,6 +145,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         break;
     case 'R':
         redis_info = 1;
+        break;
+    case 'T':
+        rtt_info = 1;
         break;
     case 'C':
         count_info = strtoul(arg, &end, 10);
@@ -173,6 +178,7 @@ enum MonitorMode {
     MODE_DNS,
     MODE_MYSQL,
     MODE_REDIS,
+    MODE_RTT,
     MODE_DEFAULT
 };
 
@@ -193,6 +199,8 @@ enum MonitorMode get_monitor_mode() {
         return MODE_MYSQL;
     } else if (redis_info) {
         return MODE_REDIS;
+    } else if (rtt_info) {
+        return MODE_RTT;
     } else {
         return MODE_DEFAULT;
     }
@@ -426,77 +434,92 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->stack_info = stack_info;
     skel->rodata->mysql_info = mysql_info;
     skel->rodata->redis_info = redis_info;
+    skel->rodata->rtt_info = rtt_info;
 }
 static void set_disable_load(struct netwatcher_bpf *skel) {
 
     bpf_program__set_autoload(skel->progs.inet_csk_accept_exit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_connect,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_connect_exit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_connect,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_connect_exit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_set_state,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.eth_type_trans,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.ip_rcv_core,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.ip6_rcv_core,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_rcv,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_rcv,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v4_do_rcv,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_v6_do_rcv,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.skb_copy_datagram_iter,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_validate_incoming,
@@ -505,27 +528,32 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                               err_packet ? true : false);
     bpf_program__set_autoload(skel->progs.tcp_sendmsg,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.ip_queue_xmit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.inet6_csk_xmit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.__dev_queue_xmit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.dev_hard_start_xmit,
                               (all_conn || err_packet || extra_conn_info ||
-                               retrans_info || layer_time || http_info)
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_enter_recovery,
@@ -567,6 +595,12 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                               redis_info ? true : false);
     bpf_program__set_autoload(skel->progs.query__start_redis_process,
                               redis_info ? true : false);
+    bpf_program__set_autoload(skel->progs.tcp_rcv_established,
+                              (all_conn || err_packet || extra_conn_info ||
+                               retrans_info || layer_time || http_info ||
+                               rtt_info)
+                                  ? true
+                                  : false);
 }
 
 static void print_header(enum MonitorMode mode) {
@@ -635,6 +669,12 @@ static void print_header(enum MonitorMode mode) {
                "============================\n");
         printf("%-20s %-20s %-20s %-20s %-20s \n", "Pid", "Comm", "Size",
                "Redis", "duration/μs");
+        break;
+    case MODE_RTT:
+        printf("==============================================================="
+               "====================RTT "
+               "INFORMATION===================================================="
+               "============================\n");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
@@ -784,7 +824,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 
 static int print_packet(void *ctx, void *packet_info, size_t size) {
     if (udp_info || net_filter || drop_reason || icmp_info || tcp_info ||
-        dns_info || mysql_info || redis_info)
+        dns_info || mysql_info || redis_info || rtt_info)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME ||
@@ -1179,6 +1219,59 @@ static int print_trace(void *_ctx, void *data, size_t size) {
     return 0;
 }
 
+static int print_rtt(void *ctx, void *data, size_t size) {
+    if (!rtt_info)
+        return 0;
+    struct RTT *rtt_tuple = data;
+    unsigned long long total_latency = 0;
+    unsigned long long total_count = 0;
+    char d_str[INET_ADDRSTRLEN];
+    char s_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &rtt_tuple->saddr, s_str, sizeof(s_str));
+    inet_ntop(AF_INET, &rtt_tuple->daddr, d_str, sizeof(d_str));
+    if ((rtt_tuple->saddr & 0x0000FFFF) == 0x0000007F ||
+        (rtt_tuple->daddr & 0x0000FFFF) == 0x0000007F ||
+        rtt_tuple->saddr == htonl(0xC0A83C01) ||
+        rtt_tuple->daddr == htonl(0xC0A83C01)) {
+        return 0; // 如果匹配任一过滤条件，放弃处理这些数据包
+    }
+    // 打印源地址和目的地址
+    printf("Source Address: %s\n", s_str);
+    printf("Destination Address: %s\n", d_str);
+    // 更新总延迟和计数
+    total_latency += rtt_tuple->latency;
+    total_count += rtt_tuple->cnt;
+
+    // 打印总延迟和平均RTT
+    double average_rtt =
+        (total_count > 0) ? (double)total_latency / total_count : 0;
+    printf("Total Latency: %llu μs\n", total_latency);
+    printf("Average RTT: %.2f ms\n", average_rtt / 1000.0);
+
+    // 计算和打印RTT分布图
+    printf(" usecs               : count     distribution\n");
+    int bucket_size = 1;
+    for (int i = 0; i < MAX_SLOTS; i++) {
+        int start_range = bucket_size == 1 ? 0 : bucket_size;
+        int end_range = bucket_size * 2 - 1;
+        printf("%8d -> %-8d : %-8llu |", start_range, end_range,
+               rtt_tuple->slots[i]);
+        int bar_length =
+            rtt_tuple->slots[i] /
+            10; //计算该延迟范围内的计数对应的直方图条形长度,每个'*'
+                //表示 10 个计数
+        for (int j = 0; j < bar_length; j++) {
+            printf("*");
+        }
+        printf("\n");
+        bucket_size *= 2; //以对数方式扩展
+    }
+
+    printf("===============================================================\n");
+
+    return 0;
+}
+
 int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
 
     ATTACH_UPROBE_CHECKED(
@@ -1190,12 +1283,8 @@ int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
     return 0;
 }
 int attach_uprobe_redis(struct netwatcher_bpf *skel) {
-    ATTACH_UPROBE_CHECKED(
-        skel, call,
-        query__end_redis);
-    ATTACH_UPROBE_CHECKED(
-        skel, processCommand,
-        query__start_redis_process);
+    ATTACH_UPROBE_CHECKED(skel, call, query__end_redis);
+    ATTACH_UPROBE_CHECKED(skel, processCommand, query__start_redis_process);
     return 0;
 }
 int main(int argc, char **argv) {
@@ -1221,6 +1310,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *trace_rb = NULL;
     struct ring_buffer *mysql_rb = NULL;
     struct ring_buffer *redis_rb = NULL;
+    struct ring_buffer *rtt_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -1347,6 +1437,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
+    rtt_rb =
+        ring_buffer__new(bpf_map__fd(skel->maps.rtt_rb), print_rtt, NULL, NULL);
+    if (!rtt_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(connect_rb)\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
@@ -1369,6 +1466,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(trace_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(mysql_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(redis_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(rtt_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */

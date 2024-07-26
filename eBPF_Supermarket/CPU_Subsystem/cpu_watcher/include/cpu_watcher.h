@@ -158,11 +158,13 @@ struct proc_history {
 /*----------------------------------------------*/
 /*         mutrace相关结构体                     */
 /*----------------------------------------------*/
-struct mutex_info {
+struct mutex_info_kernel {
     u64 locked_total;//锁被持有的总时间
     u64 locked_max;//锁被持有的最长时间
     u64 contended_total;//锁发生竞争的总时间
+	int count;//记录锁被争用的总次数
     pid_t last_owner;//最后一次持有该锁的线程 ID
+	char last_name[TASK_COMM_LEN];
 	u64 acquire_time; // 锁每次被获取的时间戳，方便后续计算
     u64 ptr;//地址
 };
@@ -285,6 +287,12 @@ struct schedule_ctrl{
 
 struct mq_ctrl{
 	bool mq_func;
+	int prev_watcher;
+};
+
+struct mu_ctrl{
+	bool mu_func;
+	bool mutex_detail;
 	int prev_watcher;
 };
 

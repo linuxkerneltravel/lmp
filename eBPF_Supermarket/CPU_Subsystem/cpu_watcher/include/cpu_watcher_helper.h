@@ -25,6 +25,7 @@
 #define PREEMPT_WACTHER 40
 #define SCHEDULE_WACTHER 50
 #define MQ_WACTHER 60
+#define MUTEX_WATCHER 70
 #define HASH_SIZE 1024
 
 /*----------------------------------------------*/
@@ -74,6 +75,7 @@ const char *sc_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/sc_ctrl_map";
 const char *preempt_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/preempt_ctrl_map";
 const char *schedule_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/schedule_ctrl_map";
 const char *mq_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/mq_ctrl_map";
+const char *mu_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/mu_ctrl_map";
 
 int common_pin_map(struct bpf_map **bpf_map, const struct bpf_object *obj, const char *map_name, const char *ctrl_path)
 {
@@ -203,6 +205,23 @@ int update_mq_ctrl_map(struct mq_ctrl mq_ctrl){
     return 0;
 }
 
+int update_mu_ctrl_map(struct mu_ctrl mu_ctrl){
+	int err,key = 0;
+	int srcmap_fd;
+	
+	srcmap_fd = bpf_obj_get(mu_ctrl_path);
+    if (srcmap_fd < 0) {
+        fprintf(stderr,"Failed to open mq_ctrl_map file\n");
+        return srcmap_fd;
+    }
+    err = bpf_map_update_elem(srcmap_fd,&key,&mu_ctrl, 0);
+    if(err < 0){
+        fprintf(stderr, "Failed to update mq_ctrl_map elem\n");
+        return err;
+    }
+
+    return 0;
+}
 /*----------------------------------------------*/
 /*              mutex_count                     */
 /*----------------------------------------------*/

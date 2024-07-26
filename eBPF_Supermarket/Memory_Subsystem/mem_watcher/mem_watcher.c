@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
@@ -31,13 +32,66 @@
 #include "pr.skel.h"
 #include "procstat.skel.h"
 #include "sysstat.skel.h"
+#include "fraginfo.skel.h"
 #include "memleak.skel.h"
 #include "mem_watcher.h"
+#include "fraginfo.h"
 
 #include "blazesym.h"
 
-static const int perf_max_stack_depth = 127;    //stack id 对应的堆栈的深度
-static const int stack_map_max_entries = 10240; //最大允许存储多少个stack_id
+// 定义标志结构体
+typedef struct {
+    int flag;
+    const char *name;
+} Flag;
+
+// 定义所有组合修饰符和单独标志位
+Flag gfp_combined_list[] = {
+    {GFP_ATOMIC, "GFP_ATOMIC"},
+    {GFP_KERNEL, "GFP_KERNEL"},
+    {GFP_KERNEL_ACCOUNT, "GFP_KERNEL_ACCOUNT"},
+    {GFP_NOWAIT, "GFP_NOWAIT"},
+    {GFP_NOIO, "GFP_NOIO"},
+    {GFP_NOFS, "GFP_NOFS"},
+    {GFP_USER, "GFP_USER"},
+    {GFP_DMA, "GFP_DMA"},
+    {GFP_DMA32, "GFP_DMA32"},
+    {GFP_HIGHUSER, "GFP_HIGHUSER"},
+    {GFP_HIGHUSER_MOVABLE, "GFP_HIGHUSER_MOVABLE"},
+    {GFP_TRANSHUGE_LIGHT, "GFP_TRANSHUGE_LIGHT"},
+    {GFP_TRANSHUGE, "GFP_TRANSHUGE"},
+};
+
+Flag gfp_separate_list[] = {
+    {___GFP_DMA, "___GFP_DMA"},
+    {___GFP_HIGHMEM, "___GFP_HIGHMEM"},
+    {___GFP_DMA32, "___GFP_DMA32"},
+    {___GFP_MOVABLE, "___GFP_MOVABLE"},
+    {___GFP_RECLAIMABLE, "___GFP_RECLAIMABLE"},
+    {___GFP_HIGH, "___GFP_HIGH"},
+    {___GFP_IO, "___GFP_IO"},
+    {___GFP_FS, "___GFP_FS"},
+    {___GFP_ZERO, "___GFP_ZERO"},
+    {___GFP_ATOMIC, "___GFP_ATOMIC"},
+    {___GFP_DIRECT_RECLAIM, "___GFP_DIRECT_RECLAIM"},
+    {___GFP_KSWAPD_RECLAIM, "___GFP_KSWAPD_RECLAIM"},
+    {___GFP_WRITE, "___GFP_WRITE"},
+    {___GFP_NOWARN, "___GFP_NOWARN"},
+    {___GFP_RETRY_MAYFAIL, "___GFP_RETRY_MAYFAIL"},
+    {___GFP_NOFAIL, "___GFP_NOFAIL"},
+    {___GFP_NORETRY, "___GFP_NORETRY"},
+    {___GFP_MEMALLOC, "___GFP_MEMALLOC"},
+    {___GFP_COMP, "___GFP_COMP"},
+    {___GFP_NOMEMALLOC, "___GFP_NOMEMALLOC"},
+    {___GFP_HARDWALL, "___GFP_HARDWALL"},
+    {___GFP_THISNODE, "___GFP_THISNODE"},
+    {___GFP_ACCOUNT, "___GFP_ACCOUNT"},
+    {___GFP_ZEROTAGS, "___GFP_ZEROTAGS"},
+    {___GFP_SKIP_KASAN_POISON, "___GFP_SKIP_KASAN_POISON"},
+};
+
+static const int perf_max_stack_depth = 127;	// stack id 对应的堆栈的深度
+static const int stack_map_max_entries = 10240; // 最大允许存储多少个stack_id
 static __u64 *g_stacks = NULL;
 static size_t g_stacks_size = 0;
 
@@ -48,104 +102,137 @@ static struct blaze_symbolizer *symbolizer;
 
 static int attach_pid;
 pid_t own_pid;
-static char binary_path[128] = { 0 };
+static char binary_path[128] = {0};
 
-struct allocation {
+struct allocation
+{
 	int stack_id;
 	__u64 size;
 	size_t count;
 };
+// ============================= fraginfo====================================
+struct order_entry {
+    struct order_zone okey;
+    struct ctg_info oinfo;
+};
 
+int compare_entries(const void *a, const void *b) {
+    struct order_entry *entryA = (struct order_entry *)a;
+    struct order_entry *entryB = (struct order_entry *)b;
+
+    if (entryA->okey.zone_ptr != entryB->okey.zone_ptr) {
+        return (entryA->okey.zone_ptr < entryB->okey.zone_ptr) ? -1 : 1;
+    } else {
+        return (entryA->okey.order < entryB->okey.order) ? -1 : 1;
+    }
+}
+
+// ============================= fraginfo====================================
 static struct allocation *allocs;
 
 static volatile bool exiting = false;
 
-#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe) \
-    do { \
-        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, \
-                .func_name = #sym_name, \
-                .retprobe = is_retprobe); \
-        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
-                skel->progs.prog_name, \
-                attach_pid, \
-                binary_path, \
-                0, \
-                &uprobe_opts); \
-    } while (false)
- 
-#define __CHECK_PROGRAM(skel, prog_name) \
-    do { \
-        if (!skel->links.prog_name) { \
-            perror("no program attached for " #prog_name); \
-            return -errno; \
-        } \
-    } while (false)
- 
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
+	do                                                           \
+	{                                                            \
+		LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                \
+					.func_name = #sym_name,                      \
+					.retprobe = is_retprobe);                    \
+		skel->links.prog_name = bpf_program__attach_uprobe_opts( \
+			skel->progs.prog_name,                               \
+			attach_pid,                                          \
+			binary_path,                                         \
+			0,                                                   \
+			&uprobe_opts);                                       \
+	} while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                   \
+	do                                                     \
+	{                                                      \
+		if (!skel->links.prog_name)                        \
+		{                                                  \
+			perror("no program attached for " #prog_name); \
+			return -errno;                                 \
+		}                                                  \
+	} while (false)
+
 #define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
-    do { \
-        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe); \
-        __CHECK_PROGRAM(skel, prog_name); \
-    } while (false)
+	do                                                                  \
+	{                                                                   \
+		__ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+		__CHECK_PROGRAM(skel, prog_name);                               \
+	} while (false)
 
 #define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)
 #define ATTACH_URETPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, true)
- 
+
 #define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
-#define PROCESS_SKEL(skel, func) \
-    skel = func##_bpf__open(); \
-    if (!skel) { \
-        fprintf(stderr, "Failed to open and load BPF skeleton\n"); \
-        return 1; \
-    } \
-    process_##func(skel)
+#define PROCESS_SKEL(skel, func)                                   \
+	skel = func##_bpf__open();                                     \
+	if (!skel)                                                     \
+	{                                                              \
+		fprintf(stderr, "Failed to open and load BPF skeleton\n"); \
+		return 1;                                                  \
+	}                                                              \
+	process_##func(skel)
 
-#define POLL_RING_BUFFER(rb, timeout, err)     \
-    while (!exiting) {                         \
-        err = ring_buffer__poll(rb, timeout);  \
-        if (err == -EINTR) {                   \
-            err = 0;                           \
-            break;                             \
-        }                                      \
-        if (err < 0) {                         \
-            printf("Error polling perf buffer: %d\n", err); \
-            break;                             \
-        }                                      \
-    }
+#define POLL_RING_BUFFER(rb, timeout, err)                  \
+	while (!exiting)                                        \
+	{                                                       \
+		err = ring_buffer__poll(rb, timeout);               \
+		if (err == -EINTR)                                  \
+		{                                                   \
+			err = 0;                                        \
+			break;                                          \
+		}                                                   \
+		if (err < 0)                                        \
+		{                                                   \
+			printf("Error polling perf buffer: %d\n", err); \
+			break;                                          \
+		}                                                   \
+	}
 
-#define LOAD_AND_ATTACH_SKELETON(skel, event) \
-    do {                                             \
-        skel->bss->user_pid = own_pid;              \
-        err = event##_bpf__load(skel);               \
-        if (err) {                                   \
-            fprintf(stderr, "Failed to load and verify BPF skeleton\n"); \
-            goto event##_cleanup;                     \
-        }                                            \
-                                                     \
-        err = event##_bpf__attach(skel);             \
-        if (err) {                                   \
-            fprintf(stderr, "Failed to attach BPF skeleton\n"); \
-            goto event##_cleanup;                     \
-        }                                            \
-                                                     \
-        rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event_##event, NULL, NULL); \
-        if (!rb) {                                   \
-            fprintf(stderr, "Failed to create ring buffer\n"); \
-            goto event##_cleanup;                     \
-        }                                            \
-    } while(0)
+#define LOAD_AND_ATTACH_SKELETON(skel, event)                                                \
+	do                                                                                       \
+	{                                                                                        \
+		skel->bss->user_pid = own_pid;                                                       \
+		err = event##_bpf__load(skel);                                                       \
+		if (err)                                                                             \
+		{                                                                                    \
+			fprintf(stderr, "Failed to load and verify BPF skeleton\n");                     \
+			goto event##_cleanup;                                                            \
+		}                                                                                    \
+                                                                                             \
+		err = event##_bpf__attach(skel);                                                     \
+		if (err)                                                                             \
+		{                                                                                    \
+			fprintf(stderr, "Failed to attach BPF skeleton\n");                              \
+			goto event##_cleanup;                                                            \
+		}                                                                                    \
+                                                                                             \
+		rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event_##event, NULL, NULL); \
+		if (!rb)                                                                             \
+		{                                                                                    \
+			fprintf(stderr, "Failed to create ring buffer\n");                               \
+			goto event##_cleanup;                                                            \
+		}                                                                                    \
+	} while (0)
 
-static struct env {
+static struct env
+{
 	int time;
 	bool paf;
 	bool pr;
 	bool procstat;
 	bool sysstat;
 	bool memleak;
+	bool fraginfo;
 	bool kernel_trace;
 	bool print_time;
-
+	int interval;
+	int duration;
 	bool part2;
 
 	long choose_pid;
@@ -157,11 +244,14 @@ static struct env {
 	.procstat = false,
 	.sysstat = false,
 	.memleak = false,
+	.fraginfo = false,
 	.kernel_trace = true,
 	.print_time = false,
 	.rss = false,
 	.part2 = false,
 	.choose_pid = 0,
+	.interval = 1,
+	.duration = 10,
 };
 
 const char argp_program_doc[] = "mem_watcher is in use ....\n";
@@ -182,39 +272,76 @@ static const struct argp_option opts[] = {
 
 	{0, 0, 0, 0, "sysstat:", 6},
 	{"sysstat", 's', 0, 0, "print sysstat (系统内存状态报告)"},
-	
+
 	{"part2", 'n', NULL, 0, "系统内存状态报告2", 7},
 
 	{0, 0, 0, 0, "memleak:", 8},
 	{"memleak", 'l', 0, 0, "print memleak (内核态内存泄漏检测)", 8},
 	{"choose_pid", 'P', "PID", 0, "选择进程号打印, print memleak (用户态内存泄漏检测)", 9},
 	{"print_time", 'm', 0, 0, "打印申请地址时间 (用户态)", 10},
-
-
+	{"print_time", 'f', 0, 0, "打印申请地址时间 (用户态)", 10},
 	{"time", 't', "TIME-SEC", 0, "Max Running Time(0 for infinite)", 11},
+
+	{0, 0, 0, 0, "fraginfo:", 12},
+	{"fraginfo", 'f', 0, 0, "print fraginfo",12},
+	{"interval", 'i', "INTERVAL", 0, "Print interval in seconds (default 1)"},
+	{"duration", 'd', "DURATION", 0, "Total duration in seconds to run (default 10)"},
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
 
-static error_t parse_arg(int key, char *arg, struct argp_state *state) {
-    switch (key) {
-        case 't':
-            env.time = strtol(arg, NULL, 10);
-            if (env.time) alarm(env.time);
-            break;
-        case 'a': env.paf = true; break;
-        case 'p': env.pr = true; break;
-        case 'r': env.procstat = true; break;
-        case 's': env.sysstat = true; break;
-        case 'n': env.part2 = true; break;
-        case 'P': env.choose_pid = strtol(arg, NULL, 10); break;
-        case 'R': env.rss = true; break;
-		    case 'l': env.memleak = true; break;
-		    case 'm': env.print_time = true; break;
-		    case 'h': argp_state_help(state, stderr, ARGP_HELP_STD_HELP); break;
-		    default: return ARGP_ERR_UNKNOWN;
-    }
-    return 0;
+static error_t parse_arg(int key, char *arg, struct argp_state *state)
+{
+	switch (key)
+	{
+	case 't':
+		env.time = strtol(arg, NULL, 10);
+		if (env.time)
+			alarm(env.time);
+		break;
+	case 'a':
+		env.paf = true;
+		break;
+	case 'p':
+		env.pr = true;
+		break;
+	case 'r':
+		env.procstat = true;
+		break;
+	case 'f':
+		env.fraginfo = true;
+		break;
+	case 's':
+		env.sysstat = true;
+		break;
+	case 'n':
+		env.part2 = true;
+		break;
+	case 'P':
+		env.choose_pid = strtol(arg, NULL, 10);
+		break;
+	case 'R':
+		env.rss = true;
+		break;
+	case 'l':
+		env.memleak = true;
+		break;
+	case 'm':
+		env.print_time = true;
+		break;
+	case 'h':
+		argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+		break;
+	case 'i':
+        env.interval = atoi(arg);
+        break;
+    case 'd':
+        env.duration = atoi(arg);
+        break;
+	default:
+		return ARGP_ERR_UNKNOWN;
+	}
+	return 0;
 }
 
 static const struct argp argp = {
@@ -224,7 +351,7 @@ static const struct argp argp = {
 };
 
 // Function prototypes
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args);
+// static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args);
 static void sig_handler(int sig);
 static void setup_signals(void);
 static void disable_kernel_tracepoints(struct memleak_bpf *skel);
@@ -237,45 +364,62 @@ static int handle_event_pr(void *ctx, void *data, size_t data_sz);
 static int handle_event_procstat(void *ctx, void *data, size_t data_sz);
 static int handle_event_sysstat(void *ctx, void *data, size_t data_sz);
 static int attach_uprobes(struct memleak_bpf *skel);
+static void print_flag_modifiers(int flag);
 static int process_paf(struct paf_bpf *skel_paf);
 static int process_pr(struct pr_bpf *skel_pr);
 static int process_procstat(struct procstat_bpf *skel_procstat);
 static int process_sysstat(struct sysstat_bpf *skel_sysstat);
 static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
+static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo);
 static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
 static int update_addr_times(struct memleak_bpf *skel_memleak);
 static int print_time(struct memleak_bpf *skel_memleak);
 
-
 // Main function
-int main(int argc, char **argv) {
-    int err;
-    struct paf_bpf *skel_paf;
-    struct pr_bpf *skel_pr;
-    struct procstat_bpf *skel_procstat;
-    struct sysstat_bpf *skel_sysstat;
-    struct memleak_bpf *skel_memleak;
+int main(int argc, char **argv)
+{
+	int err;
+	struct paf_bpf *skel_paf;
+	struct pr_bpf *skel_pr;
+	struct procstat_bpf *skel_procstat;
+	struct sysstat_bpf *skel_sysstat;
+	struct memleak_bpf *skel_memleak;
+	struct fraginfo_bpf *skel_fraginfo;
 
-    err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
-    if (err)
-        return err;
+	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
+	if (err)
+		return err;
 
-    own_pid = getpid();
-    libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-    libbpf_set_print(libbpf_print_fn);
+	own_pid = getpid();
+	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+	// libbpf_set_print(libbpf_print_fn);
 
-    setup_signals();
+	setup_signals();
 
-    if (env.paf) {
+	if (env.paf)
+	{
 		PROCESS_SKEL(skel_paf, paf);
-	} else if (env.pr) {
+	}
+	else if (env.pr)
+	{
 		PROCESS_SKEL(skel_pr, pr);
-	} else if (env.procstat) {
+	}
+	else if (env.procstat)
+	{
 		PROCESS_SKEL(skel_procstat, procstat);
-	} else if (env.sysstat) {
+	}
+	else if (env.fraginfo)
+	{
+		PROCESS_SKEL(skel_fraginfo, fraginfo);
+	}
+	else if (env.sysstat)
+	{
 		PROCESS_SKEL(skel_sysstat, sysstat);
-    } else if (env.memleak) {
-        if (env.choose_pid != 0) {
+	}
+	else if (env.memleak)
+	{
+		if (env.choose_pid != 0)
+		{
 			printf("用户态内存泄漏\n");
 			env.kernel_trace = false;
 			attach_pid = env.choose_pid;
@@ -288,17 +432,18 @@ int main(int argc, char **argv) {
 		allocs = calloc(ALLOCS_MAX_ENTRIES, sizeof(*allocs));
 
 		/* Set up libbpf errors and debug info callback */
-		libbpf_set_print(libbpf_print_fn);
+		// libbpf_set_print(libbpf_print_fn);
 
 		/* Load and verify BPF application */
 		skel_memleak = memleak_bpf__open();
-		if (!skel_memleak) {
+		if (!skel_memleak)
+		{
 			fprintf(stderr, "Failed to open BPF skeleton\n");
 			return 1;
 		}
 		process_memleak(skel_memleak, env);
 	}
-    return 0;
+	return 0;
 }
 
 int alloc_size_compare(const void *a, const void *b)
@@ -317,35 +462,45 @@ int alloc_size_compare(const void *a, const void *b)
 	return 0;
 }
 
-static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, uint64_t offset, const blaze_symbolize_code_info *code_info) {
+static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, uint64_t offset, const blaze_symbolize_code_info *code_info)
+{
 	// If we have an input address  we have a new symbol.
-	if (input_addr != 0) {
+	if (input_addr != 0)
+	{
 		printf("%016lx: %s @ 0x%lx+0x%lx", input_addr, name, addr, offset);
-		if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL) {
+		if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL)
+		{
 			printf(" %s/%s:%u\n", code_info->dir, code_info->file, code_info->line);
 		}
-		else if (code_info != NULL && code_info->file != NULL) {
+		else if (code_info != NULL && code_info->file != NULL)
+		{
 			printf(" %s:%u\n", code_info->file, code_info->line);
 		}
-		else {
+		else
+		{
 			printf("\n");
 		}
 	}
-	else {
+	else
+	{
 		printf("%16s  %s", "", name);
-		if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL) {
+		if (code_info != NULL && code_info->dir != NULL && code_info->file != NULL)
+		{
 			printf("@ %s/%s:%u [inlined]\n", code_info->dir, code_info->file, code_info->line);
 		}
-		else if (code_info != NULL && code_info->file != NULL) {
+		else if (code_info != NULL && code_info->file != NULL)
+		{
 			printf("@ %s:%u [inlined]\n", code_info->file, code_info->line);
 		}
-		else {
+		else
+		{
 			printf("[inlined]\n");
 		}
 	}
 }
 
-static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
+static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid)
+{
 	const struct blaze_symbolize_inlined_fn *inlined;
 	const struct blaze_result *result;
 	const struct blaze_sym *sym;
@@ -353,23 +508,26 @@ static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
 
 	assert(sizeof(uintptr_t) == sizeof(uint64_t));
 
-	if (pid) {
+	if (pid)
+	{
 		struct blaze_symbolize_src_process src = {
 			.type_size = sizeof(src),
 			.pid = pid,
 		};
 		result = blaze_symbolize_process_abs_addrs(symbolizer, &src, (const uintptr_t *)stack, stack_sz);
 	}
-	else {
+	else
+	{
 		struct blaze_symbolize_src_kernel src = {
 			.type_size = sizeof(src),
 		};
 		result = blaze_symbolize_kernel_abs_addrs(symbolizer, &src, (const uintptr_t *)stack, stack_sz);
 	}
 
-
-	for (i = 0; i < stack_sz; i++) {
-		if (!result || result->cnt <= i || result->syms[i].name == NULL) {
+	for (i = 0; i < stack_sz; i++)
+	{
+		if (!result || result->cnt <= i || result->syms[i].name == NULL)
+		{
 			printf("%016llx: <no-symbol>\n", stack[i]);
 			continue;
 		}
@@ -377,7 +535,8 @@ static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
 		sym = &result->syms[i];
 		print_frame(sym->name, stack[i], sym->addr, sym->offset, &sym->code_info);
 
-		for (j = 0; j < sym->inlined_cnt; j++) {
+		for (j = 0; j < sym->inlined_cnt; j++)
+		{
 			inlined = &sym->inlined[j];
 			print_frame(sym->name, 0, 0, 0, &inlined->code_info);
 		}
@@ -386,7 +545,8 @@ static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
 	blaze_result_free(result);
 }
 
-int print_outstanding_allocs(struct memleak_bpf *skel) {
+int print_outstanding_allocs(struct memleak_bpf *skel)
+{
 	const size_t allocs_key_size = bpf_map__key_size(skel->maps.allocs);
 
 	time_t t = time(NULL);
@@ -395,12 +555,15 @@ int print_outstanding_allocs(struct memleak_bpf *skel) {
 	size_t nr_allocs = 0;
 
 	// for each struct alloc_info "alloc_info" in the bpf map "allocs"
-	for (__u64 prev_key = 0, curr_key = 0; ; prev_key = curr_key) {
+	for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key)
+	{
 		struct alloc_info alloc_info = {};
 		memset(&alloc_info, 0, sizeof(alloc_info));
 
-		if (bpf_map__get_next_key(skel->maps.allocs, &prev_key, &curr_key, allocs_key_size)) {
-			if (errno == ENOENT) {
+		if (bpf_map__get_next_key(skel->maps.allocs, &prev_key, &curr_key, allocs_key_size))
+		{
+			if (errno == ENOENT)
+			{
 				break; // no more keys, done
 			}
 
@@ -409,7 +572,8 @@ int print_outstanding_allocs(struct memleak_bpf *skel) {
 			return -errno;
 		}
 
-		if (bpf_map__lookup_elem(skel->maps.allocs, &curr_key, allocs_key_size, &alloc_info, sizeof(alloc_info), 0)) {
+		if (bpf_map__lookup_elem(skel->maps.allocs, &curr_key, allocs_key_size, &alloc_info, sizeof(alloc_info), 0))
+		{
 			if (errno == ENOENT)
 				continue;
 
@@ -419,7 +583,8 @@ int print_outstanding_allocs(struct memleak_bpf *skel) {
 		}
 
 		// filter invalid stacks
-		if (alloc_info.stack_id < 0) {
+		if (alloc_info.stack_id < 0)
+		{
 			continue;
 		}
 
@@ -427,10 +592,12 @@ int print_outstanding_allocs(struct memleak_bpf *skel) {
 		//   increment size with alloc_info.size
 		bool stack_exists = false;
 
-		for (size_t i = 0; !stack_exists && i < nr_allocs; ++i) {
+		for (size_t i = 0; !stack_exists && i < nr_allocs; ++i)
+		{
 			struct allocation *alloc = &allocs[i];
 
-			if (alloc->stack_id == alloc_info.stack_id) {
+			if (alloc->stack_id == alloc_info.stack_id)
+			{
 				alloc->size += alloc_info.size;
 				alloc->count++;
 
@@ -461,14 +628,16 @@ int print_outstanding_allocs(struct memleak_bpf *skel) {
 	size_t nr_allocs_to_show = nr_allocs < 10 ? nr_allocs : 10;
 
 	printf("[%d:%d:%d] Top %zu stacks with outstanding allocations:\n",
-		tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs_to_show);
+		   tm->tm_hour, tm->tm_min, tm->tm_sec, nr_allocs_to_show);
 
-	for (size_t i = 0; i < nr_allocs_to_show;i++) {
+	for (size_t i = 0; i < nr_allocs_to_show; i++)
+	{
 		if (bpf_map__lookup_elem(skel->maps.stack_traces,
-            &allocs[i].stack_id, sizeof(allocs[i].stack_id), g_stacks, g_stacks_size, 0)) {
-            perror("failed to lookup stack traces!");
-            return -errno;
-        }
+								 &allocs[i].stack_id, sizeof(allocs[i].stack_id), g_stacks, g_stacks_size, 0))
+		{
+			perror("failed to lookup stack traces!");
+			return -errno;
+		}
 	}
 
 	show_stack_trace(g_stacks, nr_allocs_to_show, 0);
@@ -476,147 +645,171 @@ int print_outstanding_allocs(struct memleak_bpf *skel) {
 	return 0;
 }
 
-int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid) {
-    const size_t combined_allocs_key_size = bpf_map__key_size(skel->maps.combined_allocs);
-    const size_t stack_traces_key_size = bpf_map__key_size(skel->maps.stack_traces);
+int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid)
+{
+	const size_t combined_allocs_key_size = bpf_map__key_size(skel->maps.combined_allocs);
+	const size_t stack_traces_key_size = bpf_map__key_size(skel->maps.stack_traces);
 
-    for (__u64 prev_key = 0, curr_key = 0; ; prev_key = curr_key) {
+	for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key)
+	{
 
-        if (bpf_map__get_next_key(skel->maps.combined_allocs,
-            &prev_key, &curr_key, combined_allocs_key_size)) {
-            if (errno == ENOENT) {
-                break; //no more keys, done!
-            }
-            perror("map get next key failed!");
+		if (bpf_map__get_next_key(skel->maps.combined_allocs,
+								  &prev_key, &curr_key, combined_allocs_key_size))
+		{
+			if (errno == ENOENT)
+			{
+				break; // no more keys, done!
+			}
+			perror("map get next key failed!");
 
-            return -errno;
-        }
+			return -errno;
+		}
 
-        // stack_id = curr_key
-        union combined_alloc_info cinfo;
-        memset(&cinfo, 0, sizeof(cinfo));
+		// stack_id = curr_key
+		union combined_alloc_info cinfo;
+		memset(&cinfo, 0, sizeof(cinfo));
 
-        if (bpf_map__lookup_elem(skel->maps.combined_allocs,
-            &curr_key, combined_allocs_key_size, &cinfo, sizeof(cinfo), 0)) {
-            if (errno == ENOENT) {
-                continue;
-            }
+		if (bpf_map__lookup_elem(skel->maps.combined_allocs,
+								 &curr_key, combined_allocs_key_size, &cinfo, sizeof(cinfo), 0))
+		{
+			if (errno == ENOENT)
+			{
+				continue;
+			}
 
-            perror("map lookup failed!");
-            return -errno;
-        }
+			perror("map lookup failed!");
+			return -errno;
+		}
 
-        if (bpf_map__lookup_elem(skel->maps.stack_traces,
-            &curr_key, stack_traces_key_size, g_stacks, g_stacks_size, 0)) {
-            perror("failed to lookup stack traces!");
-            return -errno;
-        }
+		if (bpf_map__lookup_elem(skel->maps.stack_traces,
+								 &curr_key, stack_traces_key_size, g_stacks, g_stacks_size, 0))
+		{
+			perror("failed to lookup stack traces!");
+			return -errno;
+		}
 
-        printf("stack_id=0x%llx with outstanding allocations: total_size=%llu nr_allocs=%llu\n",
-            curr_key, (__u64)cinfo.total_size, (__u64)cinfo.number_of_allocs);
+		printf("stack_id=0x%llx with outstanding allocations: total_size=%llu nr_allocs=%llu\n",
+			   curr_key, (__u64)cinfo.total_size, (__u64)cinfo.number_of_allocs);
 
-        int stack_sz = 0;
-        for (int i = 0; i < perf_max_stack_depth; i++) {
-            if (g_stacks[i] == 0) {
-                break;
-            }
-            stack_sz++;
-            //printf("[%3d] 0x%llx\n", i, g_stacks[i]);
-        }
+		int stack_sz = 0;
+		for (int i = 0; i < perf_max_stack_depth; i++)
+		{
+			if (g_stacks[i] == 0)
+			{
+				break;
+			}
+			stack_sz++;
+			// printf("[%3d] 0x%llx\n", i, g_stacks[i]);
+		}
 
-        show_stack_trace(g_stacks, stack_sz, pid);
-    }
+		show_stack_trace(g_stacks, stack_sz, pid);
+	}
 
-    return 0;
+	return 0;
 }
 
 // 在更新时间之前获取当前时间并调整为相对于程序启动时的时间
-static __u64 adjust_time_to_program_start_time(__u64 first_query_time) {
-    struct timespec current_time;
-    clock_gettime(CLOCK_MONOTONIC, &current_time);
-    //printf("current_time: %ld\n", current_time.tv_sec);
-    __u64 adjusted_time;
-    adjusted_time = current_time.tv_sec - first_query_time;
+static __u64 adjust_time_to_program_start_time(__u64 first_query_time)
+{
+	struct timespec current_time;
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+	// printf("current_time: %ld\n", current_time.tv_sec);
+	__u64 adjusted_time;
+	adjusted_time = current_time.tv_sec - first_query_time;
 
-    //printf("adjusted_time: %lld\n", adjusted_time);
-    return adjusted_time;
+	// printf("adjusted_time: %lld\n", adjusted_time);
+	return adjusted_time;
 }
 
-
 // 在更新时间时，先将时间调整为相对于程序启动的时间
-static int update_addr_times(struct memleak_bpf *skel) {
-    const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
-    const size_t first_time_key_size = bpf_map__key_size(skel->maps.first_time);
-    for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
-        if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size)) {
-            if (errno == ENOENT) {
-                break; // no more keys, done!
-            }
+static int update_addr_times(struct memleak_bpf *skel)
+{
+	const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
+	const size_t first_time_key_size = bpf_map__key_size(skel->maps.first_time);
+	for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key)
+	{
+		if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size))
+		{
+			if (errno == ENOENT)
+			{
+				break; // no more keys, done!
+			}
 
-            perror("map get next key failed!");
-            return -errno;
-        }
+			perror("map get next key failed!");
+			return -errno;
+		}
 
-        // Check if the address exists in the first_time map
-        __u64 first_query_time;
-        if (bpf_map__lookup_elem(skel->maps.first_time, &curr_key, first_time_key_size, &first_query_time, sizeof(first_query_time), 0)) {
-            // Address doesn't exist in the first_time map, add it with the current time
-            struct timespec first_time_alloc;
-            clock_gettime(CLOCK_MONOTONIC, &first_time_alloc);
-            if (bpf_map__update_elem(skel->maps.first_time, &curr_key, first_time_key_size, &first_time_alloc.tv_sec, sizeof(first_time_alloc.tv_sec), 0)) {
-                perror("map update failed!");
-                return -errno;
-            }
-        }
-        else {
-            // Address exists in the first_time map
-            // This is the first time updating timestamp
-            __u64 adjusted_time = adjust_time_to_program_start_time(first_query_time);
-            //printf("update_addr_times adjusted_time: %lld\n", adjusted_time);
+		// Check if the address exists in the first_time map
+		__u64 first_query_time;
+		if (bpf_map__lookup_elem(skel->maps.first_time, &curr_key, first_time_key_size, &first_query_time, sizeof(first_query_time), 0))
+		{
+			// Address doesn't exist in the first_time map, add it with the current time
+			struct timespec first_time_alloc;
+			clock_gettime(CLOCK_MONOTONIC, &first_time_alloc);
+			if (bpf_map__update_elem(skel->maps.first_time, &curr_key, first_time_key_size, &first_time_alloc.tv_sec, sizeof(first_time_alloc.tv_sec), 0))
+			{
+				perror("map update failed!");
+				return -errno;
+			}
+		}
+		else
+		{
+			// Address exists in the first_time map
+			// This is the first time updating timestamp
+			__u64 adjusted_time = adjust_time_to_program_start_time(first_query_time);
+			// printf("update_addr_times adjusted_time: %lld\n", adjusted_time);
 
-            // Save the adjusted time to addr_times map
-            __u64 timestamp = adjusted_time;
+			// Save the adjusted time to addr_times map
+			__u64 timestamp = adjusted_time;
 
-            // write the updated timestamp back to the map
-            if (bpf_map__update_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0)) {
-                perror("map update failed!");
-                return -errno;
-            }
-        }
-    }
-    return 0;
+			// write the updated timestamp back to the map
+			if (bpf_map__update_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0))
+			{
+				perror("map update failed!");
+				return -errno;
+			}
+		}
+	}
+	return 0;
 }
 
 // 在打印时间时，先将时间调整为相对于程序启动的时间
-int print_time(struct memleak_bpf *skel) {
-    const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
+int print_time(struct memleak_bpf *skel)
+{
+	const size_t addr_times_key_size = bpf_map__key_size(skel->maps.addr_times);
 
-    printf("%-16s %12s\n", "AL_ADDR", "AL_Time(s)");
+	printf("%-16s %12s\n", "AL_ADDR", "AL_Time(s)");
 
-    // Iterate over the addr_times map to print address and time
-    for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key) {
-        if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size)) {
-            if (errno == ENOENT) {
-                break; // no more keys, done!
-            }
-            perror("map get next key failed!");
-            return -errno;
-        }
+	// Iterate over the addr_times map to print address and time
+	for (__u64 prev_key = 0, curr_key = 0;; prev_key = curr_key)
+	{
+		if (bpf_map__get_next_key(skel->maps.addr_times, &prev_key, &curr_key, addr_times_key_size))
+		{
+			if (errno == ENOENT)
+			{
+				break; // no more keys, done!
+			}
+			perror("map get next key failed!");
+			return -errno;
+		}
 
-        // Read the timestamp for the current address
-        __u64 timestamp;
-        if (bpf_map__lookup_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0) == 0) {
-            printf("0x%-16llx %lld\n", curr_key, timestamp);
-        }
-        else {
-            perror("map lookup failed!");
-            return -errno;
-        }
-    }
-    return 0;
+		// Read the timestamp for the current address
+		__u64 timestamp;
+		if (bpf_map__lookup_elem(skel->maps.addr_times, &curr_key, addr_times_key_size, &timestamp, sizeof(timestamp), 0) == 0)
+		{
+			printf("0x%-16llx %lld\n", curr_key, timestamp);
+		}
+		else
+		{
+			perror("map lookup failed!");
+			return -errno;
+		}
+	}
+	return 0;
 }
 
-void disable_kernel_tracepoints(struct memleak_bpf *skel) {
+void disable_kernel_tracepoints(struct memleak_bpf *skel)
+{
 	bpf_program__set_autoload(skel->progs.memleak__kmalloc, false);
 	bpf_program__set_autoload(skel->progs.memleak__kmalloc_node, false);
 	bpf_program__set_autoload(skel->progs.memleak__kfree, false);
@@ -627,52 +820,60 @@ void disable_kernel_tracepoints(struct memleak_bpf *skel) {
 	bpf_program__set_autoload(skel->progs.memleak__mm_page_free, false);
 }
 
-static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) {
-	return vfprintf(stderr, format, args);
-}
+// static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
+// {
+// 	return vfprintf(stderr, format, args);
+// }
 
-static void sig_handler(int sig) {
-	exiting = true;
-	exit(EXIT_SUCCESS); 
-}
-
-static void setup_signals(void) {
-    signal(SIGINT, sig_handler);
-    signal(SIGTERM, sig_handler);
-    signal(SIGALRM, sig_handler);
-}
-
-/*
-static char* flags(int flag)
+static void sig_handler(int sig)
 {
-	if(flag & GFP_ATOMIC)
-		return "GFP_ATOMIC";
-	if(flag & GFP_KERNEL)
-		return "GFP_KERNEL";
-	if(flag & GFP_KERNEL_ACCOUNT)
-		return "GFP_KERNEL_ACCOUNT";
-	if(flag & GFP_NOWAIT)
-		return "GFP_NOWAIT";
-	if(flag & GFP_NOIO )
-		return "GFP_NOIO ";
-	if(flag & GFP_NOFS)
-		return "GFP_NOFS";
-	if(flag & GFP_USER)
-		return "GFP_USER";
-	if(flag & GFP_DMA)
-		return "GFP_DMA";
-	if(flag & GFP_DMA32)
-		return "GFP_DMA32";
-	if(flag & GFP_HIGHUSER)
-		return "GFP_HIGHUSER";
-	if(flag & GFP_HIGHUSER_MOVABLE)
-		return "GFP_HIGHUSER_MOVABLE";
-	if(flag & GFP_TRANSHUGE_LIGHT)
-		return "GFP_TRANSHUGE_LIGHT";
-	return;
+	exiting = true;
+	exit(EXIT_SUCCESS);
 }
-*/
-static int handle_event_paf(void *ctx, void *data, size_t data_sz) {
+
+static void setup_signals(void)
+{
+	signal(SIGINT, sig_handler);
+	signal(SIGTERM, sig_handler);
+	signal(SIGALRM, sig_handler);
+}
+
+static void print_flag_modifiers(int flag) {
+    char combined[512] = {0}; // 用于保存组合修饰符
+    char separate[512] = {0}; // 用于保存单独标志位
+
+    // 检查组合修饰符
+    for (int i = 0; i < sizeof(gfp_combined_list) / sizeof(gfp_combined_list[0]); ++i) {
+        if ((flag & gfp_combined_list[i].flag) == gfp_combined_list[i].flag) {
+            strcat(combined, gfp_combined_list[i].name);
+            strcat(combined, " | ");
+        }
+    }
+
+    // 移除最后一个 " | " 字符串的末尾
+    if (strlen(combined) > 3) {
+        combined[strlen(combined) - 3] = '\0';
+    }
+
+    // 检查单独标志位
+    for (int i = 0; i < sizeof(gfp_separate_list) / sizeof(gfp_separate_list[0]); ++i) {
+        if (flag & gfp_separate_list[i].flag) {
+            strcat(separate, gfp_separate_list[i].name);
+            strcat(separate, " | ");
+        }
+    }
+
+    // 移除最后一个 " | " 字符串的末尾
+    if (strlen(separate) > 3) {
+        separate[strlen(separate) - 3] = '\0';
+    }
+
+    // 打印组合修饰符和单独标志位
+    printf("%-50s %-100s\n", combined, separate);
+}
+
+static int handle_event_paf(void *ctx, void *data, size_t data_sz)
+{
 	const struct paf_event *e = data;
 	struct tm *tm;
 	char ts[32];
@@ -682,13 +883,16 @@ static int handle_event_paf(void *ctx, void *data, size_t data_sz) {
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
-	printf("%-8lu %-8lu  %-8lu %-8lu %-8x\n",
+	printf("%-8lu %-8lu %-8lu %-8lu %-8x ",
 		e->min, e->low, e->high, e->present, e->flag);
+	print_flag_modifiers(e->flag);
+	printf("\n");
 
 	return 0;
 }
 
-static int handle_event_pr(void *ctx, void *data, size_t data_sz) {
+static int handle_event_pr(void *ctx, void *data, size_t data_sz)
+{
 	const struct pr_event *e = data;
 	struct tm *tm;
 	char ts[32];
@@ -699,12 +903,13 @@ static int handle_event_pr(void *ctx, void *data, size_t data_sz) {
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
 	printf("%-8lu %-8lu  %-8u %-8u %-8u\n",
-		e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested, e->writeback);
+		   e->reclaim, e->reclaimed, e->unqueued_dirty, e->congested, e->writeback);
 
 	return 0;
 }
 
-static int handle_event_procstat(void *ctx, void *data, size_t data_sz) {
+static int handle_event_procstat(void *ctx, void *data, size_t data_sz)
+{
 	const struct procstat_event *e = data;
 	struct tm *tm;
 	char ts[32];
@@ -713,15 +918,18 @@ static int handle_event_procstat(void *ctx, void *data, size_t data_sz) {
 	time(&t);
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-	if (env.choose_pid) {
-		if (e->pid == env.choose_pid) {
+	if (env.choose_pid)
+	{
+		if (e->pid == env.choose_pid)
+		{
 			if (env.rss == true)
 				printf("%-8s %-8d %-8ld %-8ld %-8ld %-8lld %-8lld\n", ts, e->pid, e->vsize, e->Vdata, e->Vstk, e->VPTE, e->vswap);
 			else
 				printf("%-8s %-8d %-8ld %-8lld %-8lld %-8lld\n", ts, e->pid, e->size, e->rssanon, e->rssfile, e->rssshmem);
 		}
 	}
-	else {
+	else
+	{
 		if (env.rss == true)
 			printf("%-8s %-8d %-8ld %-8ld %-8ld %-8lld %-8lld\n", ts, e->pid, e->vsize, e->Vdata, e->Vstk, e->VPTE, e->vswap);
 		else
@@ -731,7 +939,8 @@ static int handle_event_procstat(void *ctx, void *data, size_t data_sz) {
 	return 0;
 }
 
-static int handle_event_sysstat(void *ctx, void *data, size_t data_sz) {
+static int handle_event_sysstat(void *ctx, void *data, size_t data_sz)
+{
 	const struct sysstat_event *e = data;
 	struct tm *tm;
 	char ts[32];
@@ -749,119 +958,130 @@ static int handle_event_sysstat(void *ctx, void *data, size_t data_sz) {
 	return 0;
 }
 
-int attach_uprobes(struct memleak_bpf *skel) {
-    ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
-    ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
-    ATTACH_UPROBE_CHECKED(skel, free, free_enter);
+int attach_uprobes(struct memleak_bpf *skel)
+{
+	ATTACH_UPROBE_CHECKED(skel, malloc, malloc_enter);
+	ATTACH_URETPROBE_CHECKED(skel, malloc, malloc_exit);
+	ATTACH_UPROBE_CHECKED(skel, free, free_enter);
 
-    ATTACH_UPROBE_CHECKED(skel, posix_memalign, posix_memalign_enter);
-    ATTACH_URETPROBE_CHECKED(skel, posix_memalign, posix_memalign_exit);
+	ATTACH_UPROBE_CHECKED(skel, posix_memalign, posix_memalign_enter);
+	ATTACH_URETPROBE_CHECKED(skel, posix_memalign, posix_memalign_exit);
 
-    ATTACH_UPROBE_CHECKED(skel, calloc, calloc_enter);
-    ATTACH_URETPROBE_CHECKED(skel, calloc, calloc_exit);
+	ATTACH_UPROBE_CHECKED(skel, calloc, calloc_enter);
+	ATTACH_URETPROBE_CHECKED(skel, calloc, calloc_exit);
 
-    ATTACH_UPROBE_CHECKED(skel, realloc, realloc_enter);
-    ATTACH_URETPROBE_CHECKED(skel, realloc, realloc_exit);
+	ATTACH_UPROBE_CHECKED(skel, realloc, realloc_enter);
+	ATTACH_URETPROBE_CHECKED(skel, realloc, realloc_exit);
 
-    ATTACH_UPROBE_CHECKED(skel, mmap, mmap_enter);
-    ATTACH_URETPROBE_CHECKED(skel, mmap, mmap_exit);
+	ATTACH_UPROBE_CHECKED(skel, mmap, mmap_enter);
+	ATTACH_URETPROBE_CHECKED(skel, mmap, mmap_exit);
 
-    ATTACH_UPROBE_CHECKED(skel, memalign, memalign_enter);
-    ATTACH_URETPROBE_CHECKED(skel, memalign, memalign_exit);
+	ATTACH_UPROBE_CHECKED(skel, memalign, memalign_enter);
+	ATTACH_URETPROBE_CHECKED(skel, memalign, memalign_exit);
 
-    ATTACH_UPROBE_CHECKED(skel, free, free_enter);
-    ATTACH_UPROBE_CHECKED(skel, munmap, munmap_enter);
+	ATTACH_UPROBE_CHECKED(skel, free, free_enter);
+	ATTACH_UPROBE_CHECKED(skel, munmap, munmap_enter);
 
-    // the following probes are intentinally allowed to fail attachment
+	// the following probes are intentinally allowed to fail attachment
 
-    // deprecated in libc.so bionic
-    ATTACH_UPROBE(skel, valloc, valloc_enter);
-    ATTACH_URETPROBE(skel, valloc, valloc_exit);
+	// deprecated in libc.so bionic
+	ATTACH_UPROBE(skel, valloc, valloc_enter);
+	ATTACH_URETPROBE(skel, valloc, valloc_exit);
 
-    // deprecated in libc.so bionic
-    ATTACH_UPROBE(skel, pvalloc, pvalloc_enter);
-    ATTACH_URETPROBE(skel, pvalloc, pvalloc_exit);
+	// deprecated in libc.so bionic
+	ATTACH_UPROBE(skel, pvalloc, pvalloc_enter);
+	ATTACH_URETPROBE(skel, pvalloc, pvalloc_exit);
 
-    // added in C11
-    ATTACH_UPROBE(skel, aligned_alloc, aligned_alloc_enter);
-    ATTACH_URETPROBE(skel, aligned_alloc, aligned_alloc_exit);
+	// added in C11
+	ATTACH_UPROBE(skel, aligned_alloc, aligned_alloc_enter);
+	ATTACH_URETPROBE(skel, aligned_alloc, aligned_alloc_exit);
 
-    return 0;
+	return 0;
 }
-
 // Functions to process different BPF programs
-static int process_paf(struct paf_bpf *skel_paf) {
-    int err;
-    struct ring_buffer *rb;
+static int process_paf(struct paf_bpf *skel_paf)
+{
+	int err;
+	struct ring_buffer *rb;
 
-    LOAD_AND_ATTACH_SKELETON(skel_paf, paf);
+	LOAD_AND_ATTACH_SKELETON(skel_paf, paf);
 
-    printf("%-8s %-8s  %-8s %-8s %-8s\n", "MIN", "LOW", "HIGH", "PRESENT", "FLAG");
+	printf("%-8s %-8s  %-8s %-8s %-8s\n", "MIN", "LOW", "HIGH", "PRESENT", "FLAG");
 
 	POLL_RING_BUFFER(rb, 1000, err);
 
 paf_cleanup:
 	ring_buffer__free(rb);
 	paf_bpf__destroy(skel_paf);
-    return err;
+	return err;
 }
 
-static int process_pr(struct pr_bpf *skel_pr) {
-    int err;
-    struct ring_buffer *rb;
+static int process_pr(struct pr_bpf *skel_pr)
+{
+	int err;
+	struct ring_buffer *rb;
 
-    LOAD_AND_ATTACH_SKELETON(skel_pr, pr);
+	LOAD_AND_ATTACH_SKELETON(skel_pr, pr);
 
-    printf("%-8s %-8s %-8s %-8s %-8s\n", "RECLAIM", "RECLAIMED", "UNQUEUE", "CONGESTED", "WRITEBACK");
+	printf("%-8s %-8s %-8s %-8s %-8s\n", "RECLAIM", "RECLAIMED", "UNQUEUE", "CONGESTED", "WRITEBACK");
 
 	POLL_RING_BUFFER(rb, 1000, err);
 
 pr_cleanup:
 	ring_buffer__free(rb);
 	pr_bpf__destroy(skel_pr);
-    return err;
+	return err;
 }
 
-static int process_procstat(struct procstat_bpf *skel_procstat) {
-    int err;
-    struct ring_buffer *rb;
+static int process_procstat(struct procstat_bpf *skel_procstat)
+{
+	int err;
+	struct ring_buffer *rb;
 
-    LOAD_AND_ATTACH_SKELETON(skel_procstat, procstat);
+	LOAD_AND_ATTACH_SKELETON(skel_procstat, procstat);
 
-    if (env.rss) {
-        printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "VMSIZE", "VMDATA", "VMSTK", "VMPTE", "VMSWAP");
-    } else {
-        printf("%-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "SIZE", "RSSANON", "RSSFILE", "RSSSHMEM");
-    }
+	if (env.rss)
+	{
+		printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "VMSIZE", "VMDATA", "VMSTK", "VMPTE", "VMSWAP");
+	}
+	else
+	{
+		printf("%-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "SIZE", "RSSANON", "RSSFILE", "RSSSHMEM");
+	}
 
 	POLL_RING_BUFFER(rb, 1000, err);
 
 procstat_cleanup:
 	ring_buffer__free(rb);
 	procstat_bpf__destroy(skel_procstat);
-    return err;
+	return err;
 }
 
-static int process_sysstat(struct sysstat_bpf *skel_sysstat) {
-    int err;
-    struct ring_buffer *rb;
+static int process_sysstat(struct sysstat_bpf *skel_sysstat)
+{
+	int err;
+	struct ring_buffer *rb;
 
-    LOAD_AND_ATTACH_SKELETON(skel_sysstat, sysstat);
+	LOAD_AND_ATTACH_SKELETON(skel_sysstat, sysstat);
 
-    if (env.part2) {
-        printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "KRECLM", "SLAB", "SRECLM", "SUNRECL", "NFSUNSTB", "WRITEBACKTMP", "KMAP", "UNMAP", "PAGE");
-    } else {
-        printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "CPU", "MEM", "READ", "WRITE", "IOWAIT", "SWAP");
-    }
-    POLL_RING_BUFFER(rb, 1000, err);
+	if (env.part2)
+	{
+		printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "KRECLM", "SLAB", "SRECLM", "SUNRECL", "NFSUNSTB", "WRITEBACKTMP", "KMAP", "UNMAP", "PAGE");
+	}
+	else
+	{
+		printf("%-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s\n", "TIME", "PID", "CPU", "MEM", "READ", "WRITE", "IOWAIT", "SWAP");
+	}
+	POLL_RING_BUFFER(rb, 1000, err);
 
 sysstat_cleanup:
 	ring_buffer__free(rb);
 	sysstat_bpf__destroy(skel_sysstat);
-    return err;
+	return err;
 }
 
-static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
+static int process_memleak(struct memleak_bpf *skel_memleak, struct env env)
+{
 	skel_memleak->rodata->stack_flags = env.kernel_trace ? KERN_STACKID_FLAGS : USER_STACKID_FLAGS;
 
 	bpf_map__set_value_size(skel_memleak->maps.stack_traces, perf_max_stack_depth * sizeof(__u64));
@@ -871,28 +1091,33 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
 		disable_kernel_tracepoints(skel_memleak);
 
 	int err = memleak_bpf__load(skel_memleak);
-	if (err) {
+	if (err)
+	{
 		fprintf(stderr, "Failed to load BPF skeleton\n");
 		goto memleak_cleanup;
 	}
 
-	if (!env.kernel_trace) {
+	if (!env.kernel_trace)
+	{
 		err = attach_uprobes(skel_memleak);
-		if (err) {
+		if (err)
+		{
 			fprintf(stderr, "Failed to attach uprobes\n");
 			goto memleak_cleanup;
 		}
 	}
 
 	err = memleak_bpf__attach(skel_memleak);
-	if (err) {
+	if (err)
+	{
 		fprintf(stderr, "Failed to auto-attach BPF skeleton: %d\n", err);
 		goto memleak_cleanup;
 	}
 
 	g_stacks_size = perf_max_stack_depth * sizeof(*g_stacks);
 	g_stacks = (__u64 *)malloc(g_stacks_size);
-	if (!g_stacks) {
+	if (!g_stacks)
+	{
 		fprintf(stderr, "Failed to allocate memory\n");
 		err = -1;
 		goto memleak_cleanup;
@@ -900,15 +1125,18 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
 	memset(g_stacks, 0, g_stacks_size);
 
 	symbolizer = blaze_symbolizer_new();
-	if (!symbolizer) {
+	if (!symbolizer)
+	{
 		fprintf(stderr, "Fail to create a symbolizer\n");
 		err = -1;
 		goto memleak_cleanup;
 	}
 
-	for (;;) {
+	for (;;)
+	{
 		if (!env.kernel_trace)
-			if (env.print_time) {
+			if (env.print_time)
+			{
 				system("clear");
 				update_addr_times(skel_memleak);
 				print_time(skel_memleak);
@@ -921,13 +1149,16 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
 		sleep(1);
 	}
 
-	while (!exiting) {
+	while (!exiting)
+	{
 		/* Ctrl-C will cause -EINTR */
-		if (err == -EINTR) {
+		if (err == -EINTR)
+		{
 			err = 0;
 			break;
 		}
-		if (err < 0) {
+		if (err < 0)
+		{
 			printf("Error polling perf buffer: %d\n", err);
 			break;
 		}
@@ -936,10 +1167,93 @@ static int process_memleak(struct memleak_bpf *skel_memleak, struct env env) {
 memleak_cleanup:
 	memleak_bpf__destroy(skel_memleak);
 	if (symbolizer)
-        blaze_symbolizer_free(symbolizer);
-    if (g_stacks)
-        free(g_stacks);
-    if (allocs)
-        free(allocs);
-    return err;
+		blaze_symbolizer_free(symbolizer);
+	if (g_stacks)
+		free(g_stacks);
+	if (allocs)
+		free(allocs);
+	return err;
+}
+
+// ================================================== fraginfo====================================================================
+void print_nodes(int fd) {
+    struct pgdat_info pinfo;
+    __u64 key = 0, next_key;
+    printf(" Node ID          PGDAT_PTR       NR_ZONES \n");
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        bpf_map_lookup_elem(fd, &next_key, &pinfo);
+        printf(" %5d       0x%llx  %5d\n",
+               pinfo.node_id, pinfo.pgdat_ptr, pinfo.nr_zones);
+        key = next_key;
+    }
+}
+
+void print_zones(int fd) {
+    struct zone_info zinfo;
+    __u64 key = 0, next_key;
+    printf("%-20s %-20s %-25s %-20s %-20s"," COMM"  ,  "ZONE_PTR" ,  "ZONE_PFN " ,  " SUM_PAGES" ,"FACT_PAGES ");
+    printf("\n");
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        bpf_map_lookup_elem(fd, &next_key, &zinfo);
+        printf(" %-15s 0x%-25llx %-25llu %-20llu %-15llu\n", zinfo.comm, zinfo.zone_ptr, zinfo.zone_start_pfn,zinfo.spanned_pages,zinfo.present_pages);
+        key = next_key;
+    }
+
+}
+void print_orders(int fd) {
+    struct order_zone okey = {};
+    struct ctg_info oinfo;
+    struct order_entry entries[256];
+    int entry_count = 0;
+
+    while (bpf_map_get_next_key(fd, &okey, &okey) == 0) {
+        if (bpf_map_lookup_elem(fd, &okey, &oinfo) == 0) {
+            entries[entry_count].okey = okey;
+            entries[entry_count].oinfo = oinfo;
+            entry_count++;
+        }
+    }
+
+	//排序
+    qsort(entries, entry_count, sizeof(struct order_entry), compare_entries);
+
+    // 打印排序后的
+    printf(" Order     Zone_PTR                Free Pages         Free Blocks Total    Free Blocks Suitable\n");
+    for (int i = 0; i < entry_count; i++) {
+        printf(" %-8u 0x%-25llx %-20lu %-20lu %-20lu\n",
+               entries[i].okey.order, entries[i].okey.zone_ptr, entries[i].oinfo.free_pages,
+               entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable);
+    }
+}
+
+
+static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo)
+{
+
+	int err = fraginfo_bpf__load(skel_fraginfo);                                                       
+	if (err)                                                                             
+	{                                                                                    
+		fprintf(stderr, "Failed to load and verify BPF skeleton\n");                     
+		goto fraginfo_cleanup;                                                            
+	}                                                                                    
+																					
+	err = fraginfo_bpf__attach(skel_fraginfo);                                                    
+	if (err)                                                                            
+	{                                                                                    
+		fprintf(stderr, "Failed to attach BPF skeleton\n");                              
+		goto fraginfo_cleanup;                                                            
+	} 
+	while(1){
+	 sleep(env.interval);
+        print_nodes(bpf_map__fd(skel_fraginfo->maps.nodes));
+        printf("\n");
+        print_zones(bpf_map__fd(skel_fraginfo->maps.zones));
+		printf("\n");
+        print_orders(bpf_map__fd(skel_fraginfo->maps.orders));
+        printf("\n");
+	}
+
+fraginfo_cleanup:
+	fraginfo_bpf__destroy(skel_fraginfo);
+    return -err;
 }

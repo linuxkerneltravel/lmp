@@ -655,43 +655,6 @@ int main(int argc, char **argv)
 		usage(argv[0], __doc__, long_options, (argc == 1));
 		return EXIT_FAIL_OPTION;
 	}
-
-	if (cfg.show_stats) {
-		/* Use the --dev name as subdir for finding pinned maps */
-		len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
-		if (len < 0) {
-			fprintf(stderr, "ERR: creating pin dirname\n");
-			return EXIT_FAIL_OPTION;
-		}
-
-		stats_map_fd = open_bpf_map_file(pin_dir, "xdp_stats_map", &info);
-		if (stats_map_fd < 0) {
-			return EXIT_FAIL_BPF;
-		}
-
-		/* check map info, e.g. datarec is expected size */
-		map_expect.key_size    = sizeof(__u32);
-		map_expect.value_size  = sizeof(struct datarec);
-		map_expect.max_entries = XDP_ACTION_MAX;
-		err = check_map_fd_info(&info, &map_expect);
-		if (err) {
-			fprintf(stderr, "ERR: map via FD not compatible\n");
-			return err;
-		}
-		if (verbose) {
-			printf("\nCollecting stats from BPF map\n");
-			printf(" - BPF map (bpf_map_type:%d) id:%d name:%s"
-			       " key_size:%d value_size:%d max_entries:%d\n",
-			       info.type, info.id, info.name,
-			       info.key_size, info.value_size, info.max_entries
-			       );
-		}
-
-		stats_poll(stats_map_fd, info.type, interval);
-		return EXIT_OK;
-	}
-
-
 	/* Generate pin_dir & map_filename string */
 	// 生成pin目录和映射文件名字符串
 	len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
@@ -813,5 +776,41 @@ int main(int argc, char **argv)
 	i = 0;
 	bpf_map_update_elem(map_fd, &i, &cfg.ifindex, 0);	
 	printf("redirect from ifnum=%d to ifnum=%d\n", cfg.ifindex, cfg.ifindex);
+
+	//打印统计信息
+	if (cfg.show_stats) {
+		/* Use the --dev name as subdir for finding pinned maps */
+		len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
+		if (len < 0) {
+			fprintf(stderr, "ERR: creating pin dirname\n");
+			return EXIT_FAIL_OPTION;
+		}
+
+		stats_map_fd = open_bpf_map_file(pin_dir, "xdp_stats_map", &info);
+		if (stats_map_fd < 0) {
+			return EXIT_FAIL_BPF;
+		}
+
+		/* check map info, e.g. datarec is expected size */
+		map_expect.key_size    = sizeof(__u32);
+		map_expect.value_size  = sizeof(struct datarec);
+		map_expect.max_entries = XDP_ACTION_MAX;
+		err = check_map_fd_info(&info, &map_expect);
+		if (err) {
+			fprintf(stderr, "ERR: map via FD not compatible\n");
+			return err;
+		}
+		if (verbose) {
+			printf("\nCollecting stats from BPF map\n");
+			printf(" - BPF map (bpf_map_type:%d) id:%d name:%s"
+			       " key_size:%d value_size:%d max_entries:%d\n",
+			       info.type, info.id, info.name,
+			       info.key_size, info.value_size, info.max_entries
+			       );
+		}
+
+		stats_poll(stats_map_fd, info.type, interval);
+		return EXIT_OK;
+	}
 	return EXIT_OK;
 }

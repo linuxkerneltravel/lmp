@@ -10,7 +10,10 @@ import { setVersion } from "./util";
 import * as fs from 'fs'    // fzy: 为了检查面板文件是否存在
 
 
-let default_panel_path = "/home/fzy/Desktop/panels/"  // fzy: 为了检查面板文件是否存在
+let default_panel_path = "/home/fzy/Desktop/panels/";  // fzy: 为了检查面板文件是否存在
+let default_tool_config_file = "/home/fzy/lmp_tool_ext_config.json";
+let sub_key = 0;   // 子系统计数，用于与element.label进行匹配
+
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -71,7 +74,14 @@ export async function activate(ctx: vscode.ExtensionContext) {
       default_panel_path = String(settings.get("default_panel_path"));
       //console.log("path = ", default_panel_path);
     }
-
+    // fzy, 让用户可以在设置中修改json配置文件放置路径及配置文件名字
+    if (event.affectsConfiguration("grafana-vscode.default_tool_config_file")) {
+      const settings = vscode.workspace.getConfiguration("grafana-vscode"); 
+      default_tool_config_file = String(settings.get("default_tool_config_file"));
+       //console.log("file = ", default_tool_config_file);
+       sub_key = 0; // 全局变量先清零，不然 subsystem无法匹配
+       TreeViewProvider.initTreeViewItem();
+    }
   });
 
   vscode.commands.registerCommand('grafana-vscode.setPassword', async () => {
@@ -97,6 +107,7 @@ export function deactivate() {
 // ---------------------------------------------------------------------------------
 // fzy
 import { CancellationToken, Event, ProviderResult, TreeDataProvider, TreeItem, TreeItemCollapsibleState, window} from "vscode";
+import { json } from "stream/consumers";
 
 // 扩展 TreeItem
 /*
@@ -126,15 +137,26 @@ export class TreeItemNode extends TreeItem {
 */
 
 export class TreeViewProvider implements TreeDataProvider<TreeItem> {
+
     onDidChangeTreeData?: Event<void | TreeItem | TreeItem[] | null | undefined> | undefined;
 
     getTreeItem(element: TreeItem): TreeItem | Thenable<TreeItem> {
         return element;
     }
     getChildren(element?: TreeItem | undefined): ProviderResult<TreeItem[]> {
+        let jsonData: any; // 保存 json 数据
+        jsonData = readLmpConfig();    // 读取json配置文件信息
+        
+
         let arr: TreeItem[] = new Array();
           // treeview 根节点
         if (element == undefined) {
+            for (const key in jsonData.subsystem_list) {
+              let item: TreeItem = new TreeItem(jsonData.subsystem_list[key], TreeItemCollapsibleState.Expanded);
+              item.description = jsonData.subsystem[key].description;
+              arr.push(item);
+            } 
+            /*
             let item1: TreeItem = new TreeItem("CPU", TreeItemCollapsibleState.Expanded);
             item1.description = "Linux CPU子系统观测工具集";
             arr.push(item1);
@@ -154,11 +176,41 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
             let item5: TreeItem = new TreeItem("hypervisior", TreeItemCollapsibleState.Expanded);
             item5.description = "Linux 虚拟化子系统工具集";
             arr.push(item5);
+            */
 
             return arr;
         } 
         // treeview 子节点
         else {
+          //for (let sub_key = 0; sub_key <= 5; sub_key++) {
+            if (element.label == jsonData.subsystem_list[sub_key]) { // 遍历所有子系统
+              //console.log("jsonData.subsystem_list[key] = ", jsonData.subsystem_list[sub_key]);
+              for (const tool_num in jsonData.subsystem[sub_key].tools) {  // 遍历子系统下的所有工具
+                let tool_name = jsonData.subsystem[sub_key].tools[tool_num].name;
+                let tool_description = jsonData.subsystem[sub_key].tools[tool_num].description;
+                let item1:TreeItem = new TreeItem(tool_name, TreeItemCollapsibleState.None);
+                item1.description = tool_description;
+                let tool_command = {
+                  title: tool_name,
+                  command: 'itemClick',
+                  tooltip: "点击将呈现工具的grafana可视化面板",
+                  arguments: [
+                    tool_name
+                  ]
+                }
+                item1.command = tool_command;
+                arr.push(item1);
+              }
+              sub_key++;   // key + 1, 匹配下一个子系统
+              //console.log("sub_key = ", sub_key);
+              return arr;
+            }
+            else {
+              return null;
+            }
+      }
+    }
+          /*
            if (element.label == 'CPU') {
             // *****************************************************************************
             //let item1: TreeItem = new TreeItem("cpu_watcher", TreeItemCollapsibleState.None);
@@ -278,14 +330,42 @@ export class TreeViewProvider implements TreeDataProvider<TreeItem> {
            else {
             return null;
            }
+          
         }
     }
+    */
     public static initTreeViewItem(){
         const treeViewProvider = new TreeViewProvider();
         window.registerTreeDataProvider('lmp_visualization.panel',treeViewProvider);
     }
 
 }
+
+
+export function readLmpConfig() {
+  let data:any;
+  if (fs.existsSync(default_tool_config_file)) //判断是否存在此文件
+  {
+    try {
+      //读取文件内容，并转化为Json对象
+      
+      data = JSON.parse(fs.readFileSync(default_tool_config_file, "utf8"));
+      // console.log(jsonData);
+      //获取Json里key为data的数据
+      //const data = userBugsJson['data'];  
+    } 
+    catch (error){
+      console.error('Error parsing JSON:', error);
+    }
+  }
+  else {
+    console.error("no config file");
+    let config_search_info =" json配置文件不存在,请检查！"
+    vscode.window.showErrorMessage(config_search_info);
+  }
+  return data;    
+}
+
 // fzy end
 // ---------------------------------------------------------------------------------
 
