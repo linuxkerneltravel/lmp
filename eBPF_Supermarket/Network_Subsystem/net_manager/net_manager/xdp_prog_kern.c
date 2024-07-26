@@ -7,8 +7,6 @@
 #include "common_kern_user.h" 
 #include "../common/parsing_helpers.h"
 
-
-
 #ifndef memcpy
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
 #endif
@@ -19,6 +17,14 @@
 #undef AF_INET6
 #define AF_INET6 10
 #define IPV6_FLOWINFO_MASK bpf_htonl(0x0FFFFFFF)
+
+// config map
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, __u16);
+	__type(value, __u16);
+	__uint(max_entries, 1);
+} print_info_map SEC(".maps");
 
 // 数据包统计
 struct {
@@ -70,7 +76,6 @@ struct {
 	__type(value, struct conn_ipv4_val);
 	__uint(max_entries, MAX_RULES);
 } conn_ipv4_map SEC(".maps");
-
 
 static __always_inline
 __u32 xdp_stats_record_action(struct xdp_md *ctx, __u32 action)
@@ -180,7 +185,6 @@ int ipv4_cidr_match(__u32 ip_addr, __u32 network_addr, __u8 cidr) {
 
     __u32 masked_ip = ip_addr & subnet_mask;
     __u32 masked_network = network_addr & subnet_mask;
-
     return masked_ip == masked_network;
 }
 
@@ -193,6 +197,9 @@ int port_match(__u16 conn_port, __u16 rule_port){
 
 static int match_rules_ipv4_loop(__u32 index, void *ctx)
 {
+	int i = 0;
+	unsigned char *saddr;
+	unsigned char *daddr;
 	struct match_rules_loop_ctx *p_ctx = (struct match_rules_loop_ctx *)ctx;
 	if(index != p_ctx->next_rule)
 		return 0;
@@ -206,7 +213,7 @@ static int match_rules_ipv4_loop(__u32 index, void *ctx)
 
 	if(index == 0)
 		goto out_match_rules_ipv4_loop;
-
+	//bpf_printk("match_rules_ipv4_loop %d",index);
 	if( ipv4_cidr_match(p_ctx->conn->saddr, p_r->saddr, p_r->saddr_mask) && 
 		ipv4_cidr_match(p_ctx->conn->daddr, p_r->daddr, p_r->daddr_mask) &&
 		port_match(p_ctx->conn->sport, p_r->sport) &&
@@ -214,6 +221,18 @@ static int match_rules_ipv4_loop(__u32 index, void *ctx)
 		port_match(p_ctx->conn->ip_proto, p_r->ip_proto) ) 
 	{
 		p_ctx->action = p_r->action;
+		__u8 *print_info=(__u8*)bpf_map_lookup_elem(&print_info_map,&i);
+		if(!print_info) return 1;
+		if(print_info){
+			saddr = (unsigned char *)&p_ctx->conn->saddr;
+			daddr = (unsigned char *)&p_ctx->conn->daddr;
+			//bpf_printk("%s ,%s",saddr,daddr);
+			bpf_printk("src: %lu.%lu.%lu.%lu:%d" ,(unsigned long)saddr[3], (unsigned long)saddr[2], (unsigned long)saddr[1], (unsigned long)saddr[0],p_ctx->conn->sport);
+			bpf_printk("dst: %lu.%lu.%lu.%lu:%d" ,(unsigned long)daddr[3], (unsigned long)daddr[2], (unsigned long)daddr[1], (unsigned long)daddr[0],p_ctx->conn->dport);
+			bpf_printk("prot:%d ,action:%d ,index:%d" ,p_ctx->conn->ip_proto,p_ctx->action, index);
+			bpf_printk("-----------------------------------");
+		}
+
 		return 1;
 	}
 
@@ -282,7 +301,10 @@ int xdp_entry_ipv4(struct xdp_md *ctx)
 			conn.sport = bpf_ntohs(udph -> source);
 			conn.dport = bpf_ntohs(udph -> dest);
 		}
-
+		else if(nh_type == IPPROTO_ICMP){
+			conn.sport = 0;
+			conn.dport = 0;
+		}
 		conn.saddr = bpf_ntohl(iph -> saddr);
 		conn.daddr = bpf_ntohl(iph -> daddr);
 		conn.ip_proto = nh_type;
@@ -354,7 +376,7 @@ int xdp_entry_router(struct xdp_md *ctx)
 			ip_decrease_ttl(iph);
 			memcpy(eth->h_dest, nitem.eth_dest, ETH_ALEN);
 			memcpy(eth->h_source, nitem.eth_source, ETH_ALEN);
-			action = bpf_redirect_map(&tx_port, 0, 0);
+			action = bpf_redirect_map(&tx_port, 0, 0);//这里可能需要改
 
 			goto out;
 		}
