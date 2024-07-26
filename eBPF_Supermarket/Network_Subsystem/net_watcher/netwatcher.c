@@ -44,7 +44,7 @@ static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
            time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
-           redis_info = 0, count_info = 0, rtt_info = 0; // flag
+           redis_info = 0, count_info = 0, rtt_info = 0, rst_info = 0; // flag
 
 static const char *tcp_states[] = {
     [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
@@ -83,7 +83,7 @@ static const struct argp_option opts[] = {
     {"count", 'C', "NUMBER", 0,
      "specify the time to count the number of requests"},
     {"rtt", 'T', 0, 0, "set to trace rtt"},
-
+    {"rst_counters", 'U', 0, 0, "set to trace rst"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -149,6 +149,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'T':
         rtt_info = 1;
         break;
+    case 'U':
+        rst_info = 1;
+        break;
     case 'C':
         count_info = strtoul(arg, &end, 10);
         break;
@@ -179,6 +182,7 @@ enum MonitorMode {
     MODE_MYSQL,
     MODE_REDIS,
     MODE_RTT,
+    MODE_RST,
     MODE_DEFAULT
 };
 
@@ -201,6 +205,8 @@ enum MonitorMode get_monitor_mode() {
         return MODE_REDIS;
     } else if (rtt_info) {
         return MODE_RTT;
+    } else if (rst_info) {
+        return MODE_RST;
     } else {
         return MODE_DEFAULT;
     }
@@ -435,6 +441,7 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->mysql_info = mysql_info;
     skel->rodata->redis_info = redis_info;
     skel->rodata->rtt_info = rtt_info;
+    skel->rodata->rst_info = rst_info;
 }
 static void set_disable_load(struct netwatcher_bpf *skel) {
 
@@ -601,6 +608,10 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                                rtt_info)
                                   ? true
                                   : false);
+    bpf_program__set_autoload(skel->progs.handle_send_reset,
+                              rst_info ? true : false);
+    bpf_program__set_autoload(skel->progs.handle_receive_reset,
+                              rst_info ? true : false);
 }
 
 static void print_header(enum MonitorMode mode) {
@@ -675,6 +686,14 @@ static void print_header(enum MonitorMode mode) {
                "====================RTT "
                "INFORMATION===================================================="
                "============================\n");
+        break;
+    case MODE_RST:
+        printf("==============================================================="
+               "====================RST "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-20s %-20s %-20s %-20s %-20s  %-20s %-20s \n", "Pid", "Comm",
+               "Saddr", "Daddr", "Sport", "Dport", "Time");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
@@ -1102,7 +1121,52 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
+#define MAX_EVENTS 1024
 
+static __u64 rst_count = 0;
+static struct reset_event_t event_store[MAX_EVENTS];
+static int event_count = 0;
+
+static int print_rst(void *ctx, void *packet_info, size_t size) {
+    struct reset_event_t *event = packet_info;
+
+    // 将事件存储到全局存储中
+    if (event_count < MAX_EVENTS) {
+        memcpy(&event_store[event_count], event, sizeof(struct reset_event_t));
+        event_count++;
+    }
+
+    rst_count++;
+    return 0;
+}
+void print_stored_events() {
+    char s_str[INET_ADDRSTRLEN];
+    char d_str[INET_ADDRSTRLEN];
+
+    for (int i = 0; i < event_count; i++) {
+        struct reset_event_t *event = &event_store[i];
+        unsigned int saddr = event->saddr;
+        unsigned int daddr = event->daddr;
+
+        if (event->family == AF_INET) {
+            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
+            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
+            printf("%-20llu %-20s %-20s %-20s %-20u %-20u %-20llu\n",
+                   (unsigned long long)event->pid, event->comm, s_str, d_str,
+                   event->sport, event->dport,
+                   (unsigned long long)event->timestamp);
+        } else if (event->family == AF_INET6) {
+            char saddr_v6[INET6_ADDRSTRLEN];
+            char daddr_v6[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &event->saddr_v6, saddr_v6, sizeof(saddr_v6));
+            inet_ntop(AF_INET6, &event->daddr_v6, daddr_v6, sizeof(daddr_v6));
+            printf("%-10llu %-16s %-16s %-16s %-8u %-8u %-20llu\n",
+                   (unsigned long long)event->pid, event->comm, saddr_v6,
+                   daddr_v6, event->sport, event->dport,
+                   (unsigned long long)event->timestamp);
+        }
+    }
+}
 // 从DNS数据包中提取并打印域名
 static void print_domain_name(const unsigned char *data, char *output) {
     const unsigned char *next = data;
@@ -1311,6 +1375,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *mysql_rb = NULL;
     struct ring_buffer *redis_rb = NULL;
     struct ring_buffer *rtt_rb = NULL;
+    struct ring_buffer *events = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -1444,6 +1509,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(connect_rb)\n");
         goto cleanup;
     }
+    events =
+        ring_buffer__new(bpf_map__fd(skel->maps.events), print_rst, NULL, NULL);
+    if (!events) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(rst_rb)\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
@@ -1453,7 +1525,8 @@ int main(int argc, char **argv) {
     }
 
     open_log_files();
-
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
     /* Process events */
     while (!exiting) {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
@@ -1467,6 +1540,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(mysql_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(redis_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(rtt_rb, 100 /* timeout, ms */);
+        err = ring_buffer__poll(events, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */
@@ -1477,6 +1551,17 @@ int main(int argc, char **argv) {
         if (err < 0) {
             printf("Error polling perf buffer: %d\n", err);
             break;
+        }
+
+        gettimeofday(&end, NULL);
+        if ((end.tv_sec - start.tv_sec) >= 5) {
+            print_stored_events();
+            printf("Total RSTs in the last 5 seconds: %llu\n\n", rst_count);
+
+            // 重置计数器和事件存储
+            rst_count = 0;
+            event_count = 0;
+            gettimeofday(&start, NULL);
         }
     }
 

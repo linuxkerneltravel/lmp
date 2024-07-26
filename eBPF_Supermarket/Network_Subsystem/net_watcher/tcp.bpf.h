@@ -295,6 +295,7 @@ __handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx) {
     message->oldstate = tcpstate.oldstate;
     message->newstate = tcpstate.newstate;
     message->time = tcpstate.time;
+    bpf_printk("Dport:%d time:%d", tcpstate.dport, tcpstate.time);
     bpf_ringbuf_submit(message, 0);
     return 0;
 }
@@ -343,7 +344,7 @@ static __always_inline int __tcp_rcv_established(struct sock *sk,
     }
     message->saddr = pkt_tuple.saddr;
     message->daddr = pkt_tuple.daddr;
-    bpf_printk("Saddr:%u Daddr:%u", pkt_tuple.saddr, pkt_tuple.daddr);
+    //  bpf_printk("Saddr:%u Daddr:%u", pkt_tuple.saddr, pkt_tuple.daddr);
     bpf_probe_read_kernel(message->slots, sizeof(message->slots), histp->slots);
     message->latency = histp->latency;
     message->cnt = histp->cnt;
@@ -351,4 +352,87 @@ static __always_inline int __tcp_rcv_established(struct sock *sk,
     // slot_count %llu", histp->latency, histp->cnt, slot, histp->slots[slot]);
     bpf_ringbuf_submit(message, 0);
     return 0;
+}
+
+static __always_inline int ret(void *ctx, __u8 direction, __u16 sport,
+                               __u16 dport) {
+    struct reset_event_t *message =
+        bpf_ringbuf_reserve(&events, sizeof(*message), 0);
+    if (!message)
+        return 0;
+
+    message->pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_get_current_comm(&message->comm, sizeof(message->comm));
+
+    struct sock *sk = (struct sock *)ctx;
+    message->family = BPF_CORE_READ(sk, __sk_common.skc_family);
+    message->timestamp = bpf_ktime_get_ns();
+
+    if (message->family == AF_INET) {
+        if (direction == 0) { // Send
+            message->saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+            message->daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+        } else { // Receive
+            message->saddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);
+            message->daddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
+        }
+        message->saddr_v6 = 0;
+        message->daddr_v6 = 0;
+    } else if (message->family == AF_INET6) {
+        if (direction == 0) { // Send
+            BPF_CORE_READ_INTO(&message->saddr_v6, sk,
+                               __sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+            BPF_CORE_READ_INTO(&message->daddr_v6, sk,
+                               __sk_common.skc_v6_daddr.in6_u.u6_addr32);
+        } else { // Receive
+            BPF_CORE_READ_INTO(&message->saddr_v6, sk,
+                               __sk_common.skc_v6_daddr.in6_u.u6_addr32);
+            BPF_CORE_READ_INTO(&message->daddr_v6, sk,
+                               __sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+        }
+        message->saddr = 0;
+        message->daddr = 0;
+    }
+
+    if (direction == 0) { // Send
+        message->sport = bpf_ntohs(sport);
+        message->dport = bpf_ntohs(dport);
+    } else { // Receive
+        message->sport = bpf_ntohs(dport);
+        message->dport = bpf_ntohs(sport);
+    }
+    message->direction = direction;
+
+    // 增加 RST 计数
+    __u32 pid = message->pid;
+    __u64 *count = bpf_map_lookup_elem(&counters, &pid);
+    if (count) {
+        *count += 1;
+    } else {
+        __u64 initial_count = 1;
+        bpf_map_update_elem(&counters, &pid, &initial_count, BPF_ANY);
+        count = &initial_count;
+    }
+    message->count = *count;
+
+    bpf_ringbuf_submit(message, 0);
+
+    return 0;
+}
+static __always_inline int
+__handle_send_reset(struct trace_event_raw_tcp_send_reset *ctx) {
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    if (!sk)
+        return 0;
+    bpf_printk("Send reset: sport=%u, dport=%u\n", ctx->sport, ctx->dport);
+    return ret((void *)ctx->skaddr, 0, ctx->sport, ctx->dport);
+}
+
+static __always_inline int
+__handle_receive_reset(struct trace_event_raw_tcp_receive_reset *ctx) {
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    if (!sk)
+        return 0;
+    bpf_printk("Receive reset: sport=%u, dport=%u\n", ctx->sport, ctx->dport);
+    return ret((void *)ctx->skaddr, 1, ctx->sport, ctx->dport);
 }
