@@ -24,7 +24,7 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBB
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = paf pr procstat sysstat memleak
+APPS = paf pr procstat sysstat memleak fraginfo
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)

@@ -62,7 +62,7 @@ struct tcpstate {
     int newstate;
     u64 time;
 };
-
+#define MAX_SLOTS 27
 enum {
     e_ip_rcv = 0,
     e_ip_local_deliver,
@@ -111,6 +111,11 @@ struct query_info {
     u64 start_time;
 };
 
+struct hist {
+    u64 slots[MAX_SLOTS];
+    u64 latency;
+    u64 cnt;
+};
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -146,6 +151,11 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} rtt_rb SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -289,13 +299,21 @@ struct {
     __type(value, struct query_info);
 } queries SEC(".maps");
 
+// 定义一个哈希映射，用于存储直方图数据
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256 * 1024);
+    __type(key, struct ip_packet);
+    __type(value, struct hist);
+} hists SEC(".maps");
+
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
                    layer_time = 0, http_info = 0, retrans_info = 0,
                    udp_info = 0, net_filter = 0, drop_reason = 0, icmp_info = 0,
                    tcp_info = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
-                   redis_info = 0;
+                   redis_info = 0, rtt_info = 0;
 
 /* help macro */
 
@@ -384,6 +402,25 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
     packet->sock = sk;                                                         \
     packet->ack = pkt_tuple.ack;                                               \
     packet->seq = pkt_tuple.seq;
+
+#define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define WRITE_ONCE(x, val) ((*(volatile typeof(x) *)&(x)) = val)
+
+#define INIT_PACKET_TCP_TUPLE(sk, pkt)                                         \
+    struct packet_tuple pkt = {                                                \
+        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),                 \
+        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),                     \
+        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                       \
+        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),        \
+        .tran_flag = TCP}
+
+#define INIT_PACKET_UDP_TUPLE(sk, pkt)                                         \
+    struct packet_tuple pkt = {                                                \
+        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),                 \
+        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),                     \
+        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                       \
+        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),        \
+        .tran_flag = UDP}
 
 /* help macro end */
 
@@ -500,7 +537,56 @@ int getstack(void *ctx) {
 
     return 0;
 }
+#if KERNEL_VERSION(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH) >=             \
+    KERNEL_VERSION(6, 3, 1)
+#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.__iov, iov_base)
+#else
+#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.iov, iov_base)
+#endif
 
+/*
+例子： log2(16384)  =14
+16384 2进制表示  1000000000000000
+初始值： v=16384  r=0
+1、16384 > 65535 不成立,r=0； v右移动0位
+2、16384 > 255 成立,shift = 8,v右移动8位100000000,r=0|8=8
+3、256 > 15 成立,shift = 4,v右移4位10000,r=8|4=12
+4、16 > 3 成立,shift = 2,右移2位100,r=12|2=14
+5、v=4,右移1位10,r|=2>>1=1  r=14|1=14
+*/
+
+static __always_inline u64 log2(u32 v) {
+    u32 shift, r;
+    //检测v是否大于0xFFFF（65535），如果是，则将r设置为16
+    r = (v > 0xFFFF) << 4;
+    v >>= r; //右移
+    shift = (v > 0xFF) << 3;
+    v >>= shift;
+    r |= shift;
+    shift = (v > 0xF) << 2;
+    v >>= shift;
+    r |= shift;
+    shift = (v > 0x3) << 1;
+    v >>= shift;
+    r |= shift;
+    //右移v一位并将结果累加到r中
+    r |= (v >> 1);
+    return r;
+}
+/*
+例子：log2l(4294967296)=32
+4294967296 2进制表示 100000000000000000000000000000000
+1、v右移32位 1
+2、log2(1)=0  计算得0+32=32
+*/
+static __always_inline u64 log2l(u64 v) {
+    u32 hi = v >> 32; //取v的高32位
+    // 如果高32位非0，计算高32位的对数并加32
+    if (hi)
+        return log2(hi) + 32;
+    else
+        return log2(v);
+}
 /* help functions end */
 
 #endif
