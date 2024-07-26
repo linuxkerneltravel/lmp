@@ -24,6 +24,7 @@
 #include <sys/sysinfo.h>
 #include <sys/select.h>
 #include <unistd.h> 
+#include <bpf/bpf.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -559,6 +560,18 @@ static int preempt_print(void *ctx, void *data, unsigned long data_sz)
     return 0;
 }
 
+static int attach(struct mutrace_bpf *mu_skel)
+{
+	int err;
+	ATTACH_UPROBE_CHECKED(mu_skel,pthread_mutex_lock,pthread_mutex_lock);
+	ATTACH_UPROBE_CHECKED(mu_skel,__pthread_mutex_trylock,__pthread_mutex_trylock);
+	ATTACH_URETPROBE_CHECKED(mu_skel,__pthread_mutex_trylock,ret_pthread_mutex_trylock);
+	ATTACH_UPROBE_CHECKED(mu_skel,pthread_mutex_unlock,pthread_mutex_unlock);
+	err = mutrace_bpf__attach(mu_skel);
+	CHECK_ERR(err, "Failed to attach BPF skeleton");	
+	return 0;
+
+}
 
 
 //mutrace输出
@@ -584,8 +597,15 @@ static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
 		if(err < 0){
 			fprintf(stderr, "Failed to update elem\n");
 		}
+	}else if (mu_ctrl.prev_watcher == MUTEX_WATCHER +2) {
+		printf("%s\n","    lock_ptr              locked_total       locked_max     contended_total       count     last_owner        last_owmer_name");
+		mu_ctrl.prev_watcher = MUTEX_WATCHER + 9;//打印表头功能关
+		err = bpf_map_update_elem(mumap_fd, &key, &mu_ctrl, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+		}
 	}
-	if(!mu_ctrl.mutex_detail){
+	if(!mu_ctrl.mutex_detail&& (!mu_ctrl.umutex)){
 		const struct mutex_contention_event *e = data;
 		if (e->owner_pid == 0 || e->contender_pid == 0||e->owner_pid == 1) {
 			return 0;
@@ -598,15 +618,30 @@ static int mutrace_print(void *ctx, void *data, unsigned long data_sz) {
     return 0;
 }
 
-static int mutex_detail() {
-    int fd = bpf_map__fd(mu_skel->maps.mutex_info_map);
+static int kmutex_detail() {
+    int fd = bpf_map__fd(mu_skel->maps.kmutex_info_map);
     u64 key, next_key;
-    struct mutex_info_kernel info;
+    struct mutex_info info;
     while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
         int err = bpf_map_lookup_elem(fd, &next_key, &info);
         if (err == 0 && info.contended_total != 0) { // 添加过滤条件
             printf(" %15llu %15lluns %15lluns %15lluns %15d %15d %20s\n",
                    next_key, info.locked_total, info.locked_max, info.contended_total, info.count, info.last_owner, info.last_name);
+        }
+        key = next_key;
+    }
+    return 0;
+}
+
+static int umutex_detail() {
+    int fd = bpf_map__fd(mu_skel->maps.umutex_info_map);
+    u64 key, next_key;
+    struct mutex_info info;
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        int err = bpf_map_lookup_elem(fd, &next_key, &info);
+        if (err == 0 && info.contended_total != 0) { // 添加过滤条件
+            printf(" %15llu %15llums %15llums %15llums %15d %15d %20s\n",
+                   next_key, info.locked_total/1000000, info.locked_max/1000000, info.contended_total/1000000, info.count, info.last_owner, info.last_name);
         }
         key = next_key;
     }
@@ -1013,7 +1048,7 @@ int main(int argc, char **argv)
 			goto mutrace_cleanup;
 		}
 		mumap_fd = bpf_map__fd(mu_ctrl_map);
-		struct mu_ctrl init_value = {false,false,MUTEX_WATCHER};
+		struct mu_ctrl init_value = {false,false,false,MUTEX_WATCHER};
 
 		err = bpf_map_update_elem(mumap_fd, &key, &init_value, 0);
 		if(err < 0){
@@ -1029,7 +1064,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to update elem\n");
 			goto mutrace_cleanup;
 		}
-		err = mutrace_bpf__attach(mu_skel);
+		err = attach(mu_skel);
 		if (err) {
 			fprintf(stderr, "Failed to attach BPF skeleton\n");
 			goto mutrace_cleanup;
@@ -1144,10 +1179,15 @@ int main(int argc, char **argv)
 				break;
 			}
 			if(env.MUTRACE&&mu_ctrl.mutex_detail){
-				err = mutex_detail();
+				err = kmutex_detail();
+				sleep(1);
+				printf("-------------------------------------------------------------\n");
+			}else if(env.MUTRACE&&mu_ctrl.umutex){
+				err = umutex_detail();
 				sleep(1);
 				printf("-------------------------------------------------------------\n");
 			}
+
 		}
 		else {
 			printf("正在开发中......\n-c	打印cs_delay:\t对内核函数schedule()的执行时长进行测试;\n-s	sar工具;\n-y	打印sc_delay:\t系统调用运行延迟进行检测; \n-p	打印preempt_time:\t对抢占调度时间输出;\n");
