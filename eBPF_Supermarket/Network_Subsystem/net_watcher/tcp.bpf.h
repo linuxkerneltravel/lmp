@@ -354,8 +354,8 @@ static __always_inline int __tcp_rcv_established(struct sock *sk,
     return 0;
 }
 
-static __always_inline int ret(void *ctx, __u8 direction, __u16 sport,
-                               __u16 dport) {
+static __always_inline int ret(void *ctx, u8 direction, u16 sport,
+                               u16 dport) {
     struct reset_event_t *message =
         bpf_ringbuf_reserve(&events, sizeof(*message), 0);
     if (!message)
@@ -409,12 +409,12 @@ static __always_inline int ret(void *ctx, __u8 direction, __u16 sport,
     message->direction = direction;
 
     // 增加 RST 计数
-    __u32 pid = message->pid;
-    __u64 *count = bpf_map_lookup_elem(&counters, &pid);
+    u32 pid = message->pid;
+    u64 *count = bpf_map_lookup_elem(&counters, &pid);
     if (count) {
         *count += 1;
     } else {
-        __u64 initial_count = 1;
+        u64 initial_count = 1;
         bpf_map_update_elem(&counters, &pid, &initial_count, BPF_ANY);
         count = &initial_count;
     }
