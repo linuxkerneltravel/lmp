@@ -151,7 +151,6 @@ void add_child_dentry(struct dfs_dentry *parent, struct dfs_dentry *child)
     parent->child = child;
 }
 
-<<<<<<< HEAD
 static int remove_child_dentry(struct dfs_dentry *parent, struct dfs_dentry *child)
 {
     struct dfs_dentry *prev_child = NULL;
@@ -171,8 +170,6 @@ static int remove_child_dentry(struct dfs_dentry *parent, struct dfs_dentry *chi
     return 1;
 }
 
-=======
->>>>>>> e040be4f7b8f162b7a4c9b0c5f5bb40158e2b6fb
 struct dfs_dentry *traverse_path(struct dfs_dentry *start_dentry, const char *path, int ftype, int create)
 {
     struct dfs_dentry *dentry = start_dentry;
@@ -242,7 +239,6 @@ struct dfs_dentry *lookup_or_create_dentry(const char *path, struct dfs_dentry *
 
 
 /*功能函数*/
-<<<<<<< HEAD
 static int di_unlink(const char *path)
 {
     struct dfs_dentry *dentry = look_up(root, path);
@@ -288,8 +284,6 @@ static int di_rmdir(const char *path)
     return -ENOENT;
 }
 
-=======
->>>>>>> e040be4f7b8f162b7a4c9b0c5f5bb40158e2b6fb
 static int di_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi)
 {
     (void)fi;
@@ -439,11 +433,8 @@ static struct fuse_operations difs_ops = {
     .mkdir = di_mkdir,
     .create = dfs_create,
     .utimens = di_utimens,
-<<<<<<< HEAD
     .unlink = di_unlink,
     .rmdir = di_rmdir,
-=======
->>>>>>> e040be4f7b8f162b7a4c9b0c5f5bb40158e2b6fb
 };
 
 int main(int argc, char *argv[])
