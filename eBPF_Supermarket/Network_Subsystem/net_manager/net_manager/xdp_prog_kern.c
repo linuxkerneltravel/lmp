@@ -99,48 +99,6 @@ __u32 xdp_stats_record_action(struct xdp_md *ctx, __u32 action)
 	return action;
 }
 
-
-/*会话保持功能*/
-
-// 定义一个始终内联的辅助函数，用于交换连接键中的源和目的地址以及端口号
-static __always_inline
-int swap_conn_src_dst(struct conn_ipv4_key *conn)
-{
-	 // 交换源和目的 IPv4 地址
-	{	
-		__u32 tmp = conn->daddr;
-		conn->daddr = conn->saddr;
-		conn->saddr = tmp;
-	}
-
-	// 交换源和目的端口号
-	{
-		__u16 tmp = conn->sport;
-		conn->sport = conn->dport;
-		conn->dport = tmp;
-	}
-
-	return 0;
-}
-
-
-// 全局变量，用于循环轮询的循环计数器
-int rr = 0;
-
-// 定义一个始终内联的辅助函数，用于获取轮询循环计数器的值
-static __always_inline
-int get_rs_rr(){
-
-	// 如果循环计数器超过 6，则重置为 0
-	if(rr >= 6){
-		rr = 0;
-	}
-
-	// 自增循环计数器并返回其当前值
-	rr++;
-	return rr;
-}
-
 /*路由功能*/
 
 /* from include/net/ip.h */
@@ -294,6 +252,7 @@ int xdp_entry_ipv4(struct xdp_md *ctx)
 	struct udphdr *udph;
 	struct conn_ipv4 conn = {.saddr = 0, .daddr = 0, .sport = 0, .dport = 0, .ip_proto = 0};
 
+	//bpf_printk("xdp_entry_ipv4");
 	nh.pos = data;
 	
 	nh_type = parse_ethhdr(&nh, data_end, &eth);
@@ -328,10 +287,10 @@ int xdp_entry_ipv4(struct xdp_md *ctx)
 		conn.daddr = bpf_ntohl(iph -> daddr);
 		conn.ip_proto = nh_type;
 
-		#ifdef DEBUG_PRINT_EVERY
-		if(conn.dport != 22)
-			bpf_printk("conn(%u:%u to %u:%u)", conn.saddr, conn.sport, conn.daddr, conn.dport);
-		#endif
+		// #ifdef DEBUG_PRINT_EVERY
+		// if(conn.dport != 22)
+		// 	bpf_printk("conn(%u:%u to %u:%u)", conn.saddr, conn.sport, conn.daddr, conn.dport);
+		// #endif
 
 		action = match_rules_ipv4(&conn);
 
@@ -542,9 +501,12 @@ int xdp_entry_state(struct xdp_md *ctx)
 	struct iphdr *iph;
 	struct tcphdr *tcph; 
 	struct udphdr *udph;
+	struct icmphdr *icmph;
+	unsigned char *saddr;
+	unsigned char *daddr;
+
 	// 定义IPv4连接关键信息
 	struct conn_ipv4_key conn_k = {.saddr = 0, .daddr = 0, .sport = 0, .dport = 0, .proto = 0};
-
 	nh.pos = data;
 	
 	// 如果下一个头部类型为IPv4
@@ -562,93 +524,91 @@ int xdp_entry_state(struct xdp_md *ctx)
 		
 		conn_k.saddr = bpf_ntohl(iph -> saddr);
 		conn_k.daddr = bpf_ntohl(iph -> daddr);
+
 		conn_k.proto = nh_type;
 
+		saddr = (unsigned char *)&conn_k.saddr;
+		daddr = (unsigned char *)&conn_k.daddr;
 		
 		// 如果下一个头部类型为TCP
 		if (nh_type == IPPROTO_TCP) {
+
 			if(parse_tcphdr(&nh, data_end, &tcph) < 0)
 				goto out;
-			
 			// 获取TCP连接信息
 			conn_k.sport = bpf_ntohs(tcph -> source);
 			conn_k.dport = bpf_ntohs(tcph -> dest);
-			
+			// bpf_printk("conn(%lu.%lu.%lu.%lu:%u->%lu.%lu.%lu.%lu:%u)",
+			// 		(unsigned long)saddr[0], (unsigned long)saddr[1], (unsigned long)saddr[2], (unsigned long)saddr[3],conn_k.sport,
+			// 		(unsigned long)daddr[0], (unsigned long)daddr[1], (unsigned long)daddr[2], (unsigned long)daddr[3],conn_k.dport);
 			// 查找IPv4连接映射表中的值
 			// 如果找到，就说明该连接已经存在，可以在原有连接信息的基础上进行处理。
 			// 如果没有找到，可能是首次遇到这个连接，可以进行一些初始化操作，例如创建新的连接信息并添加到哈希表中。
 			struct conn_ipv4_val *p_conn_v = bpf_map_lookup_elem(&conn_ipv4_map, &conn_k);
 			if(!p_conn_v){
-				// 如果查找失败，交换源目地址和端口信息后再次查找
-				swap_conn_src_dst(&conn_k);
-				p_conn_v = bpf_map_lookup_elem(&conn_ipv4_map, &conn_k);
-
-				// 如果再次查找失败，且TCP报文是SYN并且不是ACK，则创建新的连接项
-				if(!p_conn_v){
-					if(tcph->syn && !tcph->ack){
-						struct conn_ipv4_val conn_v = {.tcp_state = TCP_S_SYN_SENT};
-						conn_v.rid = get_rs_rr();
-						swap_conn_src_dst(&conn_k);
-						// 将新的连接项插入到 IPv4 连接映射中
-						bpf_map_update_elem(&conn_ipv4_map, &conn_k, &conn_v, BPF_ANY);
-						// 输出日志信息，表示创建了一个新的连接项
-						bpf_printk("conn(%u:%u->%u:%u),state:%s,rid:%d",conn_k.saddr, conn_k.sport, conn_k.daddr, conn_k.dport, "SYN_SENT", conn_v.rid);	
-					}
-					goto out;
+				if(tcph->syn && tcph->ack){ //客户端
+					struct conn_ipv4_val conn_v = {.tcp_state = TCP_S_ESTABLISHED,.rid=1};
+					// 将新的连接项插入到 IPv4 连接映射中
+					bpf_map_update_elem(&conn_ipv4_map, &conn_k, &conn_v, BPF_ANY);
+					// 输出日志信息，表示创建了一个新的连接项
+					bpf_printk("tcp(%lu.%lu.%lu.%lu:%u->%lu.%lu.%lu.%lu:%u),state:%s,%s",
+					(unsigned long)saddr[0], (unsigned long)saddr[1], (unsigned long)saddr[2], (unsigned long)saddr[3],conn_k.sport,
+					(unsigned long)daddr[0], (unsigned long)daddr[1], (unsigned long)daddr[2], (unsigned long)daddr[3],conn_k.dport,
+					"ESTABLISHED",conn_v.rid?"client":"service");
 				}
+				else if(tcph->syn){ //客户端
+					struct conn_ipv4_val conn_v = {.tcp_state = TCP_S_SYN_RECV,.rid=0};
+					// 将新的连接项插入到 IPv4 连接映射中
+					bpf_map_update_elem(&conn_ipv4_map, &conn_k, &conn_v, BPF_ANY);
+					// 输出日志信息，表示创建了一个新的连接项
+					bpf_printk("tcp(%lu.%lu.%lu.%lu:%u->%lu.%lu.%lu.%lu:%u),state:%s,%s",
+					(unsigned long)saddr[0], (unsigned long)saddr[1], (unsigned long)saddr[2], (unsigned long)saddr[3],conn_k.sport,
+					(unsigned long)daddr[0], (unsigned long)daddr[1], (unsigned long)daddr[2], (unsigned long)daddr[3],conn_k.dport,
+					"SYN-RECV",conn_v.rid?"client":"service");
+				}
+				goto out;
 			}
 			// 如果查找成功，继续处理连接项
 			// 如果TCP报文的标志位包含RST（复位），则删除连接项并输出相应的日志信息
 			if(tcph->rst){
 				bpf_map_delete_elem(&conn_ipv4_map, &conn_k);
-				bpf_printk("conn(%u:%u->%u:%u),state:%s,rid:%d",conn_k.saddr, conn_k.sport, conn_k.daddr, conn_k.dport, "RST", p_conn_v->rid);
+				bpf_printk("tcp(%lu.%lu.%lu.%lu:%u->%lu.%lu.%lu.%lu:%u),state:%s,%s",
+					(unsigned long)saddr[0], (unsigned long)saddr[1], (unsigned long)saddr[2], (unsigned long)saddr[3],conn_k.sport,
+					(unsigned long)daddr[0], (unsigned long)daddr[1], (unsigned long)daddr[2], (unsigned long)daddr[3],conn_k.dport,
+					"RST",p_conn_v->rid?"client":"service");
 				goto out;
 			}
-
-			// 如果连接项的TCP状态为SYN_RECV并且收到了ACK，将TCP状态更新为ESTABLISHED
-			if(p_conn_v->tcp_state == TCP_S_SYN_RECV && tcph->ack){
-				p_conn_v->tcp_state = TCP_S_ESTABLISHED;
-				goto out_tcp_conn;
+			if(p_conn_v->rid) //客户端
+			{
+				// 如果连接项的TCP状态为ESTABLISHED并且收到了ack，将TCP状态更新为FIN_WAIT2
+				if(p_conn_v->tcp_state == TCP_S_ESTABLISHED && tcph->ack){
+					p_conn_v->tcp_state = TCP_S_FIN_WAIT2;
+					goto out_tcp_conn;
+				}
 			}
-
-			// 如果连接项的TCP状态为ESTABLISHED并且收到了FIN，将TCP状态更新为FIN_WAIT1
-			if(p_conn_v->tcp_state == TCP_S_ESTABLISHED && tcph->fin){
-				p_conn_v->tcp_state = TCP_S_FIN_WAIT1;
-				goto out_tcp_conn;
-			}
-
-			// 如果连接项的TCP状态为FIN_WAIT2并且收到了ACK，将TCP状态更新为CLOSE
-			if(p_conn_v->tcp_state == TCP_S_FIN_WAIT2 && tcph->ack){
-				p_conn_v->tcp_state = TCP_S_CLOSE;
-				goto out_tcp_conn;
-			}
-
-			// 交换源目地址和端口信息
-			swap_conn_src_dst(&conn_k);
-
-
-			// 如果连接项的TCP状态为SYN_SENT且收到了SYN和ACK，将TCP状态更新为SYN_RECV
-			if(p_conn_v->tcp_state == TCP_S_SYN_SENT && tcph->syn && tcph->ack){
-				p_conn_v->tcp_state = TCP_S_SYN_RECV;
-				goto out_tcp_conn;
-			}
-
-			// 如果连接项的TCP状态为FIN_WAIT1且收到了ACK，将TCP状态更新为CLOSE_WAIT
-			if(p_conn_v->tcp_state == TCP_S_FIN_WAIT1 && tcph->ack){
-				p_conn_v->tcp_state = TCP_S_CLOSE_WAIT;
-				bpf_printk("conn(%u:%u->%u:%u),state:%s,rid:%d",conn_k.saddr, conn_k.sport, conn_k.daddr, conn_k.dport, "CLOSE_WAIT", p_conn_v->rid);
-			}
-			
-			// 如果连接项的TCP状态为CLOSE_WAIT且收到了FIN和ACK，将TCP状态更新为FIN_WAIT2
-			if(p_conn_v->tcp_state == TCP_S_CLOSE_WAIT && tcph->fin && tcph->ack){
-				p_conn_v->tcp_state = TCP_S_FIN_WAIT2;
-				goto out_tcp_conn;
+			if(!p_conn_v->rid)//服务端
+			{
+				// 如果连接项的TCP状态为SYN_RECV并且收到了ACK，将TCP状态更新为ESTABLISHED
+				if(p_conn_v->tcp_state == TCP_S_SYN_RECV && tcph->ack){
+					p_conn_v->tcp_state = TCP_S_ESTABLISHED;
+					goto out_tcp_conn;
+				}
+				// 如果连接项的TCP状态为ESTABLISHED并且收到了FIN，将TCP状态更新为FIN_WAIT1
+				if(p_conn_v->tcp_state == TCP_S_ESTABLISHED && tcph->fin){
+					p_conn_v->tcp_state = TCP_S_CLOSE_WAIT;
+					goto out_tcp_conn;
+				}
+				// 如果连接项的TCP状态为CLOSE_WAIT且收到了FIN和ACK，将TCP状态更新为FIN_WAIT2
+				if(p_conn_v->tcp_state == TCP_S_CLOSE_WAIT && tcph->ack){
+					p_conn_v->tcp_state = TCP_S_CLOSE;
+					goto out_tcp_conn;
+				}
 			}
 			const char *tcp_state_str;
 
 			// 根据连接状态设置对应的字符串
 			out_tcp_conn:
-				if(p_conn_v->tcp_state == TCP_S_CLOSE){
+				if(p_conn_v->tcp_state == TCP_S_CLOSE||p_conn_v->tcp_state == TCP_S_FIN_WAIT2){
 					// 如果是CLOSE状态，从映射表中删除连接信息
 					bpf_map_delete_elem(&conn_ipv4_map, &conn_k);
 				}else{
@@ -681,7 +641,10 @@ int xdp_entry_state(struct xdp_md *ctx)
 					default:
 						tcp_state_str = "";
 				}
-				bpf_printk("conn(%u:%u->%u:%u),state:%s,rid:%d",conn_k.saddr, conn_k.sport, conn_k.daddr, conn_k.dport, tcp_state_str, p_conn_v->rid);				
+				bpf_printk("tcp(%lu.%lu.%lu.%lu:%u->%lu.%lu.%lu.%lu:%u),state:%s,%s",
+					(unsigned long)saddr[0], (unsigned long)saddr[1], (unsigned long)saddr[2], (unsigned long)saddr[3],conn_k.sport,
+					(unsigned long)daddr[0], (unsigned long)daddr[1], (unsigned long)daddr[2], (unsigned long)daddr[3],conn_k.dport,
+					tcp_state_str,p_conn_v->rid?"client":"service");			
 				goto out;
 		}
 		else if(nh_type == IPPROTO_UDP){
@@ -691,12 +654,25 @@ int xdp_entry_state(struct xdp_md *ctx)
 			}
 			conn_k.sport = bpf_ntohs(udph -> source);
 			conn_k.dport = bpf_ntohs(udph -> dest);
+			bpf_printk("udp(%lu.%lu.%lu.%lu:%u->%lu.%lu.%lu.%lu:%u),len=%lu",
+					(unsigned long)saddr[3], (unsigned long)saddr[2], (unsigned long)saddr[1], (unsigned long)saddr[0],conn_k.sport,
+					(unsigned long)daddr[3], (unsigned long)daddr[2], (unsigned long)daddr[1], (unsigned long)daddr[0],conn_k.dport,
+					__bpf_ntohs(udph -> len));			
 		}
-
+		else if(nh_type == IPPROTO_ICMP){
+			// 如果是ICMP
+			if(parse_icmphdr(&nh, data_end, &icmph) < 0){
+				goto out;
+			}
+			bpf_printk("icmp(%lu.%lu.%lu.%lu->%lu.%lu.%lu.%lu),type=%u,code=%u",
+					(unsigned long)saddr[3], (unsigned long)saddr[2], (unsigned long)saddr[1], (unsigned long)saddr[0],
+					(unsigned long)daddr[3], (unsigned long)daddr[2], (unsigned long)daddr[1], (unsigned long)daddr[0],
+					icmph->type,icmph->code);			
+		}
 		#ifdef DEBUG_PRINT_EVERY
 		// 打印除SSH协议以外的所有连接信息
 		if(conn.dport != 22)
-			bpf_printk("conn(%u:%u to %u:%u)", conn.saddr, conn.sport, conn.daddr, conn.dport);
+			bpf_printk("icmp(%u:%u to %u:%u)", conn.saddr, conn.sport, conn.daddr, conn.dport);
 		#endif
 
 	}
@@ -704,7 +680,14 @@ int xdp_entry_state(struct xdp_md *ctx)
 		
 out:
 	return xdp_stats_record_action(ctx, action);
+	
 }
 
+SEC("xdp")
+int test(struct xdp_md *ctx)
+{
+	bpf_printk("1111111111 test\n");
+	return XDP_PASS;
+}
 
 char _license[] SEC("license") = "GPL";

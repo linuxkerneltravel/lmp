@@ -19,8 +19,6 @@ typedef __u32 xdp_act;
 #define PATH_MAX	4096
 #endif
 
-//#define DEBUG_PRINT
-//#define DEBUG_PRINT_EVERY
 
 struct datarec {
 	__u64 rx_packets;
