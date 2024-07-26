@@ -28,6 +28,9 @@ $FUSE_EXEC -f -d "$MOUNT_POINT" &
 FUSE_PID=$!
 sleep 2  # 等待文件系统完全挂载
 
+# 确保脚本退出时卸载文件系统
+trap "fusermount -u $MOUNT_POINT" EXIT
+
 # 创建目录
 mkdir $MOUNT_POINT/dir1
 mkdir $MOUNT_POINT/dir2
@@ -41,5 +44,28 @@ touch $MOUNT_POINT/dir2/file3
 echo "创建的目录和文件结构:"
 ls -l $MOUNT_POINT
 
-# 确保脚本退出时卸载文件系统
-trap "fusermount -u $MOUNT_POINT" EXIT
+# 删除文件
+echo "删除文件 $MOUNT_POINT/dir1/file1 和 $MOUNT_POINT/dir2/file3..."
+rm $MOUNT_POINT/dir1/file1
+rm $MOUNT_POINT/dir2/file3
+
+# 验证文件删除
+echo "验证文件删除后的结构:"
+ls -l $MOUNT_POINT/dir1
+ls -l $MOUNT_POINT/dir2
+
+# 尝试删除非空目录
+echo "尝试删除非空目录 $MOUNT_POINT/dir1 (应失败)..."
+rmdir $MOUNT_POINT/dir1 || echo "无法删除非空目录 $MOUNT_POINT/dir1, 操作成功。"
+
+# 删除剩余文件
+rm $MOUNT_POINT/dir1/file2
+
+# 删除空目录
+echo "删除空目录 $MOUNT_POINT/dir1 和 $MOUNT_POINT/dir2..."
+rmdir $MOUNT_POINT/dir1
+rmdir $MOUNT_POINT/dir2
+
+# 验证目录删除
+echo "验证目录删除后的结构:"
+ls -l $MOUNT_POINT
