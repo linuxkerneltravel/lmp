@@ -39,6 +39,8 @@ static struct env {
     bool SCHEDULE_DELAY;
     bool MQ_DELAY;
     int freq;
+    bool mutrace;
+    bool mutex_detail;
 } env = {
     .usemode = 0,
     .SAR = false,
@@ -51,6 +53,8 @@ static struct env {
     .SCHEDULE_DELAY = false,
     .MQ_DELAY = false,
     .freq = 99,
+    .mutrace = false,
+    .mutex_detail = false,
 };
 
 const char argp_program_doc[] ="Trace process to get cpu watcher.\n";
@@ -66,7 +70,9 @@ static const struct argp_option opts[] = {
     {"preempt_time", 'p', 0, 0, "Print preempt_time (the data of preempt_schedule)" },
     {"schedule_delay", 'd', 0, 0, "Print schedule_delay (the data of cpu)" },
     {"schedule_delay_min_us_set", 'e', "THRESHOLD", 0, "Print scheduling delays that exceed the threshold (the data of cpu)" },
-    {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" },    
+    {"mq_delay", 'm', 0, 0, "Print mq_delay(the data of proc)" }, 
+    {"mutrace", 'x', 0, 0, "Print kernel mutex contend" },
+    {"mutex_detail", 'i', 0, 0, "Print kernel mutex details" },      
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
     {},
 };
@@ -114,7 +120,13 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
         case 'm':
             env.MQ_DELAY = true;
-            break;			
+            break;	
+        case 'x':
+            env.mutrace = true;
+            break;
+        case 'i':
+            env.mutex_detail = true;
+            break;		
         case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 				break;
@@ -156,6 +168,11 @@ int deactivate_mode(){
     if(env.MQ_DELAY){
         struct mq_ctrl mq_ctrl = {false,0};
         err = update_mq_ctrl_map(mq_ctrl);
+        if(err < 0) return err;
+    }
+    if(env.mutrace){
+         struct mu_ctrl mu_ctrl = {false,false,0};
+        err = update_mu_ctrl_map(mu_ctrl);
         if(err < 0) return err;
     }    
     return 0;
@@ -223,6 +240,12 @@ int main(int argc, char **argv)
             err = update_mq_ctrl_map(mq_ctrl);
             if(err < 0) return err;
         }
+
+        if(env.mutrace){
+            struct mu_ctrl mu_ctrl = {true,env.mutex_detail,MUTEX_WATCHER+env.mutex_detail};
+            err = update_mu_ctrl_map(mu_ctrl);
+            if(err < 0) return err;
+        } 
     }else if(env.usemode == 2){             // deactivate mode
         err = deactivate_mode();
         if(err<0){
