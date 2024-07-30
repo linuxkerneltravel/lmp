@@ -23,7 +23,9 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const int ctrl_key = 0;
-BPF_HASH(mutex_info_map, u64, struct mutex_info_kernel, 1024);
+BPF_HASH(kmutex_info_map, u64, struct mutex_info, 1024);
+BPF_HASH(umutex_info_map, u64, struct mutex_info, 1024);
+BPF_HASH(trylock_map, u64, struct trylock_info, 1024);
 BPF_ARRAY(mu_ctrl_map, int, struct mu_ctrl, 1);
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -47,11 +49,11 @@ SEC("kprobe/mutex_lock")
 int BPF_KPROBE(trace_mutex_lock, struct mutex *lock) {
     u64 lock_addr = (u64)lock; // 获取锁地址
     u64 ts = bpf_ktime_get_ns();
-    struct mutex_info_kernel *info = bpf_map_lookup_elem(&mutex_info_map, &lock_addr);
+    struct mutex_info *info = bpf_map_lookup_elem(&kmutex_info_map, &lock_addr);
     if (info) {
         info->acquire_time = ts; // 保存锁获取时间
     } else {
-        struct mutex_info_kernel new_info = {
+        struct mutex_info new_info = {
             .locked_total = 0,
             .locked_max = 0,
             .contended_total = 0,
@@ -61,7 +63,7 @@ int BPF_KPROBE(trace_mutex_lock, struct mutex *lock) {
             .ptr = lock_addr
         };
         __builtin_memset(new_info.last_name, 0, sizeof(new_info.last_name));
-        bpf_map_update_elem(&mutex_info_map, &lock_addr, &new_info, BPF_ANY);
+        bpf_map_update_elem(&kmutex_info_map, &lock_addr, &new_info, BPF_ANY);
     }
     return 0;
 }
@@ -72,11 +74,11 @@ int BPF_KPROBE(trace_mutex_trylock, struct mutex *lock) {
     if (ret != 0) { // 成功获取锁
         u64 lock_addr = (u64)lock; // 获取锁地址
         u64 ts = bpf_ktime_get_ns();
-        struct mutex_info_kernel *info = bpf_map_lookup_elem(&mutex_info_map, &lock_addr);
+        struct mutex_info *info = bpf_map_lookup_elem(&kmutex_info_map, &lock_addr);
         if (info) {
             info->acquire_time = ts;
         } else {
-            struct mutex_info_kernel new_info = {
+            struct mutex_info new_info = {
                 .locked_total = 0,
                 .locked_max = 0,
                 .contended_total = 0,
@@ -86,7 +88,7 @@ int BPF_KPROBE(trace_mutex_trylock, struct mutex *lock) {
                 .ptr = lock_addr
             };
             __builtin_memset(new_info.last_name, 0, sizeof(new_info.last_name));
-            bpf_map_update_elem(&mutex_info_map, &lock_addr, &new_info, BPF_ANY);
+            bpf_map_update_elem(&kmutex_info_map, &lock_addr, &new_info, BPF_ANY);
         }
     }
     return 0;
@@ -121,13 +123,13 @@ int BPF_KPROBE(trace_mutex_lock_slowpath, struct mutex *lock) {
         e->owner_pid = 0;
         __builtin_memset(e->owner_name, 0, sizeof(e->owner_name));
     }
-    struct mutex_info_kernel *info = bpf_map_lookup_elem(&mutex_info_map, &lock_addr);
+    struct mutex_info *info = bpf_map_lookup_elem(&kmutex_info_map, &lock_addr);
     if (info) {
         u64 contention_start = ts;
         info->contended_total += (contention_start - info->acquire_time); // 更新争用时间
         info->count++; // 更新争用次数
     } else {
-        struct mutex_info_kernel new_info = {
+        struct mutex_info new_info = {
             .locked_total = 0,
             .locked_max = 0,
             .contended_total = 0,
@@ -137,7 +139,7 @@ int BPF_KPROBE(trace_mutex_lock_slowpath, struct mutex *lock) {
             .ptr = lock_addr
         };
         __builtin_memset(new_info.last_name, 0, sizeof(new_info.last_name));
-        bpf_map_update_elem(&mutex_info_map, &lock_addr, &new_info, BPF_ANY);
+        bpf_map_update_elem(&kmutex_info_map, &lock_addr, &new_info, BPF_ANY);
     }
     bpf_ringbuf_submit(e, 0);
     return 0;
@@ -148,7 +150,7 @@ int BPF_KPROBE(trace_mutex_unlock, struct mutex *lock) {
     u64 lock_addr = (u64)lock;
     u64 ts = bpf_ktime_get_ns();
     pid_t pid = bpf_get_current_pid_tgid();
-    struct mutex_info_kernel *info = bpf_map_lookup_elem(&mutex_info_map, &lock_addr);
+    struct mutex_info *info = bpf_map_lookup_elem(&kmutex_info_map, &lock_addr);
     if (info) {
         u64 held_time = ts - info->acquire_time; // 计算锁被持有的时间
         info->locked_total += held_time;         // 更新锁被持有的总时间
@@ -167,27 +169,104 @@ int BPF_KPROBE(trace_mutex_unlock, struct mutex *lock) {
 /*                用户态互斥锁                   */
 /*----------------------------------------------*/
 
-// SEC("uprobe")
-// int BPF_KPROBE(pthread_mutex_lock_init, void *__mutex){
 
-// }
 
-// SEC("uprobe")
-// int BPF_KPROBE(pthread_mutex_lock,void *__mutex){
-    
-// }
+SEC("uprobe/pthread_mutex_lock")
+int BPF_KPROBE(pthread_mutex_lock, void *__mutex) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pid_t pid = pid_tgid >> 32;
+    u64 now = bpf_ktime_get_ns();
 
-// SEC("uprobe")
-// int BPF_KPROBE(pthread_mutex_trylock, void *__mutex){
-    
-// }
+    struct mutex_info *info = bpf_map_lookup_elem(&umutex_info_map, &__mutex);
+    if (info) {
+        if (info->acquire_time > 0) {
+            // 如果 acquire_time 已经被设置，说明锁被争用
+            info->contended_total += (now - info->acquire_time);
+            info->count += 1;
+        }
+        info->acquire_time = now;
+        info->last_owner = pid;
+        bpf_get_current_comm(&info->last_name, sizeof(info->last_name));
+    } else {
+        // 初始化 mutex_info
+        struct mutex_info new_info = {
+            .locked_total = 0,
+            .locked_max = 0,
+            .contended_total = 0,
+            .count = 0,
+            .last_owner = pid,
+            .acquire_time = now,
+            .ptr = (u64)__mutex,
+        };
+        bpf_get_current_comm(&new_info.last_name, sizeof(new_info.last_name));
+        bpf_map_update_elem(&umutex_info_map, &__mutex, &new_info, BPF_ANY);
+    }
+    return 0;
+}
 
-// SEC("uprobe")
-// int BPF_KPROBE(pthread_mutex_unlock, void *__mutex){
-    
-// }
+SEC("uprobe/__pthread_mutex_trylock")
+int BPF_KPROBE(__pthread_mutex_trylock, void *__mutex) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 now = bpf_ktime_get_ns();
+    struct trylock_info info = {
+        .__mutex = __mutex,
+        .start_time = now,
+    };
+    bpf_map_update_elem(&trylock_map, &pid_tgid, &info, BPF_ANY);
+    return 0;
+}
 
-// SEC("uprobe")
-// int BPF_KPROBE(pthread_mutex_destroy,void *__mutex){
-    
-// }
+SEC("uretprobe/__pthread_mutex_trylock")
+int BPF_KRETPROBE(ret_pthread_mutex_trylock, int ret) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct trylock_info *try_info = bpf_map_lookup_elem(&trylock_map, &pid_tgid);
+    if (!try_info) {
+        return 0;
+    }
+    void *__mutex = try_info->__mutex;
+    u64 now = bpf_ktime_get_ns();
+    if (ret == 0) {
+        struct mutex_info *info = bpf_map_lookup_elem(&umutex_info_map, &__mutex);
+        if (info) {
+            if (info->acquire_time > 0) {
+                // 如果 acquire_time 已经被设置，说明锁被争用
+                info->contended_total += (now - info->acquire_time);
+                info->count += 1;
+            }
+            info->acquire_time = now;
+            info->last_owner = pid_tgid >> 32;
+            bpf_get_current_comm(&info->last_name, sizeof(info->last_name));
+        } else {
+            // 初始化 mutex_info
+            struct mutex_info new_info = {
+                .locked_total = 0,
+                .locked_max = 0,
+                .contended_total = 0,
+                .count = 0,
+                .last_owner = pid_tgid >> 32,
+                .acquire_time = now,
+                .ptr = (u64)__mutex,
+            };
+            bpf_get_current_comm(&new_info.last_name, sizeof(new_info.last_name));
+            bpf_map_update_elem(&umutex_info_map, &__mutex, &new_info, BPF_ANY);
+        }
+    }
+    bpf_map_delete_elem(&trylock_map, &pid_tgid);
+    return 0;
+}
+
+SEC("uprobe/pthread_mutex_unlock")
+int BPF_KPROBE(pthread_mutex_unlock, void *__mutex){
+    u64 now = bpf_ktime_get_ns();
+    struct mutex_info *info = bpf_map_lookup_elem(&umutex_info_map, &__mutex);
+    if (info) {
+        u64 locked_time = now - info->acquire_time;
+        info->locked_total += locked_time;
+        if (locked_time > info->locked_max) {
+            info->locked_max = locked_time;
+        }
+        info->acquire_time = 0;
+    }
+    return 0;
+}
+
