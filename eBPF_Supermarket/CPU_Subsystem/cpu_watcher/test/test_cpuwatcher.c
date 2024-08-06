@@ -19,6 +19,7 @@ static struct env {
    bool mq_delay_test;
    bool preempt_test;
    bool schedule_test;
+   bool mutrace_test;
 } env = {
    .sar_test = false,
    .cs_delay_test = false,
@@ -26,6 +27,7 @@ static struct env {
    .mq_delay_test = false,
    .preempt_test = false,
    .schedule_test = false,
+   .mutrace_test = false,
 };
 
 const char argp_program_doc[] ="To test cpu_watcher.\n";
@@ -37,6 +39,7 @@ static const struct argp_option opts[] = {
    { "mq_delay", 'm', NULL, 0, "To test mq_delay", 0 },
    { "preempt_delay", 'p', NULL, 0, "To test preempt_delay", 0 },
    { "schedule_delay", 'd', NULL, 0, "To test schedule_delay", 0 },
+   { "mu_trace", 'x', NULL, 0, "To test mutrace", 0 },
    { "all", 'a', NULL, 0, "To test all", 0 },
    { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help", 0 },
    {},
@@ -71,6 +74,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             break;
         case 'd':
             env.schedule_test = true;
+            break;
+        case 'x':
+            env.mutrace_test = true;
             break;
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -187,6 +193,18 @@ int main(int argc, char **argv){
         printf("调度延迟测试逻辑：\n");
         printf("执行指令 sysbench --threads=32 --time=10 cpu run\n");
         execve("/usr/bin/sysbench", argvv, envp);
+        perror("execve");
+        printf("\n");
+    }
+
+    if(env.mutrace_test){
+         printf("MUTRACE_TEST----------------------------------------------\n");
+        //MUTRACE功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程，持续15秒,观察加压前后的变化。
+        char *argvv[] = { "/usr/bin/stress-ng", "--hdd", "4", "--hdd-opts", "wr-seq,rd-seq", "--io", "4",  "--timeout", "15s", "--metrics-brief", NULL };
+        char *envp[] = { "PATH=/bin", NULL };
+        printf("MUTRACE功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程和4个UDP网络操作线程，持续15秒,观察加压前后的变化\n");
+        printf("执行指令 stress-ng --hdd 4 --hdd-opts wr-seq,rd-seq --io 4 --udp 4 --timeout 15s --metrics-brief\n");
+        execve("/usr/bin/stress-ng", argvv, envp);
         perror("execve");
         printf("\n");
     }
