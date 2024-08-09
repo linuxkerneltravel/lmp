@@ -298,4 +298,56 @@ void add_entry(int pid, const char *comm, long long delay) {
         seen_count++;
     }
 }
+/*----------------------------------------------*/
+/*                   uprobe                     */
+/*----------------------------------------------*/
+static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
+
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
+    do                                                           \
+    {                                                            \
+		LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                \
+                    .retprobe = is_retprobe,                     \
+                    .func_name = #sym_name);                     \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
+            skel->progs.prog_name,                               \
+            -1,                                                 \
+            object,                                              \
+            0,                                                   \
+            &uprobe_opts);                                       \
+    } while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                                                      \
+    do                                                                                        \
+    {                                                                                         \
+        if (!skel->links.prog_name)                                                           \
+        {                                                                                     \
+            fprintf(stderr, "[%s] no program attached for" #prog_name "\n", strerror(errno)); \
+            return -errno;                                                                    \
+        }                                                                                     \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do                                                                  \
+    {                                                                   \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
+#define CHECK_ERR(cond, info)                               \
+    if (cond)                                               \
+    {                                                       \
+        fprintf(stderr, "[%s]" info "\n", strerror(errno));                                   \
+        return -1;                                          \
+    }
+
+#define warn(...) fprintf(stderr, __VA_ARGS__)
+
+
 #endif // CPU_WATCHER_HELPER_H
