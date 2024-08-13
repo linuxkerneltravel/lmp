@@ -135,4 +135,31 @@ union combined_alloc_info {
     __u64 bits;
 };
 
+/* vmasnap.h */
+// 记录插入操作的事件数据
+struct insert_event_t {
+    unsigned long long timestamp;
+    unsigned long long duration;
+    int inserted_to_list;
+    int inserted_to_rb;
+    int inserted_to_interval_tree;
+    unsigned long long link_list_start_time;
+    unsigned long long link_rb_start_time;
+    unsigned long long interval_tree_start_time;
+    unsigned long long link_list_duration;
+    unsigned long long link_rb_duration;
+    unsigned long long interval_tree_duration;
+};
+
+// 记录查找操作的事件数据
+struct find_event_t {
+    unsigned long long timestamp;
+    unsigned long long duration;
+    unsigned long addr;
+    int vmacache_hit;
+    unsigned long long rb_subtree_last;
+    unsigned long long vm_start;
+    unsigned long long vm_end;
+};
+
 #endif /* __MEM_WATCHER_H */
