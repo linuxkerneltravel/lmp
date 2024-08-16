@@ -35,6 +35,8 @@
 #include "fraginfo.skel.h"
 #include "memleak.skel.h"
 #include "vmasnap.skel.h"
+#include "drsnoop.skel.h"
+
 #include "mem_watcher.h"
 #include "fraginfo.h"
 
@@ -231,6 +233,7 @@ static struct env
 	bool memleak;
 	bool fraginfo;
 	bool vmasnap;
+	bool drsnoop;
 	bool kernel_trace;
 	bool print_time;
 	int interval;
@@ -248,6 +251,7 @@ static struct env
 	.memleak = false,
 	.fraginfo = false,
 	.vmasnap = false,
+	.drsnoop = false,
 	.kernel_trace = true,
 	.print_time = false,
 	.rss = false,
@@ -292,6 +296,10 @@ static const struct argp_option opts[] = {
 
 	{0, 0, 0, 0, "vmasnap:", 13},
 	{"vmasnap", 'v', 0, 0, "print vmasnap (虚拟内存区域信息)"},
+
+	{0, 0, 0, 0, "drsnoop:", 14},
+	{"drsnoop", 'o', 0, 0, "print drsnoop (直接回收追踪信息)"},
+
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
@@ -335,6 +343,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	case 'l':
 		env.memleak = true;
 		break;
+	case 'o':
+		env.drsnoop = true;
+		break;
 	case 'm':
 		env.print_time = true;
 		break;
@@ -368,10 +379,12 @@ static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, 
 static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid);
 static int print_outstanding_allocs(struct memleak_bpf *skel);
 static int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid);
+static int get_vm_stat_addr(__u64 *addr);
 static int handle_event_paf(void *ctx, void *data, size_t data_sz);
 static int handle_event_pr(void *ctx, void *data, size_t data_sz);
 static int handle_event_procstat(void *ctx, void *data, size_t data_sz);
 static int handle_event_sysstat(void *ctx, void *data, size_t data_sz);
+static int handle_event_drsnoop(void *ctx, void *data, size_t data_sz);
 static int attach_uprobes(struct memleak_bpf *skel);
 static void print_flag_modifiers(int flag);
 static int process_paf(struct paf_bpf *skel_paf);
@@ -381,6 +394,7 @@ static int process_sysstat(struct sysstat_bpf *skel_sysstat);
 static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
 static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo);
 static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap);
+static int process_drsnoop(struct drsnoop_bpf *skel_drsnoop);
 static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
 static int update_addr_times(struct memleak_bpf *skel_memleak);
 static int print_time(struct memleak_bpf *skel_memleak);
@@ -398,6 +412,7 @@ int main(int argc, char **argv)
 	struct memleak_bpf *skel_memleak;
 	struct fraginfo_bpf *skel_fraginfo;
 	struct vmasnap_bpf *skel_vmasnap;
+	struct drsnoop_bpf *skel_drsnoop;
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
@@ -432,6 +447,10 @@ int main(int argc, char **argv)
 	else if (env.sysstat)
 	{
 		PROCESS_SKEL(skel_sysstat, sysstat);
+	}
+	else if (env.drsnoop)
+	{
+		PROCESS_SKEL(skel_drsnoop, drsnoop);
 	}
 	else if (env.memleak)
 	{
@@ -837,6 +856,31 @@ void disable_kernel_tracepoints(struct memleak_bpf *skel)
 	bpf_program__set_autoload(skel->progs.memleak__mm_page_free, false);
 }
 
+static int get_vm_stat_addr(__u64 *addr)
+{
+    FILE *file = fopen(KALLSYMS_PATH, "r");
+    if (!file) {
+        perror("fopen");
+        return -1;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        unsigned long address;
+        char symbol[256];
+        if (sscanf(line, "%lx %*s %s", &address, symbol) == 2) {
+            if (strcmp(symbol, VM_STAT_SYMBOL) == 0 || strcmp(symbol, VM_ZONE_STAT_SYMBOL) == 0) {
+                *addr = address;
+                fclose(file);
+                return 0;
+            }
+        }
+    }
+
+    fclose(file);
+    return -1; // Symbol not found
+}
+
 // static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 // {
 // 	return vfprintf(stderr, format, args);
@@ -973,6 +1017,26 @@ static int handle_event_sysstat(void *ctx, void *data, size_t data_sz)
 		printf("%-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu %-8lu\n", e->anon_active + e->file_active, e->file_inactive + e->anon_inactive, e->anon_active, e->anon_inactive, e->file_active, e->file_inactive, e->unevictable, e->file_dirty, e->writeback, e->anon_mapped, e->file_mapped, e->shmem);
 
 	return 0;
+}
+
+static int handle_event_drsnoop(void *ctx, void *data, size_t data_sz)
+{
+    const struct data_t *e = data;
+    struct tm *tm;
+    char ts[32];
+    time_t t;
+
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+
+    __u64 delta_us = e->delta / 1000;
+    __u64 delta_ms = delta_us / 1000;
+    __u64 fractional_us = delta_us % 1000;
+
+    printf("%-8s %-16s %-7llu %-9llu %llu.%02llu\n", ts, e->name, e->id >> 32, K(e->vm_stat[NR_FREE_PAGES]), delta_ms, fractional_us);
+
+    return 0;
 }
 
 int attach_uprobes(struct memleak_bpf *skel)
@@ -1382,4 +1446,54 @@ static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap) {
 vmasnap_cleanup:
     vmasnap_bpf__destroy(skel_vmasnap);
     return 0;
+}
+
+static int process_drsnoop(struct drsnoop_bpf *skel_drsnoop) {
+	int err;
+	struct ring_buffer *rb;
+
+	__u64 vm_stat_addr;
+    __u32 key = 0;  // Key for the vm_stat_map
+
+	if (get_vm_stat_addr(&vm_stat_addr) != 0) {
+        fprintf(stderr, "Failed to get vm_stat or vm_zone_stat address\n");
+        return 1;
+    }
+
+	err = drsnoop_bpf__load(skel_drsnoop);
+    if (err) {
+        fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+        return 1;
+    }
+
+    // Update BPF map with the address of vm_stat
+    err = bpf_map_update_elem(bpf_map__fd(skel_drsnoop->maps.vm_stat_map), &key, &vm_stat_addr, BPF_ANY);
+    if (err) {
+        fprintf(stderr, "Failed to update BPF map: %s\n", strerror(errno));
+        goto drsnoop_cleanup;
+    }
+
+    err = drsnoop_bpf__attach(skel_drsnoop);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto drsnoop_cleanup;
+    }
+
+	rb = ring_buffer__new(bpf_map__fd(skel_drsnoop->maps.rb), handle_event_drsnoop, NULL, NULL);
+	if (!rb) {
+		err = -1;
+		fprintf(stderr, "Failed to create ring buffer\n");
+		goto drsnoop_cleanup;
+	}
+
+	printf("%-8s %-16s %-7s %-9s %-7s\n", "TIME", "COMM", "PID", "FREE(KB)", "LAT(ms)");
+
+	POLL_RING_BUFFER(rb, 1000, err);\
+
+drsnoop_cleanup:
+    /* 清理 */
+    ring_buffer__free(rb);
+    drsnoop_bpf__destroy(skel_drsnoop);
+
+    return err < 0 ? -err : 0;
 }
