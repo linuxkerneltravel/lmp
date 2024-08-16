@@ -116,6 +116,39 @@ struct hist {
     u64 latency;
     u64 cnt;
 };
+
+struct trace_event_raw_tcp_send_reset {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+    const void *skbaddr;
+    const void *skaddr;
+    int state;
+    __u16 sport;
+    __u16 dport;
+    __u16 family;
+    __u8 saddr[4];
+    __u8 daddr[4];
+    __u8 saddr_v6[16];
+    __u8 daddr_v6[16];
+};
+
+struct trace_event_raw_tcp_receive_reset {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+    const void *skaddr;
+    __u16 sport;
+    __u16 dport;
+    __u16 family;
+    __u8 saddr[4];
+    __u8 daddr[4];
+    __u8 saddr_v6[16];
+    __u8 daddr_v6[16];
+    __u64 sock_cookie;
+};
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -196,10 +229,16 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } dns_rb SEC(".maps");
+
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } trace_rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} events SEC(".maps");
 
 // 存储每个tcp连接所对应的conn_t
 struct {
@@ -307,13 +346,19 @@ struct {
     __type(value, struct hist);
 } hists SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u32);
+    __type(value, u64);
+    __uint(max_entries, 1024);
+} counters SEC(".maps");
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
                    layer_time = 0, http_info = 0, retrans_info = 0,
                    udp_info = 0, net_filter = 0, drop_reason = 0, icmp_info = 0,
                    tcp_info = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
-                   redis_info = 0, rtt_info = 0;
+                   redis_info = 0, rtt_info = 0, rst_info = 0;
 
 /* help macro */
 
@@ -421,7 +466,6 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
         .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                       \
         .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),        \
         .tran_flag = UDP}
-
 /* help macro end */
 
 /* help functions */

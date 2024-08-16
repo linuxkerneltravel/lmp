@@ -151,7 +151,7 @@ void parse_cmdline_args(int argc, char **argv,
 	}
 
 	/* 解析命令行参数 */
-	while ((opt = getopt_long(argc, argv, "hd:r:L:R:ASNFUMQ:czpq:i:m:k:g:n:t",
+	while ((opt = getopt_long(argc, argv, "hd:r:L:R:ASNFUMQ:czpq:i:m:k:g:n:tT",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'd':
@@ -195,12 +195,37 @@ void parse_cmdline_args(int argc, char **argv,
 			break;
 		case 'i':
 			cfg->ip_filter = true;
+			// 检查文件路径长度是否超出限制
+			if (strlen(optarg) >= FILE_MAXSIZE) {
+				fprintf(stderr, "ERR: --ip_filter_file name too long\n");
+				goto error;
+			}
+			// 设置文件路径
+			cfg->ip_filter_file = (char *)&cfg->ip_filter_file_buf; //初始化ip_filter_file
+			strncpy(cfg->ip_filter_file, optarg, FILE_MAXSIZE);
+			//printf("%s %s\n",optarg,cfg->ip_filter_file);
 			break;
 		case 'm':
 			cfg->mac_filter = true;
+			// 检查文件路径长度是否超出限制
+			if (strlen(optarg) >= FILE_MAXSIZE) {
+				fprintf(stderr, "ERR: --mac_filter_file name too long\n");
+				goto error;
+			}
+			// 设置文件路径
+			cfg->mac_filter_file = (char *)&cfg->mac_filter_file_buf; //初始化ip_filter_file
+			strncpy(cfg->mac_filter_file, optarg, FILE_MAXSIZE);
 			break;
 		case 'k':
 			cfg->router = true;
+			// 检查文件路径长度是否超出限制
+			if (strlen(optarg) >= FILE_MAXSIZE) {
+				fprintf(stderr, "ERR: --router_file name too long\n");
+				goto error;
+			}
+			// 设置文件路径
+			cfg->router_file = (char *)&cfg->router_file_buf; //初始化ip_filter_file
+			strncpy(cfg->router_file, optarg, FILE_MAXSIZE);
 			break;
 		case 'g':
 			cfg->state = true;
@@ -286,6 +311,11 @@ void parse_cmdline_args(int argc, char **argv,
 			// 设置显示完整帮助信息的标志
 			full_help = true;
 			/* fall-through */
+			break;
+		case 'T':
+			// 设置打印的标志
+			cfg->print_info = true;
+			break;
 		error:
 		default:
 			// 打印使用信息并退出
