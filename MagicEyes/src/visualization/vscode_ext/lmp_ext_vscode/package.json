@@ -178,7 +178,7 @@
   },
   "dependencies": {
     "@types/uuid": "^9.0.6",
-    "axios": "^1.4.0",
+    "axios": "^1.7.4",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "http-proxy": "^1.18.1",
