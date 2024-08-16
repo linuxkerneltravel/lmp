@@ -29,7 +29,7 @@ jobs:
       - name: Run mem_watcher
         continue-on-error: true
         run: |
-          cd eBPF_Supermarket/Memory_Subsystem/mem_watcher/
+          cd eBPF_Supermarket/Memory_Subsystem/vmlinux
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           make
           sudo ./mem_watcher -f -i 10
