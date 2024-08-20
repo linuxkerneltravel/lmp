@@ -142,7 +142,7 @@ $(CONTROLLER): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 
 $(WORKTOOL): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -lpthread -o $@
 	@mkdir -p $(OUTPUT)/data
 	@[ -f $(OUTPUT)/data/offcpu_stack.txt ] || touch $(OUTPUT)/data/offcpu_stack.txt
 
