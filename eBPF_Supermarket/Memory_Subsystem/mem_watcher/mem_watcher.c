@@ -34,10 +34,62 @@
 #include "sysstat.skel.h"
 #include "fraginfo.skel.h"
 #include "memleak.skel.h"
+#include "vmasnap.skel.h"
 #include "mem_watcher.h"
 #include "fraginfo.h"
 
 #include "blazesym.h"
+
+// 定义标志结构体
+typedef struct {
+    int flag;
+    const char *name;
+} Flag;
+
+// 定义所有组合修饰符和单独标志位
+Flag gfp_combined_list[] = {
+    {GFP_ATOMIC, "GFP_ATOMIC"},
+    {GFP_KERNEL, "GFP_KERNEL"},
+    {GFP_KERNEL_ACCOUNT, "GFP_KERNEL_ACCOUNT"},
+    {GFP_NOWAIT, "GFP_NOWAIT"},
+    {GFP_NOIO, "GFP_NOIO"},
+    {GFP_NOFS, "GFP_NOFS"},
+    {GFP_USER, "GFP_USER"},
+    {GFP_DMA, "GFP_DMA"},
+    {GFP_DMA32, "GFP_DMA32"},
+    {GFP_HIGHUSER, "GFP_HIGHUSER"},
+    {GFP_HIGHUSER_MOVABLE, "GFP_HIGHUSER_MOVABLE"},
+    {GFP_TRANSHUGE_LIGHT, "GFP_TRANSHUGE_LIGHT"},
+    {GFP_TRANSHUGE, "GFP_TRANSHUGE"},
+};
+
+Flag gfp_separate_list[] = {
+    {___GFP_DMA, "___GFP_DMA"},
+    {___GFP_HIGHMEM, "___GFP_HIGHMEM"},
+    {___GFP_DMA32, "___GFP_DMA32"},
+    {___GFP_MOVABLE, "___GFP_MOVABLE"},
+    {___GFP_RECLAIMABLE, "___GFP_RECLAIMABLE"},
+    {___GFP_HIGH, "___GFP_HIGH"},
+    {___GFP_IO, "___GFP_IO"},
+    {___GFP_FS, "___GFP_FS"},
+    {___GFP_ZERO, "___GFP_ZERO"},
+    {___GFP_ATOMIC, "___GFP_ATOMIC"},
+    {___GFP_DIRECT_RECLAIM, "___GFP_DIRECT_RECLAIM"},
+    {___GFP_KSWAPD_RECLAIM, "___GFP_KSWAPD_RECLAIM"},
+    {___GFP_WRITE, "___GFP_WRITE"},
+    {___GFP_NOWARN, "___GFP_NOWARN"},
+    {___GFP_RETRY_MAYFAIL, "___GFP_RETRY_MAYFAIL"},
+    {___GFP_NOFAIL, "___GFP_NOFAIL"},
+    {___GFP_NORETRY, "___GFP_NORETRY"},
+    {___GFP_MEMALLOC, "___GFP_MEMALLOC"},
+    {___GFP_COMP, "___GFP_COMP"},
+    {___GFP_NOMEMALLOC, "___GFP_NOMEMALLOC"},
+    {___GFP_HARDWALL, "___GFP_HARDWALL"},
+    {___GFP_THISNODE, "___GFP_THISNODE"},
+    {___GFP_ACCOUNT, "___GFP_ACCOUNT"},
+    {___GFP_ZEROTAGS, "___GFP_ZEROTAGS"},
+    {___GFP_SKIP_KASAN_POISON, "___GFP_SKIP_KASAN_POISON"},
+};
 
 static const int perf_max_stack_depth = 127;	// stack id 对应的堆栈的深度
 static const int stack_map_max_entries = 10240; // 最大允许存储多少个stack_id
@@ -178,6 +230,7 @@ static struct env
 	bool sysstat;
 	bool memleak;
 	bool fraginfo;
+	bool vmasnap;
 	bool kernel_trace;
 	bool print_time;
 	int interval;
@@ -194,6 +247,7 @@ static struct env
 	.sysstat = false,
 	.memleak = false,
 	.fraginfo = false,
+	.vmasnap = false,
 	.kernel_trace = true,
 	.print_time = false,
 	.rss = false,
@@ -235,6 +289,9 @@ static const struct argp_option opts[] = {
 	{"fraginfo", 'f', 0, 0, "print fraginfo",12},
 	{"interval", 'i', "INTERVAL", 0, "Print interval in seconds (default 1)"},
 	{"duration", 'd', "DURATION", 0, "Total duration in seconds to run (default 10)"},
+
+	{0, 0, 0, 0, "vmasnap:", 13},
+	{"vmasnap", 'v', 0, 0, "print vmasnap (虚拟内存区域信息)"},
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
@@ -259,6 +316,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		break;
 	case 'f':
 		env.fraginfo = true;
+		break;
+	case 'v':
+		env.vmasnap = true;
 		break;
 	case 's':
 		env.sysstat = true;
@@ -313,15 +373,19 @@ static int handle_event_pr(void *ctx, void *data, size_t data_sz);
 static int handle_event_procstat(void *ctx, void *data, size_t data_sz);
 static int handle_event_sysstat(void *ctx, void *data, size_t data_sz);
 static int attach_uprobes(struct memleak_bpf *skel);
+static void print_flag_modifiers(int flag);
 static int process_paf(struct paf_bpf *skel_paf);
 static int process_pr(struct pr_bpf *skel_pr);
 static int process_procstat(struct procstat_bpf *skel_procstat);
 static int process_sysstat(struct sysstat_bpf *skel_sysstat);
 static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
 static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo);
+static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap);
 static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
 static int update_addr_times(struct memleak_bpf *skel_memleak);
 static int print_time(struct memleak_bpf *skel_memleak);
+static void print_find_event_data(int map_fd);
+static void print_insert_event_data(int map_fd);
 
 // Main function
 int main(int argc, char **argv)
@@ -333,6 +397,7 @@ int main(int argc, char **argv)
 	struct sysstat_bpf *skel_sysstat;
 	struct memleak_bpf *skel_memleak;
 	struct fraginfo_bpf *skel_fraginfo;
+	struct vmasnap_bpf *skel_vmasnap;
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
@@ -359,6 +424,10 @@ int main(int argc, char **argv)
 	else if (env.fraginfo)
 	{
 		PROCESS_SKEL(skel_fraginfo, fraginfo);
+	}
+	else if (env.vmasnap)
+	{
+		PROCESS_SKEL(skel_vmasnap, vmasnap);
 	}
 	else if (env.sysstat)
 	{
@@ -786,36 +855,40 @@ static void setup_signals(void)
 	signal(SIGALRM, sig_handler);
 }
 
-/*
-static char* flags(int flag)
-{
-	if(flag & GFP_ATOMIC)
-		return "GFP_ATOMIC";
-	if(flag & GFP_KERNEL)
-		return "GFP_KERNEL";
-	if(flag & GFP_KERNEL_ACCOUNT)
-		return "GFP_KERNEL_ACCOUNT";
-	if(flag & GFP_NOWAIT)
-		return "GFP_NOWAIT";
-	if(flag & GFP_NOIO )
-		return "GFP_NOIO ";
-	if(flag & GFP_NOFS)
-		return "GFP_NOFS";
-	if(flag & GFP_USER)
-		return "GFP_USER";
-	if(flag & GFP_DMA)
-		return "GFP_DMA";
-	if(flag & GFP_DMA32)
-		return "GFP_DMA32";
-	if(flag & GFP_HIGHUSER)
-		return "GFP_HIGHUSER";
-	if(flag & GFP_HIGHUSER_MOVABLE)
-		return "GFP_HIGHUSER_MOVABLE";
-	if(flag & GFP_TRANSHUGE_LIGHT)
-		return "GFP_TRANSHUGE_LIGHT";
-	return;
+static void print_flag_modifiers(int flag) {
+    char combined[512] = {0}; // 用于保存组合修饰符
+    char separate[512] = {0}; // 用于保存单独标志位
+
+    // 检查组合修饰符
+    for (int i = 0; i < sizeof(gfp_combined_list) / sizeof(gfp_combined_list[0]); ++i) {
+        if ((flag & gfp_combined_list[i].flag) == gfp_combined_list[i].flag) {
+            strcat(combined, gfp_combined_list[i].name);
+            strcat(combined, " | ");
+        }
+    }
+
+    // 移除最后一个 " | " 字符串的末尾
+    if (strlen(combined) > 3) {
+        combined[strlen(combined) - 3] = '\0';
+    }
+
+    // 检查单独标志位
+    for (int i = 0; i < sizeof(gfp_separate_list) / sizeof(gfp_separate_list[0]); ++i) {
+        if (flag & gfp_separate_list[i].flag) {
+            strcat(separate, gfp_separate_list[i].name);
+            strcat(separate, " | ");
+        }
+    }
+
+    // 移除最后一个 " | " 字符串的末尾
+    if (strlen(separate) > 3) {
+        separate[strlen(separate) - 3] = '\0';
+    }
+
+    // 打印组合修饰符和单独标志位
+    printf("%-50s %-100s\n", combined, separate);
 }
-*/
+
 static int handle_event_paf(void *ctx, void *data, size_t data_sz)
 {
 	const struct paf_event *e = data;
@@ -827,8 +900,10 @@ static int handle_event_paf(void *ctx, void *data, size_t data_sz)
 	tm = localtime(&t);
 	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 
-	printf("%-8lu %-8lu  %-8lu %-8lu %-8x\n",
-		   e->min, e->low, e->high, e->present, e->flag);
+	printf("%-8lu %-8lu %-8lu %-8lu %-8x ",
+		e->min, e->low, e->high, e->present, e->flag);
+	print_flag_modifiers(e->flag);
+	printf("\n");
 
 	return 0;
 }
@@ -1198,4 +1273,113 @@ static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo)
 fraginfo_cleanup:
 	fraginfo_bpf__destroy(skel_fraginfo);
     return -err;
+}
+
+// ================================================== vmasnap ====================================================================
+static void print_find_event_data(int map_fd) {
+    __aligned_u64 key = 0;
+    __aligned_u64 next_key;
+    struct find_event_t event;
+
+    printf("Reading find events...\n");
+
+    // Print header
+    printf("%-10s %-20s %-15s %-20s %-20s %-20s %-20s\n",
+           "PID", "Address", "Duration", "VMACache Hit", "RB Subtree Last", "VM Start", "VM End");
+
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
+        if (bpf_map_lookup_elem(map_fd, &next_key, &event) == 0) {
+            printf("%-10llu %-20lu %-15llu %-20d %-20llu %-20llu %-20llu\n",
+                   next_key, event.addr, event.duration, event.vmacache_hit,
+                   event.rb_subtree_last, event.vm_start, event.vm_end);
+
+            // Delete the element from the map after printing
+            if (bpf_map_delete_elem(map_fd, &next_key) != 0) {
+                perror("Failed to delete element from map");
+            }
+        }
+
+        // Use a temporary variable to handle key update
+        __aligned_u64 temp_key = next_key;
+        key = temp_key;
+    }
+}
+
+
+static void print_insert_event_data(int map_fd) {
+    __aligned_u64 key = 0;
+    __aligned_u64 next_key;
+    struct insert_event_t event;
+
+    printf("Reading insert events...\n");
+
+    // Print header
+    printf("%-10s %-15s %-15s %-20s %-20s %-20s %-20s %-20s\n",
+           "PID", "Duration", "List", "RB", "Interval Tree", "List Time", "RB Time", "Interval Tree Time");
+
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
+        if (bpf_map_lookup_elem(map_fd, &next_key, &event) == 0) {
+            printf("%-10llu %-15llu %-15d %-20d %-20d %-20llu %-20llu %-20llu\n",
+                   next_key, event.duration, event.inserted_to_list, event.inserted_to_rb,
+                   event.inserted_to_interval_tree, event.link_list_duration,
+                   event.link_rb_duration, event.interval_tree_duration);
+
+            // Delete the element from the map after printing
+            if (bpf_map_delete_elem(map_fd, &next_key) != 0) {
+                perror("Failed to delete element from map");
+            }
+        }
+
+        // Use a temporary variable to handle key update
+        __aligned_u64 temp_key = next_key;
+        key = temp_key;
+    }
+}
+
+static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap) {
+	int err;
+
+    // Load and verify BPF application
+    skel_vmasnap = vmasnap_bpf__open();
+    if (!skel_vmasnap) {
+        fprintf(stderr, "Failed to open BPF skeleton\n");
+        return 1;
+    }
+
+    // Load & verify BPF programs
+    err = vmasnap_bpf__load(skel_vmasnap);
+    if (err) {
+        fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+        goto vmasnap_cleanup;
+    }
+
+    // Attach tracepoints
+    err = vmasnap_bpf__attach(skel_vmasnap);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto vmasnap_cleanup;
+    }
+
+    printf("Successfully started! Press Ctrl-C to exit.\n");
+
+	// Get the file descriptors for the maps
+    int find_map_fd = bpf_map__fd(skel_vmasnap->maps.find_events);
+    int insert_map_fd = bpf_map__fd(skel_vmasnap->maps.insert_events);
+
+    if (find_map_fd < 0 || insert_map_fd < 0) {
+        fprintf(stderr, "Failed to get file descriptor for maps\n");
+        goto vmasnap_cleanup;
+    }
+
+    // Main loop
+    while (!exiting) {
+        // Print events data every second
+        print_find_event_data(find_map_fd);
+        print_insert_event_data(insert_map_fd);
+        sleep(1);
+    }
+
+vmasnap_cleanup:
+    vmasnap_bpf__destroy(skel_vmasnap);
+    return 0;
 }

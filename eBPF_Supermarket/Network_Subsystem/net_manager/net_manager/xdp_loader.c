@@ -62,18 +62,20 @@ static const struct option_wrapper long_options[] = {
 	{{"stats",       no_argument,       NULL, 't' },
 	 "Show XDP stats"},
 
-	{{"ip-filter",   no_argument,       NULL, 'i' },
+	{{"ip-filter",   required_argument, NULL, 'i' },
 	 "ip_filter"},
 
-	{{"mac_filter",  no_argument,       NULL, 'm' },
+	{{"mac_filter",  required_argument,       NULL, 'm' },
 	 "mac_filter"},
 
-	{{"router",      no_argument,       NULL, 'k' },
+	{{"router",      required_argument,       NULL, 'k' },
 	 "package_router"},
 	
 	{{"clear",       no_argument,       NULL, 'n' },
 	 "clear_map"},
 	
+	{{"config",       no_argument,       NULL, 'T' },
+	 "config from user to kernel"},
 	{{0, 0, NULL,  0 }, NULL, false}
 };
 
@@ -361,7 +363,6 @@ int load_bpf_map(){
     rules_ipv4_map = open_map(ifname, "rules_ipv4_map");
     rtcache_map4 = open_map(ifname, "rtcache_map4");
     src_macs = open_map(ifname, "src_macs");
-
     // Check if any map failed to open
     if (rules_ipv4_map < 0) {
         fprintf(stderr, "Failed to open rules_ipv4_map\n");
@@ -410,13 +411,14 @@ int clear_map(){
 }
 
 
-int load_handler_router(int argc, char *argv[]){
-    if(argc < 1){
-        print_usage(1);
-        return EXIT_FAILURE;
-    }
+int load_handler_router(char * router_file){
+    if(!router_file)	
+	{
+		perror("ERR: loading ROUTER filter is not exist! \n");
+		return 1;
+	}
 
-    char *path = argv[0];
+    char *path = router_file;
     printf("loading config file:%s\n",path);
     
     FILE *file = fopen(path, "r");
@@ -467,13 +469,14 @@ int load_handler_router(int argc, char *argv[]){
 }
 
 
-int load_handler_ipv4(int argc, char *argv[]){
-    if(argc < 1){
-        print_usage(1);
-        return EXIT_FAILURE;
-    }
+int load_handler_ipv4(char* ip_filter_file){
+    if(!ip_filter_file)	
+	{
+		perror("ERR: loading IP filter is not exist! \n");
+		return 1;
+	}
 
-    char *path = argv[0];
+    char *path = ip_filter_file;
     printf("loading config file:%s\n",path);
     
     FILE *file = fopen(path, "r");
@@ -488,6 +491,7 @@ int load_handler_ipv4(int argc, char *argv[]){
     __u32 i = 1;
     keys[0] = 0;
     char line[256];
+	printf("-----------------------------------------------------------------------------------------------\n");
     while (fgets(line, sizeof(line), file) != NULL) {
         line[strcspn(line, "\n")] = '\0';
 
@@ -525,9 +529,12 @@ int load_handler_ipv4(int argc, char *argv[]){
         rules[i].prev_rule = i - 1;
         rules[i].next_rule = 0;
         keys[i] = i;
+		printf("源地址:%u.%u.%u.%u:%u 目的地址:%u.%u.%u.%u:%u 源端口:%d 目的端口:%d 协议类型:%s 策略:%s\n",saddr[0],saddr[1],saddr[2],saddr[3],rules[i].saddr_mask,
+		daddr[0],daddr[1],daddr[2],daddr[3],rules[i].daddr_mask,rules[i].sport,rules[i].dport,proto,action);
 
         i += 1;
     }
+	printf("-----------------------------------------------------------------------------------------------\n");
     printf("%d rules loaded\n",i-1);
     rules[0].prev_rule = i - 1;
 
@@ -554,13 +561,14 @@ int load_handler_ipv4(int argc, char *argv[]){
 }
 
 
-int load_handler_mac(int argc, char *argv[]){
-    if(argc < 1){
-        print_usage(1);
-        return EXIT_FAILURE;
-    }
+int load_handler_mac(char* mac_filter_file){
+    if(!mac_filter_file)	
+	{
+		perror("ERR: loading MAC filter is not exist! \n");
+		return 1;
+	}
 
-    char *path = argv[0];
+    char *path = mac_filter_file;
     printf("loading config file:%s\n",path);
     
     FILE *file = fopen(path, "r");
@@ -611,14 +619,13 @@ int clear_handler(int argc, char *argv[]){
     return 0;
 }
 
-
-
 int main(int argc, char **argv)
 {
 	int i;
 	int map_fd;
 	struct bpf_object *obj;
 	struct xdp_program *program;  // XDP程序对象指针
+	
 	struct bpf_map_info map_expect = { 0 };
 	struct bpf_map_info info = { 0 };
 	int stats_map_fd;
@@ -655,43 +662,6 @@ int main(int argc, char **argv)
 		usage(argv[0], __doc__, long_options, (argc == 1));
 		return EXIT_FAIL_OPTION;
 	}
-
-	if (cfg.show_stats) {
-		/* Use the --dev name as subdir for finding pinned maps */
-		len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
-		if (len < 0) {
-			fprintf(stderr, "ERR: creating pin dirname\n");
-			return EXIT_FAIL_OPTION;
-		}
-
-		stats_map_fd = open_bpf_map_file(pin_dir, "xdp_stats_map", &info);
-		if (stats_map_fd < 0) {
-			return EXIT_FAIL_BPF;
-		}
-
-		/* check map info, e.g. datarec is expected size */
-		map_expect.key_size    = sizeof(__u32);
-		map_expect.value_size  = sizeof(struct datarec);
-		map_expect.max_entries = XDP_ACTION_MAX;
-		err = check_map_fd_info(&info, &map_expect);
-		if (err) {
-			fprintf(stderr, "ERR: map via FD not compatible\n");
-			return err;
-		}
-		if (verbose) {
-			printf("\nCollecting stats from BPF map\n");
-			printf(" - BPF map (bpf_map_type:%d) id:%d name:%s"
-			       " key_size:%d value_size:%d max_entries:%d\n",
-			       info.type, info.id, info.name,
-			       info.key_size, info.value_size, info.max_entries
-			       );
-		}
-
-		stats_poll(stats_map_fd, info.type, interval);
-		return EXIT_OK;
-	}
-
-
 	/* Generate pin_dir & map_filename string */
 	// 生成pin目录和映射文件名字符串
 	len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
@@ -769,27 +739,35 @@ int main(int argc, char **argv)
 		fprintf(stderr, "ERR: pinning maps\n");
 		return err;
 	}
+	ifname = cfg.ifname;
 
-	ifname = argv[2];
+
+	map_fd = open_bpf_map_file(pin_dir, "print_info_map", NULL);
+	if (map_fd < 0) {
+		return EXIT_FAIL_BPF;
+	}
+	i = 0;
+	bpf_map_update_elem(map_fd, &i, &cfg.print_info, 0);
+	
 
 	// 根据不同的选项加载不同的配置文件
     if (cfg.ip_filter) {
 		load_bpf_map();
-        err = load_handler_ipv4(argc - 3, argv + 6);
+        err = load_handler_ipv4(cfg.ip_filter_file);
         if (err) {
             fprintf(stderr, "ERR: loading IP filter config file\n");
             return err;
         }
     } else if (cfg.mac_filter) {
 		load_bpf_map();
-        err = load_handler_mac(argc - 3, argv + 6);
+        err = load_handler_mac(cfg.mac_filter_file);
         if (err) {
             fprintf(stderr, "ERR: loading MAC filter config file\n");
             return err;
         }
     } else if (cfg.router) {
 		load_bpf_map();
-        err = load_handler_router(argc - 3, argv + 6);
+        err = load_handler_router(cfg.router_file);
         if (err) {
             fprintf(stderr, "ERR: loading router config file\n");
             return err;
@@ -813,5 +791,41 @@ int main(int argc, char **argv)
 	i = 0;
 	bpf_map_update_elem(map_fd, &i, &cfg.ifindex, 0);	
 	printf("redirect from ifnum=%d to ifnum=%d\n", cfg.ifindex, cfg.ifindex);
-	return EXIT_OK;
+
+	//打印统计信息
+	if (cfg.show_stats) {
+		/* Use the --dev name as subdir for finding pinned maps */
+		len = snprintf(pin_dir, PATH_MAX, "%s/%s", pin_basedir, cfg.ifname);
+		if (len < 0) {
+			fprintf(stderr, "ERR: creating pin dirname\n");
+			return EXIT_FAIL_OPTION;
+		}
+
+		stats_map_fd = open_bpf_map_file(pin_dir, "xdp_stats_map", &info);
+		if (stats_map_fd < 0) {
+			return EXIT_FAIL_BPF;
+		}
+
+		/* check map info, e.g. datarec is expected size */
+		map_expect.key_size    = sizeof(__u32);
+		map_expect.value_size  = sizeof(struct datarec);
+		map_expect.max_entries = XDP_ACTION_MAX;
+		err = check_map_fd_info(&info, &map_expect);
+		if (err) {
+			fprintf(stderr, "ERR: map via FD not compatible\n");
+			return err;
+		}
+		if (verbose) {
+			printf("\nCollecting stats from BPF map\n");
+			printf(" - BPF map (bpf_map_type:%d) id:%d name:%s"
+			       " key_size:%d value_size:%d max_entries:%d\n",
+			       info.type, info.id, info.name,
+			       info.key_size, info.value_size, info.max_entries
+			       );
+		}
+
+		stats_poll(stats_map_fd, info.type, interval);
+		return EXIT_OK;
+	}
+		
 }

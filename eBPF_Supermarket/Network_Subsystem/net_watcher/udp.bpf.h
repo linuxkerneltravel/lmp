@@ -126,12 +126,7 @@ static __always_inline int process_dns_packet(struct sk_buff *skb, int rx) {
     u16 QR_flags;
     u64 *count_ptr, response_count = 0, request_count = 0;
     struct sock *sk = BPF_CORE_READ(skb, sk);
-    struct packet_tuple pkt_tuple = {
-        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),
-        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),
-        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),
-        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),
-        .tran_flag = UDP};
+    INIT_PACKET_UDP_TUPLE(sk, pkt_tuple);
     // 使用saddr、daddr作为key
     struct dns key = {.saddr = pkt_tuple.saddr, .daddr = pkt_tuple.daddr};
 

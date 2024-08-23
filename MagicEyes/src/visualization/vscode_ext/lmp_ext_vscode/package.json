@@ -101,7 +101,13 @@
           "default": "/home/fzy/Desktop/panels/",
           "description": "the default panels search path",
           "order": 4
-        }   
+        },
+        "grafana-vscode.default_tool_config_file": {
+          "type": "string",
+          "default": "/home/fzy/lmp_tool_ext_config.json",
+          "description": "the default tool config file",
+          "order": 5
+        }     
       }
     },
     "viewsContainers": {
@@ -172,9 +178,9 @@
   },
   "dependencies": {
     "@types/uuid": "^9.0.6",
-    "axios": "^1.4.0",
+    "axios": "^1.7.4",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
+    "express": "^4.18.2",
     "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^2.0.6",
     "open": "^8.4.2",

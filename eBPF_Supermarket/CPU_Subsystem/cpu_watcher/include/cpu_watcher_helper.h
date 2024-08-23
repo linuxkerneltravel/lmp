@@ -25,6 +25,7 @@
 #define PREEMPT_WACTHER 40
 #define SCHEDULE_WACTHER 50
 #define MQ_WACTHER 60
+#define MUTEX_WATCHER 70
 #define HASH_SIZE 1024
 
 /*----------------------------------------------*/
@@ -74,6 +75,7 @@ const char *sc_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/sc_ctrl_map";
 const char *preempt_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/preempt_ctrl_map";
 const char *schedule_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/schedule_ctrl_map";
 const char *mq_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/mq_ctrl_map";
+const char *mu_ctrl_path =  "/sys/fs/bpf/cpu_watcher_map/mu_ctrl_map";
 
 int common_pin_map(struct bpf_map **bpf_map, const struct bpf_object *obj, const char *map_name, const char *ctrl_path)
 {
@@ -203,6 +205,23 @@ int update_mq_ctrl_map(struct mq_ctrl mq_ctrl){
     return 0;
 }
 
+int update_mu_ctrl_map(struct mu_ctrl mu_ctrl){
+	int err,key = 0;
+	int srcmap_fd;
+	
+	srcmap_fd = bpf_obj_get(mu_ctrl_path);
+    if (srcmap_fd < 0) {
+        fprintf(stderr,"Failed to open mq_ctrl_map file\n");
+        return srcmap_fd;
+    }
+    err = bpf_map_update_elem(srcmap_fd,&key,&mu_ctrl, 0);
+    if(err < 0){
+        fprintf(stderr, "Failed to update mq_ctrl_map elem\n");
+        return err;
+    }
+
+    return 0;
+}
 /*----------------------------------------------*/
 /*              mutex_count                     */
 /*----------------------------------------------*/
@@ -279,4 +298,56 @@ void add_entry(int pid, const char *comm, long long delay) {
         seen_count++;
     }
 }
+/*----------------------------------------------*/
+/*                   uprobe                     */
+/*----------------------------------------------*/
+static const char object[] = "/usr/lib/x86_64-linux-gnu/libc.so.6";
+
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)  \
+    do                                                           \
+    {                                                            \
+		LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                \
+                    .retprobe = is_retprobe,                     \
+                    .func_name = #sym_name);                     \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts( \
+            skel->progs.prog_name,                               \
+            -1,                                                 \
+            object,                                              \
+            0,                                                   \
+            &uprobe_opts);                                       \
+    } while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                                                      \
+    do                                                                                        \
+    {                                                                                         \
+        if (!skel->links.prog_name)                                                           \
+        {                                                                                     \
+            fprintf(stderr, "[%s] no program attached for" #prog_name "\n", strerror(errno)); \
+            return -errno;                                                                    \
+        }                                                                                     \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do                                                                  \
+    {                                                                   \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
+#define CHECK_ERR(cond, info)                               \
+    if (cond)                                               \
+    {                                                       \
+        fprintf(stderr, "[%s]" info "\n", strerror(errno));                                   \
+        return -1;                                          \
+    }
+
+#define warn(...) fprintf(stderr, __VA_ARGS__)
+
+
 #endif // CPU_WATCHER_HELPER_H
