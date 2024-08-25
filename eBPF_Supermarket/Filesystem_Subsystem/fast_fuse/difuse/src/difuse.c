@@ -151,6 +151,25 @@ void add_child_dentry(struct dfs_dentry *parent, struct dfs_dentry *child)
     parent->child = child;
 }
 
+static int remove_child_dentry(struct dfs_dentry *parent, struct dfs_dentry *child)
+{
+    struct dfs_dentry *prev_child = NULL;
+    struct dfs_dentry *cur_child = parent->child;
+
+    while (cur_child != NULL && cur_child != child)
+    {
+        prev_child = cur_child;
+        cur_child = cur_child->brother;
+    }
+    if (cur_child == NULL)
+        return 0;
+
+    if (prev_child == NULL)
+        parent->child = cur_child->brother;
+    else prev_child->brother = cur_child->brother;
+    return 1;
+}
+
 struct dfs_dentry *traverse_path(struct dfs_dentry *start_dentry, const char *path, int ftype, int create)
 {
     struct dfs_dentry *dentry = start_dentry;
@@ -220,6 +239,51 @@ struct dfs_dentry *lookup_or_create_dentry(const char *path, struct dfs_dentry *
 
 
 /*功能函数*/
+static int di_unlink(const char *path)
+{
+    struct dfs_dentry *dentry = look_up(root, path);
+
+    if (dentry == NULL)
+        return -ENOENT;
+    if (dentry->ftype != FILE_TYPE)
+        return -EISDIR;
+
+    if (remove_child_dentry(dentry->parent, dentry))
+    {
+        lru_remove(dentry);
+        unsigned int index = hash(dentry->fname);
+        hash_table[index] = NULL;
+        free(dentry->inode);
+        free(dentry);
+        return 0;
+    }
+    return -ENOENT;
+}
+
+static int di_rmdir(const char *path)
+{
+    struct dfs_dentry *dentry = look_up(root, path);
+
+    if (dentry == NULL)
+        return -ENOENT;
+    if (dentry->ftype != DIRECTORY_TYPE)
+        return -ENOTDIR;
+    if (dentry->child != NULL)
+        return -ENOTEMPTY;
+
+    // 移除子目录项
+    if (remove_child_dentry(dentry->parent, dentry))
+    {
+        lru_remove(dentry);
+        unsigned int index = hash(dentry->fname);
+        hash_table[index] = NULL;
+        free(dentry->inode);
+        free(dentry);
+        return 0;
+    }
+    return -ENOENT;
+}
+
 static int di_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi)
 {
     (void)fi;
@@ -369,6 +433,8 @@ static struct fuse_operations difs_ops = {
     .mkdir = di_mkdir,
     .create = dfs_create,
     .utimens = di_utimens,
+    .unlink = di_unlink,
+    .rmdir = di_rmdir,
 };
 
 int main(int argc, char *argv[])

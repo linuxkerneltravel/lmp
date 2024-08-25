@@ -200,4 +200,20 @@ struct RTT {
     u64 latency;
     u64 cnt;
 };
+
+struct reset_event_t {
+    int pid;
+    char comm[16];
+    u16 family;
+    unsigned __int128 saddr_v6;
+    unsigned __int128 daddr_v6;
+    u32 saddr;
+    u32 daddr;
+    u16 sport;
+    u16 dport;
+    u8 direction; // 0 for send, 1 for receive
+    u64 count;
+    u64 timestamp;
+    u8 state;
+};
 #endif /* __NETWATCHER_H */

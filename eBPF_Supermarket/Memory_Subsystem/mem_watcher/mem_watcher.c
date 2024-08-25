@@ -34,6 +34,7 @@
 #include "sysstat.skel.h"
 #include "fraginfo.skel.h"
 #include "memleak.skel.h"
+#include "vmasnap.skel.h"
 #include "mem_watcher.h"
 #include "fraginfo.h"
 
@@ -229,6 +230,7 @@ static struct env
 	bool sysstat;
 	bool memleak;
 	bool fraginfo;
+	bool vmasnap;
 	bool kernel_trace;
 	bool print_time;
 	int interval;
@@ -245,6 +247,7 @@ static struct env
 	.sysstat = false,
 	.memleak = false,
 	.fraginfo = false,
+	.vmasnap = false,
 	.kernel_trace = true,
 	.print_time = false,
 	.rss = false,
@@ -286,6 +289,9 @@ static const struct argp_option opts[] = {
 	{"fraginfo", 'f', 0, 0, "print fraginfo",12},
 	{"interval", 'i', "INTERVAL", 0, "Print interval in seconds (default 1)"},
 	{"duration", 'd', "DURATION", 0, "Total duration in seconds to run (default 10)"},
+
+	{0, 0, 0, 0, "vmasnap:", 13},
+	{"vmasnap", 'v', 0, 0, "print vmasnap (虚拟内存区域信息)"},
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
 };
@@ -310,6 +316,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		break;
 	case 'f':
 		env.fraginfo = true;
+		break;
+	case 'v':
+		env.vmasnap = true;
 		break;
 	case 's':
 		env.sysstat = true;
@@ -371,9 +380,12 @@ static int process_procstat(struct procstat_bpf *skel_procstat);
 static int process_sysstat(struct sysstat_bpf *skel_sysstat);
 static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
 static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo);
+static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap);
 static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
 static int update_addr_times(struct memleak_bpf *skel_memleak);
 static int print_time(struct memleak_bpf *skel_memleak);
+static void print_find_event_data(int map_fd);
+static void print_insert_event_data(int map_fd);
 
 // Main function
 int main(int argc, char **argv)
@@ -385,6 +397,7 @@ int main(int argc, char **argv)
 	struct sysstat_bpf *skel_sysstat;
 	struct memleak_bpf *skel_memleak;
 	struct fraginfo_bpf *skel_fraginfo;
+	struct vmasnap_bpf *skel_vmasnap;
 
 	err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
 	if (err)
@@ -411,6 +424,10 @@ int main(int argc, char **argv)
 	else if (env.fraginfo)
 	{
 		PROCESS_SKEL(skel_fraginfo, fraginfo);
+	}
+	else if (env.vmasnap)
+	{
+		PROCESS_SKEL(skel_vmasnap, vmasnap);
 	}
 	else if (env.sysstat)
 	{
@@ -1256,4 +1273,113 @@ static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo)
 fraginfo_cleanup:
 	fraginfo_bpf__destroy(skel_fraginfo);
     return -err;
+}
+
+// ================================================== vmasnap ====================================================================
+static void print_find_event_data(int map_fd) {
+    __aligned_u64 key = 0;
+    __aligned_u64 next_key;
+    struct find_event_t event;
+
+    printf("Reading find events...\n");
+
+    // Print header
+    printf("%-10s %-20s %-15s %-20s %-20s %-20s %-20s\n",
+           "PID", "Address", "Duration", "VMACache Hit", "RB Subtree Last", "VM Start", "VM End");
+
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
+        if (bpf_map_lookup_elem(map_fd, &next_key, &event) == 0) {
+            printf("%-10llu %-20lu %-15llu %-20d %-20llu %-20llu %-20llu\n",
+                   next_key, event.addr, event.duration, event.vmacache_hit,
+                   event.rb_subtree_last, event.vm_start, event.vm_end);
+
+            // Delete the element from the map after printing
+            if (bpf_map_delete_elem(map_fd, &next_key) != 0) {
+                perror("Failed to delete element from map");
+            }
+        }
+
+        // Use a temporary variable to handle key update
+        __aligned_u64 temp_key = next_key;
+        key = temp_key;
+    }
+}
+
+
+static void print_insert_event_data(int map_fd) {
+    __aligned_u64 key = 0;
+    __aligned_u64 next_key;
+    struct insert_event_t event;
+
+    printf("Reading insert events...\n");
+
+    // Print header
+    printf("%-10s %-15s %-15s %-20s %-20s %-20s %-20s %-20s\n",
+           "PID", "Duration", "List", "RB", "Interval Tree", "List Time", "RB Time", "Interval Tree Time");
+
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
+        if (bpf_map_lookup_elem(map_fd, &next_key, &event) == 0) {
+            printf("%-10llu %-15llu %-15d %-20d %-20d %-20llu %-20llu %-20llu\n",
+                   next_key, event.duration, event.inserted_to_list, event.inserted_to_rb,
+                   event.inserted_to_interval_tree, event.link_list_duration,
+                   event.link_rb_duration, event.interval_tree_duration);
+
+            // Delete the element from the map after printing
+            if (bpf_map_delete_elem(map_fd, &next_key) != 0) {
+                perror("Failed to delete element from map");
+            }
+        }
+
+        // Use a temporary variable to handle key update
+        __aligned_u64 temp_key = next_key;
+        key = temp_key;
+    }
+}
+
+static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap) {
+	int err;
+
+    // Load and verify BPF application
+    skel_vmasnap = vmasnap_bpf__open();
+    if (!skel_vmasnap) {
+        fprintf(stderr, "Failed to open BPF skeleton\n");
+        return 1;
+    }
+
+    // Load & verify BPF programs
+    err = vmasnap_bpf__load(skel_vmasnap);
+    if (err) {
+        fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+        goto vmasnap_cleanup;
+    }
+
+    // Attach tracepoints
+    err = vmasnap_bpf__attach(skel_vmasnap);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto vmasnap_cleanup;
+    }
+
+    printf("Successfully started! Press Ctrl-C to exit.\n");
+
+	// Get the file descriptors for the maps
+    int find_map_fd = bpf_map__fd(skel_vmasnap->maps.find_events);
+    int insert_map_fd = bpf_map__fd(skel_vmasnap->maps.insert_events);
+
+    if (find_map_fd < 0 || insert_map_fd < 0) {
+        fprintf(stderr, "Failed to get file descriptor for maps\n");
+        goto vmasnap_cleanup;
+    }
+
+    // Main loop
+    while (!exiting) {
+        // Print events data every second
+        print_find_event_data(find_map_fd);
+        print_insert_event_data(insert_map_fd);
+        sleep(1);
+    }
+
+vmasnap_cleanup:
+    vmasnap_bpf__destroy(skel_vmasnap);
+    return 0;
 }
