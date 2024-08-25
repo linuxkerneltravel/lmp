@@ -213,7 +213,7 @@ void parse_cmdline_args(int argc, char **argv,
 				goto error;
 			}
 			// 设置文件路径
-			cfg->mac_filter_file = (char *)&cfg->mac_filter_file_buf; //初始化ip_filter_file
+			cfg->mac_filter_file = (char *)&cfg->mac_filter_file_buf; //初始化mac_filter_file
 			strncpy(cfg->mac_filter_file, optarg, FILE_MAXSIZE);
 			break;
 		case 'k':

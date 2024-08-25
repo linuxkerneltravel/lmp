@@ -5,7 +5,7 @@
 #include <bpf/bpf_endian.h>
 
 #include "common_kern_user.h" 
-#include "../common/parsing_helpers.h"
+#include "./common/parsing_helpers.h"
 
 #ifndef memcpy
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
@@ -42,6 +42,13 @@ struct {
 	__uint(max_entries, MAX_RULES);
 } rules_ipv4_map SEC(".maps");
 
+// mac—filter
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, __u16);
+	__type(value, struct rules_mac);
+	__uint(max_entries, MAX_RULES);
+} rules_mac_map SEC(".maps");
 
 // router
 struct {
@@ -58,16 +65,6 @@ struct {
 	__type(value, struct rt_item);
 	__uint(max_entries, MAX_RULES);
 } rtcache_map4 SEC(".maps");
-
-
-/*filter-pass-drop*/
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, ETH_ALEN);
-	__type(value, __u32);
-	__uint(max_entries, MAX_RULES);
-} src_macs SEC(".maps");
-
 
 // 会话保持
 struct {
@@ -213,7 +210,7 @@ static int match_rules_ipv4_loop(__u32 index, void *ctx)
 
 	if(index == 0)
 		goto out_match_rules_ipv4_loop;
-	//bpf_printk("match_rules_ipv4_loop %d",index);
+	bpf_printk("match_rules_ipv4_loop %d",index);
 	if( ipv4_cidr_match(p_ctx->conn->saddr, p_r->saddr, p_r->saddr_mask) && 
 		ipv4_cidr_match(p_ctx->conn->daddr, p_r->daddr, p_r->daddr_mask) &&
 		port_match(p_ctx->conn->sport, p_r->sport) &&
@@ -476,6 +473,92 @@ out:
 	return xdp_stats_record_action(ctx, action);
 }
 
+struct match_rules_loop_mac_ctx{
+	__u16 action;
+	__u16 next_rule;
+	struct conn_mac *conn;
+};
+
+static inline int bpf_memcmp(const void *a, const void *b, size_t len) {
+    const unsigned char *p1 = a;
+    const unsigned char *p2 = b;
+    size_t i;
+
+    for (i = 0; i < len; i++) {
+        if (p1[i] != p2[i]) {
+            return p1[i] - p2[i];
+        }
+    }
+    return 0;
+}
+static __always_inline
+int mac_match(__u8 *conn_mac, __u8 *rule_mac) {
+    __u8 zero_mac[ETH_ALEN] = {0};  // 全零的MAC地址
+
+    // 如果rule_mac全为零，匹配所有MAC地址
+    if (bpf_memcmp(rule_mac, zero_mac, ETH_ALEN) == 0) {
+        return 1;
+    }
+
+    // 如果rule_mac的后三个字节为零，且前三个字节与conn_mac相同
+    if (bpf_memcmp(&rule_mac[3], zero_mac, 3) == 0) {
+        if (bpf_memcmp(conn_mac, rule_mac, 3) == 0) {
+            return 1;  // 匹配前三字节
+        }
+    }
+
+    // 检查规则MAC与连接MAC是否完全匹配
+    if (bpf_memcmp(rule_mac, conn_mac, ETH_ALEN) == 0) {
+        return 1;  // 完全匹配
+    }
+
+    return 0;  // 不匹配
+}
+
+
+static int match_rules_mac_loop(__u32 index, void *ctx)
+{
+	struct match_rules_loop_mac_ctx *p_ctx = (struct match_rules_loop_mac_ctx *)ctx;
+	if(index != p_ctx->next_rule)
+		return 0;
+	struct rules_mac *p_r = bpf_map_lookup_elem(&rules_mac_map, &index);
+	if(!p_r){
+		return 1; //out of range
+	}
+	p_ctx->next_rule = p_r->next_rule;
+	
+	if(index == 0)
+		goto out_match_rules_mac_loop;
+	//bpf_printk("match_rules_ipv4_loop %d",index);
+	// bpf_printk("MAC_SRC: %02x:%02x:%02x:%02x:%02x:%02x\n",p_r->source[0], p_r->source[1], p_r->source[2],p_r->source[3], p_r->source[4], p_r->source[5]);
+	// bpf_printk("MAC_DEST: %02x:%02x:%02x:%02x:%02x:%02x ,Action: %d\n",p_r->dest[0], p_r->dest[1], p_r->dest[2],p_r->dest[3], p_r->dest[4], p_r->dest[5], 
+	// 					  p_r->action);
+	if(mac_match(p_ctx->conn->dest, p_r->dest)&&mac_match(p_ctx->conn->source, p_r->source)) 
+	{
+		p_ctx->action = p_r->action;
+		return 1;
+	}
+
+out_match_rules_mac_loop:
+	if(p_r->next_rule == 0)
+		return 1; //go out loop
+
+	return 0;
+}
+
+static __always_inline
+xdp_act match_rules_mac(struct conn_mac *conn)
+{
+	struct match_rules_loop_mac_ctx ctx = {.action = XDP_PASS, .conn = conn, .next_rule = 0};
+	
+	
+	for(int i=0; i<MAX_RULES; i++){
+		if(match_rules_mac_loop(i,&ctx))
+			break;
+	}
+
+	return ctx.action;
+}
 
 /* accept ethernet addresses and filter everything else */
 SEC("xdp")
@@ -487,9 +570,10 @@ int xdp_entry_mac(struct xdp_md *ctx)
 	struct hdr_cursor nh;
 	int nh_type; //next header type
 	struct ethhdr *eth;
-	__u32 *value;
-
-
+	struct conn_mac conn = {
+    	.dest = {0},    // 初始化 dest 成员为全零
+    	.source = {0}   // 初始化 source 成员为全零
+	};
 	nh.pos = data;
 
 	nh_type = parse_ethhdr(&nh, data_end, &eth);
@@ -499,13 +583,17 @@ int xdp_entry_mac(struct xdp_md *ctx)
 
 	//action = match_rules_ipv4(&eth->h_source);
 
-	/* check if src mac is in src_macs map */
-	value = bpf_map_lookup_elem(&src_macs, eth->h_source);
-	if (value) {
-        action = *value;
-		goto out;
+	// /* check if src mac is in src_macs map */
+	// value = bpf_map_lookup_elem(&src_macs, eth->h_source);
+	// if (value) {
+    //     action = *value;
+	// 	goto out;
+    // }
+	for (int i = 0; i < ETH_ALEN; i++) {
+        conn.source[i] = eth->h_source[i];
+        conn.dest[i] = eth->h_dest[i];
     }
-	
+	action = match_rules_mac(&conn);
 
 out:
 	return xdp_stats_record_action(ctx, action);
