@@ -325,7 +325,7 @@ out:
 
 /* Solution to packet03/assignment-4 */
 SEC("xdp")
-int xdp_entry_router(struct xdp_md *ctx)
+int xdp_entry_router1(struct xdp_md *ctx)
 {
 	xdp_act action = XDP_PASS; 
 	void *data_end = (void *)(long)ctx->data_end;
@@ -365,7 +365,7 @@ int xdp_entry_router(struct xdp_md *ctx)
 		nitem.saddr = ip4_saddr;
 		
 		// 首先精确查找转发表，如果找到就直接转发，不必再经历最长前缀匹配的慢速通配查找
-		match_rules(&nitem);
+		match_rules(&nitem);//rtcache_map4
 	
 		
 
@@ -793,11 +793,100 @@ out:
 	
 }
 
-SEC("xdp")
-int test(struct xdp_md *ctx)
+// 最简单的一个转发表项
+struct rt_item_tab{
+	int ifindex; // 转发出去的接口
+	char eth_source[ETH_ALEN]; // 封装帧的源MAC地址。
+	char eth_dest[ETH_ALEN]; // 封装帧的目标MAC地址。
+};
+
+// 路由转发表缓存
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, __u32);
+	__type(value, struct rt_item_tab);
+	__uint(max_entries, MAX_RULES);
+} rtcache_map SEC(".maps");
+// 递减TTL还是要的
+static __always_inline int __ip_decrease_ttl(struct iphdr *iph)
 {
-	bpf_printk("1111111111 test\n");
+	__u32 check = iph->check;
+	check += bpf_htons(0x0100);
+	iph->check = (__u16)(check + (check >= 0xFFFF));
+	return --iph->ttl;
+}
+// 字节码的C程序本身
+SEC("xdp")
+int xdp_entry_router(struct xdp_md *ctx)
+{
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	struct bpf_fib_lookup ifib;
+	struct ethhdr *eth = data;
+	struct iphdr *iph;
+	struct rt_item_tab *pitem = NULL;
+	unsigned int daddr = 0;
+	__u16 h_proto;
+	__u64 nh_off;
+	char fast_info[] = "Fast path to [%d]\n";
+	char slow_info[] = "Slow path to [%d]\n";
+
+	nh_off = sizeof(*eth);
+	if (data + nh_off > data_end) {
+		return XDP_DROP;
+	}
+
+	__builtin_memset(&ifib, 0, sizeof(ifib));
+	h_proto = eth->h_proto;
+	if (h_proto != bpf_htons(ETH_P_IP)) {
+		return XDP_PASS;
+	}
+
+	iph = data + nh_off;
+
+	if (iph + 1 > data_end) {
+		return XDP_DROP;
+	}
+
+	daddr = iph->daddr;
+
+	pitem = bpf_map_lookup_elem(&rtcache_map, &daddr);
+	// 首先精确查找转发表，如果找到就直接转发，不必再经历最长前缀匹配的慢速通配查找
+	// 这个动作是可以offload到硬件中的。
+	if (pitem) {
+		__ip_decrease_ttl(iph);
+		memcpy(eth->h_dest, pitem->eth_dest, ETH_ALEN);
+		memcpy(eth->h_source, pitem->eth_source, ETH_ALEN);
+		bpf_trace_printk(fast_info, sizeof(fast_info), pitem->ifindex);
+		return bpf_redirect(pitem->ifindex, 0);
+	}
+
+	// 否则只能执行最长前缀匹配了
+	ifib.family = AF_INET;
+	ifib.tos = iph->tos;
+	ifib.l4_protocol = iph->protocol;
+	ifib.tot_len = bpf_ntohs(iph->tot_len);
+	ifib.ipv4_src = iph->saddr;
+	ifib.ipv4_dst = iph->daddr;
+	ifib.ifindex = ctx->ingress_ifindex;
+
+	// 调用eBPF封装的路由查找函数，虽然所谓慢速查找，也依然不会进入协议栈的。
+	if (bpf_fib_lookup(ctx, &ifib, sizeof(ifib), 0) == 0) {
+		struct rt_item_tab nitem;
+
+		__builtin_memset(&nitem, 0, sizeof(nitem));
+		memcpy(&nitem.eth_dest, ifib.dmac, ETH_ALEN);
+		memcpy(&nitem.eth_source, ifib.smac, ETH_ALEN);
+		nitem.ifindex = ifib.ifindex;
+		// 插入新的表项
+		bpf_map_update_elem(&rtcache_map, &daddr, &nitem, BPF_ANY);
+		__ip_decrease_ttl(iph);
+		memcpy(eth->h_dest, ifib.dmac, ETH_ALEN);
+		memcpy(eth->h_source, ifib.smac, ETH_ALEN);
+		bpf_trace_printk(slow_info, sizeof(slow_info), ifib.ifindex);
+		return bpf_redirect(ifib.ifindex, 0);
+	}
+
 	return XDP_PASS;
 }
-
 char _license[] SEC("license") = "GPL";
