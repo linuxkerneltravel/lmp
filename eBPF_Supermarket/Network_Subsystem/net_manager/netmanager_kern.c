@@ -830,7 +830,7 @@ int xdp_entry_router(struct xdp_md *ctx)
 	__u64 nh_off;
 	char fast_info[] = "Fast path to [%d]\n";
 	char slow_info[] = "Slow path to [%d]\n";
-
+	int action = XDP_DROP;
 	nh_off = sizeof(*eth);
 	if (data + nh_off > data_end) {
 		return XDP_DROP;
@@ -858,7 +858,8 @@ int xdp_entry_router(struct xdp_md *ctx)
 		memcpy(eth->h_dest, pitem->eth_dest, ETH_ALEN);
 		memcpy(eth->h_source, pitem->eth_source, ETH_ALEN);
 		bpf_trace_printk(fast_info, sizeof(fast_info), pitem->ifindex);
-		return bpf_redirect(pitem->ifindex, 0);
+		action = bpf_redirect(pitem->ifindex, 0);
+		goto out;
 	}
 
 	// 否则只能执行最长前缀匹配了
@@ -884,9 +885,11 @@ int xdp_entry_router(struct xdp_md *ctx)
 		memcpy(eth->h_dest, ifib.dmac, ETH_ALEN);
 		memcpy(eth->h_source, ifib.smac, ETH_ALEN);
 		bpf_trace_printk(slow_info, sizeof(slow_info), ifib.ifindex);
-		return bpf_redirect(ifib.ifindex, 0);
+		action = bpf_redirect(ifib.ifindex, 0);
+		goto out;
 	}
-
-	return XDP_PASS;
+	action = XDP_PASS;
+out:
+	return xdp_stats_record_action(ctx, action);
 }
 char _license[] SEC("license") = "GPL";
