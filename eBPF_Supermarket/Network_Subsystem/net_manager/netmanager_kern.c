@@ -857,7 +857,8 @@ int xdp_entry_router(struct xdp_md *ctx)
 		__ip_decrease_ttl(iph);
 		memcpy(eth->h_dest, pitem->eth_dest, ETH_ALEN);
 		memcpy(eth->h_source, pitem->eth_source, ETH_ALEN);
-		bpf_trace_printk(fast_info, sizeof(fast_info), pitem->ifindex);
+		bpf_printk("%s----daddr : %d prot:%d",fast_info,daddr,pitem->ifindex);
+		//bpf_trace_printk(fast_info, sizeof(fast_info), pitem->ifindex);
 		action = bpf_redirect(pitem->ifindex, 0);
 		goto out;
 	}
@@ -884,7 +885,8 @@ int xdp_entry_router(struct xdp_md *ctx)
 		__ip_decrease_ttl(iph);
 		memcpy(eth->h_dest, ifib.dmac, ETH_ALEN);
 		memcpy(eth->h_source, ifib.smac, ETH_ALEN);
-		bpf_trace_printk(slow_info, sizeof(slow_info), ifib.ifindex);
+		bpf_printk("%s----daddr : %d prot:%d",slow_info,daddr,nitem.ifindex);
+		//bpf_trace_printk(slow_info, sizeof(slow_info), ifib.ifindex);
 		action = bpf_redirect(ifib.ifindex, 0);
 		goto out;
 	}
