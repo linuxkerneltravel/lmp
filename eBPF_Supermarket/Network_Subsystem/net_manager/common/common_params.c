@@ -224,7 +224,7 @@ void parse_cmdline_args(int argc, char **argv,
 				goto error;
 			}
 			// 设置文件路径
-			cfg->router_file = (char *)&cfg->router_file_buf; //初始化ip_filter_file
+			cfg->router_file = (char *)&cfg->router_file_buf; //初始化router_file
 			strncpy(cfg->router_file, optarg, FILE_MAXSIZE);
 			break;
 		case 'g':
