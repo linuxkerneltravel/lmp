@@ -27,7 +27,13 @@
 #define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
 
 #define TASK_RUNNING	0x00000000
-
+// #define MUTEX_FLAG  1
+// #define RWLOCK_FLAG  2
+// #define SPIN_FLAG  3
+// #define RCU_FLAG  4
+// #define FUTEX_FLAG  5
+typedef long long unsigned int u64;
+typedef unsigned int u32;
 #define MAX_STACK_DEPTH 128
 typedef __u64 stack_trace_t[MAX_STACK_DEPTH];
 
@@ -113,6 +119,46 @@ struct lock_event{
 	int ret;
     long long unsigned int lock_ptr;
     long long unsigned int time;
+};
+
+//mfutex
+struct __pthread_mutex
+{
+  unsigned int __lock;
+  unsigned int __owner_id;
+  unsigned int __cnt;
+  int __shpid;
+  int __type;
+  int __flags;
+  union
+  {
+    unsigned int __reserved[2];
+    void *__pointer_aligned;
+  };
+};
+
+struct mfutex_ctrl{
+    bool lock_func;
+    bool enable_myproc;
+	pid_t target_pid;
+	pid_t target_tgid;
+};
+
+struct lock_record_key{
+	u64 lock_ptr;//哪个锁
+	int pid;//进程号
+};
+struct record_lock_key{
+	u64 lock_ptr;//哪个锁
+	int cnt;//第几次申请该锁
+};
+struct per_lock_event{
+	u64 lock_ptr;
+	int type;//1:互斥锁；2：读写锁读锁；3：读写锁写锁；4：自旋锁
+    
+	int owner;//目前谁持有锁；
+	u64 time;//持有锁的时间；
+	int cnt;//等待锁+持有锁的数量；
 };
 
 // keytime_image

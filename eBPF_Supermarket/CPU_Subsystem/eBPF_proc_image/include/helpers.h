@@ -62,8 +62,6 @@
 
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
-typedef long long unsigned int u64;
-typedef unsigned int u32;
 
 #define NR_syscalls 500
 
@@ -78,6 +76,7 @@ const char *kt_ctrl_path = "/sys/fs/bpf/proc_image_map/kt_ctrl_map";
 const char *lock_ctrl_path = "/sys/fs/bpf/proc_image_map/lock_ctrl_map";
 const char *sched_ctrl_path = "/sys/fs/bpf/proc_image_map/sched_ctrl_map";
 const char *sc_ctrl_path = "/sys/fs/bpf/proc_image_map/sc_ctrl_map";
+const char *mfutex_ctrl_path = "/sys/fs/bpf/proc_image_map/mfutex_ctrl_map";
 
 struct proc_syscall_info {
     int first_syscall;
@@ -217,6 +216,23 @@ int update_lock_ctrl_map(struct lock_ctrl lock_ctrl){
         return err;
     }
 
+    return 0;
+}
+
+int update_mfutex_ctrl_map(struct mfutex_ctrl mfutex_ctrl){
+	int err,key = 0;
+	int mfutexmap_fd;
+	
+	mfutexmap_fd = bpf_obj_get(mfutex_ctrl_path);
+    if (mfutexmap_fd < 0) {
+        fprintf(stderr,"Failed to open mfutex_ctrl_map file\n");
+        return mfutexmap_fd;
+    }
+    err = bpf_map_update_elem(mfutexmap_fd,&key,&mfutex_ctrl, 0);
+    if(err < 0){
+        fprintf(stderr, "Failed to update mfutex_ctrl_map elem\n");
+        return err;
+    }
     return 0;
 }
 

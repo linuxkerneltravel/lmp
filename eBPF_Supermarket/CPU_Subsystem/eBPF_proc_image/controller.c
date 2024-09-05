@@ -49,6 +49,7 @@ static struct env {
     bool enable_lock;
     bool enable_syscall;
     bool enable_schedule;
+    bool enable_mfutex;
     bool is_container;
 }  env = {
     .usemode = 0,
@@ -70,6 +71,7 @@ static struct env {
     .enable_syscall = false,
     .enable_schedule = false,
     .is_container = false,
+    .enable_mfutex = false,
 };
 
 const char argp_program_doc[] ="Trace process to get process image.\n";
@@ -89,6 +91,7 @@ static const struct argp_option opts[] = {
     { "lock", 'l', NULL, 0, "Collects lock information about processes" },
     { "syscall", 's', "SYSCALLS", 0, "Collects syscall sequence (1~50) information about processes(any 1~50 when deactivated)" },
     { "schedule", 'S', NULL, 0, "Collects schedule information about processes (trace tool process)" },
+    { "mfutex", 'M', NULL, 0, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
     {},
 };
@@ -175,6 +178,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
         case 'S':
                 env.enable_schedule = true;
                 break;
+        case 'M':
+                env.enable_mfutex = true;
+                break;
         case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 				break;
@@ -215,6 +221,12 @@ int deactivate_mode(){
     if(env.enable_schedule){
         struct sched_ctrl sched_ctrl = {false,-1,-1,-1};
         err = update_sched_ctrl_map(sched_ctrl);
+        if(err < 0) return err;
+    }
+
+    if(env.enable_mfutex){
+        struct mfutex_ctrl mfutex_ctrl = {false,false,-1,-1};
+        err = update_mfutex_ctrl_map(mfutex_ctrl);
         if(err < 0) return err;
     }
 
@@ -259,6 +271,12 @@ int main(int argc, char **argv)
         if(env.enable_lock){
             struct lock_ctrl lock_ctrl = {true,env.enable_myproc,env.pid,env.tgid};
             err = update_lock_ctrl_map(lock_ctrl);
+            if(err < 0) return err;
+        }
+
+        if(env.enable_mfutex){
+            struct mfutex_ctrl mfutex_ctrl = {true,env.enable_myproc,env.pid,env.tgid};
+            err = update_mfutex_ctrl_map(mfutex_ctrl);
             if(err < 0) return err;
         }
 
