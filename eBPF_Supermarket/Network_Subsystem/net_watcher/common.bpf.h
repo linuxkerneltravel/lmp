@@ -238,6 +238,11 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
+} redis_stat_rb SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
 
 // 存储每个tcp连接所对应的conn_t
@@ -352,13 +357,21 @@ struct {
     __type(value, u64);
     __uint(max_entries, 1024);
 } counters SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, char*);  // 键的最大长度，假设为 256 字节
+    __type(value, u32);     // 计数值
+    __uint(max_entries, 1024);  // 最大条目数
+} key_count SEC(".maps");
+
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
                    layer_time = 0, http_info = 0, retrans_info = 0,
                    udp_info = 0, net_filter = 0, drop_reason = 0, icmp_info = 0,
                    tcp_info = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
-                   redis_info = 0, rtt_info = 0, rst_info = 0;
+                   redis_info = 0, rtt_info = 0, rst_info = 0, redis_stat = 0;
 
 /* help macro */
 
