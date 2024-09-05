@@ -20,7 +20,7 @@ struct {
     __type(value, u32);
 } io_count_map SEC(".maps");
 
-// Tracepoint 处理程序
+// 这里挂载点得是这个struct trace_event_raw_block_rq_completion *ctx
 SEC("tracepoint/block/block_rq_complete")
 int tracepoint_block_visit(struct trace_event_raw_block_rq_completion *ctx) {
     struct event *e;

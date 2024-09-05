@@ -1,11 +1,11 @@
 #ifndef __FS_WATCHER_H
 #define __FS_WATCHER_H
 
-/*open*/
+
 #define path_size 256
 
 #define TASK_COMM_LEN 256
-
+/*open*/
 struct event_open {
 	int pid_;
 	char path_name_[path_size];

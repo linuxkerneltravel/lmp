@@ -4,7 +4,6 @@
 #include <bpf/libbpf.h>
 #include "block_rq_issue.h"
 #include "block_rq_issue.skel.h"
-#include <inttypes.h> // For PRIu64
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {

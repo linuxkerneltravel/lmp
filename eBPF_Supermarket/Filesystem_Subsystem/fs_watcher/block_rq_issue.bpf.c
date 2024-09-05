@@ -12,7 +12,7 @@ struct {
     __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
-// Tracepoint 处理程序
+// 这里挂载点必须是struct trace_event_raw_block_rq_completion *ctx
 SEC("tracepoint/block/block_rq_issue")
 int tracepoint_block_rq_issue(struct trace_event_raw_block_rq_completion *ctx) {
     struct event *e;

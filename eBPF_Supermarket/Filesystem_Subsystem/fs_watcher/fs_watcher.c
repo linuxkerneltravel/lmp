@@ -229,7 +229,6 @@ static int handle_event_open(void *ctx, void *data, size_t data_sz)
 	int i = 0;
     int map_fd = *(int *)ctx;//传递map得文件描述符
     
-
 	for (; i < e->n_; ++i) {
 		snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", e->pid_,
 			 i);

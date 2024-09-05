@@ -3,7 +3,6 @@
 
 #define TASK_COMM_LEN 256
 
-// 定义事件结构体
 struct event {
     long timestamp;       // 时间戳
     int dev;           // 设备号
