@@ -38,12 +38,15 @@ VMLINUX := ../vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC) -I./
+INCLUDES := -I$(OUTPUT) -I../../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESYM_INC) -I./include
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS =cs_delay sar sc_delay preempt schedule_delay mq_delay
+APPS =cs_delay sar sc_delay preempt schedule_delay mq_delay mutrace
 TARGETS=cpu_watcher
+CONTROLLER := controller
+
+SRC_DIR = ./include
 
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
@@ -79,12 +82,12 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(TARGETS)
+all: $(CONTROLLER) $(TARGETS)
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(TARGETS)
+	$(Q)rm -rf $(OUTPUT) $(TARGETS) $(CONTROLLER)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -112,7 +115,7 @@ $(LIBBLAZESYM_OBJ): $(LIBBLAZESYM_SRC)/target/release/libblazesym.a | $(OUTPUT)
 	$(Q)cp $(LIBBLAZESYM_SRC)/target/release/libblazesym.a $@
 
 # Build BPF code
-$(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
+$(OUTPUT)/%.bpf.o: bpf/%.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)		      \
 		     $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES)		      \
@@ -126,14 +129,40 @@ $(APPS): %: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
 	$(Q)$(BPFTOOL) gen skeleton $< > $(OUTPUT)/$@.skel.h
 
 # Build user-space code
+$(OUTPUT)/%.o: $(SRC_DIR)/%.c | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(OUTPUT)/%.o: $(CONTROLLER).c | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
 $(OUTPUT)/$(TARGETS).o: $(TARGETS).c $(APPS) | $(OUTPUT)
 	$(call msg,CC,$@)
 	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
 
 # Build application binary
+$(CONTROLLER): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+	$(call msg,BINARY,$@)
+	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+	
 $(TARGETS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
+	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
+
+SUCCESS_MESSAGE:
+	@echo "\e[38;2;255;0;0m                                      __       __             \e[0m"
+	@echo "\e[38;2;255;128;0m  _________  __  __   _      ______ _/ /______/ /_  ___  _____\e[0m"
+	@echo "\e[38;2;255;255;0m / ___/ __ \/ / / /  | | /| / / __  / __/ ___/ __ \/ _ \/ ___/\e[0m"
+	@echo "\e[38;2;128;255;0m/ /__/ /_/ / /_/ /   | |/ |/ / /_/ / /_/ /__/ / / /  __/ /    \e[0m"
+	@echo "\e[38;2;0;255;0m\___/ .___/\__,_/    |__/|__/\__,_/\__/\___/_/ /_/\___/_/     \e[0m"
+	@echo "\e[38;2;0;255;128m   /_/                                                       \e[0m"
+	@echo "\e[38;2;0;255;255mSuccessful to compile cpu_watcher tools:                      \e[0m"
+	@echo "\e[38;2;0;255;255mPlease start your use ~                                      \e[0m"
+
+	
+all: $(TARGETS) SUCCESS_MESSAGE
+
 
 # delete failed targets
 .DELETE_ON_ERROR:

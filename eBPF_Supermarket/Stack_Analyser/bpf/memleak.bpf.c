@@ -21,41 +21,34 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "task.h"
 #include "bpf_wapper/memleak.h"
 
 COMMON_MAPS(union combined_alloc_info);
 COMMON_VALS;
-const volatile __u64 sample_rate = 1;
 const volatile bool wa_missing_free = false;
 const volatile size_t page_size = 4096;
 const volatile bool trace_all = false;
 
-BPF_HASH(pid_size_map, u32, u64);             // 记录了对应进程使用malloc,calloc等函数申请内存的大小
-BPF_HASH(piddr_meminfo_map, piddr, mem_info); // 记录了每次申请的内存空间的起始地址等信息
-BPF_HASH(memptrs_map, u32, u64);
+BPF_HASH(pid_size_map, u32, u64, MAX_ENTRIES);             // 记录了对应进程使用malloc,calloc等函数申请内存的大小
+BPF_HASH(piddr_meminfo_map, piddr, mem_info, MAX_ENTRIES); // 记录了每次申请的内存空间的起始地址等信息
+BPF_HASH(memptrs_map, u32, u64, MAX_ENTRIES);
 
 const char LICENSE[] SEC("license") = "GPL";
 
 static int gen_alloc_enter(size_t size)
 {
     CHECK_ACTIVE;
-    if (!size)
-        return 0;
-    if (sample_rate > 1)
-    {
-        if (bpf_ktime_get_ns() % sample_rate != 0)
-            return 0;
-    }
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    RET_IF_KERN(curr);
-    // update group
-    // group share memory
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    // attach 时已设置目标tgid，这里无需再次过滤tgid
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
+
     u32 tgid = BPF_CORE_READ(curr, tgid);
-    if (tgid == self_pid)
-        return 0;
-    SAVE_TASK_INFO(tgid, curr);
+    TRY_SAVE_INFO(curr, tgid, tgid, knode);
     if (trace_all)
         bpf_printk("alloc entered, size = %lu\n", size);
     // record size
@@ -72,7 +65,7 @@ static int gen_alloc_exit2(void *ctx, u64 addr)
     if (!size)
         return 0;
     // record counts
-    psid apsid = GET_COUNT_KEY(tgid, ctx);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(tgid, ctx);
     union combined_alloc_info *count = bpf_map_lookup_elem(&psid_count_map, &apsid);
     union combined_alloc_info cur = {
         .number_of_allocs = 1,
@@ -100,7 +93,6 @@ static int gen_alloc_exit2(void *ctx, u64 addr)
 
 static int gen_alloc_exit(struct pt_regs *ctx)
 {
-    CHECK_ACTIVE;
     return gen_alloc_exit2(ctx, PT_REGS_RC(ctx));
 }
 
@@ -111,7 +103,7 @@ static int gen_free_enter(const void *addr)
     piddr a = {.addr = (u64)addr, .pid = tgid, ._pad = 0};
     mem_info *info = bpf_map_lookup_elem(&piddr_meminfo_map, &a);
     if (!info)
-        return -1;
+        return 0;
 
     // get allocated size
     psid apsid = {
@@ -492,7 +484,7 @@ int memleak__mm_page_free(struct trace_event_raw_mm_page_free *ctx)
 SEC("tracepoint/percpu/percpu_alloc_percpu")
 int memleak__percpu_alloc_percpu(struct trace_event_raw_percpu_alloc_percpu *ctx)
 {
-    gen_alloc_enter(ctx->bytes_alloc);
+    gen_alloc_enter(ctx->size);
 
     return gen_alloc_exit2(ctx, (u64)(ctx->ptr));
 }

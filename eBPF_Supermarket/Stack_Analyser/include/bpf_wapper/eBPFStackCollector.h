@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include <vector>
 #include <string>
-#include "sa_user.h"
+#include "user.h"
 
 struct Scale
 {
@@ -48,7 +48,7 @@ struct CountItem
 class StackCollector
 {
 protected:
-    int self_pid = -1;
+    int self_tgid = -1;
     struct bpf_object *obj = NULL;
 
     // 默认显示计数的变化情况，即每次输出数据后清除计数
@@ -58,8 +58,11 @@ protected:
 public:
     Scale *scales;
 
-    int pid = -1; // 用于设置ebpf程序跟踪的pid
-    int err = 0;  // 用于保存错误代码
+    uint32_t top = 10;
+    uint32_t freq = 49;
+    uint64_t cgroup = 0;
+    uint32_t tgid = 0;
+    int err = 0; // 用于保存错误代码
 
     bool ustack = false; // 是否跟踪用户栈
     bool kstack = false; // 是否跟踪内核栈
@@ -76,23 +79,8 @@ public:
     StackCollector();
     operator std::string();
 
-    /// @brief 负责ebpf程序的加载、参数设置和打开操作
-    /// @param  无
-    /// @return 成功则返回0，否则返回负数
-    virtual int load(void) = 0;
-
-    /// @brief 将ebpf程序挂载到跟踪点上
-    /// @param  无
-    /// @return 成功则返回0，否则返回负数
-    virtual int attach(void) = 0;
-
-    /// @brief 断开ebpf的跟踪点和处理函数间的连接
-    /// @param  无
-    virtual void detach(void) = 0;
-
-    /// @brief 卸载ebpf程序
-    /// @param  无
-    virtual void unload(void) = 0;
+    virtual int ready(void) = 0;
+    virtual void finish(void) = 0;
 
     /// @brief 激活eBPF程序
     /// @param  无
@@ -106,23 +94,26 @@ public:
 /// @brief 加载、初始化参数并打开指定类型的ebpf程序
 /// @param ... 一些ebpf程序全局变量初始化语句
 /// @note 失败会使上层函数返回-1
-#define EBPF_LOAD_OPEN_INIT(...)                       \
-    {                                                  \
-        skel = skel->open(NULL);                       \
-        CHECK_ERR(!skel, "Fail to open BPF skeleton"); \
-        __VA_ARGS__;                                   \
-        skel->rodata->trace_user = ustack;             \
-        skel->rodata->trace_kernel = kstack;           \
-        skel->rodata->self_pid = self_pid;             \
-        err = skel->load(skel);                        \
-        CHECK_ERR(err, "Fail to load BPF skeleton");   \
-        obj = skel->obj;                               \
+#define EBPF_LOAD_OPEN_INIT(...)                           \
+    {                                                      \
+        skel = skel->open(NULL);                           \
+        CHECK_ERR_RN1(!skel, "Fail to open BPF skeleton"); \
+        __VA_ARGS__;                                       \
+        skel->rodata->trace_user = ustack;                 \
+        skel->rodata->trace_kernel = kstack;               \
+        skel->rodata->self_tgid = self_tgid;               \
+        skel->rodata->target_tgid = tgid;                  \
+        skel->rodata->target_cgroupid = cgroup;            \
+        skel->rodata->freq = freq;                         \
+        err = skel->load(skel);                            \
+        CHECK_ERR_RN1(err, "Fail to load BPF skeleton");   \
+        obj = skel->obj;                                   \
     }
 
-#define ATTACH_PROTO                                     \
-    {                                                    \
-        err = skel->attach(skel);                        \
-        CHECK_ERR(err, "Failed to attach BPF skeleton"); \
+#define ATTACH_PROTO                                         \
+    {                                                        \
+        err = skel->attach(skel);                            \
+        CHECK_ERR_RN1(err, "Failed to attach BPF skeleton"); \
     }
 
 #define DETACH_PROTO            \

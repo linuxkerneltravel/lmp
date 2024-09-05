@@ -17,13 +17,15 @@
 // 包装用于采集调用栈数据的eBPF程序，规定一些抽象接口和通用变量
 
 #include "bpf_wapper/eBPFStackCollector.h"
-#include "sa_user.h"
-#include "dt_symbol.h"
+#include "user.h"
+#include "trace.h"
 
 #include <sstream>
 #include <map>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+#include <linux/version.h>
+#include <cxxabi.h>
 
 std::string getLocalDateTime(void)
 {
@@ -44,7 +46,7 @@ bool operator<(const CountItem a, const CountItem b)
 
 StackCollector::StackCollector()
 {
-    self_pid = getpid();
+    self_tgid = getpid();
 };
 
 std::vector<CountItem> *StackCollector::sortedCountList(void)
@@ -53,25 +55,44 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
     auto val_size = bpf_map__value_size(psid_count_map);
     auto value_fd = bpf_object__find_map_fd_by_name(obj, "psid_count_map");
 
+    auto D = new std::vector<CountItem>();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+    for (psid prev_key = {0}, curr_key = {0};; prev_key = curr_key)
+    {
+        if (bpf_map_get_next_key(value_fd, &prev_key, &curr_key))
+        {
+            if (errno != ENOENT)
+                perror("map get next key error");
+            break; // no more keys, done
+        }
+        if (showDelta)
+            bpf_map_delete_elem(value_fd, &prev_key);
+        char val[val_size];
+        memset(val, 0, val_size);
+        if (bpf_map_lookup_elem(value_fd, &curr_key, &val))
+        {
+            if (errno != ENOENT)
+            {
+                perror("map lookup error");
+                break;
+            }
+            continue;
+        }
+        CountItem d(curr_key, count_values(val));
+        D->insert(std::lower_bound(D->begin(), D->end(), d), d);
+    }
+#else
     auto keys = new psid[MAX_ENTRIES];
     auto vals = new char[MAX_ENTRIES * val_size];
     uint32_t count = MAX_ENTRIES;
     psid next_key;
     int err;
     if (showDelta)
-    {
         err = bpf_map_lookup_and_delete_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
-    }
     else
-    {
         err = bpf_map_lookup_batch(value_fd, NULL, &next_key, keys, vals, &count, NULL);
-    }
     if (err == EFAULT)
-    {
         return NULL;
-    }
-
-    auto D = new std::vector<CountItem>();
     for (uint32_t i = 0; i < count; i++)
     {
         CountItem d(keys[i], count_values(vals + val_size * i));
@@ -79,6 +100,7 @@ std::vector<CountItem> *StackCollector::sortedCountList(void)
     }
     delete[] keys;
     delete[] vals;
+#endif
     return D;
 };
 
@@ -87,12 +109,21 @@ StackCollector::operator std::string()
     std::ostringstream oss;
     oss << _RED "time:" << getLocalDateTime() << _RE "\n";
     std::map<int32_t, std::vector<std::string>> traces;
+    std::map<uint32_t, task_info> infos;
 
     oss << _BLUE "counts:" _RE "\n";
     {
         auto D = sortedCountList();
         if (!D)
             return oss.str();
+        if ((*D).size() > top)
+        {
+            auto end = (*D).end();
+            auto begin = end - top;
+            for (auto i = (*D).begin(); i < begin; i++)
+                delete i->v;
+            (*D).assign(begin, end);
+        }
         oss << _GREEN "pid\tusid\tksid";
         for (int i = 0; i < scale_num; i++)
             oss << '\t' << scales[i].Type << "/" << scales[i].Period << scales[i].Unit;
@@ -112,67 +143,55 @@ StackCollector::operator std::string()
             auto trace_fd = bpf_object__find_map_fd_by_name(obj, "sid_trace_map");
             if (id.usid > 0 && traces.find(id.usid) == traces.end())
             {
-                std::vector<std::string> sym_trace;
-                bpf_map_lookup_elem(trace_fd, &id.usid, trace);
-                for (p = trace + MAX_STACKS - 1; !*p; p--)
-                    ;
-                for (; p >= trace; p--)
+                syms = syms_cache__get_syms(syms_cache, id.pid);
+                if (!syms)
+                    fprintf(stderr, "failed to get syms\n");
+                else
                 {
-                    uint64_t &addr = *p;
-                    symbol sym;
-                    sym.reset(addr);
-                    elf_file file;
-                    if (g_symbol_parser.find_symbol_in_cache(id.pid, addr, sym.name))
+                    bpf_map_lookup_elem(trace_fd, &id.usid, trace);
+                    for (p = trace + MAX_STACKS - 1; !*p; p--)
                         ;
-                    else if (g_symbol_parser.get_symbol_info(id.pid, sym, file) && g_symbol_parser.find_elf_symbol(sym, file, id.pid, id.pid))
+                    std::vector<std::string> sym_trace(p - trace + 1);
+                    for (int i = 0; p >= trace; p--)
                     {
-                        if (sym.name[0] == '_' && sym.name[1] == 'Z')
-                        // 代表是C++符号，则调用demangle解析
+                        struct sym *sym = syms__map_addr(syms, *p);
+                        if (sym)
                         {
-                            sym.name = demangleCppSym(sym.name);
+                            if (sym->name[0] == '_' && sym->name[1] == 'Z')
+                            {
+                                char *demangled = abi::__cxa_demangle(sym->name, NULL, NULL, NULL);
+                                if (demangled)
+                                {
+                                    clearSpace(demangled);
+                                    sym->name = demangled;
+                                }
+                            }
+                            sym_trace[i++] = std::string(sym->name) + "+" + std::to_string(sym->offset);
                         }
-                        std::stringstream ss("");
-                        ss << "+0x" << std::hex << (addr - sym.start);
-                        sym.name += ss.str();
-                        g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
+                        else
+                            sym_trace[i++] = "[unknown]";
                     }
-                    else
-                    {
-                        std::stringstream ss("");
-                        ss << "0x" << std::hex << addr;
-                        sym.name = ss.str();
-                        g_symbol_parser.putin_symbol_cache(id.pid, addr, sym.name);
-                    }
-                    clearSpace(sym.name);
-                    sym_trace.push_back(sym.name);
+                    traces[id.usid] = sym_trace;
                 }
-                traces[id.usid] = sym_trace;
             }
             if (id.ksid > 0 && traces.find(id.ksid) == traces.end())
             {
-                std::vector<std::string> sym_trace;
                 bpf_map_lookup_elem(trace_fd, &id.ksid, trace);
                 for (p = trace + MAX_STACKS - 1; !*p; p--)
                     ;
-                for (; p >= trace; p--)
+                std::vector<std::string> sym_trace(p - trace + 1);
+                for (int i = 0; p >= trace; p--)
                 {
-                    uint64_t &addr = *p;
-                    symbol sym;
-                    sym.reset(addr);
-                    if (g_symbol_parser.find_kernel_symbol(sym))
-                        ;
-                    else
-                    {
-                        std::stringstream ss("");
-                        ss << "0x" << std::hex << addr;
-                        sym.name = ss.str();
-                        g_symbol_parser.putin_symbol_cache(pid, addr, sym.name);
-                    }
-                    clearSpace(sym.name);
-                    sym_trace.push_back(sym.name);
+                    const struct ksym *ksym = ksyms__map_addr(ksyms, *p);
+                    sym_trace[i++] = ksym ? std::string(ksym->name) + "+" + std::to_string(*p - ksym->addr)
+                                          : "[unknown]";
                 }
                 traces[id.ksid] = sym_trace;
             }
+            auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
+            task_info info;
+            bpf_map_lookup_elem(info_fd, &id.pid, &info);
+            infos[id.pid] = info;
         }
         delete D;
     }
@@ -191,35 +210,18 @@ StackCollector::operator std::string()
 
     oss << _BLUE "info:" _RE "\n";
     {
-        auto info_fd = bpf_object__find_map_fd_by_name(obj, "pid_info_map");
-        if (info_fd < 0)
+        oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup\t" _RE "\n";
+        for (auto i : infos)
         {
-            return oss.str();
+            auto cgroup_fd = bpf_object__find_map_fd_by_name(obj, "tgid_cgroup_map");
+            char group[CONTAINER_ID_LEN];
+            bpf_map_lookup_elem(cgroup_fd, &(i.second.tgid), &group);
+            oss << i.first << '\t'
+                << i.second.pid << '\t'
+                << i.second.comm << '\t'
+                << i.second.tgid << '\t'
+                << group << '\n';
         }
-        auto keys = new uint32_t[MAX_ENTRIES];
-        auto vals = new task_info[MAX_ENTRIES];
-        uint32_t count = MAX_ENTRIES;
-        uint32_t next_key;
-        {
-            int err;
-            if (showDelta)
-                err = bpf_map_lookup_and_delete_batch(info_fd, NULL, &next_key,
-                                                      keys, vals, &count, NULL);
-            else
-                err = bpf_map_lookup_batch(info_fd, NULL, &next_key,
-                                           keys, vals, &count, NULL);
-            if (err == EFAULT)
-                return oss.str();
-        }
-        oss << _GREEN "pid\tNSpid\tcomm\ttgid\tcgroup" _RE "\n";
-        for (uint32_t i = 0; i < count; i++)
-            oss << keys[i] << '\t'
-                << vals[i].pid << '\t'
-                << vals[i].comm << '\t'
-                << vals[i].tgid << '\t'
-                << vals[i].cid << '\n';
-        delete[] keys;
-        delete[] vals;
     }
 
     oss << _BLUE "OK" _RE "\n";

@@ -23,11 +23,23 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
+          sudo apt install -y libbpf-dev clang llvm libelf-dev libpcap-dev gcc-multilib build-essential
           git submodule update --init --recursive
 
-      - name: Run cpu_watcher
+      - name: Build cpu_watcher
         run: |
           cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/
           make 
-          sudo ./cpu_watcher 
+
+      - name: Run cpu_watcher
+        run: |
+          sudo ./eBPF_Supermarket/CPU_Subsystem/cpu_watcher/cpu_watcher
+
+      - name: Build test_cpuwatcher
+        run: |
+          cd eBPF_Supermarket/CPU_Subsystem/cpu_watcher/test
+          make
+
+      - name: Run test_cpuwatcher
+        run: |
+          ./eBPF_Supermarket/CPU_Subsystem/cpu_watcher/test/test_cpuwatcher

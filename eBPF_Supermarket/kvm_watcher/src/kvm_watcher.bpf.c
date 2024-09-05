@@ -16,21 +16,23 @@
 //
 // Kernel space BPF program used for monitoring data for KVM event.
 
-#include "../include/vmlinux.h"
+#include "vmlinux.h"
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include "../include/kvm_watcher.h"
-#include "../include/kvm_exits.h"
-#include "../include/kvm_ioctl.h"
-#include "../include/kvm_vcpu.h"
-#include "../include/kvm_mmu.h"
-#include "../include/kvm_irq.h"
-#include "../include/kvm_hypercall.h"
+#include "common.h"
+#include "kvm_exits.h"
+#include "kvm_ioctl.h"
+#include "kvm_vcpu.h"
+#include "kvm_mmu.h"
+#include "kvm_irq.h"
+#include "kvm_hypercall.h"
+#include "container.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const volatile pid_t vm_pid = -1;
+const volatile char hostname[64] = "";
 static struct common_event *e;
 
 // 定义环形缓冲区maps
@@ -45,6 +47,13 @@ int BPF_PROG(fentry_kvm_vcpu_halt, struct kvm_vcpu *vcpu) {
     CHECK_PID(vm_pid);
     return trace_kvm_vcpu_halt(vcpu);
 }
+
+SEC("kprobe/kvm_vcpu_halt")
+int BPF_KPROBE(kp_kvm_vcpu_halt, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_kvm_vcpu_halt(vcpu);
+}
+
 // 追踪vcpu运行信息
 SEC("tp/kvm/kvm_vcpu_wakeup")
 int tp_vcpu_wakeup(struct vcpu_wakeup *ctx) {
@@ -67,17 +76,38 @@ SEC("tp/kvm/kvm_entry")
 int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
+
 // 记录VCPU调度的信息--进入
+SEC("fentry/vmx_vcpu_load")
+int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_vmx_vcpu_load(vcpu, cpu);
+}
+
 SEC("kprobe/vmx_vcpu_load")
 int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
     CHECK_PID(vm_pid);
     return trace_vmx_vcpu_load(vcpu, cpu);
 }
+
 // 记录VCPU调度的信息--退出
-SEC("kprobe/vmx_vcpu_put")
-int BPF_KPROBE(kp_vmx_vcpu_put, struct kvm_vcpu *vcpu) {
+SEC("fentry/vmx_vcpu_put")
+int BPF_PROG(fentry_vmx_vcpu_put) {
     return trace_vmx_vcpu_put();
 }
+
+SEC("kprobe/vmx_vcpu_put")
+int BPF_KPROBE(kp_vmx_vcpu_put) {
+    return trace_vmx_vcpu_put();
+}
+
+SEC("fentry/mark_page_dirty_in_slot")
+int BPF_PROG(fentry_mark_page_dirty_in_slot, struct kvm *kvm,
+             const struct kvm_memory_slot *memslot, gfn_t gfn) {
+    CHECK_PID(vm_pid);
+    return trace_mark_page_dirty_in_slot(kvm, memslot, gfn, &rb, e);
+}
+
 SEC("kprobe/mark_page_dirty_in_slot")
 int BPF_KPROBE(kp_mark_page_dirty_in_slot, struct kvm *kvm,
                const struct kvm_memory_slot *memslot, gfn_t gfn) {
@@ -162,9 +192,15 @@ int BPF_PROG(fexit_vmx_inject_irq, struct kvm_vcpu *vcpu, bool reinjected) {
 }
 
 SEC("fentry/kvm_emulate_hypercall")
-int BPF_PROG(fentry_emulate_hypercall, struct kvm_vcpu *vcpu) {
+int BPF_PROG(fentry_kvm_emulate_hypercall, struct kvm_vcpu *vcpu) {
     CHECK_PID(vm_pid);
-    return entry_emulate_hypercall(vcpu, &rb, e);
+    return trace_emulate_hypercall(vcpu, &rb, e);
+}
+
+SEC("kprobe/kvm_emulate_hypercall")
+int BPF_KPROBE(kp_kvm_emulate_hypercall, struct kvm_vcpu *vcpu) {
+    CHECK_PID(vm_pid);
+    return trace_emulate_hypercall(vcpu, &rb, e);
 }
 
 SEC("tp/syscalls/sys_enter_ioctl")
@@ -172,10 +208,13 @@ int tp_ioctl(struct trace_event_raw_sys_enter *args) {
     CHECK_PID(vm_pid);
     return trace_kvm_ioctl(args);
 }
-SEC("fentry/kvm_arch_vcpu_ioctl_run")
-int BPF_PROG(fentry_kvm_arch_vcpu_ioctl_run, struct kvm_vcpu *vcpu) {
+
+SEC("uprobe")
+int BPF_KPROBE(up_kvm_vcpu_ioctl, void *cpu, int type) {
     CHECK_PID(vm_pid);
-    return trace_kvm_userspace_entry(vcpu);
+    if (type != KVM_RUN)
+        return 0;
+    return trace_kvm_vcpu_ioctl();
 }
 
 SEC("tp/kvm/kvm_userspace_exit")
@@ -189,8 +228,42 @@ int BPF_PROG(fentry_start_hv_timer, struct kvm_lapic *apic) {
     return trace_start_hv_timer(apic);
 }
 
+SEC("kprobe/start_hv_timer")
+int BPF_KPROBE(kp_start_hv_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_hv_timer(apic);
+}
+
 SEC("fentry/start_sw_timer")
 int BPF_PROG(fentry_start_sw_timer, struct kvm_lapic *apic) {
     CHECK_PID(vm_pid);
     return trace_start_sw_timer(apic);
+}
+
+SEC("kprobe/start_sw_timer")
+int BPF_KPROBE(kp_start_sw_timer, struct kvm_lapic *apic) {
+    CHECK_PID(vm_pid);
+    return trace_start_sw_timer(apic);
+}
+
+//采集容器的系统用调用信息
+SEC("tracepoint/raw_syscalls/sys_enter")
+int tp_container_sys_entry(struct trace_event_raw_sys_enter *args) {
+    //过滤进程
+    bool is_container = is_container_task(hostname);
+    if (is_container) {
+        return trace_container_sys_entry(args);
+    } else {
+        return 0;
+    }
+}
+SEC("tracepoint/raw_syscalls/sys_exit")
+int tracepoint__syscalls__sys_exit(struct trace_event_raw_sys_exit *args) {
+    //过滤进程
+    bool is_container = is_container_task(hostname);
+    if (is_container) {
+        return trace_container_sys_exit(args, &rb, e);
+    } else {
+        return 0;
+    }
 }

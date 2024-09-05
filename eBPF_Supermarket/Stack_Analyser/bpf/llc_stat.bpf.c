@@ -21,7 +21,7 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "bpf_wapper/llc_stat.h"
 #include "task.h"
 
@@ -31,13 +31,17 @@ COMMON_VALS;
 static __always_inline int trace_event(__u64 sample_period, bool miss, struct bpf_perf_event_data *ctx)
 {
     CHECK_ACTIVE;
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task();
-    RET_IF_KERN(curr);
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if (!pid || pid == self_pid)
-        return 0;
-    SAVE_TASK_INFO(pid, curr);
-    psid apsid = GET_COUNT_KEY(pid, ctx);
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    // perf 中已设置目标tgid，这里无需再次过滤tgid
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
+
+    u32 pid = BPF_CORE_READ(curr, pid);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     llc_stat *infop = bpf_map_lookup_elem(&psid_count_map, &apsid);
     if (!infop)
     {

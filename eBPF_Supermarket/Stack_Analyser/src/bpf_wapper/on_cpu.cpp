@@ -59,26 +59,19 @@ uint64_t *OnCPUStackCollector::count_values(void *data)
     };
 };
 
-int OnCPUStackCollector::load(void)
+int OnCPUStackCollector::ready(void)
 {
     EBPF_LOAD_OPEN_INIT();
-
-    return 0;
-};
-
-int OnCPUStackCollector::attach(void)
-{
-    const char *online_cpus_file = "/sys/devices/system/cpu/online";
     bool *online_mask;
     int num_online_cpus;
-    err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
-    CHECK_ERR(err, "Fail to get online CPU numbers");
+    err = parse_cpu_mask_file("/sys/devices/system/cpu/online", &online_mask, &num_online_cpus);
+    CHECK_ERR_RN1(err, "Fail to get online CPU numbers");
 
     num_cpus = libbpf_num_possible_cpus();
-    CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
+    CHECK_ERR_RN1(num_cpus <= 0, "Fail to get the number of processors");
 
     struct perf_event_attr attr = {
-        .type = PERF_COUNT_HW_CPU_CYCLES,
+        .type = PERF_TYPE_HARDWARE,
         .size = sizeof(attr),
         .config = PERF_COUNT_HW_CPU_CYCLES,
         .sample_freq = freq,
@@ -99,51 +92,48 @@ int OnCPUStackCollector::attach(void)
             continue;
         }
         /* Set up performance monitoring on a CPU/Core */
-        int pefd = perf_event_open(&attr, pid, cpu, -1, 0);
-        CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+        int pefd = perf_event_open(&attr, tgid ? tgid : -1, cpu, -1, 0);
+        if (pefd < 0)
+        {
+            if (attr.type != PERF_TYPE_SOFTWARE)
+            {
+                HINT_ERR("Hardware perf events not exist, try to attach to software event");
+                attr.type = PERF_TYPE_SOFTWARE;
+                attr.config = PERF_COUNT_SW_CPU_CLOCK;
+                pefd = perf_event_open(&attr, tgid ? tgid : -1, cpu, -1, 0);
+                CHECK_ERR_RN1(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+            }
+            else
+                DEAL_ERR(return -1, "Fail to set up performance monitor on a CPU/Core");
+        }
         pefds[cpu] = pefd;
         /* Attach a BPF program on a CPU */
         links[cpu] = bpf_program__attach_perf_event(skel->progs.do_stack, pefd); // 与内核bpf程序联系
-        CHECK_ERR(!links[cpu], "Fail to attach bpf program");
+        CHECK_ERR_RN1(!links[cpu], "Fail to attach bpf program");
     }
     return 0;
 }
 
-void OnCPUStackCollector::detach(void)
+void OnCPUStackCollector::finish(void)
 {
-    if (links)
+    for (int i = 0; i < num_cpus; i++)
     {
-        for (int cpu = 0; cpu < num_cpus; cpu++)
-        {
-            bpf_link__destroy(links[cpu]);
-        }
-        free(links);
-        links = NULL;
+        bpf_link__destroy(links[i]);
+        close(pefds[i]);
     }
-    if (pefds)
-    {
-        for (int i = 0; i < num_cpus; i++)
-        {
-            if (pefds[i] >= 0)
-            {
-                close(pefds[i]);
-            }
-        }
-        free(pefds);
-        pefds = NULL;
-    }
-};
-
-void OnCPUStackCollector::unload(void)
-{
+    free(links);
+    free(pefds);
+    links = NULL;
+    pefds = NULL;
     UNLOAD_PROTO;
-};
+}
 
 void OnCPUStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
 
-const char *OnCPUStackCollector::getName(void) {
+const char *OnCPUStackCollector::getName(void)
+{
     return "OnCPUStackCollector";
 }

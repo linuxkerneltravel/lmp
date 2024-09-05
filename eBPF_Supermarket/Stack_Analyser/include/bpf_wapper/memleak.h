@@ -60,7 +60,6 @@ private:
 public:
     char *object = (char *)"libc.so.6";
     bool percpu = false;
-    __u64 sample_rate = 1;
     bool wa_missing_free = false;
 
 protected:
@@ -70,10 +69,8 @@ protected:
 public:
     MemleakStackCollector();
 
-    virtual int load(void);
-    virtual int attach(void);
-    virtual void detach(void);
-    virtual void unload(void);
+    virtual int ready(void);
+    virtual void finish(void);
     virtual void activate(bool tf);
     virtual const char *getName(void);
 
@@ -91,7 +88,7 @@ public:
         skel->links.prog_name =                                 \
             bpf_program__attach_uprobe_opts(                    \
                 skel->progs.prog_name,                          \
-                pid,                                            \
+                tgid,                                           \
                 object,                                         \
                 0,                                              \
                 &uprobe_opts);                                  \
@@ -107,7 +104,7 @@ public:
     do                                                                                \
     {                                                                                 \
         __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);                      \
-        CHECK_ERR(!skel->links.prog_name, "no program attached for " #prog_name "\n") \
+        CHECK_ERR_RN1(!skel->links.prog_name, "no program attached for " #prog_name "\n") \
     } while (false)
 
 #define ATTACH_UPROBE(skel, sym_name, prog_name) __ATTACH_UPROBE(skel, sym_name, prog_name, false)

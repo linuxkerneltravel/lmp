@@ -21,32 +21,31 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "bpf_wapper/io.h"
 #include "task.h"
 
 COMMON_MAPS(io_tuple);
 COMMON_VALS;
-const volatile int target_pid = 0;
 
 const char LICENSE[] SEC("license") = "GPL";
 
 static int do_stack(struct trace_event_raw_sys_enter *ctx)
 {
     CHECK_ACTIVE;
-    struct task_struct *curr = (struct task_struct *)bpf_get_current_task(); // 利用bpf_get_current_task()获得当前的进程tsk
-    RET_IF_KERN(curr);
-    u32 pid = BPF_CORE_READ(curr, pid); // 利用帮助函数获得当前进程的pid
-    if ((target_pid >= 0 && pid != target_pid) || !pid || pid == self_pid)
-        return 0;
+    CHECK_FREQ(TS);
+    struct task_struct *curr = GET_CURR;
+    CHECK_KTHREAD(curr);
+    u32 tgid = BPF_CORE_READ(curr, tgid);
+    CHECK_TGID(tgid);
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-    SAVE_TASK_INFO(pid, curr);
-
-    // record time delta
-    psid apsid = GET_COUNT_KEY(pid, ctx);
+    u32 pid = BPF_CORE_READ(curr, pid);
+    TRY_SAVE_INFO(curr, pid, tgid, knode);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     io_tuple *d = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count表当中的apsid表项，即size
     u64 len = BPF_CORE_READ(ctx, args[2]);                      // 读取系统调用的第三个参数
-
     if (!d)
     {
         io_tuple tmp = {.count = 1, .size = len};

@@ -13,14 +13,16 @@
 // limitations under the License.
 //
 // author: blown.away@qq.com
+// netwatcher libbpf netfilter
 
 #include "common.bpf.h"
 
 static __always_inline
 int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int rx)
 {
+    int time =0;                                     
     struct netfilter *message;
-
+    FILTER
     message = bpf_ringbuf_reserve(&netfilter_rb, sizeof(*message), 0);
     if(!message){
         return 0;
@@ -34,6 +36,7 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
     message->pre_routing_time = 0;
     message->local_out_time = 0;
     message->post_routing_time = 0;
+    message->forward_time=0;
     message->rx = rx; //收/发/转发方向
 
     if(rx == 1){
@@ -44,20 +47,31 @@ int submit_nf_time(struct packet_tuple pkt_tuple, struct filtertime *tinfo, int 
             message->local_input_time = tinfo->time[e_ip_local_deliver_finish] - 
                                             tinfo->time[e_ip_local_deliver];
             message->pre_routing_time = tinfo->time[e_ip_local_deliver] - 
-                                            tinfo->time[e_ip_rcv];
+                                            tinfo->time[e_ip_rcv];             
             if((int)message->local_input_time < 0 || (int)message->pre_routing_time < 0){
                 bpf_ringbuf_discard(message, 0);      
                 return 0;                                  
             }
         }
     }else{
-        if(tinfo->time[e_ip_forward] && tinfo->time[e_ip_output])
+        if(tinfo->time[e_ip_local_deliver_finish] && 
+            tinfo->time[e_ip_local_deliver] &&
+            tinfo->time[e_ip_rcv] &&
+            tinfo->time[e_ip_forward] && 
+            tinfo->time[e_ip_output])
         {
-            message->forward_time = tinfo->time[e_ip_output] - tinfo->time[e_ip_forward];
-            if((int)message->forward_time < 0){
+            message->local_input_time = tinfo->time[e_ip_local_deliver_finish] - 
+                                            tinfo->time[e_ip_local_deliver];
+            message->pre_routing_time = tinfo->time[e_ip_local_deliver] - 
+                                            tinfo->time[e_ip_rcv]; 
+                                            
+            u64 forward_time = tinfo->time[e_ip_output] - tinfo->time[e_ip_forward];             
+            
+            if((int)forward_time < 0){
                 bpf_ringbuf_discard(message, 0);      
                 return 0;   
             }
+            message->forward_time = forward_time;
             message->rx = 2;
         }
         if(tinfo->time[e_ip_output] &&
@@ -102,9 +116,7 @@ int store_nf_time(struct sk_buff *skb, int hook)
             return 0;
         }
     }                
-
     tinfo->time[hook] = bpf_ktime_get_ns() / 1000;
-
     if(hook == e_ip_local_deliver_finish){
         submit_nf_time(tinfo->init, tinfo, 1);
         bpf_map_delete_elem(&netfilter_time, &skb);

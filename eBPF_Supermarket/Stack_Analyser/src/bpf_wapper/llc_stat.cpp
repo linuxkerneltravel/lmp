@@ -37,25 +37,19 @@ uint64_t *LlcStatStackCollector::count_values(void *data)
 	};
 };
 
-int LlcStatStackCollector::load(void)
+int LlcStatStackCollector::ready(void)
 {
 	EBPF_LOAD_OPEN_INIT();
-	return 0;
-};
-
-int LlcStatStackCollector::attach(void)
-{
-	const char *online_cpus_file = "/sys/devices/system/cpu/online";
 	bool *online_mask;
 	int num_online_cpus;
-	err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
-	CHECK_ERR(err, "Fail to get online CPU numbers");
+	err = parse_cpu_mask_file("/sys/devices/system/cpu/online", &online_mask, &num_online_cpus);
+	CHECK_ERR_RN1(err, "Fail to get online CPU numbers");
 
 	num_cpus = libbpf_num_possible_cpus();
-	CHECK_ERR(num_cpus <= 0, "Fail to get the number of processors");
+	CHECK_ERR_RN1(num_cpus <= 0, "Fail to get the number of processors");
 
 	struct perf_event_attr attr = {
-		.type = PERF_COUNT_HW_CPU_CYCLES,
+		.type = PERF_TYPE_HARDWARE,
 		.size = sizeof(attr),
 		.sample_period = scales->Period,
 		.inherit = 1,
@@ -78,25 +72,25 @@ int LlcStatStackCollector::attach(void)
 		}
 		/* Set up performance monitoring on a CPU/Core */
 		attr.config = PERF_COUNT_HW_CACHE_MISSES;
-		int pefd = syscall(SYS_perf_event_open, &attr, pid, cpu, -1, 0);
-		CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+		int pefd = syscall(SYS_perf_event_open, &attr, tgid ? tgid : -1, cpu, -1, 0);
+		CHECK_ERR_RN1(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
 		mpefds[cpu] = pefd;
 		/* Attach a BPF program on a CPU */
 		mlinks[cpu] = bpf_program__attach_perf_event(skel->progs.on_cache_miss, pefd);
-		CHECK_ERR(!mlinks[cpu], "Fail to attach bpf program");
+		CHECK_ERR_RN1(!mlinks[cpu], "Fail to attach bpf program");
 
 		attr.config = PERF_COUNT_HW_CACHE_REFERENCES;
-		pefd = syscall(SYS_perf_event_open, &attr, pid, cpu, -1, 0);
-		CHECK_ERR(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
+		pefd = syscall(SYS_perf_event_open, &attr, tgid ? tgid : -1, cpu, -1, 0);
+		CHECK_ERR_RN1(pefd < 0, "Fail to set up performance monitor on a CPU/Core");
 		rpefds[cpu] = pefd;
 		/* Attach a BPF program on a CPU */
 		rlinks[cpu] = bpf_program__attach_perf_event(skel->progs.on_cache_ref, pefd);
-		CHECK_ERR(!rlinks[cpu], "Fail to attach bpf program");
+		CHECK_ERR_RN1(!rlinks[cpu], "Fail to attach bpf program");
 	}
-	return 0;
-};
+    return 0;
+}
 
-void LlcStatStackCollector::detach(void)
+void LlcStatStackCollector::finish(void)
 {
 	for (int cpu = 0; cpu < num_cpus; cpu++)
 	{
@@ -111,12 +105,8 @@ void LlcStatStackCollector::detach(void)
 	free(rpefds);
 	mlinks = rlinks = NULL;
 	mpefds = rpefds = NULL;
-};
-
-void LlcStatStackCollector::unload(void)
-{
 	UNLOAD_PROTO;
-};
+}
 
 void LlcStatStackCollector::activate(bool tf)
 {
@@ -141,6 +131,7 @@ LlcStatStackCollector::LlcStatStackCollector()
 	};
 };
 
-void LlcStatStackCollector::setScale(uint64_t p) {
+void LlcStatStackCollector::setScale(uint64_t p)
+{
 	scales[0].Period = scales[1].Period = p;
 }

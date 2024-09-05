@@ -17,7 +17,7 @@
 // mem ebpf程序的包装类，实现接口和一些自定义方法
 
 #include "bpf_wapper/memleak.h"
-#include "trace_helpers.h"
+#include "trace.h"
 #include <cmath>
 
 uint64_t *MemleakStackCollector::count_values(void *d)
@@ -111,7 +111,7 @@ int MemleakStackCollector::attach_uprobes(struct memleak_bpf *skel)
     return 0;
 }
 
-int MemleakStackCollector::load(void)
+int MemleakStackCollector::ready(void)
 {
     EBPF_LOAD_OPEN_INIT(
         if (kstack) {
@@ -119,39 +119,29 @@ int MemleakStackCollector::load(void)
                 disable_kernel_node_tracepoints(skel);
             if (!percpu)
                 disable_kernel_percpu_tracepoints(skel);
-        } else {
-            disable_kernel_tracepoints(skel);
-        };
-        skel->rodata->sample_rate = sample_rate;
+        } else disable_kernel_tracepoints(skel);
         skel->rodata->wa_missing_free = wa_missing_free;
         skel->rodata->page_size = sysconf(_SC_PAGE_SIZE););
-    return 0;
-};
-
-int MemleakStackCollector::attach(void)
-{
     if (!kstack)
-        CHECK_ERR(attach_uprobes(skel), "failed to attach uprobes");
+        CHECK_ERR_RN1(attach_uprobes(skel), "failed to attach uprobes");
     err = skel->attach(skel);
-    CHECK_ERR(err, "Failed to attach BPF skeleton");
+    CHECK_ERR_RN1(err, "Failed to attach BPF skeleton");
     return 0;
-};
+}
 
-void MemleakStackCollector::detach(void)
+void MemleakStackCollector::finish(void)
 {
     DETACH_PROTO;
-};
-
-void MemleakStackCollector::unload(void)
-{
     UNLOAD_PROTO;
 }
+
 
 void MemleakStackCollector::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
 
-const char *MemleakStackCollector::getName(void) {
+const char *MemleakStackCollector::getName(void)
+{
     return "MemleakStackCollector";
 }

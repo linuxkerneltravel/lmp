@@ -117,7 +117,6 @@ static const struct argp_option opts[] = {
     {"write", 'w', 0, 0, "Print write system call report"},
     {"disk_io_visit", 'd', 0, 0, "Print disk I/O visit report"},
     {"block_rq_issue", 'b', 0, 0, "Print block I/O request submission events. Reports when block I/O requests are submitted to device drivers."},
-    {0} // 结束标记，用于指示选项列表的结束
 };
 
 
@@ -186,13 +185,12 @@ int main(int argc,char **argv){
 
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
      
-
-    /* Set up libbpf errors and debug info callback */
-	libbpf_set_print(libbpf_print_fn);
+   /* Set up libbpf errors and debug info callback */
+	  libbpf_set_print(libbpf_print_fn);
 	
     /* Cleaner handling of Ctrl-C */
-	signal(SIGINT, sig_handler);
-	signal(SIGTERM, sig_handler);
+   	signal(SIGINT, sig_handler);
+	  signal(SIGTERM, sig_handler);
     signal(SIGALRM, sig_handler);
    
 
@@ -217,7 +215,7 @@ int main(int argc,char **argv){
     }
 }
 
-static int handle_event_open(void *ctx, void *data, size_t data_sz)
+    static int handle_event_open(void *ctx, void *data, size_t data_sz)
 {
 	struct event_open *e = (struct event_open *)data;
 	char *filename = strrchr(e->path_name_, '/');
@@ -228,7 +226,7 @@ static int handle_event_open(void *ctx, void *data, size_t data_sz)
     char comm[TASK_COMM_LEN];
 	int i = 0;
     int map_fd = *(int *)ctx;//传递map得文件描述符
-    
+  
 	for (; i < e->n_; ++i) {
 		snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", e->pid_,
 			 i);
@@ -279,6 +277,7 @@ static int handle_event_write(void *ctx, void *data, size_t data_sz)
 	printf("ts:%-8s  pid:%-7ld inode_number:%-3ld  cout:%-3ld   real_count:%-3ld\n", ts, e->pid,e->inode_number,e->count,e->real_count);
     return 0;
 }
+
 
 static int handle_event_disk_io_visit(void *ctx, void *data,unsigned long data_sz) {
     const struct event_disk_io_visit *e = data;

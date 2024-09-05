@@ -65,6 +65,7 @@ struct total_rsc{
 struct sc_ctrl {
     bool sc_func;
     bool enable_myproc;
+	bool is_container;
     pid_t target_pid;
     pid_t target_tgid;
     int syscalls;
