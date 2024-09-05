@@ -307,12 +307,6 @@ int BPF_KPROBE(icmp_reply, struct icmp_bxm *icmp_param, struct sk_buff *skb) {
     return __reply_icmp_time(skb);
 }
 
-// tcpstate
-SEC("tracepoint/sock/inet_sock_set_state")
-int handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx) {
-    return __handle_set_state(ctx);
-}
-
 // mysql
 SEC("uprobe/_Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command")
 int BPF_KPROBE(query__start) { return __handle_mysql_start(ctx); }
@@ -328,4 +322,20 @@ int BPF_KPROBE(query__end_redis) { return __handle_redis_end(ctx); }
 SEC("kprobe/tcp_rcv_established")
 int BPF_KPROBE(tcp_rcv_established, struct sock *sk, struct sk_buff *skb) {
     return __tcp_rcv_established(sk, skb);
+}
+
+// tcpstate
+SEC("tracepoint/sock/inet_sock_set_state")
+int handle_set_state(struct trace_event_raw_inet_sock_set_state *ctx) {
+    return __handle_set_state(ctx);
+}
+// RST
+SEC("tracepoint/tcp/tcp_send_reset")
+int handle_send_reset(struct trace_event_raw_tcp_send_reset *ctx) {
+    return __handle_send_reset(ctx);
+}
+
+SEC("tracepoint/tcp/tcp_receive_reset")
+int handle_receive_reset(struct trace_event_raw_tcp_receive_reset *ctx) {
+    return __handle_receive_reset(ctx);
 }

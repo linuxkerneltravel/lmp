@@ -158,7 +158,7 @@ struct proc_history {
 /*----------------------------------------------*/
 /*         mutrace相关结构体                     */
 /*----------------------------------------------*/
-struct mutex_info_kernel {
+struct mutex_info {
     u64 locked_total;//锁被持有的总时间
     u64 locked_max;//锁被持有的最长时间
     u64 contended_total;//锁发生竞争的总时间
@@ -177,6 +177,11 @@ struct mutex_contention_event {
     char owner_name[TASK_COMM_LEN];
 	int owner_prio;
 	int contender_prio;
+};
+
+struct trylock_info {
+    void *__mutex;
+    u64 start_time;
 };
 
 /*----------------------------------------------*/
@@ -293,6 +298,7 @@ struct mq_ctrl{
 struct mu_ctrl{
 	bool mu_func;
 	bool mutex_detail;
+	bool umutex;
 	int prev_watcher;
 };
 
