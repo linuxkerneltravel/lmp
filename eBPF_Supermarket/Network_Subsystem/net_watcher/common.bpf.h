@@ -62,7 +62,7 @@ struct tcpstate {
     int newstate;
     u64 time;
 };
-#define MAX_SLOTS 27
+
 enum {
     e_ip_rcv = 0,
     e_ip_local_deliver,
@@ -74,6 +74,14 @@ enum {
     e_ip_forward,
     nf_max
 } nf_hook;
+
+enum {
+    PROTO_TCP = 0,
+    PROTO_UDP,
+    PROTO_ICMP,
+    PROTO_UNKNOWN,
+    PROTO_MAX,
+};
 
 struct filtertime {
     struct packet_tuple init;
@@ -149,6 +157,8 @@ struct trace_event_raw_tcp_receive_reset {
     __u8 daddr_v6[16];
     __u64 sock_cookie;
 };
+#define MAX_CONN 1000
+#define MAX_SLOTS 27
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
@@ -168,8 +178,6 @@ bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
 }
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
-#define MAX_CONN 1000
 
 // 存储每个packet_tuple包所对应的ktime_info时间戳
 struct {
@@ -239,6 +247,11 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} port_rb SEC(".maps");
 
 // 存储每个tcp连接所对应的conn_t
 struct {
@@ -352,13 +365,22 @@ struct {
     __type(value, u64);
     __uint(max_entries, 1024);
 } counters SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, MAX_COMM *MAX_PACKET);
+    __type(key, u32);
+    __type(value, struct packet_count);
+} proto_stats SEC(".maps");
+
 const volatile int filter_dport = 0;
 const volatile int filter_sport = 0;
 const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
                    layer_time = 0, http_info = 0, retrans_info = 0,
                    udp_info = 0, net_filter = 0, drop_reason = 0, icmp_info = 0,
                    tcp_info = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
-                   redis_info = 0, rtt_info = 0, rst_info = 0;
+                   redis_info = 0, rtt_info = 0, rst_info = 0,
+                   protocol_count = 0;
 
 /* help macro */
 
@@ -631,6 +653,7 @@ static __always_inline u64 log2l(u64 v) {
     else
         return log2(v);
 }
+
 /* help functions end */
 
 #endif
