@@ -1592,8 +1592,6 @@ int main(int argc, char **argv) {
                     print_stored_events();
                     printf("Total RSTs in the last 5 seconds: %llu\n\n",
                            rst_count);
-
-                    // 重置计数器和事件存储
                     rst_count = 0;
                     event_count = 0;
                 } else if (protocol_count) {
@@ -1603,7 +1601,6 @@ int main(int argc, char **argv) {
             }
         }
     }
-
 cleanup:
     netwatcher_bpf__destroy(skel);
     return err < 0 ? -err : 0;
