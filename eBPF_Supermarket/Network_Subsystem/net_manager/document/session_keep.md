@@ -10,7 +10,7 @@
 
 其在lo网卡上监测的信息
 
-![image-20240719173203213](./pic/session_keep1.png)
+![image-20240719173203213](./image/session_keep1.png)
 
 增加对通用网卡的监测，UDP、ICMP的监测，输出格式的转化，但由于XDP仅在收包路径，所以发送报文/相关状态获取不到
 
@@ -19,13 +19,13 @@
 使用命令将程序挂载到相应网卡
 
 ```c
-sudo ./xdp_loader -d ens33 --progname=xdp_entry_state -S
+sudo ./netmanager -d ens33 --progname=xdp_entry_state -S
 ```
 
 查看挂载程序
 
 ```
-sudo ./xdp_loader status
+sudo xdp-loader status
 ```
 
 查看输出
@@ -36,7 +36,7 @@ sudo cat /sys/kernel/debug/tracing/trace_pipe
 
 实例截图
 
-![image-20240719173840908](./pic/session_keep2.png)
+![image-20240719173840908](./image/session_keep2.png)
 
 进行卸载	
 
