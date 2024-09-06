@@ -314,10 +314,20 @@ int BPF_KPROBE(query__start) { return __handle_mysql_start(ctx); }
 SEC("uretprobe/_Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command")
 int BPF_KPROBE(query__end) { return __handle_mysql_end(ctx); }
 
+//redis
 SEC("uprobe/processCommand")
-int BPF_KPROBE(query__start_redis_process) { return __handle_redis_start(ctx); }
+int BPF_KPROBE(redis_processCommand) { return __handle_redis_start(ctx); }
 SEC("uretprobe/call")
-int BPF_KPROBE(query__end_redis) { return __handle_redis_end(ctx); }
+int BPF_KPROBE(redis_call) { return __handle_redis_end(ctx); }
+
+SEC("uprobe/lookupKey")
+int BPF_UPROBE(redis_lookupKey) {
+    return __handle_redis_key(ctx);
+}
+SEC("uprobe/addReply")
+int BPF_UPROBE(redis_addReply) {
+    return __handle_redis_value(ctx);
+}
 // rtt
 SEC("kprobe/tcp_rcv_established")
 int BPF_KPROBE(tcp_rcv_established, struct sock *sk, struct sk_buff *skb) {
