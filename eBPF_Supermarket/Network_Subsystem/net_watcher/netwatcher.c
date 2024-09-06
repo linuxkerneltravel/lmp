@@ -569,8 +569,6 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                               redis_info ? true : false);
     bpf_program__set_autoload(skel->progs.query__start_redis_process,
                               redis_info ? true : false);
-    bpf_program__set_autoload(skel->progs.redis_uprobe,
-                              redis_info ? true : false);
     bpf_program__set_autoload(skel->progs.tcp_rcv_established,
                               (all_conn || err_packet || extra_conn_info ||
                                retrans_info || layer_time || http_info ||
