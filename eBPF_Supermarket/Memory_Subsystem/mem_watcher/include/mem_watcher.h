@@ -162,4 +162,12 @@ struct find_event_t {
     unsigned long long vm_end;
 };
 
+/* OOM Killer Event */
+struct event {
+    uint32_t triggered_pid;    // 触发 OOM 的进程 PID
+    uint32_t oomkill_pid;      // 被 OOM 杀死的进程 PID
+    uint32_t mem_pages;        // 没有被杀掉的进程所使用的内存页数
+    char comm[TASK_COMM_LEN];  // 被杀死进程的命令名
+};
+
 #endif /* __MEM_WATCHER_H */
