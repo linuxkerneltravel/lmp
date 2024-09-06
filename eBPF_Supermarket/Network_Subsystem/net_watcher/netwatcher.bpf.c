@@ -326,8 +326,7 @@ SEC("uprobe/processCommand")
 int BPF_KPROBE(query__start_redis_process) { return __handle_redis_start(ctx); }
 SEC("uretprobe/call")
 int BPF_KPROBE(query__end_redis) { return __handle_redis_end(ctx); }
-SEC("uprobe/lookupKey")
-int BPF_KPROBE(redis_uprobe) { return __handle_lookupKey(ctx); }
+
 // rtt
 SEC("kprobe/tcp_rcv_established")
 int BPF_KPROBE(tcp_rcv_established, struct sock *sk, struct sk_buff *skb) {
