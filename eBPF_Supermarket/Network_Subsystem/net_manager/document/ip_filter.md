@@ -6,7 +6,7 @@
 
 ### 实现
 
-![image-20240726104526418](./pic/ip_filter1.png)
+![image-20240726104526418](./image/ip_filter1.png)
 
 #### 输入参数优化
 
@@ -25,7 +25,7 @@
 因此其使用的方法十分固定，要求路径必须在相应的位置，如：
 
 ```
-sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
+sudo ./netmanager -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
 ```
 
 将其绑定到-i参数上
@@ -40,7 +40,7 @@ strncpy(cfg->ip_filter_file, optarg, FILE_MAXSIZE);
 去掉这种限制
 
 ```
-sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
+sudo ./netmanager -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
 ```
 
 #### 增添输出格式
@@ -52,7 +52,7 @@ sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.con
 本功能的使用命令为
 
 ```
-sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf
+sudo ./netmanager -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf
 ```
 
 也可以在其中加入-t/T选项，t参数会定时统计所有策略对应的报文数，T参数会输出所有匹配条目与策略
@@ -63,7 +63,7 @@ sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.con
 sudo xdp-loader status
 ```
 
-![image-20240726114124092](./pic/ip_filter2.png)
+![image-20240726114124092](./image/ip_filter2.png)
 
 其中可以看到对应网卡上挂载的XDP程序
 
@@ -131,7 +131,7 @@ sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.con
 
 可以发现已经drop了所有报文
 
-![image-20240726110021447](./pic/ip_filter3.png)
+![image-20240726110021447](./image/ip_filter3.png)
 
 
 ### 输出分析
@@ -144,6 +144,6 @@ sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.con
 sudo cat /sys/kernel/debug/tracing/trace_pipe
 ```
 
-![image-20240726153912838](./pic/ip_filter4.png)
+![image-20240726153912838](./image/ip_filter4.png)
 
 其中可以看到符合匹配的相关报文信息，其中包括四元组、协议类型、XDP策略行为以及匹配条目的序号。

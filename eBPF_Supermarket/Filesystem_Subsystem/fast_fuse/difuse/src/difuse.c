@@ -15,15 +15,24 @@
 #define DIRECTORY_TYPE 2
 #define MAX_INODES 1000  //最大 inode 数量
 #define HASH_SIZE 1024
+#define CHUNK_SIZE 4096 // 数据块的大小
 
 uint32_t next_ino = 1;
 
 struct dfs_data
 {
-    int chunk_size;
+    char *data;
     size_t size;
     struct dfs_data *next;
 };
+
+static struct dfs_data *allocate_data_block()
+{
+    struct dfs_data *new_data = (struct dfs_data *)malloc(sizeof(struct dfs_data));
+    new_data->data = (char *)malloc(CHUNK_SIZE);
+    new_data->next = NULL;
+    return new_data;
+}
 
 struct dfs_inode
 {
@@ -401,16 +410,106 @@ static int di_read(const char *path, char *buf, size_t size, off_t offset, struc
     if (dentry->ftype != FILE_TYPE)
         return -EISDIR;
 
-    if (offset < dentry->inode->size)
-    {
-        if (offset + size > dentry->inode->size)
-            size = dentry->inode->size - offset;
-        memcpy(buf, "dummy_content", size);
-    }
-    else
-        size = 0;
+    struct dfs_inode *inode = dentry->inode;
+    size_t file_size = inode->size;
 
-    return size;
+    if (offset >= file_size)
+        return 0;
+
+    if (offset + size > file_size)
+        size = file_size - offset;
+
+    // 初始化缓冲区
+    memset(buf, 0, size);
+
+    // 从数据块中读取数据
+    size_t bytes_read = 0;
+    struct dfs_data *data_block = inode->data_pointer;
+
+    // 遍历数据块
+    while (data_block != NULL && bytes_read < size)
+    {
+        // 计算当前块的有效数据长度
+        size_t block_size = data_block->size;
+        if (offset >= block_size)
+        {
+            offset -= block_size;
+        }
+        else
+        {
+            // 从当前块读取数据
+            size_t to_read = block_size - offset;
+            if (to_read > size - bytes_read)
+                to_read = size - bytes_read;
+
+            // 复制数据到缓冲区
+            memcpy(buf + bytes_read, ((char *)data_block) + offset, to_read);
+            bytes_read += to_read;
+            offset = 0;
+        }
+
+        data_block = data_block->next;
+    }
+
+    return bytes_read;
+}
+
+static int di_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    (void)fi;
+    struct dfs_dentry *dentry = look_up(root, path);
+
+    if (dentry == NULL) return -ENOENT;
+    if (dentry->ftype != FILE_TYPE) return -EISDIR;
+
+    struct dfs_inode *inode = dentry->inode;
+    struct dfs_data *data_block = inode->data_pointer;
+
+    if (data_block == NULL)
+    {
+        data_block = allocate_data_block();
+        inode->data_pointer = data_block;
+    }
+
+    size_t bytes_written = 0;
+    size_t total_offset = offset;
+
+    while (data_block != NULL && total_offset >= data_block->size)
+    {
+        total_offset -= data_block->size;
+        if (data_block->next == NULL)
+        {
+            data_block->next = allocate_data_block();
+        }
+        data_block = data_block->next;
+    }
+
+    while (bytes_written < size)
+    {
+        size_t space_in_block = CHUNK_SIZE - total_offset;
+        size_t to_write = size - bytes_written;
+
+        if (to_write > space_in_block) to_write = space_in_block;
+
+        memcpy(data_block->data + total_offset, buf + bytes_written, to_write);
+
+        total_offset = 0;
+        bytes_written += to_write;
+        data_block->size += to_write;
+
+        if (bytes_written < size && data_block->next == NULL)
+        {
+            data_block->next = allocate_data_block();
+        }
+        data_block = data_block->next;
+    }
+
+    if (offset + bytes_written > inode->size)
+    {
+        inode->size = offset + bytes_written;
+    }
+
+    return bytes_written;
 }
 
 static void *di_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
@@ -430,6 +529,7 @@ static struct fuse_operations difs_ops = {
     .getattr = di_getattr,
     .open = di_open,
     .read = di_read,
+    .write = di_write,
     .mkdir = di_mkdir,
     .create = dfs_create,
     .utimens = di_utimens,

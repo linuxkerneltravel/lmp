@@ -1193,18 +1193,39 @@ memleak_cleanup:
 }
 
 // ================================================== fraginfo====================================================================
-void print_nodes(int fd) {
-    struct pgdat_info pinfo;
-    __u64 key = 0, next_key;
-    printf(" Node ID          PGDAT_PTR       NR_ZONES \n");
-    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
-        bpf_map_lookup_elem(fd, &next_key, &pinfo);
-        printf(" %5d       0x%llx  %5d\n",
-               pinfo.node_id, pinfo.pgdat_ptr, pinfo.nr_zones);
-        key = next_key;
-    }
-}
+//compute order
+static int __fragmentation_index(unsigned int order, long unsigned int total,long unsigned int suitable,long unsigned int free) {
+            unsigned long requested = 1UL << order;
+            if (order > MAX_ORDER)
+                return 0;
+            if (!total)
+                return 0;
+            if (suitable)
+                return -1000;
+			double res1,res2;
+			res1 = (double)(free * 1000ULL)/requested;
+			res1 +=1000;
+			res2 = (double)res1/total;
+            return 1000 - res2;
+        }
+static int unusable_free_index(unsigned int order, long unsigned int total,long unsigned int suitable,long unsigned int free)
+{
+	/* No free memory is interpreted as all free memory is unusable */
+	if (free == 0)
+		return 1000;
 
+	/*
+	 * Index should be a value between 0 and 1. Return a value to 3
+	 * decimal places.
+	 *
+	 * 0 => no fragmentation
+	 * 1 => high fragmentation
+	 */
+	long unsigned int res1 = free - (suitable<<order);
+	double res = (res1*1000ULL)/free;
+	return res;
+
+}
 void print_zones(int fd) {
     struct zone_info zinfo;
     __u64 key = 0, next_key;
@@ -1216,6 +1237,17 @@ void print_zones(int fd) {
         key = next_key;
     }
 
+}
+void print_nodes(int fd) {
+    struct pgdat_info pinfo;
+    __u64 key = 0, next_key;
+    printf(" Node ID          PGDAT_PTR       NR_ZONES \n");
+    while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+        bpf_map_lookup_elem(fd, &next_key, &pinfo);
+        printf(" %5d       0x%llx  %5d\n",
+               pinfo.node_id, pinfo.pgdat_ptr, pinfo.nr_zones);
+        key = next_key;
+    }
 }
 void print_orders(int fd) {
     struct order_zone okey = {};
@@ -1235,11 +1267,17 @@ void print_orders(int fd) {
     qsort(entries, entry_count, sizeof(struct order_entry), compare_entries);
 
     // 打印排序后的
-    printf(" Order     Zone_PTR                Free Pages         Free Blocks Total    Free Blocks Suitable\n");
+    printf(" Order     Zone_PTR                Free Pages         Free Blocks Total    Free Blocks Suitable      SCOREA     SCOREB\n");
     for (int i = 0; i < entry_count; i++) {
-        printf(" %-8u 0x%-25llx %-20lu %-20lu %-20lu\n",
+		int res = __fragmentation_index(entries[i].okey.order,entries[i].oinfo.free_blocks_total,entries[i].oinfo.free_blocks_suitable,entries[i].oinfo.free_pages);
+		int tmp = unusable_free_index(entries[i].okey.order,entries[i].oinfo.free_blocks_total,entries[i].oinfo.free_blocks_suitable,entries[i].oinfo.free_pages);
+		int part1 = res/1000;
+		int dec1 = res%1000;
+		int part2 = tmp/1000;
+		int dec2 = tmp%1000;
+        printf(" %-8u 0x%-25llx %-20lu %-20lu %-20lu %2d.%03d    %d.%03d\n",
                entries[i].okey.order, entries[i].okey.zone_ptr, entries[i].oinfo.free_pages,
-               entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable);
+               entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable,part1,dec1,part2,dec2);
     }
 }
 

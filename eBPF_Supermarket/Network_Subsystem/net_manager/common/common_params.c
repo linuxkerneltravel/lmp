@@ -213,7 +213,7 @@ void parse_cmdline_args(int argc, char **argv,
 				goto error;
 			}
 			// 设置文件路径
-			cfg->mac_filter_file = (char *)&cfg->mac_filter_file_buf; //初始化ip_filter_file
+			cfg->mac_filter_file = (char *)&cfg->mac_filter_file_buf; //初始化mac_filter_file
 			strncpy(cfg->mac_filter_file, optarg, FILE_MAXSIZE);
 			break;
 		case 'k':
@@ -224,7 +224,7 @@ void parse_cmdline_args(int argc, char **argv,
 				goto error;
 			}
 			// 设置文件路径
-			cfg->router_file = (char *)&cfg->router_file_buf; //初始化ip_filter_file
+			cfg->router_file = (char *)&cfg->router_file_buf; //初始化router_file
 			strncpy(cfg->router_file, optarg, FILE_MAXSIZE);
 			break;
 		case 'g':
