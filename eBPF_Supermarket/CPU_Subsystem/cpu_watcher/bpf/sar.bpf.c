@@ -68,6 +68,9 @@ SEC("kprobe/finish_task_switch.isra.0")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
     u32 key = 0;
     u64 val, *valp = NULL;
     unsigned long total_forks;
@@ -86,6 +89,9 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 SEC("tracepoint/sched/sched_switch")
 int trace_sched_switch2(struct cswch_args *info) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	pid_t prev = info->prev_pid, next = info->next_pid;
 	if (prev != next) {
 		u32 key = 0;
@@ -108,6 +114,9 @@ int trace_sched_switch2(struct cswch_args *info) {
 SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
 	u64 delta;
@@ -139,6 +148,9 @@ int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 SEC("kprobe/update_rq_clock")
 int BPF_KPROBE(update_rq_clock,struct rq *rq){
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
     u32 key = 0;
     u64 val = BPF_CORE_READ(rq,nr_running);
     bpf_map_update_elem(&runqlen,&key,&val,BPF_ANY);
@@ -149,6 +161,9 @@ int BPF_KPROBE(update_rq_clock,struct rq *rq){
 SEC("tracepoint/irq/softirq_entry")
 int trace_softirq_entry(struct __softirq_info *info) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	u32 key = info->vec;
 	u64 val = bpf_ktime_get_ns();
 	bpf_map_update_elem(&softirqCpuEnterTime, &key, &val, BPF_ANY);
@@ -158,6 +173,9 @@ int trace_softirq_entry(struct __softirq_info *info) {
 SEC("tracepoint/irq/softirq_exit")
 int trace_softirq_exit(struct __softirq_info *info) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	u32 key = info->vec;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 	valp =bpf_map_lookup_elem(&softirqCpuEnterTime, &key);
@@ -177,6 +195,9 @@ int trace_softirq_exit(struct __softirq_info *info) {
 SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	u32 key = info->irq;
 	u64 ts = bpf_ktime_get_ns();
     bpf_map_update_elem(&irq_cpu_enter_start, &key, &ts, BPF_ANY);
@@ -186,6 +207,9 @@ int trace_irq_handler_entry(struct __irq_info *info) {
 SEC("tracepoint/irq/irq_handler_exit")
 int trace_irq_handler_exit(struct __irq_info *info) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	u32 key = info->irq;
 	u64 now = bpf_ktime_get_ns(), *ts = 0;
     ts = bpf_map_lookup_elem(&irq_cpu_enter_start, &key);
@@ -206,6 +230,9 @@ int trace_irq_handler_exit(struct __irq_info *info) {
 SEC("tracepoint/power/cpu_idle")
 int trace_cpu_idle(struct idleStruct *pIDLE) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 	u64 delta, time = bpf_ktime_get_ns();
 	u32 key = pIDLE->cpu_id;
 	if (pIDLE->state == -1) {
@@ -236,6 +263,9 @@ static __always_inline int user_mode(struct pt_regs *regs)
 SEC("perf_event")
 int tick_update(struct pt_regs *ctx) {
 	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
+	if (!sar_ctrl) {
+        return 0;
+    }
 
 	// bpf_trace_printk("cs_rpl = %x\n", ctx->cs & 3);
 	u32 key = 0;

@@ -58,6 +58,9 @@ static inline void init_mutex_info(struct mutex_info *info, u64 lock_addr, u64 t
 SEC("kprobe/mutex_lock")
 int BPF_KPROBE(trace_mutex_lock, struct mutex *lock) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     u64 lock_addr = (u64)lock;
     u64 ts = bpf_ktime_get_ns();
     struct mutex_info *info = bpf_map_lookup_elem(&kmutex_info_map, &lock_addr);
@@ -76,6 +79,9 @@ int BPF_KPROBE(trace_mutex_lock, struct mutex *lock) {
 SEC("kprobe/mutex_trylock")
 int BPF_KPROBE(trace_mutex_trylock, struct mutex *lock) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     int ret = PT_REGS_RC(ctx);
     if (ret != 0) {
         u64 lock_addr = (u64)lock;
@@ -97,6 +103,9 @@ int BPF_KPROBE(trace_mutex_trylock, struct mutex *lock) {
 SEC("kprobe/__mutex_lock_slowpath")
 int BPF_KPROBE(trace_mutex_lock_slowpath, struct mutex *lock) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     if (!mu_ctrl) return 0;
 
     u64 lock_addr = (u64)lock;
@@ -144,6 +153,9 @@ int BPF_KPROBE(trace_mutex_lock_slowpath, struct mutex *lock) {
 SEC("kprobe/mutex_unlock")
 int BPF_KPROBE(trace_mutex_unlock, struct mutex *lock) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     u64 lock_addr = (u64)lock;
     u64 ts = bpf_ktime_get_ns();
     pid_t pid = bpf_get_current_pid_tgid();
@@ -184,6 +196,9 @@ static inline void handle_user_mutex_lock(void *__mutex, u64 now, pid_t pid) {
 SEC("uprobe/pthread_mutex_lock")
 int BPF_KPROBE(pthread_mutex_lock, void *__mutex) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     u64 now = bpf_ktime_get_ns();
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
     handle_user_mutex_lock(__mutex, now, pid);
@@ -193,6 +208,9 @@ int BPF_KPROBE(pthread_mutex_lock, void *__mutex) {
 SEC("uprobe/__pthread_mutex_trylock")
 int BPF_KPROBE(__pthread_mutex_trylock, void *__mutex) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     struct trylock_info info = {
@@ -206,6 +224,9 @@ int BPF_KPROBE(__pthread_mutex_trylock, void *__mutex) {
 SEC("uretprobe/__pthread_mutex_trylock")
 int BPF_KRETPROBE(ret_pthread_mutex_trylock, int ret) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct trylock_info *try_info = bpf_map_lookup_elem(&trylock_map, &pid_tgid);
     if (!try_info) return 0;
@@ -220,6 +241,9 @@ int BPF_KRETPROBE(ret_pthread_mutex_trylock, int ret) {
 SEC("uprobe/pthread_mutex_unlock")
 int BPF_KPROBE(pthread_mutex_unlock, void *__mutex) {
     struct mu_ctrl *mu_ctrl = get_mu_ctrl();
+    if (!mu_ctrl) {
+        return 0;
+    }
     u64 now = bpf_ktime_get_ns();
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
     struct mutex_info *info = bpf_map_lookup_elem(&umutex_info_map, &__mutex);

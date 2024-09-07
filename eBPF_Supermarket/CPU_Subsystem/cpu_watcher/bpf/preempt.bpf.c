@@ -44,6 +44,9 @@ static inline struct preempt_ctrl *get_preempt_ctrl(void) {
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next) {
     struct preempt_ctrl *preempt_ctrl = get_preempt_ctrl();
+    if (!preempt_ctrl) {
+        return 0;
+    }
     u64 start_time = bpf_ktime_get_ns();
     pid_t prev_pid = BPF_CORE_READ(prev, pid);
     
@@ -63,6 +66,9 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 SEC("kprobe/finish_task_switch.isra.0") 
 int BPF_KPROBE(finish_task_switch, struct task_struct *prev) {
     struct preempt_ctrl *preempt_ctrl = get_preempt_ctrl();
+    if (!preempt_ctrl) {
+        return 0;
+    }
     u64 end_time = bpf_ktime_get_ns();
     pid_t pid = BPF_CORE_READ(prev, pid);
     u64 *val;
