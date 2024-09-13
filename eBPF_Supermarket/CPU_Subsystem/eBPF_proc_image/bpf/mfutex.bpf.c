@@ -73,12 +73,12 @@ struct {
 	__uint(max_entries,528 * 10240);
 } mfutex_rb SEC(".maps");
 
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__uint(max_entries, 10240);
-	__type(key, struct record_lock_key);
-	__type(value, struct per_request);
-} futex_wait_queue SEC(".maps");//记录futex陷入内核
+// struct {
+// 	__uint(type, BPF_MAP_TYPE_HASH);
+// 	__uint(max_entries, 10240);
+// 	__type(key, struct record_lock_key);
+// 	__type(value, struct per_request);
+// } futex_wait_queue SEC(".maps");//记录futex陷入内核
 
 
 #define MUTEX_FLAG  1
@@ -280,27 +280,15 @@ int BPF_KPROBE(pthread_mutex_unlock_enter, void *__mutex)
 //     return 0;
 // }
 
-SEC("uprobe/futex")
-int trace_futex(struct pt_regs *ctx) {
-    struct event ev = {};
-    ev.pid = bpf_get_current_pid_tgid() >> 32; // 获取进程PID
-    ev.ts = bpf_ktime_get_ns(); // 获取时间戳
-    ev.uaddr = PT_REGS_PARM1(ctx); // 获取futex地址
-    ev.futex_op = PT_REGS_PARM2(ctx); // 获取futex操作
 
-    // 将数据发送到用户态
-    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &ev, sizeof(ev));
-    return 0;
-}
-
-/*获取到要加入等待队列的线程，拿到时间*/
-SEC("kprobe/futex_wait")
-int BPF_KPROBE(trace_futex_wait, 
-                u32 __user *uaddr, unsigned int flags, 
-                u32 val, ktime_t *abs_time, u32 bitset) 
-{
+// /*获取到要加入等待队列的线程，拿到时间*/
+// SEC("kprobe/futex_wait")
+// int BPF_KPROBE(trace_futex_wait, 
+//                 u32 __user *uaddr, unsigned int flags, 
+//                 u32 val, ktime_t *abs_time, u32 bitset) 
+// {
 
     
 
 
-}
+// }
