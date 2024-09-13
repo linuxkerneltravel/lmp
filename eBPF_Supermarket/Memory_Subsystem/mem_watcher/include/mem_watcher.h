@@ -162,6 +162,36 @@ struct find_event_t {
     unsigned long long vm_end;
 };
 
+/* drsnoop.h */
+#define KALLSYMS_PATH "/proc/kallsyms"
+#define VM_STAT_SYMBOL "vm_stat"
+#define VM_ZONE_STAT_SYMBOL "vm_zone_stat"
+
+#define NR_VM_ZONE_STAT_ITEMS 5
+#define TASK_COMM_LEN 16
+#define NR_FREE_PAGES 0
+
+#define PAGE_SHIFT 12
+#define K(x) ((x) << (PAGE_SHIFT - 10))
+
+// Define structures used in maps and tracepoints
+struct val_t {
+    unsigned long long id;
+    unsigned long long ts; // start time
+    char name[TASK_COMM_LEN];
+    unsigned long long vm_stat[NR_VM_ZONE_STAT_ITEMS];
+};
+
+struct data_t {
+    unsigned long long id;
+    unsigned long uid;
+    unsigned long long nr_reclaimed;
+    unsigned long long delta;
+    unsigned long long ts;    // end time
+    char name[TASK_COMM_LEN];
+    unsigned long long vm_stat[NR_VM_ZONE_STAT_ITEMS];
+};
+
 /* OOM Killer Event */
 struct event {
     uint32_t triggered_pid;    // 触发 OOM 的进程 PID
