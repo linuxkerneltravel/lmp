@@ -43,6 +43,9 @@ SEC("kprobe/schedule")
 int BPF_KPROBE(schedule)
 {
 	struct cs_ctrl *cs_ctrl = get_cs_ctrl();
+	if (!cs_ctrl) {
+        return 0;
+    }
 	u64 t1;
 	t1 = bpf_ktime_get_ns()/1000;
 	int key =0;
@@ -54,6 +57,9 @@ SEC("kretprobe/schedule")
 int BPF_KRETPROBE(schedule_exit)
 {	
 	struct cs_ctrl *cs_ctrl = get_cs_ctrl();
+	if (!cs_ctrl) {
+        return 0;
+    }
 	u64 t2 = bpf_ktime_get_ns()/1000;
 	u64 t1,delay;
 	int key = 0;

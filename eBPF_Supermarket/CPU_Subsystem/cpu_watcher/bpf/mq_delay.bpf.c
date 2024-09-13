@@ -75,6 +75,9 @@ int BPF_KPROBE(mq_timedsend,mqd_t mqdes, const char *u_msg_ptr,
 		struct timespec64 *ts)
 {
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	u64 send_enter_time = bpf_ktime_get_ns();//开始发送信息时间；
 	int pid = bpf_get_current_pid_tgid();//发送端pid
 
@@ -95,6 +98,9 @@ int BPF_KPROBE(mq_timedsend,mqd_t mqdes, const char *u_msg_ptr,
 SEC("kprobe/load_msg")
 int BPF_KPROBE(load_msg_enter,const void *src, size_t len){
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	int pid = bpf_get_current_pid_tgid();//发送端pid
 	/*记录load入参src*/
 	struct send_events *mq_send_info = bpf_map_lookup_elem(&send_msg1, &pid);
@@ -110,6 +116,9 @@ int BPF_KPROBE(load_msg_enter,const void *src, size_t len){
 SEC("kretprobe/load_msg")
 int BPF_KRETPROBE(load_msg_exit,void *ret){
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	int pid = bpf_get_current_pid_tgid();//发送端pid
 	/*构建消息块结构体，作为key*/
 	struct send_events *mq_send_info = bpf_map_lookup_elem(&send_msg1, &pid);
@@ -136,6 +145,9 @@ SEC("kretprobe/do_mq_timedsend")
 int BPF_KRETPROBE(do_mq_timedsend_exit,void *ret)
 {
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	bpf_printk("do_mq_timedsend_exit----------------------------------------------------------------\n");
 	u64 send_exit_time = bpf_ktime_get_ns();//开始发送信息时间；
 	int pid = bpf_get_current_pid_tgid();//发送端pid
@@ -164,6 +176,9 @@ int BPF_KPROBE(mq_timedreceive_entry,mqd_t mqdes, const char __user *u_msg_ptr,
 		struct timespec64 *ts)
 {
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	u64 rcv_enter_time = bpf_ktime_get_ns();
 	int pid = bpf_get_current_pid_tgid();
 
@@ -182,6 +197,9 @@ SEC("kprobe/store_msg")
 int BPF_KPROBE(store_msg,void __user *dest, struct msg_msg *msg, size_t len)
 {
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	int pid = bpf_get_current_pid_tgid();
 	
 	/*make key*/
@@ -210,6 +228,9 @@ int BPF_KPROBE(store_msg,void __user *dest, struct msg_msg *msg, size_t len)
 SEC("kretprobe/do_mq_timedreceive")
 int BPF_KRETPROBE(do_mq_timedreceive_exit,void *ret){
 	struct mq_ctrl *mq_ctrl = get_mq_ctrl();
+	if (!mq_ctrl) {
+        return 0;
+    }
 	u64 rcv_exit_time = bpf_ktime_get_ns();
 	int pid = bpf_get_current_pid_tgid();
 	u64 send_enter_time,delay;
