@@ -18,9 +18,13 @@
 #include "open.skel.h"
 #include "read.skel.h"
 #include "write.skel.h"
+#include "disk_io_visit.skel.h"
+#include "block_rq_issue.skel.h"
 #include "fs_watcher.h"
 
-const char argp_program_doc[] = "fs_watcher is in use ....\n";
+const char argp_program_doc[] = "fs_watcher is used to monitor various system calls and disk I/O events.\n\n"
+           "Usage: fs_watcher [OPTION...]\n\n"
+           "Options:";
 
 #define PROCESS_SKEL(skel, func) \
     skel = func##_bpf__open(); \
@@ -32,7 +36,8 @@ const char argp_program_doc[] = "fs_watcher is in use ....\n";
 
 
 #define POLL_RING_BUFFER(rb, timeout, err)     \
-    while (!exiting) {                         \
+    while (!exiting) {  \
+        sleep(1);                       \
         err = ring_buffer__poll(rb, timeout);  \
         if (err == -EINTR) {                   \
             err = 0;                           \
@@ -96,22 +101,22 @@ static struct env{
     bool open;
     bool read;
     bool write;
+    bool disk_io_visit;
+    bool block_rq_issue;
 }env = {
     .open = false,
     .read = false,
     .write = false,
+    .disk_io_visit = false,
+    .block_rq_issue = false,
 };
 
 static const struct argp_option opts[] = {
-    {"select-function", 0, 0, 0, "Select function:", 1},
-    
-    {"open", 'o', 0, 0, "Print open (open系统调用检测报告)"},
-    
-    {"read", 'r', 0, 0, "Print read (read系统调用检测报告)"},
-    
-    {"write", 'w', 0, 0, "Print write (write系统调用检测报告)"},
-    
-    {0} // 结束标记，用于指示选项列表的结束
+    {"open", 'o', 0, 0, "Print open system call report"},
+    {"read", 'r', 0, 0, "Print read system call report"},
+    {"write", 'w', 0, 0, "Print write system call report"},
+    {"disk_io_visit", 'd', 0, 0, "Print disk I/O visit report"},
+    {"block_rq_issue", 'b', 0, 0, "Print block I/O request submission events. Reports when block I/O requests are submitted to device drivers."},
 };
 
 
@@ -123,6 +128,10 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
         env.read = true;break;
         case 'w':
         env.write = true;break;
+        case 'd':
+        env.disk_io_visit = true;break;
+        case 'b':
+        env.block_rq_issue = true;break;
         default: 
             return ARGP_ERR_UNKNOWN;
     }
@@ -133,6 +142,7 @@ static const struct argp argp = {
     .options = opts,
     .parser = parse_arg,
     .doc = argp_program_doc,
+    .help_filter = NULL
 };
 #define warn(...) fprintf(stderr, __VA_ARGS__)
 
@@ -152,11 +162,14 @@ static void sig_handler(int sig)
 static int handle_event_open(void *ctx, void *data, size_t data_sz);
 static int handle_event_read(void *ctx, void *data, size_t data_sz);
 static int handle_event_write(void *ctx, void *data, size_t data_sz);
+static int handle_event_disk_io_visit(void *ctx, void *data, size_t data_sz);
+static int handle_event_block_rq_issue(void *ctx, void *data, size_t data_sz);
 
 static int process_open(struct open_bpf *skel_open);
 static int process_read(struct read_bpf *skel_read);
 static int process_write(struct write_bpf *skel_write);
-
+static int process_disk_io_visit(struct disk_io_visit_bpf *skel_disk_io_visit);
+static int process_block_rq_issue(struct block_rq_issue_bpf *skel_block_rq_issue);
 
 
 
@@ -164,18 +177,20 @@ int main(int argc,char **argv){
     
     int err;
     struct open_bpf *skel_open;
-    
     struct read_bpf *skel_read;
     struct write_bpf *skel_write;
+    struct disk_io_visit_bpf *skel_disk_io_visit;
+    struct block_rq_issue_bpf *skel_block_rq_issue;
+
+
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
      
-
-        /* Set up libbpf errors and debug info callback */
-	libbpf_set_print(libbpf_print_fn);
+   /* Set up libbpf errors and debug info callback */
+	  libbpf_set_print(libbpf_print_fn);
 	
     /* Cleaner handling of Ctrl-C */
-	signal(SIGINT, sig_handler);
-	signal(SIGTERM, sig_handler);
+   	signal(SIGINT, sig_handler);
+	  signal(SIGTERM, sig_handler);
     signal(SIGALRM, sig_handler);
    
 
@@ -190,8 +205,14 @@ int main(int argc,char **argv){
         PROCESS_SKEL(skel_read,read);
     }else if(env.write){
         PROCESS_SKEL(skel_write,write);
+    }else if(env.disk_io_visit){
+        PROCESS_SKEL(skel_disk_io_visit,disk_io_visit);
+    }else if(env.block_rq_issue){
+        PROCESS_SKEL(skel_block_rq_issue,block_rq_issue);
+    }else{
+        fprintf(stderr, "No function selected. Use -h for help.\n");
+        return 1;
     }
-
 }
 
     static int handle_event_open(void *ctx, void *data, size_t data_sz)
@@ -205,8 +226,7 @@ int main(int argc,char **argv){
     char comm[TASK_COMM_LEN];
 	int i = 0;
     int map_fd = *(int *)ctx;//传递map得文件描述符
-    
-
+  
 	for (; i < e->n_; ++i) {
 		snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", e->pid_,
 			 i);
@@ -258,6 +278,25 @@ static int handle_event_write(void *ctx, void *data, size_t data_sz)
     return 0;
 }
 
+
+static int handle_event_disk_io_visit(void *ctx, void *data,unsigned long data_sz) {
+    const struct event_disk_io_visit *e = data;
+
+    printf("%-10llu %-9d %-7d %-4d %-7d %-16s\n",
+           e->timestamp, e->blk_dev, e->sectors, e->rwbs, e->count, e->comm);
+
+    return 0;
+}
+
+static int handle_event_block_rq_issue(void *ctx, void *data,unsigned long data_sz) {
+    const struct event_block_rq_issue *e = data;
+
+    printf("%-10llu %-9d %-7d %-4d %-16s\n",
+           e->timestamp, e->dev, e->sector, e->nr_sectors,e->comm);
+
+    return 0;
+}
+
 static int process_open(struct open_bpf *skel_open){
     int err;
     struct ring_buffer *rb;
@@ -306,3 +345,34 @@ write_cleanup:
     return err;
 }
 
+static int process_disk_io_visit(struct disk_io_visit_bpf *skel_disk_io_visit){
+    int err;
+    struct ring_buffer *rb;
+     
+    LOAD_AND_ATTACH_SKELETON(skel_disk_io_visit,disk_io_visit);
+    printf("%-18s %-7s %-7s %-4s %-7s %-16s\n","TIME", "DEV", "SECTOR", "RWBS", "COUNT", "COMM");
+    POLL_RING_BUFFER(rb, 1000, err);
+
+disk_io_visit_cleanup:
+    ring_buffer__free(rb);
+    disk_io_visit_bpf__destroy(skel_disk_io_visit);
+
+    return err;
+
+}
+
+static int process_block_rq_issue(struct block_rq_issue_bpf *skel_block_rq_issue){
+    int err;
+    struct ring_buffer *rb;
+     
+    LOAD_AND_ATTACH_SKELETON(skel_block_rq_issue,block_rq_issue);
+    printf("%-18s %-7s %-7s %-4s %-16s\n","TIME", "DEV", "SECTOR", "SECTORS","COMM");
+    POLL_RING_BUFFER(rb, 1000, err);
+
+block_rq_issue_cleanup:
+    ring_buffer__free(rb);
+    block_rq_issue_bpf__destroy(skel_block_rq_issue);
+
+    return err;
+
+}
