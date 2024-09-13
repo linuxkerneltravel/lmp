@@ -24,14 +24,15 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBB
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = paf pr procstat sysstat memleak fraginfo vmasnap drsnoop
+APPS = paf pr procstat sysstat memleak fraginfo vmasnap drsnoop oomkiller
 
+TARGETS= mem_watcher
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
 BZS_APPS :=
 else
 BZS_APPS := 
-TARGETS= mem_watcher
+
 
 # Required by libblazesym
 ALL_LDFLAGS += -lrt -ldl -lpthread -lm

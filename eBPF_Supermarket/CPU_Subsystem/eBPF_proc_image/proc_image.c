@@ -34,6 +34,7 @@
 #include "lock_image.skel.h"
 #include "keytime_image.skel.h"
 #include "schedule_image.skel.h"
+#include "mfutex.skel.h"
 #include "hashmap.h"
 #include "helpers.h"
 #include "trace_helpers.h"
@@ -66,6 +67,7 @@ static struct env {
 	int sched_prev_tgid;
 	int sc_prev_tgid;
 	char hostname[64];
+	bool enable_mfutex;
 } env = {
 	.output_resourse = false,
 	.output_schedule = false,
@@ -90,15 +92,24 @@ static struct env {
 	.sched_prev_tgid = 0,
 	.sc_prev_tgid = 0,
 	.hostname = "",
+	.enable_mfutex = false,
 };
 
 struct hashmap *map = NULL;
+struct resource_image_bpf *resource_skel = NULL;
+struct syscall_image_bpf *syscall_skel = NULL;
+struct lock_image_bpf *lock_skel = NULL;
+struct keytime_image_bpf *keytime_skel = NULL;
+struct schedule_image_bpf *schedule_skel = NULL;
+struct mfutex_bpf *mfutex_skel = NULL;
+
 
 static int scmap_fd;
 static int rscmap_fd;
 static int lockmap_fd;
 static int ktmap_fd;
 static int schedmap_fd;
+static int mfutexmap_fd;
 
 static struct timespec prevtime;
 static struct timespec currentime;
@@ -133,6 +144,7 @@ static const struct argp_option opts[] = {
 	{ "lock", 'l', NULL, 0, "Attach eBPF functions about lock(but do not start)" },
 	{ "keytime", 'k', NULL, 0, "Attach eBPF functions about keytime(but do not start)" },
 	{ "schedule", 'S', NULL, 0, "Attach eBPF functions about schedule (but do not start)" },
+	{ "mfutex", 'm', NULL, 0, "Attach eBPF functions about mfutex (but do not start)" },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help" },
 	{},
 };
@@ -146,6 +158,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 				env.enable_lock = true;
 				env.enable_keytime = true;
 				env.enable_schedule = true;
+				env.enable_mfutex = true;
 				break;
         case 'r':
                 env.enable_resource = true;
@@ -162,6 +175,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		case 'S':
 				env.enable_schedule = true;
 				break;
+		case 'm':
+				env.enable_mfutex = true;
+				break;		
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
 				break;
@@ -511,6 +527,45 @@ static int print_lock(void *ctx, void *data,unsigned long data_sz)
 	return 0;
 }
 
+static int print_mfutex(void *ctx, void *data,unsigned long data_sz)
+{
+	const struct per_lock_event *e = data;
+	time_t now = time(NULL);// 获取当前时间
+	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
+	printf("%02d:%02d:%02d   ",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+	int err,record_lock_fd =bpf_map__fd(mfutex_skel->maps.record_lock);
+
+	printf("0x%-16x  %-10d  %-11llu | \n",e->lock_ptr,e->owner,e->time);
+	// pid_t lookup_key = -1 ,next_key;
+	// int lock_cur_tgid = 0;
+
+	// if(e->tgid != -1)	lock_cur_tgid = 2;
+	// else	lock_cur_tgid = 1;
+	
+	// if(prev_image != LOCK_IMAGE || env.lock_prev_tgid != lock_cur_tgid){
+    //     printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
+    //     printf("%-15s  ","TIME");
+	// 	if(e->tgid != -1){
+	// 		printf("%-6s  ","TGID");
+	// 		env.lock_prev_tgid = 2;
+	// 	} else {
+	// 		env.lock_prev_tgid = 1;
+	// 	}
+	// 	printf("%-6s  %-15s  %s\n","PID","LockAddr","LockStatus");
+	// 	prev_image = LOCK_IMAGE;
+    // }
+
+	// printf("%-15lld  ",e->time);
+	// if(e->tgid != -1)	printf("%-6d  ",e->tgid);
+	// printf("%-6d  %-15lld  ",e->pid,e->lock_ptr);
+	// if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8 || e->lock_status==11){
+	// 	printf("%s-%d\n",lock_status[e->lock_status],e->ret);
+	// }else{
+	// 	printf("%s\n",lock_status[e->lock_status]);
+	// }
+	return 0;
+}
+
 static void inline quoted_symbol(char c) {
 	switch(c) {
 		case '"':
@@ -693,6 +748,24 @@ static int lock_attach(struct lock_image_bpf *skel)
 	
 	return 0;
 }
+static int mfutex_attach(struct mfutex_bpf *skel)
+{
+	int err;
+	
+	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_enter);
+	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_lock,pthread_mutex_lock_exit);
+	// ATTACH_UPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_enter);
+	// ATTACH_URETPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_exit);
+	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_enter);
+	
+	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_exit);
+	
+	
+	err = mfutex_bpf__attach(skel);
+	CHECK_ERR(err, "Failed to attach BPF mfutex skeleton");
+	
+	return 0;
+}
 
 static int keytime_attach(struct keytime_image_bpf *skel)
 {
@@ -737,19 +810,16 @@ void get_hostname() {
 
 int main(int argc, char **argv)
 {
-	struct resource_image_bpf *resource_skel = NULL;
 	struct bpf_map *rsc_ctrl_map = NULL;
-	struct syscall_image_bpf *syscall_skel = NULL;
 	struct ring_buffer *syscall_rb = NULL;
 	struct bpf_map *sc_ctrl_map = NULL;
-	struct lock_image_bpf *lock_skel = NULL;
 	struct ring_buffer *lock_rb = NULL;
 	struct bpf_map *lock_ctrl_map = NULL;
-	struct keytime_image_bpf *keytime_skel = NULL;
 	struct ring_buffer *keytime_rb = NULL;
 	struct bpf_map *kt_ctrl_map = NULL;
-	struct schedule_image_bpf *schedule_skel = NULL;
 	struct bpf_map *sched_ctrl_map = NULL;
+	struct ring_buffer *mfutex_rb = NULL;
+	struct bpf_map *mfutex_ctrl_map = NULL;
 	pthread_t thread_enable;
 	int key = 0;
 	int err;
@@ -895,6 +965,51 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if(env.enable_mfutex){
+		mfutex_skel = mfutex_bpf__open();
+		if (!mfutex_skel) {
+			fprintf(stderr, "Failed to open BPF mfutex skeleton\n");
+			return 1;
+		}
+
+		mfutex_skel->rodata->ignore_tgid = env.ignore_tgid;
+
+		err = mfutex_bpf__load(mfutex_skel);
+		if (err) {
+			fprintf(stderr, "Failed to load and verify BPF mfutex skeleton\n");
+			goto cleanup;
+		}
+		
+		err = common_pin_map(&mfutex_ctrl_map,mfutex_skel->obj,"mfutex_ctrl_map",mfutex_ctrl_path);
+		if(err < 0){
+			goto cleanup;
+		}
+		mfutexmap_fd = bpf_map__fd(mfutex_ctrl_map);
+		struct mfutex_ctrl init_value = {false,false,-1,-1};
+		err = bpf_map_update_elem(mfutexmap_fd, &key, &init_value, 0);
+		if(err < 0){
+			fprintf(stderr, "Failed to update elem\n");
+			goto cleanup;
+		}
+
+		/* 附加跟踪点处理程序 */
+		err = mfutex_attach(mfutex_skel);
+		if (err) {
+			fprintf(stderr, "Failed to attach BPF mfutex skeleton\n");
+			goto cleanup;
+		}
+		
+		/* 设置环形缓冲区轮询 */
+		//ring_buffer__new() API，允许在不使用额外选项数据结构下指定回调
+		mfutex_rb = ring_buffer__new(bpf_map__fd(mfutex_skel->maps.mfutex_rb), print_mfutex, NULL, NULL);
+		if (!mfutex_rb) {
+			err = -1;
+			fprintf(stderr, "Failed to create mfutex ring buffer\n");
+			goto cleanup;
+		}
+		printf("%-16s  %-16s  %-10s %-11s\n","TIME","LOCK_Addr","Holder","HoldTime");
+	}
+
 	if(env.enable_keytime){
 		keytime_skel = keytime_image_bpf__open();
 		if (!keytime_skel) {
@@ -1036,6 +1151,19 @@ int main(int argc, char **argv)
 			}
 		}
 
+		if(env.enable_mfutex){
+			err = ring_buffer__poll(mfutex_rb, 10);
+			/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling mfutex ring buffer: %d\n", err);
+				break;
+			}
+		}
+
 		if(env.enable_keytime){
 			err = ring_buffer__poll(keytime_rb, 0);
 			/* Ctrl-C will cause -EINTR */
@@ -1079,6 +1207,11 @@ cleanup:
 		bpf_map__unpin(lock_ctrl_map, lock_ctrl_path);
 		ring_buffer__free(lock_rb);
 		lock_image_bpf__destroy(lock_skel);
+	}
+	if(env.enable_mfutex){
+		bpf_map__unpin(mfutex_ctrl_map, mfutex_ctrl_path);
+		ring_buffer__free(mfutex_rb);
+		mfutex_bpf__destroy(mfutex_skel);
 	}
 	if(env.enable_keytime){
 		bpf_map__unpin(kt_ctrl_map, kt_ctrl_path);

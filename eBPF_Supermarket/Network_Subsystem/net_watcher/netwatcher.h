@@ -192,6 +192,14 @@ struct redis_query {
     u64 begin_time;
     int argc;
 };
+struct redis_stat_query {
+    int pid;
+    char comm[20];
+    char key[20];
+    int key_count;
+    char value[64];
+    int value_type;
+};
 
 struct RTT {
     u32 saddr;

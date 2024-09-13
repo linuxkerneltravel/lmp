@@ -22,12 +22,12 @@ static const char *__doc__ = "XDP loader\n"
 #include <net/if.h>
 #include <linux/if_link.h> /* depend on kernel-headers installed */
 
-#include "../common/common_params.h"
-#include "../common/common_user_bpf_xdp.h"
-#include "../common/common_libbpf.h"
+#include "./common/common_params.h"
+#include "./common/common_user_bpf_xdp.h"
+#include "./common/common_libbpf.h"
 #include "common_kern_user.h"
 
-static const char *default_filename = "xdp_prog_kern.o";
+static const char *default_filename = "netmanager_kern.o";
 static const char *default_progname = "xdp_entry_state";
 
 static const struct option_wrapper long_options[] = {
@@ -316,7 +316,7 @@ int pin_maps_in_bpf_object(struct bpf_object *bpf_obj)
 char *ifname;
 int rules_ipv4_map;
 int rtcache_map4;
-int src_macs;
+int rules_mac_map;
 
 int print_usage(int id){
     switch(id){
@@ -362,7 +362,7 @@ int open_map(const char *ifname, const char *map_name){
 int load_bpf_map(){
     rules_ipv4_map = open_map(ifname, "rules_ipv4_map");
     rtcache_map4 = open_map(ifname, "rtcache_map4");
-    src_macs = open_map(ifname, "src_macs");
+    rules_mac_map = open_map(ifname, "rules_mac_map");
     // Check if any map failed to open
     if (rules_ipv4_map < 0) {
         fprintf(stderr, "Failed to open rules_ipv4_map\n");
@@ -370,11 +370,11 @@ int load_bpf_map(){
     if (rtcache_map4 < 0) {
         fprintf(stderr, "Failed to open rtcache_map4\n");
     }
-    if (src_macs < 0) {
-        fprintf(stderr, "Failed to open src_macs\n");
+    if (rules_mac_map < 0) {
+        fprintf(stderr, "Failed to open rules_mac_map\n");
     }
 
-    if (rules_ipv4_map < 0 || rtcache_map4 < 0 || src_macs < 0) {
+    if (rules_ipv4_map < 0 || rtcache_map4 < 0 || rules_mac_map < 0) {
         fprintf(stderr, "load bpf map error, check device name\n");
         return -1;
     }
@@ -405,7 +405,7 @@ int clear_map(){
 
     bpf_map_delete_batch(rules_ipv4_map, &keys, &count, &opts);
     bpf_map_delete_batch(rtcache_map4, &keys, &count, &opts);
-    bpf_map_delete_batch(src_macs, &keys, &count, &opts);
+    bpf_map_delete_batch(rules_mac_map, &keys, &count, &opts);
 
     return count;
 }
@@ -576,38 +576,61 @@ int load_handler_mac(char* mac_filter_file){
         perror("Error opening file");
         return 1;
     }
+	__u16 keys[MAX_RULES];
+    struct rules_mac rules[MAX_RULES];
 
+    __u32 i = 1;
+    keys[0] = 0;
 
-    //__u64 src_mac_u64;
-    __u32 action_mac;
     char line[256];
-
-    clear_map();
+	printf("-----------------------------------------------------------------------------------------------\n");
+    
     while (fgets(line, sizeof(line), file) != NULL) {
         line[strcspn(line, "\n")] = '\0';
 
         __u8 src_mac[6];
+		__u8 dest_mac[6];
         char action[10];
-        sscanf(line, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx %s",
+        sscanf(line, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %s",
            &src_mac[0], &src_mac[1], &src_mac[2], &src_mac[3], &src_mac[4], &src_mac[5],
+		   &dest_mac[0], &dest_mac[1], &dest_mac[2], &dest_mac[3], &dest_mac[4], &dest_mac[5],
            action);
 
         //src_mac_u64 = mac_to_u64(src_mac);
-        printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x, Action: %s\n",
-                          src_mac[0], src_mac[1], src_mac[2],
-                          src_mac[3], src_mac[4], src_mac[5], action);
+		memcpy(rules[i].source, src_mac, ETH_ALEN);
+		memcpy(rules[i].dest, dest_mac, ETH_ALEN);
 
         if(strcmp("ALLOW", action) == 0){
-            action_mac = XDP_PASS;
+            rules[i].action = XDP_PASS;
         }else if(strcmp("DENY", action) == 0){
-            action_mac = XDP_DROP;
+            rules[i].action = XDP_DROP;
         }else{
-            action_mac = XDP_ABORTED;
+            rules[i].action = XDP_ABORTED;
         }
 
-        bpf_map_update_elem(src_macs, src_mac, &action_mac, BPF_ANY);
+		rules[i-1].next_rule = i;
+        rules[i].prev_rule = i - 1;
+        rules[i].next_rule = 0;
+        keys[i] = i;
+
+		printf("MAC_SRC: %02x:%02x:%02x:%02x:%02x:%02x, MAC_DEST: %02x:%02x:%02x:%02x:%02x:%02x ,Action: %s\n",
+                          src_mac[0], src_mac[1], src_mac[2],src_mac[3], src_mac[4], src_mac[5], 
+						  dest_mac[0], dest_mac[1], dest_mac[2],dest_mac[3], dest_mac[4], dest_mac[5], 
+						  action);
+
+		i += 1;
     }
     
+	printf("-----------------------------------------------------------------------------------------------\n");
+    printf("%d rules loaded\n",i-1);
+    rules[0].prev_rule = i - 1;
+
+    DECLARE_LIBBPF_OPTS(bpf_map_batch_opts, opts,
+		.elem_flags = 0,
+		.flags = 0,
+	);
+    clear_map();
+    bpf_map_update_batch(rules_mac_map, keys, rules, &i, &opts);
 
     return 0;   
 }
@@ -633,7 +656,6 @@ int main(int argc, char **argv)
 	int err;  // 错误码
 	int len;  // 字符串长度
 	char errmsg[1024];  // 错误消息字符串
-
 
 	// 配置结构体，包括XDP模式、接口索引、是否卸载程序以及程序名称等信息
 	struct config cfg = {

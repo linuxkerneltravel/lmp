@@ -43,6 +43,9 @@ static inline struct schedule_ctrl *get_schedule_ctrl(void) {
 SEC("tp_btf/sched_wakeup")
 int BPF_PROG(sched_wakeup, struct task_struct *p) {
     struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
+    if (!sched_ctrl) {
+        return 0;
+    }
     pid_t pid = p->pid;
     int cpu = bpf_get_smp_processor_id();
     struct schedule_event *schedule_event;
@@ -70,6 +73,9 @@ int BPF_PROG(sched_wakeup, struct task_struct *p) {
 SEC("tp_btf/sched_wakeup_new")
 int BPF_PROG(sched_wakeup_new, struct task_struct *p) {
    struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
+   if (!sched_ctrl) {
+        return 0;
+    }
 	sched_ctrl = bpf_map_lookup_elem(&schedule_ctrl_map,&ctrl_key);
 	if(!sched_ctrl || !sched_ctrl->schedule_func)
 		return 0;
@@ -94,6 +100,9 @@ int BPF_PROG(sched_wakeup_new, struct task_struct *p) {
 SEC("tp_btf/sched_switch")
 int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next) {
     struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
+    if (!sched_ctrl) {
+        return 0;
+    }
     struct proc_history *history;
     struct proc_history new_history;
     u64 current_time = bpf_ktime_get_ns();
@@ -198,6 +207,9 @@ int BPF_PROG(sched_switch, bool preempt, struct task_struct *prev, struct task_s
 SEC("tracepoint/sched/sched_process_exit")
 int sched_process_exit(void *ctx) {
     struct schedule_ctrl *sched_ctrl = get_schedule_ctrl();
+    if (!sched_ctrl) {
+        return 0;
+    }
     struct task_struct *p = (struct task_struct *)bpf_get_current_task();
     pid_t pid = BPF_CORE_READ(p, pid);
     int cpu = bpf_get_smp_processor_id();
