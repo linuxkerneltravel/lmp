@@ -2291,6 +2291,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
+name = "restful_api"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "bcrypt",
+ "chrono",
+ "dotenv",
+ "rocket 0.5.1",
+ "rocket_cors",
+ "rocket_okapi",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "syn 1.0.109",
+ "time 0.3.36",
+ "tokio",
+]
+
+[[package]]
 name = "ring"
 version = "0.17.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2666,25 +2685,6 @@ checksum = "75da29fe9b9b08fe9d6b22b5b4bcbc75d8db3aa31e639aa56bb62e9d46bfceaf"
 dependencies = [
  "core-foundation-sys",
  "libc",
-]
-
-[[package]]
-name = "restful_api"
-version = "0.1.0"
-dependencies = [
- "async-std",
- "bcrypt",
- "chrono",
- "dotenv",
- "rocket 0.5.1",
- "rocket_cors",
- "rocket_okapi",
- "serde",
- "serde_json",
- "sqlx",
- "syn 1.0.109",
- "time 0.3.36",
- "tokio",
 ]
 
 [[package]]
@@ -3946,9 +3946,9 @@ dependencies = [
 
 [[package]]
 name = "zerovec"
-version = "0.10.2"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb2cc8827d6c0994478a15c53f374f46fbd41bea663d809b14744bc42e6b109c"
+checksum = "aa2b893d79df23bfb12d5461018d408ea19dfafe76c2c7ef6d4eba614f8ff079"
 dependencies = [
  "yoke",
  "zerofrom",
