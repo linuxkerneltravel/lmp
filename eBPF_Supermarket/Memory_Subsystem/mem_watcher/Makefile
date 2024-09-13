@@ -26,12 +26,13 @@ ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = paf pr procstat sysstat memleak fraginfo vmasnap
 
+TARGETS= mem_watcher
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)
 BZS_APPS :=
 else
 BZS_APPS := 
-TARGETS= mem_watcher
+
 
 # Required by libblazesym
 ALL_LDFLAGS += -lrt -ldl -lpthread -lm
