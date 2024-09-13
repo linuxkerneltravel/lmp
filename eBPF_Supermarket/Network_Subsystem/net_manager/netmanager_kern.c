@@ -5,7 +5,7 @@
 #include <bpf/bpf_endian.h>
 
 #include "common_kern_user.h" 
-#include "../common/parsing_helpers.h"
+#include "./common/parsing_helpers.h"
 
 #ifndef memcpy
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
@@ -42,6 +42,13 @@ struct {
 	__uint(max_entries, MAX_RULES);
 } rules_ipv4_map SEC(".maps");
 
+// mac—filter
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, __u16);
+	__type(value, struct rules_mac);
+	__uint(max_entries, MAX_RULES);
+} rules_mac_map SEC(".maps");
 
 // router
 struct {
@@ -58,16 +65,6 @@ struct {
 	__type(value, struct rt_item);
 	__uint(max_entries, MAX_RULES);
 } rtcache_map4 SEC(".maps");
-
-
-/*filter-pass-drop*/
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, ETH_ALEN);
-	__type(value, __u32);
-	__uint(max_entries, MAX_RULES);
-} src_macs SEC(".maps");
-
 
 // 会话保持
 struct {
@@ -213,7 +210,7 @@ static int match_rules_ipv4_loop(__u32 index, void *ctx)
 
 	if(index == 0)
 		goto out_match_rules_ipv4_loop;
-	//bpf_printk("match_rules_ipv4_loop %d",index);
+	bpf_printk("match_rules_ipv4_loop %d",index);
 	if( ipv4_cidr_match(p_ctx->conn->saddr, p_r->saddr, p_r->saddr_mask) && 
 		ipv4_cidr_match(p_ctx->conn->daddr, p_r->daddr, p_r->daddr_mask) &&
 		port_match(p_ctx->conn->sport, p_r->sport) &&
@@ -328,7 +325,7 @@ out:
 
 /* Solution to packet03/assignment-4 */
 SEC("xdp")
-int xdp_entry_router(struct xdp_md *ctx)
+int xdp_entry_router1(struct xdp_md *ctx)
 {
 	xdp_act action = XDP_PASS; 
 	void *data_end = (void *)(long)ctx->data_end;
@@ -368,7 +365,7 @@ int xdp_entry_router(struct xdp_md *ctx)
 		nitem.saddr = ip4_saddr;
 		
 		// 首先精确查找转发表，如果找到就直接转发，不必再经历最长前缀匹配的慢速通配查找
-		match_rules(&nitem);
+		match_rules(&nitem);//rtcache_map4
 	
 		
 
@@ -476,6 +473,92 @@ out:
 	return xdp_stats_record_action(ctx, action);
 }
 
+struct match_rules_loop_mac_ctx{
+	__u16 action;
+	__u16 next_rule;
+	struct conn_mac *conn;
+};
+
+static inline int bpf_memcmp(const void *a, const void *b, size_t len) {
+    const unsigned char *p1 = a;
+    const unsigned char *p2 = b;
+    size_t i;
+
+    for (i = 0; i < len; i++) {
+        if (p1[i] != p2[i]) {
+            return p1[i] - p2[i];
+        }
+    }
+    return 0;
+}
+static __always_inline
+int mac_match(__u8 *conn_mac, __u8 *rule_mac) {
+    __u8 zero_mac[ETH_ALEN] = {0};  // 全零的MAC地址
+
+    // 如果rule_mac全为零，匹配所有MAC地址
+    if (bpf_memcmp(rule_mac, zero_mac, ETH_ALEN) == 0) {
+        return 1;
+    }
+
+    // 如果rule_mac的后三个字节为零，且前三个字节与conn_mac相同
+    if (bpf_memcmp(&rule_mac[3], zero_mac, 3) == 0) {
+        if (bpf_memcmp(conn_mac, rule_mac, 3) == 0) {
+            return 1;  // 匹配前三字节
+        }
+    }
+
+    // 检查规则MAC与连接MAC是否完全匹配
+    if (bpf_memcmp(rule_mac, conn_mac, ETH_ALEN) == 0) {
+        return 1;  // 完全匹配
+    }
+
+    return 0;  // 不匹配
+}
+
+
+static int match_rules_mac_loop(__u32 index, void *ctx)
+{
+	struct match_rules_loop_mac_ctx *p_ctx = (struct match_rules_loop_mac_ctx *)ctx;
+	if(index != p_ctx->next_rule)
+		return 0;
+	struct rules_mac *p_r = bpf_map_lookup_elem(&rules_mac_map, &index);
+	if(!p_r){
+		return 1; //out of range
+	}
+	p_ctx->next_rule = p_r->next_rule;
+	
+	if(index == 0)
+		goto out_match_rules_mac_loop;
+	//bpf_printk("match_rules_ipv4_loop %d",index);
+	// bpf_printk("MAC_SRC: %02x:%02x:%02x:%02x:%02x:%02x\n",p_r->source[0], p_r->source[1], p_r->source[2],p_r->source[3], p_r->source[4], p_r->source[5]);
+	// bpf_printk("MAC_DEST: %02x:%02x:%02x:%02x:%02x:%02x ,Action: %d\n",p_r->dest[0], p_r->dest[1], p_r->dest[2],p_r->dest[3], p_r->dest[4], p_r->dest[5], 
+	// 					  p_r->action);
+	if(mac_match(p_ctx->conn->dest, p_r->dest)&&mac_match(p_ctx->conn->source, p_r->source)) 
+	{
+		p_ctx->action = p_r->action;
+		return 1;
+	}
+
+out_match_rules_mac_loop:
+	if(p_r->next_rule == 0)
+		return 1; //go out loop
+
+	return 0;
+}
+
+static __always_inline
+xdp_act match_rules_mac(struct conn_mac *conn)
+{
+	struct match_rules_loop_mac_ctx ctx = {.action = XDP_PASS, .conn = conn, .next_rule = 0};
+	
+	
+	for(int i=0; i<MAX_RULES; i++){
+		if(match_rules_mac_loop(i,&ctx))
+			break;
+	}
+
+	return ctx.action;
+}
 
 /* accept ethernet addresses and filter everything else */
 SEC("xdp")
@@ -487,9 +570,10 @@ int xdp_entry_mac(struct xdp_md *ctx)
 	struct hdr_cursor nh;
 	int nh_type; //next header type
 	struct ethhdr *eth;
-	__u32 *value;
-
-
+	struct conn_mac conn = {
+    	.dest = {0},    // 初始化 dest 成员为全零
+    	.source = {0}   // 初始化 source 成员为全零
+	};
 	nh.pos = data;
 
 	nh_type = parse_ethhdr(&nh, data_end, &eth);
@@ -499,13 +583,17 @@ int xdp_entry_mac(struct xdp_md *ctx)
 
 	//action = match_rules_ipv4(&eth->h_source);
 
-	/* check if src mac is in src_macs map */
-	value = bpf_map_lookup_elem(&src_macs, eth->h_source);
-	if (value) {
-        action = *value;
-		goto out;
+	// /* check if src mac is in src_macs map */
+	// value = bpf_map_lookup_elem(&src_macs, eth->h_source);
+	// if (value) {
+    //     action = *value;
+	// 	goto out;
+    // }
+	for (int i = 0; i < ETH_ALEN; i++) {
+        conn.source[i] = eth->h_source[i];
+        conn.dest[i] = eth->h_dest[i];
     }
-	
+	action = match_rules_mac(&conn);
 
 out:
 	return xdp_stats_record_action(ctx, action);
@@ -705,11 +793,105 @@ out:
 	
 }
 
-SEC("xdp")
-int test(struct xdp_md *ctx)
-{
-	bpf_printk("1111111111 test\n");
-	return XDP_PASS;
-}
+// 最简单的一个转发表项
+struct rt_item_tab{
+	int ifindex; // 转发出去的接口
+	char eth_source[ETH_ALEN]; // 封装帧的源MAC地址。
+	char eth_dest[ETH_ALEN]; // 封装帧的目标MAC地址。
+};
 
+// 路由转发表缓存
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, __u32);
+	__type(value, struct rt_item_tab);
+	__uint(max_entries, MAX_RULES);
+} rtcache_map SEC(".maps");
+// 递减TTL还是要的
+static __always_inline int __ip_decrease_ttl(struct iphdr *iph)
+{
+	__u32 check = iph->check;
+	check += bpf_htons(0x0100);
+	iph->check = (__u16)(check + (check >= 0xFFFF));
+	return --iph->ttl;
+}
+// 字节码的C程序本身
+SEC("xdp")
+int xdp_entry_router(struct xdp_md *ctx)
+{
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	struct bpf_fib_lookup ifib;
+	struct ethhdr *eth = data;
+	struct iphdr *iph;
+	struct rt_item_tab *pitem = NULL;
+	unsigned int daddr = 0;
+	__u16 h_proto;
+	__u64 nh_off;
+	char fast_info[] = "Fast path to [%d]\n";
+	char slow_info[] = "Slow path to [%d]\n";
+	int action = XDP_DROP;
+	nh_off = sizeof(*eth);
+	if (data + nh_off > data_end) {
+		return XDP_DROP;
+	}
+
+	__builtin_memset(&ifib, 0, sizeof(ifib));
+	h_proto = eth->h_proto;
+	if (h_proto != bpf_htons(ETH_P_IP)) {
+		return XDP_PASS;
+	}
+
+	iph = data + nh_off;
+
+	if (iph + 1 > data_end) {
+		return XDP_DROP;
+	}
+
+	daddr = iph->daddr;
+
+	pitem = bpf_map_lookup_elem(&rtcache_map, &daddr);
+	// 首先精确查找转发表，如果找到就直接转发，不必再经历最长前缀匹配的慢速通配查找
+	// 这个动作是可以offload到硬件中的。
+	if (pitem) {
+		__ip_decrease_ttl(iph);
+		memcpy(eth->h_dest, pitem->eth_dest, ETH_ALEN);
+		memcpy(eth->h_source, pitem->eth_source, ETH_ALEN);
+		bpf_printk("%s----daddr : %d prot:%d",fast_info,daddr,pitem->ifindex);
+		//bpf_trace_printk(fast_info, sizeof(fast_info), pitem->ifindex);
+		action = bpf_redirect(pitem->ifindex, 0);
+		goto out;
+	}
+
+	// 否则只能执行最长前缀匹配了
+	ifib.family = AF_INET;
+	ifib.tos = iph->tos;
+	ifib.l4_protocol = iph->protocol;
+	ifib.tot_len = bpf_ntohs(iph->tot_len);
+	ifib.ipv4_src = iph->saddr;
+	ifib.ipv4_dst = iph->daddr;
+	ifib.ifindex = ctx->ingress_ifindex;
+
+	// 调用eBPF封装的路由查找函数，虽然所谓慢速查找，也依然不会进入协议栈的。
+	if (bpf_fib_lookup(ctx, &ifib, sizeof(ifib), 0) == 0) {
+		struct rt_item_tab nitem;
+
+		__builtin_memset(&nitem, 0, sizeof(nitem));
+		memcpy(&nitem.eth_dest, ifib.dmac, ETH_ALEN);
+		memcpy(&nitem.eth_source, ifib.smac, ETH_ALEN);
+		nitem.ifindex = ifib.ifindex;
+		// 插入新的表项
+		bpf_map_update_elem(&rtcache_map, &daddr, &nitem, BPF_ANY);
+		__ip_decrease_ttl(iph);
+		memcpy(eth->h_dest, ifib.dmac, ETH_ALEN);
+		memcpy(eth->h_source, ifib.smac, ETH_ALEN);
+		bpf_printk("%s----daddr : %d prot:%d",slow_info,daddr,nitem.ifindex);
+		//bpf_trace_printk(slow_info, sizeof(slow_info), ifib.ifindex);
+		action = bpf_redirect(ifib.ifindex, 0);
+		goto out;
+	}
+	action = XDP_PASS;
+out:
+	return xdp_stats_record_action(ctx, action);
+}
 char _license[] SEC("license") = "GPL";

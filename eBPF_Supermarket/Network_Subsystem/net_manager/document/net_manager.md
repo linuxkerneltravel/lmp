@@ -6,7 +6,7 @@ netmanager是一款基于 eBPF 技术的高效网络管理工具，核心技术�
 
 目前netmanager的整体框架为
 
-![image-20240711091259144](./pic/net_manager1.png)
+![image-20240711091259144](./image/net_manager1.png)
 
 
 
@@ -70,23 +70,23 @@ netmanager目前实现了过滤、转发、统计信息和会话保持四大功�
 
 ```c
 黑白名单：加载到本地链路 ens33 上
-		sudo ./xdp_loader -d ens33 --progname=xdp_entry_state -S
+		sudo ./netmanager -d ens33 --progname=xdp_entry_state -S
 会话保持：
-		sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf
+		sudo ./netmanager -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf
 
 ```
 
 **以会话保持为例**
 
-![image-20240711110643737](./pic/net_manager2.png)
+![image-20240711110643737](./image/net_manager2.png)
 
 可以借助xdp-loader工具进行操作
 
-![image-20240711110713174](./pic/net_manager3.png)
+![image-20240711110713174](./image/net_manager3.png)
 
 可以看到我们的程序被挂载到相应的端口上
 
-![image-20240711110826395](./pic/net_manager4.png)
+![image-20240711110826395](./image/net_manager4.png)
 
 可以看到其能抓到本机网络通信的各个报文，并获取其中的基本信息和连接状态。
 
@@ -133,18 +133,18 @@ netmanager目前实现了过滤、转发、统计信息和会话保持四大功�
 之后加载到程序中
 
 ```bash
-sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
+sudo ./netmanager -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
 ```
 
 之后加载到程序中
 
 ```bash
-sudo ./xdp_loader -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
+sudo ./netmanager -d ens33 -S --progname=xdp_entry_ipv4 -i conf.d/black_ipv4.conf -t
 ```
 
 统计信息如下
 
-![image-20240715202110387](./pic/net_manager5.png)
+![image-20240715202110387](./image/net_manager5.png)
 
 可以发现已经drop了所有icmp报文
 
@@ -194,7 +194,7 @@ sudo xdp-loader unload ens33 --all
 
 ### Makefile结构
 
-![image-20240711102520620](./pic/net_manager6.png)
+![image-20240711102520620](./image/net_manager6.png)
 
 为递归make，尝试修改，较为困难
 
@@ -202,8 +202,8 @@ sudo xdp-loader unload ens33 --all
 
 主用户态代码
 
-![image-20240711105855149](./pic/net_manager7.png)
+![image-20240711105855149](./image/net_manager7.png)
 
 ### ./net_manager/xdp_prog_kern.c
 
-![image-20240711110039806](./pic/net_manager8.png)
+![image-20240711110039806](./image/net_manager8.png)

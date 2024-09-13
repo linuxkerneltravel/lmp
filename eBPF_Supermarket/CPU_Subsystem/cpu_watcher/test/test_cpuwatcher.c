@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <argp.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -19,7 +20,8 @@ static struct env {
    bool mq_delay_test;
    bool preempt_test;
    bool schedule_test;
-   bool mutrace_test;
+   bool mutrace_test1;
+   bool mutrace_test2;
 } env = {
    .sar_test = false,
    .cs_delay_test = false,
@@ -27,7 +29,8 @@ static struct env {
    .mq_delay_test = false,
    .preempt_test = false,
    .schedule_test = false,
-   .mutrace_test = false,
+   .mutrace_test1 = false,
+   .mutrace_test2 = false,
 };
 
 const char argp_program_doc[] ="To test cpu_watcher.\n";
@@ -39,7 +42,8 @@ static const struct argp_option opts[] = {
    { "mq_delay", 'm', NULL, 0, "To test mq_delay", 0 },
    { "preempt_delay", 'p', NULL, 0, "To test preempt_delay", 0 },
    { "schedule_delay", 'd', NULL, 0, "To test schedule_delay", 0 },
-   { "mu_trace", 'x', NULL, 0, "To test mutrace", 0 },
+   { "mu_trace_kernel", 'x', NULL, 0, "To test kernel mutrace", 0 },
+   { "mu_trace_user", 'u', NULL, 0, "To test user mutrace", 0 },
    { "all", 'a', NULL, 0, "To test all", 0 },
    { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help", 0 },
    {},
@@ -76,7 +80,10 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
             env.schedule_test = true;
             break;
         case 'x':
-            env.mutrace_test = true;
+            env.mutrace_test1 = true;
+            break;
+        case 'u':
+            env.mutrace_test2 = true;
             break;
 		case 'h':
 				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
@@ -127,6 +134,43 @@ void input_pid() {
     printf("程序开始执行...\n");
     printf("\n");
 }
+
+void *mutex_test_thread(void *arg) {
+    pthread_mutex_t *mutex = (pthread_mutex_t *)arg;
+    uintptr_t mutex_addr = (uintptr_t)mutex;  // 获取互斥锁的地址
+
+    for (int i = 0; i < 10; i++) {
+        pthread_mutex_lock(mutex);
+        printf("Thread %ld (mutex address: %lu) acquired the mutex\n", 
+               pthread_self(), (unsigned long)mutex_addr);
+        usleep(rand() % 1000); 
+        pthread_mutex_unlock(mutex);
+        printf("Thread %ld (mutex address: %lu) released the mutex\n", 
+               pthread_self(), (unsigned long)mutex_addr);
+        usleep(rand() % 1000);
+    }
+
+    return NULL;
+}
+
+void start_mutex_test(int num_threads) {
+    pthread_mutex_t mutex;
+    pthread_t *threads = malloc(num_threads * sizeof(pthread_t));
+
+    pthread_mutex_init(&mutex, NULL);
+
+    for (int i = 0; i < num_threads; i++) {
+        pthread_create(&threads[i], NULL, mutex_test_thread, &mutex);
+    }
+
+    for (int i = 0; i < num_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    pthread_mutex_destroy(&mutex);
+    free(threads);
+}
+
 
 int main(int argc, char **argv){
     int err;
@@ -197,9 +241,9 @@ int main(int argc, char **argv){
         printf("\n");
     }
 
-    if(env.mutrace_test){
-         printf("MUTRACE_TEST----------------------------------------------\n");
-        //MUTRACE功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程，持续15秒,观察加压前后的变化。
+    if(env.mutrace_test1){
+         printf("MUTRACE_KERNEL_TEST----------------------------------------------\n");
+        //内核态互斥锁功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程，持续15秒,观察加压前后的变化。
         char *argvv[] = { "/usr/bin/stress-ng", "--hdd", "4", "--hdd-opts", "wr-seq,rd-seq", "--io", "4",  "--timeout", "15s", "--metrics-brief", NULL };
         char *envp[] = { "PATH=/bin", NULL };
         printf("MUTRACE功能测试逻辑：系统上执行混合压力测试，包括4个顺序读写硬盘线程、4个IO操作线程和4个UDP网络操作线程，持续15秒,观察加压前后的变化\n");
@@ -209,5 +253,14 @@ int main(int argc, char **argv){
         printf("\n");
     }
 
+
+    if(env.mutrace_test2){
+        printf("MUTRACE_USER_TEST----------------------------------------------\n");
+        printf("测试场景: 创建多个线程，每个线程反复加锁和解锁同一个互斥锁，观察互斥锁的争用情况\n");
+        start_mutex_test(10); // 创建10个线程进行互斥锁测试
+        printf("测试结束\n");
+        printf("\n");
+        
+    }
     return 0;
 }

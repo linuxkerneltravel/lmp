@@ -41,9 +41,8 @@ jobs:
           cd testenv
           sudo ./testenv.sh setup --name veth-basic02
           cd ..
-          cd net_manager
-          sudo timeout -s SIGINT 5 ./xdp_loader -d eth0 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo ./xdp_loader -d eth0 -S
+          sudo timeout -s SIGINT 5 ./netmanager -d eth0 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo ./netmanager -d eth0 -S
     
   
        

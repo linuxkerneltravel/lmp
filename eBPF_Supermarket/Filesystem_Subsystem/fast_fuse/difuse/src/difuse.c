@@ -15,25 +15,37 @@
 #define DIRECTORY_TYPE 2
 #define MAX_INODES 1000  //最大 inode 数量
 #define HASH_SIZE 1024
+#define CHUNK_SIZE 4096 // 数据块的大小
 
 uint32_t next_ino = 1;
 
 struct dfs_data
 {
-    int chunk_size;
+    char *data;
     size_t size;
     struct dfs_data *next;
 };
 
+static struct dfs_data *allocate_data_block()
+{
+    struct dfs_data *new_data = (struct dfs_data *)malloc(sizeof(struct dfs_data));
+    new_data->data = (char *)malloc(CHUNK_SIZE);
+    new_data->next = NULL;
+    return new_data;
+}
+
 struct dfs_inode
 {
-    uint32_t ino;                       //inode编号
-    int size;                           //文件大小
-    int dir_cnt;                        // 如果是目录类型文件，下面有几个目录项
-    struct dfs_data *data_pointer;      //指向数据块的指针
-    struct dfs_inode *prev;  // LRU 链表前驱指针
-    struct dfs_inode *next;  // LRU 链表后继指针
+    uint32_t ino;                       // inode编号
+    int size;                           // 文件大小
+    int dir_cnt;                        // 目录项数量
+    struct dfs_data *data_pointer;      // 数据块指针
+    time_t atime;                       // 最后访问时间
+    time_t mtime;                       // 最后修改时间
+    struct dfs_inode *prev;
+    struct dfs_inode *next;
 };
+
 
 struct dfs_dentry
 {
@@ -293,8 +305,13 @@ static int di_utimens(const char *path, const struct timespec ts[2], struct fuse
         return -ENOENT;
     }
 
+    // 设置文件的时间戳
+    dentry->inode->atime = ts[0].tv_sec;  // 访问时间
+    dentry->inode->mtime = ts[1].tv_sec;  // 修改时间
+
     return 0;
 }
+
 
 static int di_mkdir(const char *path, mode_t mode)
 {
@@ -329,7 +346,6 @@ static int dfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 static int di_getattr(const char *path, struct stat *di_stat, struct fuse_file_info *fi)
 {
     (void)fi;
-    int ret = 0;
     memset(di_stat, 0, sizeof(struct stat));
 
     struct dfs_dentry *dentry = look_up(root, path);
@@ -348,8 +364,12 @@ static int di_getattr(const char *path, struct stat *di_stat, struct fuse_file_i
         di_stat->st_size = dentry->inode->size;
     }
 
-    return ret;
+    di_stat->st_atime = dentry->inode->atime;  // 最后访问时间
+    di_stat->st_mtime = dentry->inode->mtime;  // 最后修改时间
+
+    return 0;
 }
+
 
 /*遍历目录项*/
 static int di_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
@@ -401,17 +421,101 @@ static int di_read(const char *path, char *buf, size_t size, off_t offset, struc
     if (dentry->ftype != FILE_TYPE)
         return -EISDIR;
 
-    if (offset < dentry->inode->size)
-    {
-        if (offset + size > dentry->inode->size)
-            size = dentry->inode->size - offset;
-        memcpy(buf, "dummy_content", size);
-    }
-    else
-        size = 0;
+    struct dfs_inode *inode = dentry->inode;
+    size_t file_size = inode->size;
 
-    return size;
+    if (offset >= file_size)
+        return 0;
+
+    if (offset + size > file_size)
+        size = file_size - offset;
+
+    size_t bytes_read = 0;
+    struct dfs_data *data_block = inode->data_pointer;
+
+    // 遍历数据块，处理偏移和读取
+    while (data_block != NULL && bytes_read < size)
+    {
+        if (offset >= CHUNK_SIZE)
+        {
+            offset -= CHUNK_SIZE;
+            data_block = data_block->next;
+            continue;
+        }
+
+        size_t to_read = CHUNK_SIZE - offset;
+        if (to_read > size - bytes_read)
+            to_read = size - bytes_read;
+
+        memcpy(buf + bytes_read, data_block->data + offset, to_read);
+        bytes_read += to_read;
+        offset = 0;  // 只有第一个块需要处理 offset，之后的块直接从头开始
+
+        data_block = data_block->next;
+    }
+
+    return bytes_read;
 }
+
+
+static int di_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    (void)fi;
+    struct dfs_dentry *dentry = look_up(root, path);
+
+    if (dentry == NULL) return -ENOENT;
+    if (dentry->ftype != FILE_TYPE) return -EISDIR;
+
+    struct dfs_inode *inode = dentry->inode;
+    struct dfs_data *data_block = inode->data_pointer;
+
+    if (data_block == NULL)
+    {
+        data_block = allocate_data_block();
+        inode->data_pointer = data_block;
+    }
+
+    size_t bytes_written = 0;
+    size_t total_offset = offset;
+
+    while (data_block != NULL && total_offset >= CHUNK_SIZE)
+    {
+        total_offset -= CHUNK_SIZE;
+        if (data_block->next == NULL)
+        {
+            data_block->next = allocate_data_block();
+        }
+        data_block = data_block->next;
+    }
+
+    while (bytes_written < size)
+    {
+        size_t space_in_block = CHUNK_SIZE - total_offset;
+        size_t to_write = size - bytes_written;
+
+        if (to_write > space_in_block) to_write = space_in_block;
+
+        memcpy(data_block->data + total_offset, buf + bytes_written, to_write);
+
+        total_offset = 0;
+        bytes_written += to_write;
+        data_block->size += to_write;
+
+        if (bytes_written < size && data_block->next == NULL)
+        {
+            data_block->next = allocate_data_block();
+        }
+        data_block = data_block->next;
+    }
+
+    if (offset + bytes_written > inode->size)
+    {
+        inode->size = offset + bytes_written;
+    }
+
+    return bytes_written;
+}
+
 
 static void *di_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
@@ -430,6 +534,7 @@ static struct fuse_operations difs_ops = {
     .getattr = di_getattr,
     .open = di_open,
     .read = di_read,
+    .write = di_write,
     .mkdir = di_mkdir,
     .create = dfs_create,
     .utimens = di_utimens,

@@ -46,13 +46,21 @@ static char binary_path[64] = "";
 int num_symbols = 0;
 int cache_size = 0;
 
+// 用于存储从 eBPF map 读取的数据
+typedef struct {
+    char key[256];
+    u32 value;
+} kv_pair;
+
+static int map_fd;
+
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
            time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
            redis_info = 0, count_info = 0, rtt_info = 0, rst_info = 0,
-           protocol_count = 0; // flag
+           protocol_count = 0,redis_stat = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 static const struct argp_option opts[] = {
@@ -80,6 +88,7 @@ static const struct argp_option opts[] = {
      "set to trace mysql information info include Pid 进程id、Comm "
      "进程名、Size sql语句字节大小、Sql 语句"},
     {"redis", 'R', 0, 0},
+    {"redis-stat", 'b', 0, 0},
     {"count", 'C', "NUMBER", 0,
      "specify the time to count the number of requests"},
     {"rtt", 'T', 0, 0, "set to trace rtt"},
@@ -156,6 +165,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'p':
         protocol_count = 1;
         break;
+    case 'b':
+        redis_stat = 1;
+        break;
     case 'C':
         count_info = strtoul(arg, &end, 10);
         break;
@@ -168,6 +180,21 @@ static const struct argp argp = {
     .options = opts,
     .parser = parse_arg,
     .doc = argp_program_doc,
+};
+enum MonitorMode {
+    MODE_UDP,
+    MODE_NET_FILTER,
+    MODE_DROP_REASON,
+    MODE_ICMP,
+    MODE_TCP,
+    MODE_DNS,
+    MODE_MYSQL,
+    MODE_REDIS,
+    MODE_RTT,
+    MODE_RST,
+    MODE_PROTOCOL_COUNT,
+    MODE_REDIS_STAT,
+    MODE_DEFAULT
 };
 enum MonitorMode get_monitor_mode() {
     if (udp_info) {
@@ -186,6 +213,8 @@ enum MonitorMode get_monitor_mode() {
         return MODE_MYSQL;
     } else if (redis_info) {
         return MODE_REDIS;
+    } else if (redis_stat) {
+        return MODE_REDIS_STAT;
     } else if (rtt_info) {
         return MODE_RTT;
     } else if (rst_info) {
@@ -406,6 +435,7 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->stack_info = stack_info;
     skel->rodata->mysql_info = mysql_info;
     skel->rodata->redis_info = redis_info;
+    skel->rodata->redis_stat = redis_stat;
     skel->rodata->rtt_info = rtt_info;
     skel->rodata->rst_info = rst_info;
     skel->rodata->protocol_count = protocol_count;
@@ -565,9 +595,13 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
                               mysql_info ? true : false);
     bpf_program__set_autoload(skel->progs.query__end,
                               mysql_info ? true : false);
-    bpf_program__set_autoload(skel->progs.query__end_redis,
+    bpf_program__set_autoload(skel->progs.redis_addReply,
+                              redis_stat ? true : false);
+    bpf_program__set_autoload(skel->progs.redis_lookupKey,
+                              redis_stat ? true : false);
+    bpf_program__set_autoload(skel->progs.redis_processCommand,
                               redis_info ? true : false);
-    bpf_program__set_autoload(skel->progs.query__start_redis_process,
+    bpf_program__set_autoload(skel->progs.redis_call,
                               redis_info ? true : false);
     bpf_program__set_autoload(skel->progs.tcp_rcv_established,
                               (all_conn || err_packet || extra_conn_info ||
@@ -646,6 +680,13 @@ static void print_header(enum MonitorMode mode) {
                "============================\n");
         printf("%-20s %-20s %-20s %-20s %-20s \n", "Pid", "Comm", "Size",
                "Redis", "duration/μs");
+        break;
+     case MODE_REDIS_STAT:
+        printf("==============================================================="
+               "====================REDIS "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s\n", "Pid", "Comm", "key", "Key_count","Value_Type","Value");
         break;
     case MODE_RTT:
         printf("==============================================================="
@@ -810,7 +851,7 @@ static int print_conns(struct netwatcher_bpf *skel) {
 }
 static int print_packet(void *ctx, void *packet_info, size_t size) {
     if (udp_info || net_filter || drop_reason || icmp_info || tcp_info ||
-        dns_info || mysql_info || redis_info || rtt_info || protocol_count)
+        dns_info || mysql_info || redis_info || rtt_info || protocol_count||redis_stat)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME ||
@@ -1272,6 +1313,54 @@ static int print_redis(void *ctx, void *packet_info, size_t size) {
     strcpy(redis, "");
     return 0;
 }
+static int process_redis_first(char flag,char *message) {
+    if(flag=='+')
+    {
+        strcpy(message, "Status Reply");
+    }
+    else if (flag=='-')
+    {
+        strcpy(message, "Error Reply");
+    }
+    else if (flag==':')
+    {
+        strcpy(message, "Integer Reply");
+    }
+    else if (flag=='$')
+    {
+        strcpy(message, "Bulk String Reply");
+    }
+    else if (flag=='*')
+    {
+        strcpy(message, "Array Reply");
+    }
+    else{
+        strcpy(message, "Unknown Type");
+    }
+    return 0;
+}
+
+static int print_redis_stat(void *ctx, void *packet_info, size_t size) {
+    if (!redis_stat) {
+        return 0;
+    }
+    char message[20]={};
+    const struct redis_stat_query *pack_info = packet_info;
+    if(pack_info->key_count)
+    {
+        printf("%-20d %-20s %-20s %-20d %-20s %-20s\n", pack_info->pid, pack_info->comm,
+            pack_info->key,pack_info->key_count,"-","-");
+    }
+    else
+    {
+        process_redis_first(pack_info->value[0],message);
+        printf("%-20d %-20s %-20s %-20s %-20s %-20s\n", pack_info->pid, pack_info->comm,
+            "-","-",message,pack_info->value);
+    }
+   
+    return 0;
+}
+
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {
     return vfprintf(stderr, format, args);
@@ -1370,9 +1459,60 @@ int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
     return 0;
 }
 int attach_uprobe_redis(struct netwatcher_bpf *skel) {
-    ATTACH_UPROBE_CHECKED(skel, call, query__end_redis);
-    ATTACH_UPROBE_CHECKED(skel, processCommand, query__start_redis_process);
+    if(redis_info){
+        ATTACH_UPROBE_CHECKED(skel, call, redis_call);
+        ATTACH_UPROBE_CHECKED(skel, processCommand, redis_processCommand);
+    }
+    if(redis_stat){
+        ATTACH_UPROBE_CHECKED(skel, lookupKey, redis_lookupKey);
+        ATTACH_UPROBE_CHECKED(skel, addReply, redis_addReply);
+    }
     return 0;
+}
+
+void print_top_5_keys() {
+    kv_pair *pairs;
+    pairs = malloc(sizeof(kv_pair) * 1024);
+    if (!pairs) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+    int index = 0;
+    char *key = NULL;
+     while (bpf_map_get_next_key(map_fd, &key, &key) == 0) {
+        // fprintf(stdout, "next_sk: (%p)\n", sk);
+        int count;
+        int err = bpf_map_lookup_elem(map_fd, &key, &count);
+        if (err) {
+            fprintf(stderr, "Failed to read value from the conns map: (%s)\n",
+                    strerror(errno));
+            return ;
+        }
+        memcpy(pairs[index].key, &key, 256);
+        pairs[index].value = count;
+        //printf("Key: %s, Count: %u\n", pairs[index].key, pairs[index].value);
+        index++;
+     }
+    // 获取所有键值对
+
+    // 排序前 5 个元素
+    // 简单选择排序（可替换为其他高效排序算法）
+    for (int i = 0; i < index - 1; i++) {
+        for (int j = i + 1; j < index; j++) {
+            if (pairs[j].value > pairs[i].value) {
+                kv_pair temp = pairs[i];
+                pairs[i] = pairs[j];
+                pairs[j] = temp;
+            }
+        }
+    }
+    printf("----------------------------\n");
+    // 打印前 5 个元素
+    printf("Top 5 Keys:\n");
+    for (int i = 0; i < 5 && i < index; i++) {
+        printf("Key: %s, Count: %u\n", pairs[i].key, pairs[i].value);
+    }
+    free(pairs);
 }
 int main(int argc, char **argv) {
     char *last_slash = strrchr(argv[0], '/');
@@ -1397,6 +1537,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *trace_rb = NULL;
     struct ring_buffer *mysql_rb = NULL;
     struct ring_buffer *redis_rb = NULL;
+    struct ring_buffer *redis_stat_rb = NULL;
     struct ring_buffer *rtt_rb = NULL;
     struct ring_buffer *events = NULL;
     struct ring_buffer *port_rb = NULL;
@@ -1438,7 +1579,7 @@ int main(int argc, char **argv) {
 
             goto cleanup;
         }
-    } else if (redis_info) {
+    } else if (redis_info||redis_stat) {
         strcpy(binary_path, "/usr/bin/redis-server");
         err = attach_uprobe_redis(skel);
         if (err) {
@@ -1522,6 +1663,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
+    redis_stat_rb = ring_buffer__new(bpf_map__fd(skel->maps.redis_stat_rb), print_redis_stat,
+                                NULL, NULL);
+    if (!redis_stat_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(trace)\n");
+        goto cleanup;
+    }
     rtt_rb =
         ring_buffer__new(bpf_map__fd(skel->maps.rtt_rb), print_rtt, NULL, NULL);
     if (!rtt_rb) {
@@ -1570,7 +1718,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(rtt_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(events, 100 /* timeout, ms */);
         err = ring_buffer__poll(port_rb, 100 /* timeout, ms */);
-
+        err = ring_buffer__poll(redis_stat_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */
@@ -1584,20 +1732,25 @@ int main(int argc, char **argv) {
         }
 
         gettimeofday(&end, NULL);
-        if (rst_info || protocol_count) {
-            if ((end.tv_sec - start.tv_sec) >= 5) {
-                if (rst_info) {
-                    print_stored_events();
-                    printf("Total RSTs in the last 5 seconds: %llu\n\n",
-                           rst_count);
-                    rst_count = 0;
-                    event_count = 0;
-                } else if (protocol_count) {
+        if ((end.tv_sec - start.tv_sec) >= 5) {
+            if (rst_info) {
+                print_stored_events();
+                printf("Total RSTs in the last 5 seconds: %llu\n\n",rst_count);
+                        rst_count = 0;
+                        event_count = 0;
+                }else if (protocol_count) {
                     calculate_protocol_usage(proto_stats, 256, 5);
+                }else if(redis_stat)
+                {
+                    map_fd = bpf_map__fd(skel->maps.key_count);
+                    if (map_fd < 0) {
+                        perror("Failed to get map FD");
+                        return 1;
+                    }
+                    print_top_5_keys();
                 }
                 gettimeofday(&start, NULL);
             }
-        }
     }
 cleanup:
     netwatcher_bpf__destroy(skel);

@@ -198,6 +198,15 @@ struct redis_query {
     u64 begin_time;
     int argc;
 };
+struct redis_stat_query {
+    int pid;
+    char comm[20];
+    char key[20];
+    int key_count;
+    char value[64];
+    int value_type;
+};
+
 struct RTT {
     u32 saddr;
     u32 daddr;
@@ -236,20 +245,7 @@ struct SymbolEntry {
     unsigned long addr;
     char name[30];
 };
-enum MonitorMode {
-    MODE_UDP,
-    MODE_NET_FILTER,
-    MODE_DROP_REASON,
-    MODE_ICMP,
-    MODE_TCP,
-    MODE_DNS,
-    MODE_MYSQL,
-    MODE_REDIS,
-    MODE_RTT,
-    MODE_RST,
-    MODE_PROTOCOL_COUNT,
-    MODE_DEFAULT
-};
+
 static const char *protocol[] = {
     [0] = "TCP",
     [1] = "UDP",

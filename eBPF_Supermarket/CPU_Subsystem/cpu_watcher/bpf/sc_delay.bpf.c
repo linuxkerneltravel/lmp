@@ -45,6 +45,9 @@ static inline struct sc_ctrl *get_sc_ctrl(void) {
 SEC("tracepoint/raw_syscalls/sys_enter")
 int tracepoint__syscalls__sys_enter(struct trace_event_raw_sys_enter *args){
 	struct sc_ctrl *sc_ctrl = get_sc_ctrl();
+	if (!sc_ctrl) {
+        return 0;
+    }
 	u64 start_time = bpf_ktime_get_ns()/1000;
 	pid_t pid = bpf_get_current_pid_tgid();
 	u64 syscall_id = (u64)args->id;
@@ -58,6 +61,9 @@ int tracepoint__syscalls__sys_enter(struct trace_event_raw_sys_enter *args){
 SEC("tracepoint/raw_syscalls/sys_exit")
 int tracepoint__syscalls__sys_exit(struct trace_event_raw_sys_exit *args){
 	struct sc_ctrl *sc_ctrl = get_sc_ctrl();
+	if (!sc_ctrl) {
+        return 0;
+    }
 	u64 exit_time = bpf_ktime_get_ns()/1000;
 	pid_t pid = bpf_get_current_pid_tgid() ;
 	u64 syscall_id;

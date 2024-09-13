@@ -41,7 +41,7 @@ INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(LIBBLAZESYM_INC) -I./includ
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = resource_image lock_image syscall_image keytime_image schedule_image
+APPS = resource_image lock_image syscall_image keytime_image schedule_image mfutex
 WORKTOOL := proc_image
 CONTROLLER := controller
 
@@ -142,7 +142,7 @@ $(CONTROLLER): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 
 $(WORKTOOL): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -lpthread -o $@
+	$(Q)$(CC) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 	@mkdir -p $(OUTPUT)/data
 	@[ -f $(OUTPUT)/data/offcpu_stack.txt ] || touch $(OUTPUT)/data/offcpu_stack.txt
 

@@ -46,7 +46,18 @@ struct rules_ipv4 {
 	__u16 next_rule;
 };
 
+struct conn_mac {
+	unsigned char dest[ETH_ALEN];
+	unsigned char source[ETH_ALEN];
+};
 
+struct rules_mac {
+	unsigned char dest[ETH_ALEN];
+	unsigned char source[ETH_ALEN];
+	__u16 action;
+	__u16 prev_rule;
+	__u16 next_rule;
+};
 // 转发表项
 struct rt_item {
 	__u32 saddr;
