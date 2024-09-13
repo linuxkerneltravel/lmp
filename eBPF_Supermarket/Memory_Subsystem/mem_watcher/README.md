@@ -52,6 +52,89 @@
    registry = "git://mirrors.ustc.edu.cn/crates.io-index"
    ```
 
+### 环境搭建的问题记录
+   ```
+   cd lmp/eBPF_Supermarket/Memory_Subsystem/mem_watcher
+   make
+   ```
+   make后没有编译生成任何的二进制文件，只打印了logo，效果如下：
+   ![alt text](/docs/image/15.png)
+
+打开makefile，检查makefile逻辑，代码如下：
+```
+CARGO ?= $(shell which cargo)
+ifeq ($(strip $(CARGO)),)
+BZS_APPS :=
+else
+BZS_APPS := 
+TARGETS= mem_watcher
+```
+这段代码是检查`CARGO`变量是否为空。如果为空（即`cargo`命令不存在），则`BZS_APPS`变量将被设置为空。否则，`BZS_APPS`变量也将被设置为空，但同时定义了一个名为`TARGETS`的变量，其值为`mem_watcher`。
+
+**修改makefile**
+
+```
+TARGETS= mem_watcher
+CARGO ?= $(shell which cargo)
+ifeq ($(strip $(CARGO)),)
+BZS_APPS :=
+else
+BZS_APPS := 
+```
+再次执行make，发现报错为 "vmlinux.h file not find"，如下：
+   ![alt text](/docs/image/16.png)
+
+执行以下命令,生成vmlinux.h文件
+```
+cd /lmp/eBPF_Supermarket/Memory_Subsystem
+bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
+```
+
+**安装cargo**
+```
+  $ curl -sSf https://static.rust-lang.org/rustup.sh | sh
+```
+这里参考 [Blog](https://blog.csdn.net/somken/article/details/129145764)换源
+```
+# 放到 `$HOME/.cargo/config` 文件中
+[source.crates-io]
+registry = "https://github.com/rust-lang/crates.io-index"
+
+# 替换成你偏好的镜像源
+replace-with = 'tuna'
+#replace-with = 'ustc'
+#replace-with = 'zju'
+
+[source.tuna]
+registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
+
+[source.ustc]
+registry = "git://mirrors.ustc.edu.cn/crates.io-index"
+
+[source.zju]
+registry = "https://mirrors.zju.edu.cn/git/crates.io-index.git"
+
+
+[source.sjtu]
+registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
+
+# rustcc社区
+[source.rustcc]
+registry = "git://crates.rustcc.cn/crates.io-index"
+
+```
+   重新安装还是会报错：
+
+   ![alt text](/docs/image/17.png)
+
+   在 `~/.cargo/config` 文件中添加以下内容，即可解决：
+   ```
+   [net]
+git-fetch-with-cli = true
+```
+再次make编译完成，生成二进制文件 mem_watcher，并能正常运行。
+   ![alt text](/docs/image/18.png)
+
 # 工具的使用方法说明
 
 ## 功能介绍

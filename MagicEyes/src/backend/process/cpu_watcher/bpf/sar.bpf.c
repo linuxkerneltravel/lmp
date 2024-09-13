@@ -1,3 +1,19 @@
+// Copyright 2023 The LMP Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
+
 #include <vmlinux.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -7,24 +23,22 @@
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 const volatile long long unsigned int forks_addr = 0;
-
+const int ctrl_key = 0;
 #define PF_IDLE			0x00000002	/* I am an IDLE thread */
 #define PF_KTHREAD		0x00200000	/* I am a kernel thread */
 
 // 计数表格，第0项为所统计fork数，第1项为进程切换数
 BPF_ARRAY(countMap,int,u64,3);
 // 记录开始的时间
-BPF_ARRAY(procStartTime,pid_t,u64,4096);
-// 储存运行队列rq的全局变量
-BPF_ARRAY(rq_map,u32,struct rq,1);
+BPF_ARRAY(procStartTime,pid_t,u64,1024);
 //存储运行队列长度
-BPF_PERCPU_ARRAY(runqlen,u32,int,1);
+BPF_ARRAY(runqlen,u32,int,1);
 //记录软中断开始时间
-BPF_HASH(softirqCpuEnterTime,u32,u64,4096);
+BPF_HASH(softirqCpuEnterTime,u32,u64,1024);
 //记录软中断结束时间
 BPF_HASH(softirqLastTime,u32,u64,1);
 // 记录开始的时间
-BPF_HASH(irq_cpu_enter_start,u32,u64,8192);
+BPF_HASH(irq_cpu_enter_start,u32,u64,1024);
 //记录上次中断时间
 BPF_ARRAY(irq_Last_time,u32,u64,1);
 // 储存cpu进入空闲的起始时间
@@ -37,11 +51,23 @@ BPF_ARRAY(kt_LastTime,u32,u64,1);
 BPF_ARRAY(ut_LastTime,u32,u64,1);
 BPF_ARRAY(tick_user,u32,u64,1);
 BPF_ARRAY(symAddr,u32,u64,1);
+BPF_ARRAY(sar_ctrl_map,int,struct sar_ctrl,1);
+
+static inline struct sar_ctrl *get_sar_ctrl(void) {
+    struct sar_ctrl *sar_ctrl;
+    sar_ctrl = bpf_map_lookup_elem(&sar_ctrl_map, &ctrl_key);
+    if (!sar_ctrl || !sar_ctrl->sar_func) {
+        return NULL;
+    }
+    return sar_ctrl;
+}
+
 // 统计fork数
-//SEC("kprobe/finish_task_switch.isra.0")
-SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
+// SEC("kprobe/finish_task_switch")
 int kprobe__finish_task_switch(struct pt_regs *ctx)
 {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
     u32 key = 0;
     u64 val, *valp = NULL;
     unsigned long total_forks;
@@ -59,6 +85,7 @@ int kprobe__finish_task_switch(struct pt_regs *ctx)
 //获取进程切换数;
 SEC("tracepoint/sched/sched_switch")
 int trace_sched_switch2(struct cswch_args *info) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	pid_t prev = info->prev_pid, next = info->next_pid;
 	if (prev != next) {
 		u32 key = 0;
@@ -77,9 +104,10 @@ int trace_sched_switch2(struct cswch_args *info) {
 	return 0;
 }
 
-SEC("kprobe/finish_task_switch")
-//SEC("kprobe/finish_task_switch.isra.0")
+// SEC("kprobe/finish_task_switch")
+SEC("kprobe/finish_task_switch.isra.0")
 int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	pid_t pid=BPF_CORE_READ(prev,pid);
 	u64 *val, time = bpf_ktime_get_ns();
 	u64 delta;
@@ -109,17 +137,10 @@ int BPF_KPROBE(finish_task_switch,struct task_struct *prev){
 
 //统计运行队列长度
 SEC("kprobe/update_rq_clock")
-int kprobe_update_rq_clock(struct pt_regs *ctx){
+int BPF_KPROBE(update_rq_clock,struct rq *rq){
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
     u32 key = 0;
-    u32 rqkey = 0;
-    struct rq *p_rq = 0;
-    p_rq = (struct rq *)bpf_map_lookup_elem(&rq_map, &rqkey);
-    if (!p_rq) {
-        return 0;
-    }
-    bpf_probe_read_kernel(p_rq, sizeof(struct rq), (void *)PT_REGS_PARM1(ctx));
-    //使用bpf_probe_read_kernel函数将内核空间中的数据复制到p_rq所指向的内存区域中，以便后续对该数据进行访问和操作。
-    u64 val = p_rq->nr_running;
+    u64 val = BPF_CORE_READ(rq,nr_running);
     bpf_map_update_elem(&runqlen,&key,&val,BPF_ANY);
     return 0;
 }
@@ -127,6 +148,7 @@ int kprobe_update_rq_clock(struct pt_regs *ctx){
 //软中断
 SEC("tracepoint/irq/softirq_entry")
 int trace_softirq_entry(struct __softirq_info *info) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	u32 key = info->vec;
 	u64 val = bpf_ktime_get_ns();
 	bpf_map_update_elem(&softirqCpuEnterTime, &key, &val, BPF_ANY);
@@ -135,6 +157,7 @@ int trace_softirq_entry(struct __softirq_info *info) {
 
 SEC("tracepoint/irq/softirq_exit")
 int trace_softirq_exit(struct __softirq_info *info) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	u32 key = info->vec;
 	u64 now = bpf_ktime_get_ns(), *valp = 0;
 	valp =bpf_map_lookup_elem(&softirqCpuEnterTime, &key);
@@ -153,6 +176,7 @@ int trace_softirq_exit(struct __softirq_info *info) {
 注意这是所有CPU时间的叠加，平均到每个CPU应该除以CPU个数。*/
 SEC("tracepoint/irq/irq_handler_entry")
 int trace_irq_handler_entry(struct __irq_info *info) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	u32 key = info->irq;
 	u64 ts = bpf_ktime_get_ns();
     bpf_map_update_elem(&irq_cpu_enter_start, &key, &ts, BPF_ANY);
@@ -161,6 +185,7 @@ int trace_irq_handler_entry(struct __irq_info *info) {
 
 SEC("tracepoint/irq/irq_handler_exit")
 int trace_irq_handler_exit(struct __irq_info *info) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	u32 key = info->irq;
 	u64 now = bpf_ktime_get_ns(), *ts = 0;
     ts = bpf_map_lookup_elem(&irq_cpu_enter_start, &key);
@@ -180,6 +205,7 @@ int trace_irq_handler_exit(struct __irq_info *info) {
 //tracepoint:power_cpu_idle 表征了CPU进入IDLE的状态，比较准确
 SEC("tracepoint/power/cpu_idle")
 int trace_cpu_idle(struct idleStruct *pIDLE) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 	u64 delta, time = bpf_ktime_get_ns();
 	u32 key = pIDLE->cpu_id;
 	if (pIDLE->state == -1) {
@@ -209,6 +235,7 @@ static __always_inline int user_mode(struct pt_regs *regs)
 // 两个CPU各自会产生一个调用，这正好方便我们使用
 SEC("perf_event")
 int tick_update(struct pt_regs *ctx) {
+	struct sar_ctrl *sar_ctrl = get_sar_ctrl();
 
 	// bpf_trace_printk("cs_rpl = %x\n", ctx->cs & 3);
 	u32 key = 0;

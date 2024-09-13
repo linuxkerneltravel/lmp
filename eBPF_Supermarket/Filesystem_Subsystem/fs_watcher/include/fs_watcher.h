@@ -27,5 +27,23 @@ struct fs_t {
     size_t count;
 };
 
+/*disk_io_visit*/
+struct event_disk_io_visit {
+    long timestamp; // 时间戳
+    int blk_dev; // 块设备号
+    int sectors; // 访问的扇区数
+    int rwbs; // 读写标识符，1表示读操作，0表示写操作
+    int count; // I/O 操作计数
+    char comm[TASK_COMM_LEN]; // 进程名
+};
+
+/*block_rq_issue*/
+struct event_block_rq_issue {
+    long timestamp;       // 时间戳
+    int dev;           // 设备号
+    int sector;         // 扇区号
+    int nr_sectors;     // 扇区数
+    char comm[TASK_COMM_LEN]; // 进程名
+};
 
 #endif /* __MEM_WATCHER_H */

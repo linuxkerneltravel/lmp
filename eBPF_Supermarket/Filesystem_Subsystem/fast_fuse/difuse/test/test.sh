@@ -28,12 +28,9 @@ $FUSE_EXEC -f -d "$MOUNT_POINT" &
 FUSE_PID=$!
 sleep 2  # 等待文件系统完全挂载
 
-<<<<<<< HEAD
 # 确保脚本退出时卸载文件系统
 trap "fusermount -u $MOUNT_POINT" EXIT
 
-=======
->>>>>>> e040be4f7b8f162b7a4c9b0c5f5bb40158e2b6fb
 # 创建目录
 mkdir $MOUNT_POINT/dir1
 mkdir $MOUNT_POINT/dir2
@@ -47,7 +44,22 @@ touch $MOUNT_POINT/dir2/file3
 echo "创建的目录和文件结构:"
 ls -l $MOUNT_POINT
 
-<<<<<<< HEAD
+# 进行写入测试
+echo "测试文件内容写入..."
+echo "Hello, this is a write test!" > $MOUNT_POINT/dir1/file1
+
+# 进行读取测试
+echo "读取文件内容:"
+cat $MOUNT_POINT/dir1/file1
+
+# 验证写入是否正确
+FILE_CONTENT=$(cat $MOUNT_POINT/dir1/file1)
+if [ "$FILE_CONTENT" == "Hello, this is a write test!" ]; then
+    echo "文件写入和读取成功。"
+else
+    echo "文件写入或读取失败！"
+fi
+
 # 删除文件
 echo "删除文件 $MOUNT_POINT/dir1/file1 和 $MOUNT_POINT/dir2/file3..."
 rm $MOUNT_POINT/dir1/file1
@@ -73,7 +85,3 @@ rmdir $MOUNT_POINT/dir2
 # 验证目录删除
 echo "验证目录删除后的结构:"
 ls -l $MOUNT_POINT
-=======
-# 确保脚本退出时卸载文件系统
-trap "fusermount -u $MOUNT_POINT" EXIT
->>>>>>> e040be4f7b8f162b7a4c9b0c5f5bb40158e2b6fb
