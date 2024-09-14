@@ -134,6 +134,7 @@ struct per_request{//每条锁请求信息
 	u64 start_request_time;
 	u64 start_hold_time;
 	u64 wait_delay;
+	int cpu_id;//在哪个cpu上阻塞了
 };
 
 struct lock_record_key{
@@ -151,6 +152,16 @@ struct per_lock_event{
 	int owner,last_owner;//目前谁持有锁；
 	u64 start_hold_time,last_hold_delay;//持有锁的时间；
 	int cnt;//等待锁+持有锁的数量；
+};
+struct sys_futex_args {
+	u64 pad;
+	int __syscall_nr;
+	u32 * uaddr;
+	int op;
+	u32 val;
+	const struct __kernel_timespec * utime; 
+	u32 * uaddr2;   
+	u32 val3;
 };
 
 // keytime_image
