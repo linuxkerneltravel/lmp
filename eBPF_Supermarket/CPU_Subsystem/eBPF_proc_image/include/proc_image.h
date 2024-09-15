@@ -122,21 +122,6 @@ struct lock_event{
 };
 
 //mfutex
-struct __pthread_mutex
-{
-  unsigned int __lock;
-  unsigned int __owner_id;
-  unsigned int __cnt;
-  int __shpid;
-  int __type;
-  int __flags;
-  union
-  {
-    unsigned int __reserved[2];
-    void *__pointer_aligned;
-  };
-};
-
 struct mfutex_ctrl{
     bool lock_func;
     bool enable_myproc;
@@ -144,10 +129,18 @@ struct mfutex_ctrl{
 	pid_t target_tgid;
 };
 
+struct per_request{//每条锁请求信息
+	int pid;
+	u64 start_request_time;
+	u64 start_hold_time;
+	u64 wait_delay;
+};
+
 struct lock_record_key{
 	u64 lock_ptr;//哪个锁
 	int pid;//进程号
 };
+
 struct record_lock_key{
 	u64 lock_ptr;//哪个锁
 	int cnt;//第几次申请该锁
@@ -155,9 +148,8 @@ struct record_lock_key{
 struct per_lock_event{
 	u64 lock_ptr;
 	int type;//1:互斥锁；2：读写锁读锁；3：读写锁写锁；4：自旋锁
-    
-	int owner;//目前谁持有锁；
-	u64 time;//持有锁的时间；
+	int owner,last_owner;//目前谁持有锁；
+	u64 start_hold_time,last_hold_delay;//持有锁的时间；
 	int cnt;//等待锁+持有锁的数量；
 };
 

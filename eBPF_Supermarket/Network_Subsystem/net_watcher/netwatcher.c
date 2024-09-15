@@ -29,16 +29,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/time.h>
 
 static volatile bool exiting = false;
-
+struct packet_count proto_stats[256] = {0};
+static u64 rst_count = 0;
+static struct reset_event_t event_store[MAX_EVENTS];
+static int event_count = 0;
 static char connects_file_path[1024];
 static char err_file_path[1024];
 static char packets_file_path[1024];
 static char udp_file_path[1024];
+static char binary_path[64] = "";
+int num_symbols = 0;
+int cache_size = 0;
 
 // 用于存储从 eBPF map 读取的数据
 typedef struct {
@@ -54,15 +60,7 @@ static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
            time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
            redis_info = 0, count_info = 0, rtt_info = 0, rst_info = 0,
-           redis_stat = 0; // flag
-
-static const char *tcp_states[] = {
-    [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
-    [4] = "FIN_WAIT1",   [5] = "FIN_WAIT2",  [6] = "TIME_WAIT",
-    [7] = "CLOSE",       [8] = "CLOSE_WAIT", [9] = "LAST_ACK",
-    [10] = "LISTEN",     [11] = "CLOSING",   [12] = "NEW_SYN_RECV",
-    [13] = "UNKNOWN",
-};
+           protocol_count = 0,redis_stat = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 static const struct argp_option opts[] = {
@@ -95,6 +93,7 @@ static const struct argp_option opts[] = {
      "specify the time to count the number of requests"},
     {"rtt", 'T', 0, 0, "set to trace rtt"},
     {"rst_counters", 'U', 0, 0, "set to trace rst"},
+    {"protocol_count", 'p', 0, 0, "set to trace protocol count"},
     {}};
 
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
@@ -163,6 +162,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     case 'U':
         rst_info = 1;
         break;
+    case 'p':
+        protocol_count = 1;
+        break;
     case 'b':
         redis_stat = 1;
         break;
@@ -174,18 +176,11 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     }
     return 0;
 }
-
 static const struct argp argp = {
     .options = opts,
     .parser = parse_arg,
     .doc = argp_program_doc,
 };
-
-struct SymbolEntry {
-    unsigned long addr;
-    char name[30];
-};
-
 enum MonitorMode {
     MODE_UDP,
     MODE_NET_FILTER,
@@ -195,12 +190,12 @@ enum MonitorMode {
     MODE_DNS,
     MODE_MYSQL,
     MODE_REDIS,
-    MODE_REDIS_STAT,
     MODE_RTT,
     MODE_RST,
+    MODE_PROTOCOL_COUNT,
+    MODE_REDIS_STAT,
     MODE_DEFAULT
 };
-
 enum MonitorMode get_monitor_mode() {
     if (udp_info) {
         return MODE_UDP;
@@ -224,6 +219,8 @@ enum MonitorMode get_monitor_mode() {
         return MODE_RTT;
     } else if (rst_info) {
         return MODE_RST;
+    } else if (protocol_count) {
+        return MODE_PROTOCOL_COUNT;
     } else {
         return MODE_DEFAULT;
     }
@@ -245,7 +242,6 @@ enum MonitorMode get_monitor_mode() {
     " \\/_/\\/_/\\/____/ \\/__/ \\/__//__ /  \\/_/  \\/_/\\/__/\\/____/ "      \
     "\\/_/\\/_/\\/____/ \\/_/  \n\n"
 
-// 通过lolcat命令彩色处理
 void print_logo() {
     char *logo = LOGO_STRING;
     int i = 0;
@@ -264,7 +260,6 @@ void print_logo() {
 
     pclose(lolcat_pipe);
 }
-static char binary_path[64] = "";
 #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)                \
     do {                                                                       \
         LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,      \
@@ -296,12 +291,9 @@ static char binary_path[64] = "";
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
 #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name)                    \
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
 struct SymbolEntry symbols[300000];
-int num_symbols = 0;
-// 定义快表
-#define CACHEMAXSIZE 5
 struct SymbolEntry cache[CACHEMAXSIZE];
-int cache_size = 0;
 // LRU算法查找函数
 struct SymbolEntry find_in_cache(unsigned long int addr) {
     // 查找地址是否在快表中
@@ -322,7 +314,6 @@ struct SymbolEntry find_in_cache(unsigned long int addr) {
     empty_entry.addr = 0;
     return empty_entry;
 }
-
 // 将新的符号条目加入快表
 void add_to_cache(struct SymbolEntry entry) {
     // 如果快表已满，则移除最久未使用的条目
@@ -340,7 +331,6 @@ void add_to_cache(struct SymbolEntry entry) {
         cache_size++;
     }
 }
-
 struct SymbolEntry findfunc(unsigned long int addr) {
     // 先在快表中查找
     struct SymbolEntry entry = find_in_cache(addr);
@@ -392,17 +382,6 @@ void readallsym() {
     3.可以快速适应数据的变化，并能够有效地检测异常时延
 
 */
-struct LayerDelayInfo {
-    float delay;     // 时延数据
-    int layer_index; // 层索引
-};
-#define GRANULARITY 3
-#define ALPHA 0.2 // 衰减因子
-#define MAXTIME 10000
-#define SLOW_QUERY_THRESHOLD 10000 //
-#define ANSI_COLOR_RED "\x1b[31m"
-#define ANSI_COLOR_RESET "\x1b[0m"
-
 // 全局变量用于存储每层的移动平均值
 float ewma_values[NUM_LAYERS] = {0};
 int count[NUM_LAYERS] = {0};
@@ -438,7 +417,6 @@ int process_delay(float layer_delay, int layer_index) {
     }
     return 0;
 }
-
 static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->filter_dport = dport;
     skel->rodata->filter_sport = sport;
@@ -460,6 +438,7 @@ static void set_rodata_flags(struct netwatcher_bpf *skel) {
     skel->rodata->redis_stat = redis_stat;
     skel->rodata->rtt_info = rtt_info;
     skel->rodata->rst_info = rst_info;
+    skel->rodata->protocol_count = protocol_count;
 }
 static void set_disable_load(struct netwatcher_bpf *skel) {
 
@@ -502,7 +481,7 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.eth_type_trans,
                               (all_conn || err_packet || extra_conn_info ||
                                retrans_info || layer_time || http_info ||
-                               rtt_info)
+                               rtt_info || protocol_count)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.ip_rcv_core,
@@ -578,7 +557,7 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.dev_hard_start_xmit,
                               (all_conn || err_packet || extra_conn_info ||
                                retrans_info || layer_time || http_info ||
-                               rtt_info)
+                               rtt_info || protocol_count)
                                   ? true
                                   : false);
     bpf_program__set_autoload(skel->progs.tcp_enter_recovery,
@@ -635,7 +614,6 @@ static void set_disable_load(struct netwatcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.handle_receive_reset,
                               rst_info ? true : false);
 }
-
 static void print_header(enum MonitorMode mode) {
     switch (mode) {
     case MODE_UDP:
@@ -732,9 +710,14 @@ static void print_header(enum MonitorMode mode) {
                "SOCK", "Saddr", "Sport", "Daddr", "Dport", "MAC_TIME/μs",
                "IP_TIME/μs", "TRAN_TIME/μs", "RX/direction", "HTTP");
         break;
+    case MODE_PROTOCOL_COUNT:
+        printf("==============================================================="
+               "=MODE_PROTOCOL_COUNT==========================================="
+               "========"
+               "======================\n");
+        break;
     }
 }
-
 static void open_log_files() {
     FILE *connect_file = fopen(connects_file_path, "w+");
     if (connect_file == NULL) {
@@ -764,9 +747,7 @@ static void open_log_files() {
     }
     fclose(udp_file);
 }
-
 static void sig_handler(int signo) { exiting = true; }
-
 static void bytes_to_str(char *str, unsigned long long num) {
     if (num > 1e9) {
         sprintf(str, "%.8lfG", (double)num / 1e9);
@@ -778,7 +759,6 @@ static void bytes_to_str(char *str, unsigned long long num) {
         sprintf(str, "%llu", num);
     }
 }
-
 static int print_conns(struct netwatcher_bpf *skel) {
 
     FILE *file = fopen(connects_file_path, "w");
@@ -869,10 +849,9 @@ static int print_conns(struct netwatcher_bpf *skel) {
     fclose(file);
     return 0;
 }
-
 static int print_packet(void *ctx, void *packet_info, size_t size) {
     if (udp_info || net_filter || drop_reason || icmp_info || tcp_info ||
-        dns_info || mysql_info || redis_info || redis_info || rtt_info )
+        dns_info || mysql_info || redis_info || rtt_info || protocol_count||redis_stat)
         return 0;
     const struct pack_t *pack_info = packet_info;
     if (pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME ||
@@ -889,11 +868,9 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
     if (dport)
         if (pack_info->dport != dport)
             return 0;
-
     if (sport)
         if (pack_info->sport != sport)
             return 0;
-
     if (pack_info->err) {
         FILE *file = fopen(err_file_path, "a");
         char reason[20];
@@ -1019,10 +996,8 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
             printf("%-15s", "abnormal data");
     }
     printf("\n");
-
     return 0;
 }
-
 static int print_netfilter(void *ctx, void *packet_info, size_t size) {
     if (!net_filter)
         return 0;
@@ -1069,7 +1044,6 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
 
     return 0;
 }
-
 static int print_tcpstate(void *ctx, void *packet_info, size_t size) {
     if (!tcp_info)
         return 0;
@@ -1086,7 +1060,81 @@ static int print_tcpstate(void *ctx, void *packet_info, size_t size) {
 
     return 0;
 }
+static void calculate_protocol_usage(struct packet_count proto_stats[],
+                                     int num_protocols, int interval) {
+    static uint64_t last_rx[256] = {0}, last_tx[256] = {0};
+    uint64_t current_rx = 0, current_tx = 0;
+    uint64_t delta_rx[256] = {0}, delta_tx[256] = {0};
+    //遍历所有的协议
+    for (int i = 0; i < num_protocols; i++) {
+        //计算数据包增量
+        if (proto_stats[i].rx_count >= last_rx[i]) {
+            delta_rx[i] = proto_stats[i].rx_count - last_rx[i];
+        } else {
+            delta_rx[i] = proto_stats[i].rx_count;
+        }
 
+        if (proto_stats[i].tx_count >= last_tx[i]) {
+            delta_tx[i] = proto_stats[i].tx_count - last_tx[i];
+        } else {
+            delta_tx[i] = proto_stats[i].tx_count;
+        }
+        //时间段内总的接收和发送包数
+        current_rx += delta_rx[i];
+        current_tx += delta_tx[i];
+        //更新上次统计的包数
+        last_rx[i] = proto_stats[i].rx_count;
+        last_tx[i] = proto_stats[i].tx_count;
+    }
+    printf("Protocol Usage in Last %d Seconds:\n", interval);
+    printf("Total_rx_count:%ld Total_tx_count:%ld\n", current_rx, current_tx);
+
+    if (current_rx > 0) {
+        printf("Receive Protocol Usage:\n");
+        for (int i = 0; i < num_protocols; i++) {
+            if (delta_rx[i] > 0) {
+                double rx_percentage = (double)delta_rx[i] / current_rx * 100;
+                if (rx_percentage >= 80.0) {
+                    printf(RED_TEXT
+                           "Protocol %s: %.2f%% Rx_count:%ld\n" RESET_TEXT,
+                           protocol[i], rx_percentage, delta_rx[i]);
+                } else {
+                    printf("Protocol %s: %.2f%% Rx_count:%ld\n", protocol[i],
+                           rx_percentage, delta_rx[i]);
+                }
+            }
+        }
+    }
+    if (current_tx > 0) {
+        printf("Transmit Protocol Usage:\n");
+        for (int i = 0; i < num_protocols; i++) {
+            if (delta_tx[i] > 0) {
+                double tx_percentage = (double)delta_tx[i] / current_tx * 100;
+                if (tx_percentage >= 80.0) {
+                    printf(RED_TEXT
+                           "Protocol %s: %.2f%% Tx_count:%ld\n" RESET_TEXT,
+                           protocol[i], tx_percentage, delta_tx[i]);
+                } else {
+                    printf("Protocol %s: %.2f%% Tx_count:%ld\n", protocol[i],
+                           tx_percentage, delta_tx[i]);
+                }
+            }
+        }
+    }
+    memset(proto_stats, 0, num_protocols * sizeof(struct packet_count));
+}
+static int print_protocol_count(void *ctx, void *packet_info, size_t size) {
+    const struct packet_info *pack_protocol_info =
+        (const struct packet_info *)packet_info;
+    if (!protocol_count) {
+        return 0;
+    }
+    proto_stats[pack_protocol_info->proto].rx_count =
+        pack_protocol_info->count.rx_count;
+    proto_stats[pack_protocol_info->proto].tx_count =
+        pack_protocol_info->count.tx_count;
+    return 0;
+}
 static int print_kfree(void *ctx, void *packet_info, size_t size) {
     if (!drop_reason)
         return 0;
@@ -1125,7 +1173,6 @@ static int print_kfree(void *ctx, void *packet_info, size_t size) {
     printf("%s\n", SKB_Drop_Reason_Strings[pack_info->drop_reason]);
     return 0;
 }
-
 static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     if (!icmp_info)
         return 0;
@@ -1150,13 +1197,10 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
-#define MAX_EVENTS 1024
-
-static __u64 rst_count = 0;
-static struct reset_event_t event_store[MAX_EVENTS];
-static int event_count = 0;
-
 static int print_rst(void *ctx, void *packet_info, size_t size) {
+    if (!rst_info) {
+        return 0;
+    }
     struct reset_event_t *event = packet_info;
 
     // 将事件存储到全局存储中
@@ -1168,7 +1212,7 @@ static int print_rst(void *ctx, void *packet_info, size_t size) {
     rst_count++;
     return 0;
 }
-void print_stored_events() {
+static void print_stored_events() {
     char s_str[INET_ADDRSTRLEN];
     char d_str[INET_ADDRSTRLEN];
 
@@ -1196,7 +1240,6 @@ void print_stored_events() {
         }
     }
 }
-// 从DNS数据包中提取并打印域名
 static void print_domain_name(const unsigned char *data, char *output) {
     const unsigned char *next = data;
     int pos = 0, first = 1;
@@ -1215,7 +1258,6 @@ static void print_domain_name(const unsigned char *data, char *output) {
     }
     output[pos] = '\0'; // 确保字符串正确结束
 }
-
 static int print_dns(void *ctx, void *packet_info, size_t size) {
     if (!packet_info)
         return 0;
@@ -1242,7 +1284,6 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
            pack_info->rx);
     return 0;
 }
-
 static int print_mysql(void *ctx, void *packet_info, size_t size) {
     if (!mysql_info) {
         return 0;
@@ -1251,7 +1292,6 @@ static int print_mysql(void *ctx, void *packet_info, size_t size) {
     const mysql_query *pack_info = packet_info;
     printf("%-20d %-20d %-20s %-20u %-41s", pack_info->pid, pack_info->tid,
            pack_info->comm, pack_info->size, pack_info->msql);
-    // 当 duratime 大于 count_info 时，才打印 duratime
     if (pack_info->duratime > count_info) {
         printf("%-21llu", pack_info->duratime);
     } else {
@@ -1260,7 +1300,6 @@ static int print_mysql(void *ctx, void *packet_info, size_t size) {
     printf("%-20d\n", pack_info->count);
     return 0;
 }
-
 static int print_redis(void *ctx, void *packet_info, size_t size) {
     const struct redis_query *pack_info = packet_info;
     int i = 0;
@@ -1359,7 +1398,6 @@ static int print_trace(void *_ctx, void *data, size_t size) {
     printf("\n");
     return 0;
 }
-
 static int print_rtt(void *ctx, void *data, size_t size) {
     if (!rtt_info)
         return 0;
@@ -1407,12 +1445,9 @@ static int print_rtt(void *ctx, void *data, size_t size) {
         printf("\n");
         bucket_size *= 2; //以对数方式扩展
     }
-
     printf("===============================================================\n");
-
     return 0;
 }
-
 int attach_uprobe_mysql(struct netwatcher_bpf *skel) {
 
     ATTACH_UPROBE_CHECKED(
@@ -1505,6 +1540,7 @@ int main(int argc, char **argv) {
     struct ring_buffer *redis_stat_rb = NULL;
     struct ring_buffer *rtt_rb = NULL;
     struct ring_buffer *events = NULL;
+    struct ring_buffer *port_rb = NULL;
     struct netwatcher_bpf *skel;
     int err;
     /* Parse command line arguments */
@@ -1513,12 +1549,10 @@ int main(int argc, char **argv) {
         if (err)
             return err;
     }
-
     libbpf_set_print(libbpf_print_fn);
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
-
     /* Open load and verify BPF application */
     skel = netwatcher_bpf__open();
     if (!skel) {
@@ -1531,13 +1565,11 @@ int main(int argc, char **argv) {
 
     if (addr_to_func)
         readallsym();
-
     err = netwatcher_bpf__load(skel);
     if (err) {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
         goto cleanup;
     }
-
     /* Attach tracepoint handler */
     if (mysql_info) {
         strcpy(binary_path, "/usr/sbin/mysqld");
@@ -1652,6 +1684,14 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create ring buffer(rst_rb)\n");
         goto cleanup;
     }
+
+    port_rb = ring_buffer__new(bpf_map__fd(skel->maps.port_rb),
+                               print_protocol_count, NULL, NULL);
+    if (!port_rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer(trace)\n");
+        goto cleanup;
+    }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
     if (!rb) {
@@ -1677,6 +1717,7 @@ int main(int argc, char **argv) {
         err = ring_buffer__poll(redis_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(rtt_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(events, 100 /* timeout, ms */);
+        err = ring_buffer__poll(port_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(redis_stat_rb, 100 /* timeout, ms */);
         print_conns(skel);
         sleep(1);
@@ -1692,26 +1733,25 @@ int main(int argc, char **argv) {
 
         gettimeofday(&end, NULL);
         if ((end.tv_sec - start.tv_sec) >= 5) {
-            //print_stored_events();
-            //printf("Total RSTs in the last 5 seconds: %llu\n\n", rst_count);
-
-            // 重置计数器和事件存储
-            //rst_count = 0;
-            //event_count = 0;
-            if(redis_stat)
-            {
-                map_fd = bpf_map__fd(skel->maps.key_count);
-
-                if (map_fd < 0) {
-                    perror("Failed to get map FD");
-                    return 1;
+            if (rst_info) {
+                print_stored_events();
+                printf("Total RSTs in the last 5 seconds: %llu\n\n",rst_count);
+                        rst_count = 0;
+                        event_count = 0;
+                }else if (protocol_count) {
+                    calculate_protocol_usage(proto_stats, 256, 5);
+                }else if(redis_stat)
+                {
+                    map_fd = bpf_map__fd(skel->maps.key_count);
+                    if (map_fd < 0) {
+                        perror("Failed to get map FD");
+                        return 1;
+                    }
+                    print_top_5_keys();
                 }
-                print_top_5_keys();
+                gettimeofday(&start, NULL);
             }
-            gettimeofday(&start, NULL);
-        }
     }
-
 cleanup:
     netwatcher_bpf__destroy(skel);
     return err < 0 ? -err : 0;

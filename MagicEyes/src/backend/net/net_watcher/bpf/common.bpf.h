@@ -14,12 +14,12 @@
 //
 // author: blown.away@qq.com
 //
-// netwatcher libbpf 内核<->用户 传递信息相关结构体
+// net_watcher libbpf 内核<->用户 传递信息相关结构体
 
 #ifndef __COMMON_BPF_H
 #define __COMMON_BPF_H
 
-#include "netwatcher.h"
+#include "net_watcher.h"
 #include "vmlinux.h"
 #include <asm-generic/errno.h>
 #include <bpf/bpf_core_read.h>

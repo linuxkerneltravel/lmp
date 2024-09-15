@@ -41,6 +41,7 @@ struct config {
 	char *router_file;
 	char router_file_buf[FILE_MAXSIZE];
 	bool print_info;
+	bool socketmap_flag;
 };
 
 /* Defined in common_params.o */

@@ -151,7 +151,7 @@ void parse_cmdline_args(int argc, char **argv,
 	}
 
 	/* 解析命令行参数 */
-	while ((opt = getopt_long(argc, argv, "hd:r:L:R:ASNFUMQ:czpq:i:m:k:g:n:tT",
+	while ((opt = getopt_long(argc, argv, "hd:r:L:R:ASNFUMQ:czpq:i:m:k:g:n:tTf",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'd':
@@ -315,6 +315,10 @@ void parse_cmdline_args(int argc, char **argv,
 		case 'T':
 			// 设置打印的标志
 			cfg->print_info = true;
+			break;
+		case 'f':
+			// 设置打印的标志
+			cfg->socketmap_flag = true;
 			break;
 		error:
 		default:

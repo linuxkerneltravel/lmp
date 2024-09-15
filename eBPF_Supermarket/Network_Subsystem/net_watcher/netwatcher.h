@@ -41,6 +41,21 @@ typedef unsigned long long u64;
 #define MAX_COMM 16
 #define TCP 1
 #define UDP 2
+#define MAX_PACKET 1000
+#define MAX_HTTP_HEADER 256
+#define NUM_LAYERS 5
+#define RED_TEXT "\033[31m"
+#define RESET_TEXT "\033[0m"
+#define GRANULARITY 3
+#define ALPHA 0.2 // 衰减因子
+#define MAXTIME 10000
+#define SLOW_QUERY_THRESHOLD 10000 //
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_RESET "\x1b[0m"
+#define MAX_STACK_DEPTH 128
+#define MAX_EVENTS 1024
+#define CACHEMAXSIZE 5
+typedef u64 stack_trace_t[MAX_STACK_DEPTH];
 
 struct conn_t {
     void *sock;          // 此tcp连接的 socket 地址
@@ -74,10 +89,6 @@ struct conn_t {
     u64 init_timestamp; // 建立连接时间戳
     u64 duration;       // 连接已建立时长
 };
-
-#define MAX_PACKET 1000
-#define MAX_HTTP_HEADER 256
-#define NUM_LAYERS 5
 
 struct pack_t {
     int err;      // no err(0) invalid seq(1) invalid checksum(2)
@@ -144,7 +155,6 @@ struct tcp_state {
     int newstate;
     u64 time;
 };
-
 struct dns_information {
     u32 saddr;
     u32 daddr;
@@ -159,8 +169,6 @@ struct dns_information {
     int response_count;
     int request_count;
 };
-#define MAX_STACK_DEPTH 128
-typedef u64 stack_trace_t[MAX_STACK_DEPTH];
 struct stacktrace_event {
     u32 pid;
     u32 cpu_id;
@@ -170,7 +178,6 @@ struct stacktrace_event {
     stack_trace_t kstack;
     stack_trace_t ustack;
 };
-
 typedef struct mysql_query {
     int pid;
     int tid;
@@ -180,7 +187,6 @@ typedef struct mysql_query {
     u64 duratime;
     int count;
 } mysql_query;
-
 struct redis_query {
     int pid;
     int tid;
@@ -208,7 +214,6 @@ struct RTT {
     u64 latency;
     u64 cnt;
 };
-
 struct reset_event_t {
     int pid;
     char comm[16];
@@ -223,5 +228,39 @@ struct reset_event_t {
     u64 count;
     u64 timestamp;
     u8 state;
+};
+struct packet_count {
+    u64 rx_count;
+    u64 tx_count;
+};
+struct packet_info {
+    u32 saddr;
+    u32 daddr;
+    u16 sport;
+    u16 dport;
+    u16 proto;
+    struct packet_count count;
+};
+struct SymbolEntry {
+    unsigned long addr;
+    char name[30];
+};
+
+static const char *protocol[] = {
+    [0] = "TCP",
+    [1] = "UDP",
+    [2] = "ICMP",
+    [3] = "UNKNOWN",
+};
+static const char *tcp_states[] = {
+    [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
+    [4] = "FIN_WAIT1",   [5] = "FIN_WAIT2",  [6] = "TIME_WAIT",
+    [7] = "CLOSE",       [8] = "CLOSE_WAIT", [9] = "LAST_ACK",
+    [10] = "LISTEN",     [11] = "CLOSING",   [12] = "NEW_SYN_RECV",
+    [13] = "UNKNOWN",
+};
+struct LayerDelayInfo {
+    float delay;     // 时延数据
+    int layer_index; // 层索引
 };
 #endif /* __NETWATCHER_H */

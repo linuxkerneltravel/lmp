@@ -180,7 +180,7 @@
     "@types/uuid": "^9.0.6",
     "axios": "^1.7.4",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "express": "^4.20.0",
     "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^2.0.6",
     "open": "^8.4.2",

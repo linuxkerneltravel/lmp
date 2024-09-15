@@ -101,7 +101,11 @@ out_ipv6:
 /** in ipv4 && ipv6 */
 SEC("kprobe/eth_type_trans") // 进入eth_type_trans
 int BPF_KPROBE(eth_type_trans, struct sk_buff *skb) {
-    return __eth_type_trans(skb);
+    if (protocol_count) {
+        return sum_protocol(skb, false); // receive
+    } else {
+        return __eth_type_trans(skb);
+    }
 }
 
 /** in only ipv4 */
@@ -197,7 +201,11 @@ int BPF_KPROBE(__dev_queue_xmit, struct sk_buff *skb) {
 */
 SEC("kprobe/dev_hard_start_xmit")
 int BPF_KPROBE(dev_hard_start_xmit, struct sk_buff *skb) {
-    return __dev_hard_start_xmit(skb);
+    if (protocol_count) {
+        return sum_protocol(skb, true); // send
+    } else {
+        return __dev_hard_start_xmit(skb);
+    }
 };
 
 // retrans
@@ -317,6 +325,7 @@ int BPF_KPROBE(query__end) { return __handle_mysql_end(ctx); }
 //redis
 SEC("uprobe/processCommand")
 int BPF_KPROBE(redis_processCommand) { return __handle_redis_start(ctx); }
+
 SEC("uretprobe/call")
 int BPF_KPROBE(redis_call) { return __handle_redis_end(ctx); }
 
