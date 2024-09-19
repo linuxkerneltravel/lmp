@@ -21,12 +21,13 @@ static const char *__doc__ = "XDP loader\n"
 
 #include <net/if.h>
 #include <linux/if_link.h> /* depend on kernel-headers installed */
-
+#include <signal.h>
+#include <fcntl.h>
 #include "./common/common_params.h"
 #include "./common/common_user_bpf_xdp.h"
 #include "./common/common_libbpf.h"
 #include "common_kern_user.h"
-
+#include "netmanager_kern.skel.h"
 static const char *default_filename = "netmanager_kern.o";
 static const char *default_progname = "xdp_entry_state";
 
@@ -76,6 +77,9 @@ static const struct option_wrapper long_options[] = {
 	
 	{{"config",       no_argument,       NULL, 'T' },
 	 "config from user to kernel"},
+
+	{{"socketmap_flag",       no_argument,       NULL, 'f' },
+	 "socketmap_flag"},
 	{{0, 0, NULL,  0 }, NULL, false}
 };
 
@@ -635,12 +639,15 @@ int load_handler_mac(char* mac_filter_file){
     return 0;   
 }
 
+static volatile bool exiting = false;
 
 int clear_handler(int argc, char *argv[]){
     int ret = clear_map();
     printf("%d rules are cleared\n", ret-1);
     return 0;
 }
+
+static void sig_handler(int signo) { exiting = true; }
 
 int main(int argc, char **argv)
 {
@@ -668,6 +675,7 @@ int main(int argc, char **argv)
 	    .router      = false,       //路由
 	    .state       = false,       //会话保持
 	    .clear       = false,       //清理
+		.socketmap_flag =false,
 	};
 	/* Set default BPF-ELF object file and BPF program name */
 	// 设置默认的BPF ELF对象文件名和BPF程序名称
@@ -677,6 +685,79 @@ int main(int argc, char **argv)
 	// 解析命令行参数，可能会修改程序名称等配置信息
 	parse_cmdline_args(argc, argv, long_options, &cfg, __doc__);
 
+	if(cfg.socketmap_flag)
+	{
+		struct netmanager_kern *skel;
+		signal(SIGINT, sig_handler);
+    	signal(SIGTERM, sig_handler);
+		skel = netmanager_kern__open();
+		int cgroup_fd = open("/sys/fs/cgroup/foo", O_RDONLY);
+		if (cgroup_fd < 0) {
+			perror("Failed to open cgroup directory");
+			return -1;
+		}
+    	if (!skel) {
+    	    fprintf(stderr, "Failed to open BPF skeleton\n");
+    	    return 1;
+    	}
+
+    	err = netmanager_kern__load(skel);
+    	if (err) {
+    	    fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+    	    goto cleanup;
+    	}
+		err = netmanager_kern__attach(skel);
+        if (err) {
+            fprintf(stderr, "Failed to attach BPF skeleton\n");
+            goto cleanup;
+        }
+		int sock_ops_prog_fd = bpf_program__fd(skel->progs.bpf_sockmap);
+		if (sock_ops_prog_fd < 0) {
+			fprintf(stderr, "Invalid sock_ops program fd: %d\n", sock_ops_prog_fd);
+			return -1;
+		}
+
+		int msg_verdict_prog_fd = bpf_program__fd(skel->progs.bpf_redir);
+		if (msg_verdict_prog_fd < 0) {
+			fprintf(stderr, "Invalid msg_verdict program fd: %d\n", msg_verdict_prog_fd);
+			return -1;
+		}
+
+		int sock_ops_map_fd = bpf_map__fd(skel->maps.sock_ops_map);
+		if (sock_ops_map_fd < 0) {
+			fprintf(stderr, "Invalid sock_ops map fd: %d\n", sock_ops_map_fd);
+			return -1;
+		}
+
+		err = bpf_prog_attach(sock_ops_prog_fd, cgroup_fd, BPF_CGROUP_SOCK_OPS, 0);
+		if (err) {
+			fprintf(stderr, "Failed to attach bpf_sockmap program: %d\n", err);
+			return 1;
+		}
+
+		//加载并附加msg_verdict程序
+		err = bpf_prog_attach(msg_verdict_prog_fd, sock_ops_map_fd, BPF_SK_MSG_VERDICT, 0);
+		if (err) {
+			fprintf(stderr, "Failed to attach bpf_redir program: %d\n", err);
+			return 1;
+		}
+		while (!exiting) {
+        	sleep(1);
+			printf("----1-----\n");
+        	/* Ctrl-C will cause -EINTR */
+			if (err == -EINTR) {
+				err = 0;
+				break;
+			}
+			if (err < 0) {
+				printf("Error polling perf buffer: %d\n", err);
+				break;
+			}
+    	}
+		cleanup:	
+    		netmanager_kern__destroy(skel);
+    		return err < 0 ? -err : 0;
+	}
 	/* Required option */
 	// 检查是否提供了必需的选项
 	if (cfg.ifindex == -1) {
