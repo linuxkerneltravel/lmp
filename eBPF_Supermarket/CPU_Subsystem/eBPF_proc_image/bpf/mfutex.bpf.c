@@ -328,7 +328,7 @@ int BPF_KPROBE(trace_futex_wait,
  *2.1 将执行futex_wake的线程pid与锁地址进行匹配，便于在后面futex_wake_mark找到锁地址
  */
 SEC("kprobe/futex_wake")
-int BPF_KPROBE(trace_futex_wake, 
+int BPF_KPROBE(trace_futex_wake_enter, 
                 u32 *uaddr, unsigned int flags, 
                 int nr_wake, u32 bitset) 
 {
@@ -401,15 +401,48 @@ int BPF_KPROBE(trace_futex_wake_mark, struct wake_q_head *wake_q, struct futex_q
     }
     /*4.将任务放到唤醒队列中*/
     bpf_map_update_elem(&futex_wake_queue, &key, per_request, BPF_ANY);
+    return 0;
+}
 
-    /*5.传入rb*/
+/*2.将线程加入唤醒队列，从等待队列中删除
+ *2.1 将执行futex_wake的线程pid与锁地址进行匹配，便于在后面futex_wake_mark找到锁地址
+ */
+SEC("kretprobe/futex_wake")
+int BPF_KRETPROBE(trace_futex_wake_exit) 
+{
+    struct mfutex_ctrl *mfutex_ctrl = get_mfutex_ctrl();
+    if(!mfutex_ctrl) 
+        return 0;
+    pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(mfutex_ctrl->target_pid == -1 && mfutex_ctrl->target_tgid == -1)//未指定目标进程或线程
+        return 0;
+    if((mfutex_ctrl->target_pid != -1 && pid!=mfutex_ctrl->target_pid)||
+        (mfutex_ctrl->target_tgid != -1 && tgid != mfutex_ctrl->target_tgid))//当前进程或线程非目标进程或线程
+        return 0;
+
+    u64 *lock_ptr;
+    u64 temp_lock_ptr;
+    u64 ts = bpf_ktime_get_ns();
+
+    /*1.找到锁的地址*/
+    struct proc_flag proc_flag = {};
+    proc_flag.pid = pid;
+    proc_flag.flag = FUTEX_FLAG;
+    lock_ptr = bpf_map_lookup_elem(&proc_unlock, &proc_flag);
+    if(!lock_ptr) return 0;
+    temp_lock_ptr = *lock_ptr;
+    bpf_map_delete_elem(&proc_unlock, &proc_flag);
+
+    /*2.传入rb*/
     struct per_lock_event *e;
     e = bpf_ringbuf_reserve(&mfutex_rb, sizeof(*e), 0);
     if(!e)
         return 0;
     e->lock_ptr = temp_lock_ptr;
-    e->start_hold_time = ts;
+    e->start_hold_time = bpf_ktime_get_ns();
     e->type = FUTEX_FLAG;
     bpf_ringbuf_submit(e, 0);
-    return 0;
+    return 0;   
 }

@@ -27,11 +27,11 @@
 #define LAST_ARG (FULL_MAX_ARGS_ARR - ARGSIZE)
 
 #define TASK_RUNNING	0x00000000
-// #define MUTEX_FLAG  1
-// #define RWLOCK_FLAG  2
-// #define SPIN_FLAG  3
-// #define RCU_FLAG  4
-// #define FUTEX_FLAG  5
+#define MUTEX_FLAG  1
+#define RWLOCK_FLAG  2
+#define SPIN_FLAG  3
+#define RCU_FLAG  4
+#define FUTEX_FLAG  5
 typedef long long unsigned int u64;
 typedef unsigned int u32;
 #define MAX_STACK_DEPTH 128
