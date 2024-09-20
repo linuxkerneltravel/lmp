@@ -118,6 +118,7 @@ char *lock_status[] = {"", "mutex_req", "mutex_lock", "mutex_unlock",
 						   "rdlock_req", "rdlock_lock", "rdlock_unlock",
 						   "wrlock_req", "wrlock_lock", "wrlock_unlock",
 						   "spinlock_req", "spinlock_lock", "spinlock_unlock"};
+char *mfutex_type[] = {"","MUTEX","RW_LOCK","SPIN_LOCK","RCU_LOCK","FUTEX_LOCK"};
 
 char *keytime_type[] = {"", "exec_enter", "exec_exit", 
 						    "exit", 
@@ -533,36 +534,48 @@ static int print_mfutex(void *ctx, void *data,unsigned long data_sz)
 	time_t now = time(NULL);// 获取当前时间
 	struct tm *localTime = localtime(&now);// 将时间转换为本地时间结构
 	printf("%02d:%02d:%02d   ",localTime->tm_hour, localTime->tm_min, localTime->tm_sec);
+	printf("%-12s  0x%x  %-10d  %-16llu  %-11llu  %-11lu | ",mfutex_type[e->type],e->lock_ptr,e->owner,e->start_hold_time,e->last_owner,e->last_hold_delay);
+
 	int err,record_lock_fd =bpf_map__fd(mfutex_skel->maps.record_lock);
 
-	printf("0x%-16x  %-10d  %-11llu | \n",e->lock_ptr,e->owner,e->time);
-	// pid_t lookup_key = -1 ,next_key;
-	// int lock_cur_tgid = 0;
+	struct record_lock_key lookup_key = {-1,-1}, next_key;
+	while(!bpf_map_get_next_key(record_lock_fd, &lookup_key, &next_key)){
+		// printf("next_key:%x target_ptr:%x\n",next_key,e->lock_ptr);
+		if(next_key.lock_ptr != e->lock_ptr) {
+			lookup_key = next_key;
+			continue;//不是目标锁，跳过 
+		}
+		struct per_request per_request = {};
+		err = bpf_map_lookup_elem(record_lock_fd,&next_key,&per_request);
+		if (err < 0) {
+			// printf(stderr, "failed to lookup info: %d\n", err);
+			lookup_key = next_key;
+			continue;//不是目标锁，跳过 
+		}
+		float wait_delay = (e->start_hold_time-per_request.start_request_time)/1000000000.0;
+		if(wait_delay<=0||wait_delay>=10000)
+			printf("%d(NULL) | ",per_request.pid);
+		else printf("%d(%ds) | ",per_request.pid,((e->start_hold_time-per_request.start_request_time)/1000000000));
+		lookup_key = next_key;
+	}
+	printf("\n");
 
-	// if(e->tgid != -1)	lock_cur_tgid = 2;
-	// else	lock_cur_tgid = 1;
-	
-	// if(prev_image != LOCK_IMAGE || env.lock_prev_tgid != lock_cur_tgid){
-    //     printf("USERLOCK ------------------------------------------------------------------------------------------------\n");
-    //     printf("%-15s  ","TIME");
-	// 	if(e->tgid != -1){
-	// 		printf("%-6s  ","TGID");
-	// 		env.lock_prev_tgid = 2;
-	// 	} else {
-	// 		env.lock_prev_tgid = 1;
+	// struct record_lock_key key;
+	// key.lock_ptr = e->lock_ptr;
+	// key.cnt = 1;
+	// while(key.cnt<=e->cnt){
+	// 	struct per_request per_request;
+	// 	err = bpf_map_lookup_elem(record_lock_fd,&key,&per_request);
+	// 	if (err < 0) {
+	// 		// fprintf(stderr, "failed to lookup info: %d\n", err);
+	// 		printf("(%llu|%d) ",key.lock_ptr,key.cnt);
+	// 		key.cnt++;
+	// 		continue;//没找到，就去找下一个
 	// 	}
-	// 	printf("%-6s  %-15s  %s\n","PID","LockAddr","LockStatus");
-	// 	prev_image = LOCK_IMAGE;
-    // }
-
-	// printf("%-15lld  ",e->time);
-	// if(e->tgid != -1)	printf("%-6d  ",e->tgid);
-	// printf("%-6d  %-15lld  ",e->pid,e->lock_ptr);
-	// if(e->lock_status==2 || e->lock_status==5 || e->lock_status==8 || e->lock_status==11){
-	// 	printf("%s-%d\n",lock_status[e->lock_status],e->ret);
-	// }else{
-	// 	printf("%s\n",lock_status[e->lock_status]);
+	// 	printf("%d(%lu)| ",per_request.pid,per_request.wait_delay);
+	// 	key.cnt++;
 	// }
+	// printf("\n");
 	return 0;
 }
 
@@ -758,7 +771,7 @@ static int mfutex_attach(struct mfutex_bpf *skel)
 	// ATTACH_URETPROBE_CHECKED(skel,__pthread_mutex_trylock,__pthread_mutex_trylock_exit);
 	ATTACH_UPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_enter);
 	
-	ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_exit);
+	// ATTACH_URETPROBE_CHECKED(skel,pthread_mutex_unlock,pthread_mutex_unlock_exit);
 	
 	
 	err = mfutex_bpf__attach(skel);
@@ -1007,7 +1020,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to create mfutex ring buffer\n");
 			goto cleanup;
 		}
-		printf("%-16s  %-16s  %-10s %-11s\n","TIME","LOCK_Addr","Holder","HoldTime");
+		printf("%-8s   %-12s  %-10s  %-10s  %-16s  %-11s  %-11s | %10s\n","TIME","LOCK_TYPE","LOCK_Addr","Holder","HoldTime","Last_Holder","Last_Delay","Wait_Proc");
 	}
 
 	if(env.enable_keytime){
@@ -1152,7 +1165,7 @@ int main(int argc, char **argv)
 		}
 
 		if(env.enable_mfutex){
-			err = ring_buffer__poll(mfutex_rb, 10);
+			err = ring_buffer__poll(mfutex_rb, 2000);
 			/* Ctrl-C will cause -EINTR */
 			if (err == -EINTR) {
 				err = 0;
