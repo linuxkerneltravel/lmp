@@ -8,9 +8,9 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied. See the License for the specific language governing
+// permissions and limitations under the License.
 //
 // author: nanshuaibo811@163.com
 //
@@ -27,11 +27,13 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "kvm_watcher/include/kvm_watcher.h"
-
+#include "kvm_watcher/include/common.h"
+#include "trace_helpers.h"
+#include "uprobe_helpers.h"
 #include "hypervisor/kvm_watcher/kvm_watcher.skel.h"
 
+//可视化调整输出格式
+int is_first = 1;
 // 创建并打开临时文件
 FILE *create_temp_file(const char *filename) {
     const char *directory = "./temp";
@@ -56,7 +58,7 @@ FILE *create_temp_file(const char *filename) {
     return output;
 }
 
-const char *getName(int number, enum EventType type) {
+const char *getName(int number, enum NameType type) {
     struct NameMapping {
         int number;
         const char *name;
@@ -124,24 +126,80 @@ const char *getName(int number, enum EventType type) {
                                         {68, "TPAUSE"},
                                         {74, "BUS_LOCK"},
                                         {75, "NOTIFY"}};
+    // From include/uapi/linux/kvm.h, KVM_EXIT_xxx
+    struct NameMapping exitReasons_userspace[] = {
+        {0, "UNKNOWN"},
+        {1, "EXCEPTION"},
+        {2, "IO"},
+        {3, "HYPERCALL"},
+        {4, "DEBUG"},
+        {5, "HLT"},
+        {6, "MMIO"},
+        {7, "IRQ_WINDOW_OPEN"},
+        {8, "SHUTDOWN"},
+        {9, "FAIL_ENTRY"},
+        {10, "INTR"},
+        {11, "SET_TPR"},
+        {12, "TPR_ACCESS"},
+        {13, "S390_SIEIC"},
+        {14, "S390_RESET"},
+        {15, "DCR"},
+        {16, "NMI"},
+        {17, "INTERNAL_ERROR"},
+        {18, "OSI"},
+        {19, "PAPR_HCALL"},
+        {20, "S390_UCONTROL"},
+        {21, "WATCHDOG"},
+        {22, "S390_TSCH"},
+        {23, "EPR"},
+        {24, "SYSTEM_EVENT"},
+        {25, "S390_STSI"},
+        {26, "IOAPIC_EOI"},
+        {27, "HYPERV"},
+        {28, "ARM_NISV"},
+        {29, "X86_RDMSR"},
+        {30, "X86_WRMSR"},
+        {31, "DIRTY_RING_FULL"},
+        {32, "AP_RESET_HOLD"},
+        {33, "X86_BUS_LOCK"},
+        {34, "XEN"},
+        {35, "RISCV_SBI"},
+        {36, "RISCV_CSR"},
+        {37, "NOTIFY"},
+    };
     // 定义超级调用 include\uapi\linux\kvm_para.h
     struct NameMapping hypercalls[] = {
         {1, "VAPIC_POLL_IRQ"}, {5, "KICK_CPU"},     {9, "CLOCK_PAIRING"},
         {10, "SEND_IPI"},      {11, "SCHED_YIELD"}, {12, "MAP_GPA_RANGE"}};
+
+    struct NameMapping timer_mode[] = {
+        {0, "ONESHOT"},
+        {1, "PERIODIC"},
+        {2, "TSCDEADLINE"},
+    };
     // 根据枚举类型选择使用哪个结构体数组进行转换
     struct NameMapping *mappings;
     int count;
     switch (type) {
-        case EXIT:
+        case EXIT_NR:
             mappings = exitReasons;
             count = sizeof(exitReasons) / sizeof(exitReasons[0]);
             break;
-        case HYPERCALL:
+        case EXIT_USERSPACE_NR:
+            mappings = exitReasons_userspace;
+            count = sizeof(exitReasons_userspace) /
+                    sizeof(exitReasons_userspace[0]);
+            break;
+        case HYPERCALL_NR:
             mappings = hypercalls;
             count = sizeof(hypercalls) / sizeof(hypercalls[0]);
             break;
+        case TIMER_MODE_NR:
+            mappings = timer_mode;
+            count = sizeof(timer_mode) / sizeof(timer_mode[0]);
+            break;
         default:
-            return "Unknown";
+            return "UNKNOWN";
     }
 
     // 根据给定的编号在选择的结构体数组中搜索对应的名称
@@ -151,7 +209,7 @@ const char *getName(int number, enum EventType type) {
         }
     }
 
-    return "Unknown";  // 如果找不到对应的条目，返回一个默认值
+    return "UNKNOWN";  // 如果找不到对应的条目，返回一个默认值
 }
 
 // 检查具有给定 PID 的进程是否存在
@@ -259,6 +317,7 @@ int save_count_dirtypagemap_to_file(struct bpf_map *map) {
 static struct env {
     bool execute_vcpu_wakeup;
     bool execute_exit;
+    bool execute_vcpu_load;
     bool execute_halt_poll_ns;
     bool execute_mark_page_dirty;
     bool execute_page_fault;
@@ -267,11 +326,17 @@ static struct env {
     bool execute_irq_inject;
     bool execute_hypercall;
     bool execute_ioctl;
+    bool execute_timer;
+    bool verbose;
+    bool show;
+    bool execute_container_syscall;
     int monitoring_time;
     pid_t vm_pid;
+    char hostname[64];
     enum EventType event_type;
 } env = {
     .execute_vcpu_wakeup = false,
+    .execute_vcpu_load = false,
     .execute_exit = false,
     .execute_halt_poll_ns = false,
     .execute_mark_page_dirty = false,
@@ -281,8 +346,13 @@ static struct env {
     .mmio_page_fault = false,
     .execute_hypercall = false,
     .execute_ioctl = false,
+    .execute_timer = false,
+    .verbose = false,
     .monitoring_time = 0,
     .vm_pid = -1,
+    .hostname = "",
+    .show = false,
+    .execute_container_syscall = false,
     .event_type = NONE_TYPE,
 };
 
@@ -293,7 +363,11 @@ int option_selected = 0;  // 功能标志变量,确保激活子功能
 // 具体解释命令行参数
 static const struct argp_option opts[] = {
     {"vcpu_wakeup", 'w', NULL, 0, "Monitoring the wakeup of vcpu."},
-    {"vm_exit", 'e', NULL, 0, "Monitoring the event of vm exit."},
+    {"container_syscall", 'a', NULL, 0, "Monitoring the syscall of container."},
+    {"vcpu_load", 'o', NULL, 0, "Monitoring the load of vcpu."},
+    {"vm_exit", 'e', NULL, 0,
+     "Monitoring the event of vm exit(including exiting to KVM and user "
+     "mode)."},
     {"halt_poll_ns", 'n', NULL, 0,
      "Monitoring the variation in vCPU halt-polling time."},
     {"mark_page_dirty", 'd', NULL, 0,
@@ -309,16 +383,36 @@ static const struct argp_option opts[] = {
      "Monitoring the data of mmio page fault.(The -f option must be "
      "specified.)"},
     {"vm_pid", 'p', "PID", 0, "Specify the virtual machine pid to monitor."},
+    {"show", 's', NULL, 0, "Visual display"},
     {"monitoring_time", 't', "SEC", 0, "Time for monitoring."},
     {"kvm_ioctl", 'l', NULL, 0, "Monitoring the KVM IOCTL."},
+    {"kvm_timer", 'T', NULL, 0, "Monitoring the KVM hv or software timer."},
+    {"verbose", 'v', NULL, 0, "Verbose debug output"},
     {NULL, 'H', NULL, OPTION_HIDDEN, "Show the full help"},
     {},
 };
 // 解析命令行参数
 static error_t parse_arg(int key, char *arg, struct argp_state *state) {
     switch (key) {
+        case 's':
+            env.show = true;
+            break;
+        case 'a':
+            SET_OPTION_AND_CHECK_USAGE(option_selected,
+                                       env.execute_container_syscall);
+            char hostname[64];
+            int result = gethostname(hostname, sizeof(hostname));
+            if (result == 0) {
+                strcpy(env.hostname, hostname);
+            } else {
+                perror("gethostname");
+            }
+            break;
         case 'H':
             argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+            break;
+        case 'v':
+            env.verbose = true;
             break;
         case 'w':
             SET_OPTION_AND_CHECK_USAGE(option_selected,
@@ -326,6 +420,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             break;
         case 'e':
             SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_exit);
+            break;
+        case 'o':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_vcpu_load);
             break;
         case 'n':
             SET_OPTION_AND_CHECK_USAGE(option_selected,
@@ -349,6 +446,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state) {
             break;
         case 'l':
             SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_ioctl);
+            break;
+        case 'T':
+            SET_OPTION_AND_CHECK_USAGE(option_selected, env.execute_timer);
             break;
         case 'm':
             if (env.execute_page_fault) {
@@ -394,6 +494,8 @@ static const struct argp argp = {
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
                            va_list args) {
+    if (level == LIBBPF_DEBUG && !env.verbose)
+        return 0;
     return vfprintf(stderr, format, args);
 }
 
@@ -426,6 +528,12 @@ static int determineEventType(struct env *env) {
         env->event_type = HYPERCALL;
     } else if (env->execute_ioctl) {
         env->event_type = IOCTL;
+    } else if (env->execute_vcpu_load) {
+        env->event_type = VCPU_LOAD;
+    } else if (env->execute_timer) {
+        env->event_type = TIMER;
+    } else if (env->execute_container_syscall) {
+        env->event_type = CONTAINER_SYSCALL;
     } else {
         env->event_type = NONE_TYPE;  // 或者根据需要设置一个默认的事件类型
     }
@@ -451,6 +559,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         case EXIT: {
             break;
         }
+        case VCPU_LOAD: {
+            break;
+        }
+        case CONTAINER_SYSCALL: {
+            printf("%-8u %-22s %-10lld %-10lld %-16s\n", e->syscall_data.pid,
+                   e->syscall_data.container_id, e->syscall_data.delay,
+                   e->syscall_data.syscall_id, e->syscall_data.comm);
+            break;
+        }
         case HALT_POLL: {
             // 使用 e->halt_poll_data 访问 HALT_POLL 特有成员
             printf("%-18.6f %-15s %-6d/%-8d %-10s %-7d %-7d --> %d \n",
@@ -473,7 +590,13 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
         case PAGE_FAULT: {
             // 使用 e->page_fault_data 访问 PAGE_FAULT 特有成员
-            printf("%-18.6f %-15s %-10u %-14llx %-6u %-10.4f ", timestamp_ms,
+            if (env.show) {
+                printf("%-18.6f %-10u %-6u %-10.4f\n", timestamp_ms,
+                       e->process.pid, e->page_fault_data.count,
+                       NS_TO_US_WITH_DECIMAL(e->page_fault_data.delay));
+                break;
+            }
+            printf("%-18.6f %-15s %-10u %-12llx %-6u %-10.4f ", timestamp_ms,
                    e->process.comm, e->process.pid, e->page_fault_data.addr,
                    e->page_fault_data.count,
                    NS_TO_US_WITH_DECIMAL(e->page_fault_data.delay));
@@ -577,11 +700,19 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             break;
         }
         case IRQ_INJECT: {
-            printf("%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
-                   timestamp_ms, e->process.comm, e->process.pid,
-                   e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
-                   e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
-                   e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            if (env.show) {
+                printf("%-18.6f %-10d %-10lld %-10d %-10d %-10lld\n",
+                       timestamp_ms, e->process.pid, e->irq_inject_data.delay,
+                       e->irq_inject_data.irq_nr, e->irq_inject_data.vcpu_id,
+                       e->irq_inject_data.injections);
+            } else {
+                printf(
+                    "%-18.6f %-15s %-10d %-10lld %#-10x %-10d %-10lld %-10s\n",
+                    timestamp_ms, e->process.comm, e->process.pid,
+                    e->irq_inject_data.delay, e->irq_inject_data.irq_nr,
+                    e->irq_inject_data.vcpu_id, e->irq_inject_data.injections,
+                    e->irq_inject_data.soft ? "Soft/INTn" : "IRQ");
+            }
             break;
         }
         case HYPERCALL: {
@@ -594,7 +725,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             fprintf(output, "%-18.6f %-15s %-10d %-10d %-10s %-11llu",
                     timestamp_ms, e->process.comm, e->process.pid,
                     e->hypercall_data.vcpu_id,
-                    getName(e->hypercall_data.hc_nr, HYPERCALL),
+                    getName(e->hypercall_data.hc_nr, HYPERCALL_NR),
                     e->hypercall_data.hypercalls);
             if (e->hypercall_data.hc_nr == 5) {
                 fprintf(output, "apic_id:%llu\n", e->hypercall_data.a1);
@@ -625,6 +756,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         case IOCTL: {
             break;
         }
+        case TIMER: {
+            break;
+        }
         default:
             // 处理未知事件类型
             break;
@@ -644,7 +778,17 @@ static int print_event_head(struct env *env) {
                    "DUR_HALT(ms)", "COMM", "PID/TID", "VCPU_ID", "WAIT/POLL",
                    "VAILD?");
             break;
+        case CONTAINER_SYSCALL:
+            printf("%-8s %-22s %-9s %10s %-16s\n", "PID", "CONTAINER_ID",
+                   "DELAY(us)", "SYSCALLID", "COMM");
+            break;
         case EXIT:
+            //可视化调整输出格式
+            // printf("Waiting vm_exit ... \n");
+            break;
+        case VCPU_LOAD:
+            //可视化调整输出格式
+            // printf("Waiting vm_vcpu_load ... \n");
             break;
         case HALT_POLL:
             printf("%-18s %-15s %-15s %-10s %-7s %-11s %-10s\n", "TIME(ms)",
@@ -656,20 +800,32 @@ static int print_event_head(struct env *env) {
                    "USERSPACE_ADDR", "SLOT_ID");
             break;
         case PAGE_FAULT:
-            printf("%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
-                   "TIME(ms)", "COMM", "PID", "(f(GPA)m(GFN))", "COUNT",
-                   "DELAY(us)", "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
+            if (env->show) {
+                printf("%-18s %-10s %-6s %-10s \n", "TIME(ms)", "PID", "COUNT",
+                       "DELAY(us)");
+            } else {
+                printf(
+                    "%-18s %-15s %-10s %-12s %-6s %-10s %-20s %-17s %-10s %s\n",
+                    "TIME(ms)", "COMM", "PID", "GPA", "COUNT", "DELAY(us)",
+                    "HVA", "PFN", "MEM_SLOTID", "ERROR_TYPE");
+            }
             break;
         case IRQCHIP:
             printf("%-18s %-15s %-10s %-10s %-14s %-10s %-10s\n", "TIME(ms)",
-                   "COMM", "PID", "DELAY", "CHIP/PIN", "DST/VEC", "OTHERS");
+                   "COMM", "PID", "DELAY", "TYPE/PIN", "DST/VEC", "OTHERS");
             break;
         case IRQ_INJECT:
-            printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
-                   "TIME(ms)", "COMM", "PID", "DELAY", "IRQ_NR", "VCPU_ID",
-                   "INJECTIONS", "TYPE");
+            if (env->show) {
+                printf("%-18s %-10s %-10s %-10s %-10s %-10s \n", "TIME(ms)",
+                       "PID", "DELAY", "IRQ_NR", "VCPU_ID", "INJECTIONS");
+            } else {
+                printf("%-18s %-15s %-10s %-10s %-10s %-10s %-10s %-10s\n",
+                       "TIME(ms)", "COMM", "PID", "DELAY", "IRQ_NR", "VCPU_ID",
+                       "INJECTIONS", "TYPE");
+            }
             break;
         case HYPERCALL: {
+            printf("Waiting hypercall ... \n");
             const char *filename = "hc_temp";
             FILE *output = create_temp_file(filename);
             if (!output) {
@@ -683,7 +839,14 @@ static int print_event_head(struct env *env) {
             break;
         }
         case IOCTL: {
-            printf("wait....\n");
+            printf(
+                "Successfully started! Please run `sudo cat "
+                "/sys/kernel/debug/tracing/trace_pipe` "
+                "to see output of the BPF programs.\n");
+            break;
+        }
+        case TIMER: {
+            printf("Waiting kvm timer ... \n");
             break;
         }
         default:
@@ -693,20 +856,56 @@ static int print_event_head(struct env *env) {
     return 0;
 }
 
-/*通过env结构体的属性真值来判断是否加载某个挂载函数*/
 static void set_disable_load(struct kvm_watcher_bpf *skel) {
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt, false);
+    bpf_program__set_autoload(skel->progs.kp_kvm_vcpu_halt, false);
+    bpf_program__set_autoload(skel->progs.fentry_mark_page_dirty_in_slot,
+                              false);
+    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot, false);
+    bpf_program__set_autoload(skel->progs.fentry_kvm_emulate_hypercall, false);
+    bpf_program__set_autoload(skel->progs.kp_kvm_emulate_hypercall, false);
+    bpf_program__set_autoload(skel->progs.fentry_start_hv_timer, false);
+    bpf_program__set_autoload(skel->progs.kp_start_hv_timer, false);
+    bpf_program__set_autoload(skel->progs.fentry_start_sw_timer, false);
+    bpf_program__set_autoload(skel->progs.kp_start_sw_timer, false);
+
+    if (env.execute_vcpu_load) {
+        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, kvm_intel);
+        SET_KP_OR_FENTRY_LOAD(vmx_vcpu_put, kvm_intel);
+    }
+    if (env.execute_vcpu_wakeup) {
+        SET_KP_OR_FENTRY_LOAD(kvm_vcpu_halt, kvm);
+    }
+    if (env.execute_mark_page_dirty) {
+        SET_KP_OR_FENTRY_LOAD(mark_page_dirty_in_slot, kvm);
+    }
+    if (env.execute_timer) {
+        SET_KP_OR_FENTRY_LOAD(start_hv_timer, kvm);
+        SET_KP_OR_FENTRY_LOAD(start_sw_timer, kvm);
+    }
+    if (env.execute_hypercall) {
+        SET_KP_OR_FENTRY_LOAD(kvm_emulate_hypercall, kvm);
+    }
+    bpf_program__set_autoload(skel->progs.tp_container_sys_entry,
+                              env.execute_container_syscall ? true : false);
+    bpf_program__set_autoload(skel->progs.tracepoint__syscalls__sys_exit,
+                              env.execute_container_syscall ? true : false);
     bpf_program__set_autoload(skel->progs.tp_vcpu_wakeup,
-                              env.execute_vcpu_wakeup ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_vcpu_halt,
                               env.execute_vcpu_wakeup ? true : false);
     bpf_program__set_autoload(skel->progs.tp_exit,
                               env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_entry,
                               env.execute_exit ? true : false);
+    bpf_program__set_autoload(skel->progs.up_kvm_vcpu_ioctl,
+                              env.execute_exit ? true : false);
+    bpf_program__set_autoload(skel->progs.tp_kvm_userspace_exit,
+                              env.execute_exit ? true : false);
     bpf_program__set_autoload(skel->progs.tp_kvm_halt_poll_ns,
                               env.execute_halt_poll_ns ? true : false);
-    bpf_program__set_autoload(skel->progs.kp_mark_page_dirty_in_slot,
-                              env.execute_mark_page_dirty ? true : false);
     bpf_program__set_autoload(skel->progs.tp_page_fault,
                               env.execute_page_fault ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_tdp_page_fault,
@@ -723,16 +922,14 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_irqchip ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_kvm_ioapic_set_irq,
                               env.execute_irqchip ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_kvm_set_msi_irq,
+    bpf_program__set_autoload(skel->progs.fentry_kvm_set_msi,
                               env.execute_irqchip ? true : false);
-    bpf_program__set_autoload(skel->progs.fexit_kvm_set_msi_irq,
+    bpf_program__set_autoload(skel->progs.fexit_kvm_set_msi,
                               env.execute_irqchip ? true : false);
     bpf_program__set_autoload(skel->progs.fentry_vmx_inject_irq,
                               env.execute_irq_inject ? true : false);
     bpf_program__set_autoload(skel->progs.fexit_vmx_inject_irq,
                               env.execute_irq_inject ? true : false);
-    bpf_program__set_autoload(skel->progs.fentry_emulate_hypercall,
-                              env.execute_hypercall ? true : false);
     bpf_program__set_autoload(skel->progs.tp_ioctl,
                               env.execute_ioctl ? true : false);
 }
@@ -747,9 +944,70 @@ const char *getCurrentTimeFormatted() {
     tm = localtime(&t);
 
     // 格式化时间到静态分配的字符串中
-    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+    strftime(ts, sizeof(ts), "%Y/%m/%d %H:%M:%S", tm);
 
     return ts;  // 返回指向静态字符串的指针
+}
+
+// In order to sort vm_exit maps
+int sort_by_key(int fd, struct exit_key *keys, struct exit_value *values) {
+    int err = 0;
+    struct exit_key lookup_key = {};
+    struct exit_key next_key = {};
+    struct exit_value exit_value;
+    int i = 0, j = 0, count = 0;
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        j = i - 1;
+        struct exit_key temp_key = next_key;
+        err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
+        if (err < 0) {
+            fprintf(stderr, "failed to lookup exit_value: %d\n", err);
+            return -1;
+        }
+        struct exit_value temp_value = exit_value;
+        while (j >= 0 &&
+               (keys[j].pid > temp_key.pid || (keys[j].tid > temp_key.tid))) {
+            keys[j + 1] = keys[j];
+            values[j + 1] = values[j];
+            j--;
+        }
+        keys[j + 1] = temp_key;
+        values[j + 1] = temp_value;
+        lookup_key = next_key;
+        count++;
+        i++;
+    }
+    return count;
+}
+
+// clear the specific map
+int clear_map(void *lookup_key, void *next_key, enum EventType type, int fd) {
+    int err;
+    switch (type) {
+        case HYPERCALL:
+            memset(lookup_key, 0, sizeof(struct hc_key));
+            break;
+        case TIMER:
+            memset(lookup_key, 0, sizeof(struct timer_key));
+            break;
+        case VCPU_LOAD:
+            memset(lookup_key, 0, sizeof(struct load_key));
+            break;
+        case EXIT:
+            memset(lookup_key, 0, sizeof(struct exit_key));
+            break;
+        default:
+            return -1;
+    }
+    while (!bpf_map_get_next_key(fd, lookup_key, next_key)) {
+        err = bpf_map_delete_elem(fd, next_key);
+        if (err < 0) {
+            fprintf(stderr, "failed to cleanup map: %d\n", err);
+            return -1;
+        }
+        lookup_key = next_key;
+    }
+    return 1;
 }
 
 int print_hc_map(struct kvm_watcher_bpf *skel) {
@@ -779,159 +1037,232 @@ int print_hc_map(struct kvm_watcher_bpf *skel) {
             return -1;
         }
         printf("%-12d %-12d %-12s %-12d %-12lld\n", next_key.pid,
-               next_key.vcpu_id, getName(next_key.nr, HYPERCALL),
+               next_key.vcpu_id, getName(next_key.nr, HYPERCALL_NR),
                hc_value.counts, hc_value.hypercalls);
         // // Move to the next key
         lookup_key = next_key;
     }
-    memset(&lookup_key, 0, sizeof(struct hc_key));
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup hc_map: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
-    memset(&lookup_key, 0, sizeof(struct hc_key));
-    while (!bpf_map_get_next_key(count_fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(count_fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup hc_count: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
+    clear_map(&lookup_key, &next_key, HYPERCALL, fd);
+    clear_map(&lookup_key, &next_key, HYPERCALL, count_fd);
     return 0;
 }
-// In order to sort vm_exit maps
-int sort_by_key(struct kvm_watcher_bpf *skel, struct exit_key *keys,
-                struct exit_value *values) {
-    int fd = bpf_map__fd(skel->maps.exit_map);
-    int err = 0;
-    struct exit_key lookup_key = {};
-    struct exit_key next_key = {};
-    struct exit_value exit_value;
-    int first = 1;
-    int i = 0, j;
-    int count = 0;
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        count++;
-        if (first) {
-            first = 0;
-            bpf_map_lookup_elem(fd, &next_key, &exit_value);
-            keys[0] = next_key;
-            values[0] = exit_value;
-            i++;
-            continue;
-        }
-        err = bpf_map_lookup_elem(fd, &next_key, &exit_value);
 
+int print_timer_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.timer_map);
+    int err;
+    struct timer_key lookup_key = {};
+    struct timer_key next_key = {};
+    struct timer_value timer_value = {};
+    int first_run = 1;
+
+    // Iterate over the map
+    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+        if (first_run) {
+            first_run = 0;
+            printf(
+                "--------------------------------------------------------------"
+                "----------\n");
+            printf("TIME:%s\n", getCurrentTimeFormatted());
+            printf("%-12s %-12s %-12s %-12s\n", "PID", "TIMER_MODE", "HV",
+                   "COUNTS");
+        }
+        // Print the current entry
+        err = bpf_map_lookup_elem(fd, &next_key, &timer_value);
         if (err < 0) {
-            fprintf(stderr, "failed to lookup exit_value: %d\n", err);
+            fprintf(stderr, "failed to lookup timer_value: %d\n", err);
             return -1;
         }
-        // insert sort
-        j = i - 1;
-        struct exit_key temp_key = next_key;
-        struct exit_value temp_value = exit_value;
-        while (j >= 0 &&
-               (keys[j].pid > temp_key.pid || (keys[j].tid > temp_key.tid))) {
-            keys[j + 1] = keys[j];
-            values[j + 1] = values[j];
-            j--;
-        }
-        i++;
-        keys[j + 1] = next_key;
-        values[j + 1] = temp_value;
+        printf("%-12d %-12s %-12d %-12u\n", next_key.pid,
+               getName(next_key.timer_mode, TIMER_MODE_NR), next_key.hv,
+               timer_value.counts);
         // Move to the next key
         lookup_key = next_key;
     }
-    return count;
+    clear_map(&lookup_key, &next_key, TIMER, fd);
+    return 0;
 }
-int print_exit_map(struct kvm_watcher_bpf *skel) {
-    int fd = bpf_map__fd(skel->maps.exit_map);
+
+int print_vcpu_load_map(struct kvm_watcher_bpf *skel) {
+    int fd = bpf_map__fd(skel->maps.load_map);
     int err;
+    struct load_key lookup_key = {};
+    struct load_key next_key = {};
+    struct load_value load_value = {};
+    int first = 1;
+    if (env.show) {
+        if (is_first) {
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid",
+                   "tid", "total_time", "max_time", "min_time", "counts",
+                   "vcpuid", "pcpuid");
+            is_first = 0;
+        }
+        while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+            err = bpf_map_lookup_elem(fd, &next_key, &load_value);
+            if (err < 0) {
+                fprintf(stderr, "failed to lookup vcpu_load_value: %d\n", err);
+                return -1;
+            }
+            printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u %-12d %-12d\n",
+                   next_key.pid, next_key.tid,
+                   NS_TO_MS_WITH_DECIMAL(load_value.total_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.max_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.min_time), load_value.count,
+                   load_value.vcpu_id, load_value.pcpu_id);
+
+            lookup_key = next_key;
+        }
+
+    } else {
+        if (first) {
+            first = 0;
+            printf("\nTIME:%s\n", getCurrentTimeFormatted());
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid",
+                   "tid", "total_time", "max_time", "min_time", "counts",
+                   "vcpuid", "pcpuid");
+            printf(
+                "------------ ------------ ------------ ------------ "
+                "------------ "
+                "------------ "
+                "------------ "
+                "------------\n");
+        }
+        while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
+            err = bpf_map_lookup_elem(fd, &next_key, &load_value);
+            if (err < 0) {
+                fprintf(stderr, "failed to lookup vcpu_load_value: %d\n", err);
+                return -1;
+            }
+            printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u %-12d %-12d\n",
+                   next_key.pid, next_key.tid,
+                   NS_TO_MS_WITH_DECIMAL(load_value.total_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.max_time),
+                   NS_TO_MS_WITH_DECIMAL(load_value.min_time), load_value.count,
+                   load_value.vcpu_id, load_value.pcpu_id);
+            lookup_key = next_key;
+        }
+    }
+    clear_map(&lookup_key, &next_key, VCPU_LOAD, fd);
+    return 0;
+}
+
+void __print_exit_map(int fd, enum NameType name_type) {
     struct exit_key lookup_key = {};
     struct exit_key next_key = {};
     int first_run = 1;
     struct exit_key keys[8192];
     struct exit_value values[8192];
-    int count = sort_by_key(skel, keys, values);
+    int count = sort_by_key(fd, keys, values);
     // Iterate over the array
     __u32 pid = 0;
     __u32 tid = 0;
-    for (int i = 0; i < count; i++) {
-        if (first_run) {
-            first_run = 0;
-            printf("\nTIME:%s\n", getCurrentTimeFormatted());
-            printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "pid", "tid",
-                   "total_time", "max_time", "min_time", "counts", "reason");
-            printf(
-                "------------ ------------ ------------ ------------ "
-                "------------ "
-                "------------ "
-                "------------\n");
+    if (env.show) {
+        if (is_first) {
+            printf("%-12s %-12s %-12s %-12s %-12s %-12s\n", "PID", "TID",
+                   "TOTAL_TIME", "MAX_TIME", "MIN_TIME", "COUNT");
+            is_first = 0;
         }
-        // Print the current entry
-        if (tid == 0 || tid != keys[i].tid) {
-            tid = keys[i].tid;
-            if (pid == 0 || pid != keys[i].pid) {
-                pid = keys[i].pid;
-                printf("%-13d", pid);
-            } else {
-                printf("%-13s", "");
+        for (int i = 0; i < count; i++) {
+            printf("%-12d %-12d %-12.4f %-12.4f %-12.4f %-12u\n", keys[i].pid,
+                   keys[i].tid, NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count);
+        }
+
+    } else {
+        for (int i = 0; i < count; i++) {
+            if (first_run) {
+                first_run = 0;
+                if (name_type == EXIT_NR) {
+                    printf(
+                        "============================================KVM_EXIT=="
+                        "===="
+                        "========"
+                        "==============================\n");
+                } else if (name_type == EXIT_USERSPACE_NR) {
+                    printf(
+                        "\n=======================================KVM_"
+                        "USERSPACE_"
+                        "EXIT======="
+                        "================================\n");
+                } else {
+                    return;
+                }
+                printf("%-12s %-12s %-12s %-12s %-12s %-12s %-12s\n", "PID",
+                       "TID", "TOTAL_TIME", "MAX_TIME", "MIN_TIME", "COUNT",
+                       "REASON");
+                printf(
+                    "------------ ------------ ------------ ------------ "
+                    "------------ "
+                    "------------ "
+                    "------------\n");
             }
-            printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n", keys[i].tid,
-                   NS_TO_MS_WITH_DECIMAL(values[i].total_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                   getName(keys[i].reason, EXIT));
-        } else if (tid == keys[i].tid) {
-            printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
-                   NS_TO_MS_WITH_DECIMAL(values[i].total_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].max_time),
-                   NS_TO_MS_WITH_DECIMAL(values[i].min_time), values[i].count,
-                  getName(keys[i].reason, EXIT));
+            // Print the current entry
+            if (tid == 0 || tid != keys[i].tid) {
+                tid = keys[i].tid;
+                if (pid == 0 || pid != keys[i].pid) {
+                    pid = keys[i].pid;
+                    printf("%-13d", pid);
+                } else {
+                    printf("%-13s", "");
+                }
+                printf("%-12d %-12.4f %-12.4f %-12.4f %-12u %-12s\n",
+                       keys[i].tid, NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].min_time),
+                       values[i].count, getName(keys[i].reason, name_type));
+            } else if (tid == keys[i].tid) {
+                printf("%25s %-12.4f %-12.4f %-12.4f %-12u %-12s\n", "",
+                       NS_TO_MS_WITH_DECIMAL(values[i].total_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].max_time),
+                       NS_TO_MS_WITH_DECIMAL(values[i].min_time),
+                       values[i].count, getName(keys[i].reason, name_type));
+            }
         }
     }
-    // clear the maps
-    memset(&lookup_key, 0, sizeof(struct exit_key));
-    while (!bpf_map_get_next_key(fd, &lookup_key, &next_key)) {
-        err = bpf_map_delete_elem(fd, &next_key);
-        if (err < 0) {
-            fprintf(stderr, "failed to cleanup counters: %d\n", err);
-            return -1;
-        }
-        lookup_key = next_key;
-    }
+    clear_map(&lookup_key, &next_key, EXIT, fd);
+}
+int print_exit_map(struct kvm_watcher_bpf *skel) {
+    int exit_fd = bpf_map__fd(skel->maps.exit_map);
+    int userspace_exit_fd = bpf_map__fd(skel->maps.userspace_exit_map);
+    // printf("\nTIME:%s\n", getCurrentTimeFormatted());
+    __print_exit_map(exit_fd, EXIT_NR);
+    __print_exit_map(userspace_exit_fd, EXIT_USERSPACE_NR);
     return 0;
 }
-
 void print_map_and_check_error(int (*print_func)(struct kvm_watcher_bpf *),
                                struct kvm_watcher_bpf *skel,
                                const char *map_name, int err) {
     OUTPUT_INTERVAL(2);
     print_func(skel);
-    if (err < 0) {
+    if (err < 0 && err != -4) {
         printf("Error printing %s map: %d\n", map_name, err);
     }
 }
 
+void print_logo() {
+    char *logo = LOGO_STRING;
+    char command[512];
+    sprintf(command, "echo \"%s\" | /usr/games/lolcat", logo);
+    system(command);
+}
+
+int attach_probe(struct kvm_watcher_bpf *skel) {
+    if (env.execute_exit) {
+        ATTACH_UPROBE_CHECKED(skel, kvm_vcpu_ioctl, up_kvm_vcpu_ioctl);
+    }
+    return kvm_watcher_bpf__attach(skel);
+}
 int main(int argc, char **argv) {
     // 定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
     struct kvm_watcher_bpf *skel;
     int err;
-
     /*解析命令行参数*/
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
     if (err)
         return err;
-
     /*设置libbpf的错误和调试信息回调*/
     libbpf_set_print(libbpf_print_fn);
-
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -945,7 +1276,7 @@ int main(int argc, char **argv) {
 
     /* Parameterize BPF code with parameter */
     skel->rodata->vm_pid = env.vm_pid;
-
+    strcpy(skel->rodata->hostname, env.hostname);
     /* 禁用或加载内核挂钩函数 */
     set_disable_load(skel);
 
@@ -957,12 +1288,11 @@ int main(int argc, char **argv) {
     }
 
     /* 附加跟踪点处理程序 */
-    err = kvm_watcher_bpf__attach(skel);
+    err = attach_probe(skel);
     if (err) {
         fprintf(stderr, "Failed to attach BPF skeleton\n");
         goto cleanup;
     }
-
     /* 设置环形缓冲区轮询 */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
     if (!rb) {
@@ -977,11 +1307,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Invalid env parm\n");
         goto cleanup;
     }
-
-    // 清屏
-    if (option_selected) {
-        CLEAR_SCREEN();
-    }
+    if (!env.show)
+        print_logo();
 
     /*打印信息头*/
     err = print_event_head(&env);
@@ -989,14 +1316,21 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Please specify an option using %s.\n", OPTIONS_LIST);
         goto cleanup;
     }
+    err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
     while (!exiting) {
-        err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
-
+        //err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
         if (env.execute_hypercall) {
             print_map_and_check_error(print_hc_map, skel, "hypercall", err);
         }
         if (env.execute_exit) {
             print_map_and_check_error(print_exit_map, skel, "exit", err);
+        }
+        if (env.execute_timer) {
+            print_map_and_check_error(print_timer_map, skel, "timer", err);
+        }
+        if (env.execute_vcpu_load) {
+            print_map_and_check_error(print_vcpu_load_map, skel, "vcpu_load",
+                                      err);
         }
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR) {
