@@ -45,6 +45,7 @@ struct event_block_rq_issue {
     int sector;         // 扇区号
     int nr_sectors;     // 扇区数
     char comm[TASK_COMM_LEN]; // 进程名
+    int total_io; //I/O总大小
 };
 
 #endif /* __MEM_WATCHER_H */
