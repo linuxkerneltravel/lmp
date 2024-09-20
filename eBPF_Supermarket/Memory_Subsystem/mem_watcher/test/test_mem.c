@@ -5,28 +5,37 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <pthread.h>
+#include <signal.h>
 
 #define ALLOC_SIZE_SMALL 4
 #define ALLOC_SIZE_MEDIUM 64
 #define ALLOC_SIZE_LARGE 1024
+#define NUM_THREADS 10
+#define ALLOC_SIZE (512 * 1024 * 1024)
 
 static struct env {
     bool overall_leak_test;
     bool mem_leak;
     bool mem_unleak;
+    bool mem_stress_test;
 } env = {
     .overall_leak_test = false,
     .mem_leak = false,
     .mem_unleak = false,
+    .mem_stress_test = false
 };
 
-const char argp_program_doc[] ="mem_watcher test.\n";
+static volatile bool running = true;  // 控制程序是否继续运行
+
+const char argp_program_doc[] = "mem_watcher test.\n";
 
 static const struct argp_option opts[] = {
     { NULL, 0, NULL, 0, "Memory Management Options:", 1 },
     { "overall-test", 'o', NULL, 0, "Perform overall memory test", 2 },
     { "detect-leak", 'l', NULL, 0, "Detect memory leaks", 3 },
     { "no-leak", 'n', NULL, 0, "No memory leaks expected", 3 },
+    { "stress-test", 's', NULL, 0, "Perform memory stress test", 4 },
     { NULL, 'h', NULL, OPTION_HIDDEN, "show the full help", 0 },
     { NULL, 0, NULL, 0, NULL, 0 }
 };
@@ -34,23 +43,26 @@ static const struct argp_option opts[] = {
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
     (void)arg; 
-	switch (key) {
-		case 'o':
+    switch (key) {
+        case 'o':
             env.overall_leak_test = true;
             break;
-		case 'l':
+        case 'l':
             env.mem_leak = true;
             break;
-		case 'n':
+        case 'n':
             env.mem_unleak = true;
             break;
-		case 'h':
-				argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
-				break;
-      default:
-         return ARGP_ERR_UNKNOWN;
-	}	
-	return 0;
+        case 's':
+            env.mem_stress_test = true;
+            break;
+        case 'h':
+            argp_state_help(state, stderr, ARGP_HELP_STD_HELP);
+            break;
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }    
+    return 0;
 }
 
 // 模拟一些处理，通过写入分配的内存
@@ -104,7 +116,7 @@ static void mem_leak_process() {
     }
 }
 
-static void mem_unleak_process(){
+static void mem_unleak_process() {
     void *ptr = NULL;
     int i = 0;
 
@@ -134,12 +146,43 @@ static void mem_unleak_process(){
     }
 }
 
-int main(int argc, char **argv){
+// 内存压力测试线程函数
+void *memory_stress(void *arg) {
+    printf("Thread %ld starting memory allocation...\n", (long)arg);
+
+    // 分配指定大小的内存
+    char *memory_block = malloc(ALLOC_SIZE);
+    if (!memory_block) {
+        perror("Memory allocation failed");
+        return NULL;
+    }
+
+    // 用 0xFF 填充内存，模拟占用
+    memset(memory_block, 0xFF, ALLOC_SIZE);
+
+    // 保持分配的内存一段时间
+    while (running) {
+        sleep(10);  // 继续分配并占用内存
+    }
+
+    // 释放内存
+    free(memory_block);
+    return NULL;
+}
+
+// 处理 SIGINT 信号（Ctrl+C）
+void sigint_handler(int sig) {
+    (void)sig;  // 忽略信号参数
+    running = false;  // 设置标志以退出循环
+    printf("Received SIGINT, stopping...\n");
+}
+
+int main(int argc, char **argv) {
     int err;
     static const struct argp argp = {
-    	.options = opts,
-    	.parser = parse_arg,
-    	.doc = argp_program_doc,
+        .options = opts,
+        .parser = parse_arg,
+        .doc = argp_program_doc,
     };
 
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
@@ -158,6 +201,32 @@ int main(int argc, char **argv){
             printf("正在进行无内存泄漏测试...\n");
             mem_unleak_process();
         }
+    }
+
+    if (env.mem_stress_test) {
+        // 打印当前进程的进程号（PID）
+        pid_t pid = getpid();
+        printf("当前进程的进程号（PID）: %d\n", pid);
+        printf("正在进行内存压力测试...\n");
+
+        sleep(2);
+
+        pthread_t threads[NUM_THREADS];
+        
+        // 创建多个线程，每个线程分配 ALLOC_SIZE 大小的内存
+        for (long i = 0; i < NUM_THREADS; i++) {
+            if (pthread_create(&threads[i], NULL, memory_stress, (void *)i) != 0) {
+                perror("Failed to create thread");
+                return 1;
+            }
+        }
+
+        // 等待所有线程完成
+        for (int i = 0; i < NUM_THREADS; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        printf("所有线程完成\n");
     }
 
     return 0;
