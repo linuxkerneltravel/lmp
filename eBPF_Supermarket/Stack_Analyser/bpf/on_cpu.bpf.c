@@ -21,7 +21,7 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 
-#include "sa_ebpf.h"
+#include "ebpf.h"
 #include "task.h"
 
 const char LICENSE[] SEC("license") = "GPL";
@@ -33,15 +33,15 @@ SEC("perf_event") // 挂载点为perf_event
 int do_stack(void *ctx)
 {
     CHECK_ACTIVE;
-    struct task_struct *curr = (void *)bpf_get_current_task(); // curr指向当前进程的tsk
-    RET_IF_KERN(curr);                                         // 忽略内核线程
-    u32 pid = BPF_CORE_READ(curr, pid);                        // pid保存当前进程的pid，是cgroup pid 对应的level 0 pid
-    if (!pid || pid == self_pid)
-        return 0;
-    SAVE_TASK_INFO(pid, curr);
-    psid apsid = GET_COUNT_KEY(pid, ctx);
+    struct task_struct *curr = GET_CURR; // curr指向当前进程的tsk
+    CHECK_KTHREAD(curr);
+    // perf 中已设置目标tgid，这里无需再次过滤tgid
+    struct kernfs_node *knode = GET_KNODE(curr);
+    CHECK_CGID(knode);
 
-    // add cosunt
+    u32 pid = BPF_CORE_READ(curr, pid);
+    TRY_SAVE_INFO(curr, pid, BPF_CORE_READ(curr, tgid), knode);
+    psid apsid = TRACE_AND_GET_COUNT_KEY(pid, ctx);
     u32 *count = bpf_map_lookup_elem(&psid_count_map, &apsid); // count指向psid_count对应的apsid的值
     if (count)
         (*count)++; // count不为空，则psid_count对应的apsid的值+1

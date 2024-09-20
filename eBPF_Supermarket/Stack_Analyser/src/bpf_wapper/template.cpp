@@ -27,26 +27,20 @@ uint64_t *TemplateClass::count_values(void *data)
     };
 };
 
-int TemplateClass::load(void)
+int TemplateClass::ready(void)
 {
     return 0;
-};
+}
 
-int TemplateClass::attach(void)
-{
-    return 0;
-};
-
-void TemplateClass::detach(void){};
-
-void TemplateClass::unload(void){};
+void TemplateClass::finish(void) {};
 
 void TemplateClass::activate(bool tf)
 {
     ACTIVE_SET(tf);
 }
 
-const char *TemplateClass::getName(void) {
+const char *TemplateClass::getName(void)
+{
     return "TemplateClass";
 }
 

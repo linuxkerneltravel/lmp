@@ -1,10 +1,11 @@
 #ifndef __COMMON_DEFINES_H
 #define __COMMON_DEFINES_H
 
-#include <net/if.h>
-#include <linux/types.h>
-#include <stdbool.h>
 #include <xdp/libxdp.h>
+
+
+#define FILE_MAXSIZE 128 
+#define IF_NAMESIZE 16 
 
 struct config {
 	enum xdp_attach_mode attach_mode;
@@ -27,6 +28,20 @@ struct config {
 	int xsk_if_queue;
 	bool xsk_poll_mode;
 	bool unload_all;
+	bool show_stats;  // 数据统计
+	bool ip_filter;   //ip过滤
+	bool mac_filter;  //mac过滤
+	bool router;  //路由
+	bool state;       //会话保持
+	bool clear;       //清理
+	char *ip_filter_file;
+	char ip_filter_file_buf[FILE_MAXSIZE];
+	char *mac_filter_file;
+	char mac_filter_file_buf[FILE_MAXSIZE];
+	char *router_file;
+	char router_file_buf[FILE_MAXSIZE];
+	bool print_info;
+	bool socketmap_flag;
 };
 
 /* Defined in common_params.o */

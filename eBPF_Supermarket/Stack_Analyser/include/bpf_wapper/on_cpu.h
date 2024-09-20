@@ -31,7 +31,6 @@ private:
 	int *pefds = NULL;
 	int num_cpus = 0;
 	struct bpf_link **links = NULL;
-	unsigned long long freq = 49;
 
 protected:
 	virtual uint64_t *count_values(void *);
@@ -39,10 +38,8 @@ protected:
 public:
 	void setScale(uint64_t freq);
 	OnCPUStackCollector();
-	virtual int load(void);
-	virtual int attach(void);
-	virtual void detach(void);
-	virtual void unload(void);
+    virtual int ready(void);
+    virtual void finish(void);
 	virtual void activate(bool tf);
     virtual const char *getName(void);
 };

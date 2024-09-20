@@ -69,6 +69,14 @@ tools文件夹中的eBPF程序是按照进程生命周期中数据的类型分�
 | syscall_image   | 对进程的系统调用序列进行画像      |
 | schedule_image   | 对进程的调度信息进行画像      |
 
+### 4.1 syscall_image使用说明
+[syscall_image使用说明](docs/Syscall_image工具使用说明.md)
+<div align='center'><img src="./docs/images/syscall_image可视化.png"></div>
+
+### 4.2 keytime_image使用说明
+[keytime_image使用说明](docs/keytime_image工具使用说明.md)
+<div align='center'><img src="./docs/images/keytime_image可视化.png"></div>
+
 ## 五、基于 Prometheus 和 Grafana 的可视化平台
 
 基于 Prometheus 和 Grafana 的可视化平台框架图：

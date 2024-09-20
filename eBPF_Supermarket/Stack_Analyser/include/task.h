@@ -71,13 +71,12 @@ statfunc u32 get_task_ns_ppid(struct task_struct *task)
     return get_task_pid_vnr(real_parent);
 }
 
-static void fill_container_id(struct task_struct *task, char *container_id)
+static void fill_container_id(struct kernfs_node *knode, char *container_id)
 {
-    struct kernfs_node *knode = BPF_CORE_READ(task, cgroups, subsys[0], cgroup, kn);
     if (BPF_CORE_READ(knode, parent) != NULL)
     {
         char *aus;
-        bpf_probe_read(&aus, sizeof(void *), &knode->name);
+        bpf_probe_read(&aus, sizeof(void *), &(knode->name));
         bpf_probe_read_str(container_id, CONTAINER_ID_LEN, aus);
     }
 }

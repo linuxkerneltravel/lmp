@@ -36,10 +36,14 @@ jobs:
           cd eBPF_Supermarket/Network_Subsystem/net_manager/
           sudo ./configure
           sudo make
+          ifconfig
           # run
-          sudo timeout -s SIGINT 5 ./xdp_loader -d ens33 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
-          sudo ./xacladm load ens33 ./conf.d/mac_load.conf
-          sudo xdp-loader unload ens33 --all
+          cd testenv
+          sudo ./testenv.sh setup --name veth-basic02
+          cd ..
+          sudo timeout -s SIGINT 5 ./netmanager -d eth0 -S || if [[ $? != 124 && $? != 0 ]];then exit $?;fi
+          sudo ./netmanager -d eth0 -S
+    
   
        
          

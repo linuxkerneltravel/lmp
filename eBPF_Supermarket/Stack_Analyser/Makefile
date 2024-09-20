@@ -19,8 +19,11 @@
 OUTPUT := .output
 BPF_SKEL := bpf_skel
 CLANG ?= clang
-LIBBPF_SRC := $(abspath libbpf-bootstrap/libbpf/src)
-BPFTOOL_SRC := $(abspath libbpf-bootstrap/bpftool/src)
+CXX := clang
+LIB := ../lib
+LIBBPF_ROOT := $(abspath $(LIB)/libbpf)
+LIBBPF_SRC := $(LIBBPF_ROOT)/src
+BPFTOOL_SRC := $(abspath $(LIB)/bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
@@ -31,16 +34,21 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-VMLINUX := libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
+
+VMLINUX := $(LIB)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I./include -I./$(OUTPUT) -I./$(BPF_SKEL) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
+INCLUDES := -I./include -I./$(OUTPUT) -I./$(BPF_SKEL) -I$(LIBBPF_ROOT)/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -Og -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 BIN = $(patsubst src/%.cpp, %, ${wildcard src/*.cpp})
 BPF = $(patsubst bpf/%.bpf.c, %, ${wildcard bpf/*.bpf.c})
+BPF_OBJ = $(patsubst %,$(OUTPUT)/%.bpf.o,$(BPF))
+BPF_SKEL_H = $(patsubst %,$(BPF_SKEL)/%.skel.h,$(BPF))
+BPF_WAPPER = $(patsubst %,$(OUTPUT)/%.o,$(BPF))
+BIN_OBJ = $(patsubst %,$(OUTPUT)/%.o,$(BIN))
 
 TARGETS = stack_analyzer
 
@@ -85,12 +93,22 @@ clean:
 	$(call msg,CLEAN)
 	$(Q)rm -rf $(OUTPUT) $(TARGETS) $(BPF_SKEL)
 
+init:
+	$(call msg,INIT,$(LIB))
+	$(Q)git submodule update --init --recursive ../lib/
+
+$(LIBBPF_SRC) $(BPFTOOL_SRC): init
+
+$(VMLINUX):
+	$(call msg,BTFDUMP,$@)
+	$(Q)bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
+
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT) $(BPF_SKEL):
 	$(call msg,MKDIR,$@)
 	$(Q)mkdir -p $@
 
 # Build libbpf
-$(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
+$(LIBBPF_OBJ): $(LIBBPF_SRC) $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
 	$(call msg,LIB,$@)
 	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1  \
 		    OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@) \
@@ -98,12 +116,12 @@ $(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPU
 		    install
 
 # Build bpftool
-$(BPFTOOL): | $(BPFTOOL_OUTPUT)
+$(BPFTOOL): $(BPFTOOL_SRC) | $(BPFTOOL_OUTPUT)
 	$(call msg,BPFTOOL,$@)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
 # Build BPF code
-$(OUTPUT)/%.bpf.o: bpf/%.bpf.c include/sa_ebpf.h $(LIBBPF_OBJ) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
+$(BPF_OBJ): $(OUTPUT)/%.bpf.o: bpf/%.bpf.c include/ebpf.h $(LIBBPF_OBJ) $(VMLINUX) | $(OUTPUT) $(BPFTOOL)
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)		      \
 		     $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES)		      \
@@ -111,27 +129,25 @@ $(OUTPUT)/%.bpf.o: bpf/%.bpf.c include/sa_ebpf.h $(LIBBPF_OBJ) $(VMLINUX) | $(OU
 	$(Q)$(BPFTOOL) gen object $@ $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
 
 # Generate BPF skeletons
-$(BPF_SKEL)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL) $(BPF_SKEL)
+$(BPF_SKEL_H): $(BPF_SKEL)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL) $(BPF_SKEL)
 	$(call msg,GEN-SKEL,$@)
 	$(Q)$(BPFTOOL) gen skeleton $< > $@
 
-$(patsubst %,include/bpf_wapper/%.h,$(BPF)): include/bpf_wapper/%.h: $(BPF_SKEL)/%.skel.h
-
-$(patsubst %,$(OUTPUT)/%.o,$(BPF)): $(OUTPUT)/%.o: src/bpf_wapper/%.cpp include/bpf_wapper/%.h $(OUTPUT)/eBPFStackCollector.o
+$(BPF_WAPPER): $(OUTPUT)/%.o: src/bpf_wapper/%.cpp include/bpf_wapper/%.h $(BPF_SKEL)/%.skel.h $(OUTPUT)/eBPFStackCollector.o
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build depending library
-$(patsubst %,$(OUTPUT)/%.o,$(BIN)): $(OUTPUT)/%.o: src/%.cpp $(patsubst %,include/bpf_wapper/%.h,$(BPF))
+$(BIN_OBJ): $(OUTPUT)/%.o: src/%.cpp $(BPF_SKEL_H)
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(OUTPUT)/eBPFStackCollector.o: src/bpf_wapper/eBPFStackCollector.cpp | $(LIBBPF_OBJ)
+$(OUTPUT)/eBPFStackCollector.o: src/bpf_wapper/eBPFStackCollector.cpp include/bpf_wapper/eBPFStackCollector.h | $(LIBBPF_OBJ)
 	$(call msg,CXX,$@)
 	$(Q)$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build application binary
-$(TARGETS): $(OUTPUT)/eBPFStackCollector.o $(patsubst %,$(OUTPUT)/%.o,$(BIN)) $(patsubst %,$(OUTPUT)/%.o,$(BPF)) $(LIBBPF_OBJ)
+$(TARGETS): $(OUTPUT)/eBPFStackCollector.o $(BIN_OBJ) $(BPF_WAPPER) $(LIBBPF_OBJ)
 	$(call msg,BINARY,$@)
 	$(Q)$(CXX) $^ $(ALL_LDFLAGS) -lstdc++ -lelf -lz -o $@
 

@@ -1,4 +1,3 @@
-.SILENT:
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/arm.*/arm/' \
 			 | sed 's/aarch64/arm64/' \
@@ -18,7 +17,55 @@ BPF_CFLAGS=-g -O2 -target bpf
 LIBS=-lbpf -lelf -lz -lzstd
 
 # 头文件目录
-INCLUDE_DIRS=-I/usr/include/x86_64-linux-gnu -I.
+INCLUDE_DIRS=-I/usr/include/x86_64-linux-gnu -I. -I./include -I./include/bpf -I./include/helpers
+
+# 帮助函数
+HELPERS_OBJ_DIR := src/helpers
+HELPERS_FILES := $(wildcard $(HELPERS_OBJ_DIR)/*.c)
+HELPERS_OBJ_FILES := $(patsubst $(HELPERS_OBJ_DIR)/%.c,$(HELPERS_OBJ_DIR)/%.o,$(HELPERS_FILES))
+
+# 默认目标
+.PHONY: default
+default: bpf
+
+# 安装必要的依赖
+.PHONY: deps
+deps:
+	sudo apt-get update && \
+	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
+		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) \
+		 libpcap-dev gcc-multilib build-essential lolcat qemu-kvm wget
+
+# 生成 vmlinux.h
+.PHONY: vmlinux
+vmlinux:
+	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
+
+# 编译helpers目录下的所有.c文件
+$(HELPERS_OBJ_DIR)/%.o: $(HELPERS_OBJ_DIR)/%.c
+	clang $(CFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+
+# 编译BPF程序
+$(APP).bpf.o: $(APP).bpf.c vmlinux
+	clang $(BPF_CFLAGS) -D__TARGET_ARCH_$(ARCH) $(INCLUDE_DIRS) -c $< -o $@
+
+# 生成BPF骨架文件
+$(APP).skel.h: $(APP).bpf.o
+	bpftool gen skeleton $< > $@
+
+# 编译用户空间应用程序
+${APP}.o: ${APP}.c
+	clang $(CFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+
+# 链接用户空间应用程序与库
+$(notdir $(APP)): ${APP}.o $(HELPERS_OBJ_FILES)
+	clang -Wall $(CFLAGS) ${APP}.o $(HELPERS_OBJ_FILES) $(LIBS) -o $@
+	@echo "BPF program compiled successfully."
+
+# bpf 目标
+.PHONY: bpf
+bpf: $(APP).skel.h $(APP).bpf.o ${APP}.o $(HELPERS_OBJ_FILES) $(notdir $(APP))
+
 
 # qemu 命令行参数变量化
 QEMU_CMD=sudo qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -smp 4 -drive file=cirros-0.5.2-x86_64-disk.img,format=qcow2 -boot c -nographic
@@ -31,35 +78,6 @@ CHECK_VIRT_SUPPORT = [ $$(grep -Eoc '(vmx|svm)' /proc/cpuinfo) -eq 0 ]
 
 # 定义检查 qemu-system-x86_64 进程是否存在的命令
 CHECK_QEMU_RUNNING = [ "$$(pgrep -f qemu-system-x86_64)" ]
-
-# 默认目标
-.PHONY: default
-default: bpf
-
-# 安装必要的依赖
-.PHONY: deps
-deps:
-	sudo apt-get update
-	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
-		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) 
-	sudo apt-get install -y  lolcat qemu-kvm wget
-# 生成 vmlinux.h
-.PHONY: vmlinux
-vmlinux:
-	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
-
-# bpf 目标
-.PHONY: bpf
-bpf: vmlinux
-	# 编译BPF程序
-	clang $(BPF_CFLAGS) -D__TARGET_ARCH_$(ARCH) $(INCLUDE_DIRS) -c $(APP).bpf.c -o $(APP).bpf.o
-	# 生成BPF骨架文件
-	bpftool gen skeleton ${APP}.bpf.o > $(APP).skel.h
-	# 编译用户空间应用程序
-	clang $(CFLAGS) $(INCLUDE_DIRS) -c $(APP).c -o ${APP}.o
-	# 将用户空间应用程序与库链接
-	clang -Wall $(CFLAGS) ${APP}.o  $(LIBS) -o $(notdir $(APP))
-	echo "BPF program compiled successfully."
 
 .PHONY: test
 test: bpf
@@ -95,7 +113,7 @@ test: bpf
 
 
 clean:
-	cd src && rm -f *.o *.skel.h *.bpf.o
+	rm -f src/*.o src/*.skel.h src/helpers/*.o
 	sudo rm -rf $(notdir $(APP)) include/vmlinux.h temp
 
 

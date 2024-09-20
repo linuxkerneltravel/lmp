@@ -10,6 +10,8 @@
 
 `kvm_watcher`是一款基于eBPF的kvm虚拟机检测工具，其旨在使用户方便快捷在宿主机侧获取kvm虚拟机中的各种信息，报告所有正在运行的guest行为。
 
+![kvm watcher项目框图](https://gitee.com/nan-shuaibo/image/raw/master/202404251704350.png)
+
 目前，其实现的功能主要包括：
 
 - **[VM Exit 事件分析](./docs/kvm_exit.md)**
@@ -116,26 +118,33 @@ Report bugs to <nanshuaibo811@163.com>.
 ## 四、代码结构
 
 ```
-├── docs                        //功能模块说明文档
+├── docs                         //功能模块说明文档
 │   ├── kvm_exit.md
 │   ├── kvm_hypercall.md
 │   ├── kvm_irq.md
 │   ├── kvm_mmu.md
 │   └── kvm_vcpu.md
-├── include                     //内核态bpf程序
-│   ├── kvm_exits.h
-│   ├── kvm_hypercall.h
-│   ├── kvm_ioctl.h
-│   ├── kvm_irq.h
-│   ├── kvm_mmu.h
-│   ├── kvm_vcpu.h
-│   └── kvm_watcher.h           //公共头文件
+├── include
+│   ├── bpf                      //内核态bpf程序
+│   │   ├── kvm_exits.h
+│   │   ├── kvm_hypercall.h
+│   │   ├── kvm_ioctl.h
+│   │   ├── kvm_irq.h
+│   │   ├── kvm_mmu.h
+│   │   └── kvm_vcpu.h
+│   ├── common.h           		  //内核态和用户态公共头文件
+│   └── helpers					        //用户态帮助函数
+│       ├── trace_helpers.h
+│       └── uprobe_helpers.h
 ├── Makefile                    //编译脚本
 ├── README.md
-├── src                         
-│   ├── kvm_watcher.bpf.c        //内核态bpf程序入口
-│   └── kvm_watcher.c            //用户态bpf程序
-└── temp                         //临时文件目录
+├── src
+│   ├── helpers					        //用户态帮助函数
+│   │   ├── trace_helpers.c
+│   │   └── uprobe_helpers.c
+│   ├── kvm_watcher.bpf.c       //内核态bpf程序入口
+│   └── kvm_watcher.c           //用户态bpf程序
+└── temp                        //临时文件目录
 ```
 
 ## 五、测试

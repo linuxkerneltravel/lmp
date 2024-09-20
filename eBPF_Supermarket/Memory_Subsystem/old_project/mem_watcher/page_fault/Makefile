@@ -2,8 +2,8 @@
 OUTPUT := .output
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
-LIBBPF_SRC := $(abspath ../../libbpf/src)
-BPFTOOL_SRC := $(abspath ../../bpftool/src)
+LIBBPF_SRC := $(abspath ../../../../lib/libbpf/src)
+BPFTOOL_SRC := $(abspath ../../../../lib/bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool

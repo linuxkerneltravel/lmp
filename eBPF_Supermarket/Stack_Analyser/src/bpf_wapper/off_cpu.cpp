@@ -17,7 +17,7 @@
 // off cpu ebpf程序的包装类，实现接口和一些自定义方法
 
 #include "bpf_wapper/off_cpu.h"
-#include "dt_symbol.h"
+#include "trace.h"
 
 OffCPUStackCollector::OffCPUStackCollector()
 {
@@ -34,31 +34,20 @@ uint64_t *OffCPUStackCollector::count_values(void *data)
     };
 };
 
-int OffCPUStackCollector::load(void)
+int OffCPUStackCollector::ready(void)
 {
-    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
-    return 0;
-}
-
-int OffCPUStackCollector::attach(void)
-{
-    symbol sym;
-    sym.name = "finish_task_switch";
-    if (!g_symbol_parser.complete_kernel_symbol(sym))
-    {
+    EBPF_LOAD_OPEN_INIT();
+    const char *name = "finish_task_switch";
+    const struct ksym *ksym = ksyms__find_symbol(ksyms, name);
+    if (!ksym)
         return -1;
-    }
-    skel->links.do_stack = bpf_program__attach_kprobe(skel->progs.do_stack, false, sym.name.c_str());
+    skel->links.do_stack = bpf_program__attach_kprobe(skel->progs.do_stack, false, ksym->name);
     return 0;
 }
 
-void OffCPUStackCollector::detach(void)
+void OffCPUStackCollector::finish(void)
 {
     DETACH_PROTO;
-}
-
-void OffCPUStackCollector::unload(void)
-{
     UNLOAD_PROTO;
 }
 
@@ -67,6 +56,7 @@ void OffCPUStackCollector::activate(bool tf)
     ACTIVE_SET(tf);
 }
 
-const char *OffCPUStackCollector::getName(void) {
+const char *OffCPUStackCollector::getName(void)
+{
     return "OffCPUStackCollector";
 }

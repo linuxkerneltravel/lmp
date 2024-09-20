@@ -36,25 +36,16 @@ IOStackCollector::IOStackCollector()
     };
 };
 
-int IOStackCollector::load(void)
+int IOStackCollector::ready(void)
 {
-    EBPF_LOAD_OPEN_INIT(skel->rodata->target_pid = pid;);
-    return 0;
-}
-
-int IOStackCollector::attach(void)
-{
+    EBPF_LOAD_OPEN_INIT();
     ATTACH_PROTO;
     return 0;
 }
 
-void IOStackCollector::detach(void)
+void IOStackCollector::finish(void)
 {
     DETACH_PROTO;
-}
-
-void IOStackCollector::unload(void)
-{
     UNLOAD_PROTO;
 }
 
@@ -63,6 +54,7 @@ void IOStackCollector::activate(bool tf)
     ACTIVE_SET(tf);
 }
 
-const char *IOStackCollector::getName(void) {
+const char *IOStackCollector::getName(void)
+{
     return "IOStackCollector";
 }

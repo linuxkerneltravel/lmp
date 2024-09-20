@@ -1,0 +1,25 @@
+<script>
+function style(foreground, background) {
+    document.write(`
+    <style>
+body {
+background-color: ${background}
+}
+h1, p {
+color: ${foreground};
+}
+</style>
+`)
+}
+const queryParams = window.location.search.substr(1);
+if (queryParams.includes("theme=dark")) {
+    style("white", "black");
+} else if (queryParams.includes("theme=light")) {
+    style("black", "white");
+} else {
+    style("dark-gray", "light-gray");
+}
+</script>
+<h1>A problem occurred connecting to Grafana</h1>${error}
+<p><button onclick="location.reload()">refresh</button></p>
+

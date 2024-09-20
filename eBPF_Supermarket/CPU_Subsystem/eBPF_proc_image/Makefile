@@ -41,7 +41,7 @@ INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(LIBBLAZESYM_INC) -I./includ
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = resource_image lock_image syscall_image keytime_image schedule_image
+APPS = resource_image lock_image syscall_image keytime_image schedule_image mfutex
 WORKTOOL := proc_image
 CONTROLLER := controller
 

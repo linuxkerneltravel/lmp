@@ -1,0 +1,39 @@
+name: Update dashboards
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - dashboards/**.json
+
+jobs:
+  update-dashboards:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Get changed dashboards
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: dashboards/**.json
+
+      - name: Update changed dashboards in Grafana
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          tmp=$(mktemp)
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            uid=$(jq -r '.uid' $file)
+            dashboardInfo=$(curl -H "Authorization: Bearer $GRAFANA_API_TOKEN" $GRAFANA_INSTANCE_URL/api/dashboards/uid/$uid)
+            currentVersion=$(echo $dashboardInfo | jq -r '.meta.version')
+            jq --argjson v $currentVersion '.version = $v' $file > $tmp && mv $tmp $file
+            dashboardJson='{"dashboard":'"$(jq -c . $file)"',"message":"'"$COMMIT_MESSAGE"'"}'
+            curl -X POST $GRAFANA_INSTANCE_URL/api/dashboards/db -H "Content-Type: application/json" -H "Authorization: Bearer $GRAFANA_API_TOKEN" -d "$dashboardJson"
+          done
+        env:
+          GRAFANA_INSTANCE_URL: ${{ secrets.GRAFANA_INSTANCE_URL }}
+          GRAFANA_API_TOKEN: ${{ secrets.GRAFANA_API_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+      

@@ -153,3 +153,4 @@ printf("[X] invalid checksum: sock = %p\n", pack_info->sock);
 fprintf(file, "error{sock=\"%p\",seq=\"%u\",ack=\"%u\",reason=\"%s\"} 0\n",
 pack_info->sock, pack_info->seq, pack_info->ack, reason);
 ```
+fprintf(file, "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\",is_server=\"%d\"",
