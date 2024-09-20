@@ -33,4 +33,5 @@ jobs:
           bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
           cd ../../mem_watcher
           make
+          sudo ./mem_watcher -N
           sudo timeout 20 ./mem_watcher
