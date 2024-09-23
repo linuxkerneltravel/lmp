@@ -334,6 +334,7 @@ static const struct argp_option opts[] = {
 
 	{0, 0, 0, 0, "drsnoop:", 14},
 	{"drsnoop", 'b', 0, 0, "print drsnoop (直接回收追踪信息)"},
+	{"choose_pid", 'P', "PID", 0, "选择要检测直接回收信息的进程号"},
 
 	{0, 0, 0, 0, "oomkiller:", 15},  // 新增的 oomkiller 选项
 	{"oomkiller", 'o', 0, 0, "print oomkiller (内存不足时被杀死的进程信息)"},
@@ -520,9 +521,9 @@ int main(int argc, char **argv)
         PROCESS_SKEL(skel_oomkiller, oomkiller);  // 使用处理 oomkiller 的函数
     }
     else if (env.drsnoop)
-	  {
-		    PROCESS_SKEL(skel_drsnoop, drsnoop);
-	  }
+	{
+		PROCESS_SKEL(skel_drsnoop, drsnoop);
+	}
 
     return 0;
 }
@@ -1077,7 +1078,12 @@ static int handle_event_drsnoop(void *ctx, void *data, size_t data_sz)
     const struct data_t *e = data;
     struct tm *tm;
     char ts[32];
-    time_t t;
+	time_t t;
+
+	// 检查是否选择了特定的 PID，并且事件的 PID 是否匹配
+    if (env.choose_pid != 0 && e->id >> 32 != env.choose_pid) {
+        return 0;  // 忽略不匹配的事件
+    }
 
     time(&t);
     tm = localtime(&t);
