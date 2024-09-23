@@ -6,7 +6,45 @@
 
 ### 实现
 
+其具体的代码架构如下图所示
+
 ![image-20240726104526418](./image/ip_filter1.png)
+
+核心代码逻辑如下:
+
+```c
+static int match_rules_ipv4_loop(__u32 index, void *ctx)
+{
+	int i = 0;
+	unsigned char *saddr;
+	unsigned char *daddr;
+	struct match_rules_loop_ctx *p_ctx = (struct match_rules_loop_ctx *)ctx;
+	if(index != p_ctx->next_rule)
+		return 0;
+
+	struct rules_ipv4 *p_r = bpf_map_lookup_elem(&rules_ipv4_map, &index);
+	if(!p_r){
+		return 1; //out of range
+	}
+
+	p_ctx->next_rule = p_r->next_rule;
+
+	if(index == 0)
+		goto out_match_rules_ipv4_loop;
+	bpf_printk("match_rules_ipv4_loop %d",index);
+	if( ipv4_cidr_match(p_ctx->conn->saddr, p_r->saddr, p_r->saddr_mask) && 
+		ipv4_cidr_match(p_ctx->conn->daddr, p_r->daddr, p_r->daddr_mask) &&
+		port_match(p_ctx->conn->sport, p_r->sport) &&
+		port_match(p_ctx->conn->dport, p_r->dport) &&
+		port_match(p_ctx->conn->ip_proto, p_r->ip_proto) ) 
+	{
+		p_ctx->action = p_r->action;
+		...
+		return 1;
+	}
+```
+
+​	其通过加载预先配置好的文件，将其读取到对应map中，在接收到报文时，使用规则逐条对该报文进行匹配，其中包括精准匹配和泛化匹配(CIDR)，最终，将我们给出的决策结果赋给XDP行为，使其进行具体的逻辑操作。
 
 #### 输入参数优化
 
