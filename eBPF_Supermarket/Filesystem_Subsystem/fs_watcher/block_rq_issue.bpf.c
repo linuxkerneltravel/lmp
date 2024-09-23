@@ -6,17 +6,23 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-// 定义 ringbuf，用于传输事件信息
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
-// 这里挂载点必须是struct trace_event_raw_block_rq_completion *ctx
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024); 
+    __type(key, u32);  // 使用进程 PID 作为键
+    __type(value, u64); // I/O 总大小作为值
+} io_size_map SEC(".maps");
+
 SEC("tracepoint/block/block_rq_issue")
 int tracepoint_block_rq_issue(struct trace_event_raw_block_rq_completion *ctx) {
     struct event *e;
-    char comm[TASK_COMM_LEN];
+    u32 pid = bpf_get_current_pid_tgid() >> 32;  // 获取进程 ID
+    u64 *size, total_size;
 
     // 分配 ringbuf 空间
     e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
@@ -24,15 +30,37 @@ int tracepoint_block_rq_issue(struct trace_event_raw_block_rq_completion *ctx) {
         return 0;  // 如果分配失败，提前返回
     }
 
+    // 获取当前进程名
+    bpf_get_current_comm(e->comm, sizeof(e->comm));
+
     // 填充事件数据
     e->timestamp = bpf_ktime_get_ns();
-    e->dev = ctx->dev;  // 读取设备号
-    e->sector = ctx->sector;  // 读取扇区号
-    e->nr_sectors = ctx->nr_sector;  // 读取扇区数
+    e->dev = ctx->dev;  
+    e->sector = ctx->sector;  
+    e->nr_sectors = ctx->nr_sector;  
 
-    // 获取进程名
-    bpf_get_current_comm(comm, sizeof(comm));
-    __builtin_memcpy(e->comm, comm, sizeof(comm));
+    // 日志输出调试信息
+    bpf_printk("PID: %u, Sector: %d, nr_sectors: %d\n", pid, ctx->sector, ctx->nr_sector);
+
+    // 查找或初始化该进程的 I/O 总大小
+    size = bpf_map_lookup_elem(&io_size_map, &pid);
+    if (size) {
+        total_size = *size;
+    } else {
+        total_size = 0;
+    }
+
+    // 计算本次 I/O 请求的大小
+    const u64 sector_size = 512; // 标准扇区大小
+    total_size += ctx->nr_sector * sector_size;
+
+    // 更新 I/O 总大小
+    bpf_map_update_elem(&io_size_map, &pid, &total_size, BPF_ANY);
+
+    e->total_io = total_size;
+
+    // 日志输出当前总 I/O 大小
+    bpf_printk("Updated Total I/O for PID %u: %llu\n", pid, total_size);
 
     // 提交事件
     bpf_ringbuf_submit(e, 0);
