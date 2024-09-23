@@ -145,17 +145,17 @@ __always_inline static void on_sys_exit(u64 time) {
 }
 
 // 进入用户态
-int exit_to_user_mode_prepare() {
-	// Step1: 记录user开始时间，和当前的in_user状态
-	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
-	if (ts->pid != TARGET_PID) return 0;
-	u64 time = bpf_ktime_get_ns();
+// int exit_to_user_mode_prepare() {
+// 	// Step1: 记录user开始时间，和当前的in_user状态
+// 	struct task_struct *ts = (struct task_struct *)bpf_get_current_task();
+// 	if (ts->pid != TARGET_PID) return 0;
+// 	u64 time = bpf_ktime_get_ns();
 
-	on_user_enter(time);
-	on_sys_exit(time);
+// 	on_user_enter(time);
+// 	on_sys_exit(time);
 
-	return 0;
-}
+// 	return 0;
+// }
 
 // 获取进程切换数
 int trace_sched_switch(struct cswch_args *info) {
