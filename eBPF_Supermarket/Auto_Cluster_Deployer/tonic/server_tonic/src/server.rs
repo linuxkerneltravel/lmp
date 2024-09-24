@@ -54,7 +54,7 @@ impl SaControl for MySAControl {
     ) -> Result<Response<Ack>, Status> {
         // 连接到 PostgreSQL 数据库
         let (client, connection) =
-            tokio_postgres::connect("host=localhost port=5432 dbname=db user=zxy password=123456", NoTls)
+            tokio_postgres::connect("host=localhost port=5432 dbname=sensordb user=zxy password=123456", NoTls)
                 .await
                 .map_err(|e| Status::internal(format!("数据库连接失败: {}", e)))?;
 
@@ -163,7 +163,7 @@ impl SaControl for MySAControl {
 
         // 连接到 PostgreSQL 数据库
         let (client, connection) =
-            tokio_postgres::connect("host=localhost port=5432 dbname=db user=zxy password=123456", NoTls)
+            tokio_postgres::connect("host=localhost port=5432 dbname=sensordb user=zxy password=123456", NoTls)
                 .await
                 .map_err(|e| Status::internal(format!("数据库连接失败: {}", e)))?;
 
@@ -258,7 +258,7 @@ impl SaControl for MySAControl {
     
         // 连接到 PostgreSQL 数据库
         let (client, connection) =
-            tokio_postgres::connect("host=localhost port=5432 dbname=db user=zxy password=123456", NoTls)
+            tokio_postgres::connect("host=localhost port=5432 dbname=sensordb user=zxy password=123456", NoTls)
                 .await
                 .map_err(|e| Status::internal(format!("数据库连接失败: {}", e)))?;
 
