@@ -4,6 +4,9 @@
 #include <bpf/libbpf.h>
 #include "block_rq_issue.h"
 #include "block_rq_issue.skel.h"
+#include <inttypes.h>  // For PRIu64
+#include <stdint.h>    // For uint32_t, uint64_t
+#include <unistd.h>    // For getpid()
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -17,14 +20,14 @@ static void sig_handler(int sig)
     exiting = true;
 }
 
-static int handle_event_block_rq_issue(void *ctx, void *data,unsigned long data_sz) {
+static int handle_event_block_rq_issue(void *ctx, void *data, unsigned long data_sz) {
     const struct event *e = data;
 
-    printf("%-10llu %-9d %-7d %-4d %-16s\n",
-           e->timestamp, e->dev, e->sector, e->nr_sectors,e->comm);
-
+    printf("%-10llu %-9d %-7d %-4d %-16s Total I/O: %" PRIu64 "\n",
+           e->timestamp, e->dev, e->sector, e->nr_sectors, e->comm, e->total_io);
     return 0;
 }
+
 
 int main(int argc, char **argv)
 {
@@ -68,7 +71,7 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    printf("%-18s %-7s %-7s %-4s %-7s %-16s\n","TIME", "DEV", "SECTOR", "RWBS", "COUNT", "COMM");
+    printf("%-10s %-9s %-7s %-4s %-16s %-12s\n", "TIME", "DEV", "SECTOR", "RWBS", "COMM", "Total I/O");
     while (!exiting) {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */

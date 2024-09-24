@@ -117,6 +117,7 @@ static const struct argp_option opts[] = {
     {"write", 'w', 0, 0, "Print write system call report"},
     {"disk_io_visit", 'd', 0, 0, "Print disk I/O visit report"},
     {"block_rq_issue", 'b', 0, 0, "Print block I/O request submission events. Reports when block I/O requests are submitted to device drivers."},
+    {0} // 结束标记，用于指示选项列表的结束
 };
 
 
@@ -185,12 +186,13 @@ int main(int argc,char **argv){
 
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
      
-   /* Set up libbpf errors and debug info callback */
-	  libbpf_set_print(libbpf_print_fn);
+
+    /* Set up libbpf errors and debug info callback */
+	libbpf_set_print(libbpf_print_fn);
 	
     /* Cleaner handling of Ctrl-C */
-   	signal(SIGINT, sig_handler);
-	  signal(SIGTERM, sig_handler);
+	signal(SIGINT, sig_handler);
+	signal(SIGTERM, sig_handler);
     signal(SIGALRM, sig_handler);
    
 
@@ -215,7 +217,7 @@ int main(int argc,char **argv){
     }
 }
 
-    static int handle_event_open(void *ctx, void *data, size_t data_sz)
+static int handle_event_open(void *ctx, void *data, size_t data_sz)
 {
 	struct event_open *e = (struct event_open *)data;
 	char *filename = strrchr(e->path_name_, '/');
@@ -226,7 +228,8 @@ int main(int argc,char **argv){
     char comm[TASK_COMM_LEN];
 	int i = 0;
     int map_fd = *(int *)ctx;//传递map得文件描述符
-  
+    
+
 	for (; i < e->n_; ++i) {
 		snprintf(fd_path, sizeof(fd_path), "/proc/%d/fd/%d", e->pid_,
 			 i);
@@ -278,7 +281,6 @@ static int handle_event_write(void *ctx, void *data, size_t data_sz)
     return 0;
 }
 
-
 static int handle_event_disk_io_visit(void *ctx, void *data,unsigned long data_sz) {
     const struct event_disk_io_visit *e = data;
 
@@ -290,9 +292,8 @@ static int handle_event_disk_io_visit(void *ctx, void *data,unsigned long data_s
 
 static int handle_event_block_rq_issue(void *ctx, void *data,unsigned long data_sz) {
     const struct event_block_rq_issue *e = data;
-
-    printf("%-10llu %-9d %-7d %-4d %-16s\n",
-           e->timestamp, e->dev, e->sector, e->nr_sectors,e->comm);
+    printf("%-10llu %-9d %-7d %-4d %-16s Total I/O: %" PRIu64 "\n",
+           e->timestamp, e->dev, e->sector, e->nr_sectors, e->comm, e->total_io);
 
     return 0;
 }
@@ -366,7 +367,7 @@ static int process_block_rq_issue(struct block_rq_issue_bpf *skel_block_rq_issue
     struct ring_buffer *rb;
      
     LOAD_AND_ATTACH_SKELETON(skel_block_rq_issue,block_rq_issue);
-    printf("%-18s %-7s %-7s %-4s %-16s\n","TIME", "DEV", "SECTOR", "SECTORS","COMM");
+    printf("%-18s %-7s %-7s %-4s %-16s %-5sn","TIME", "DEV", "SECTOR", "SECTORS","COMM","Total_Size");
     POLL_RING_BUFFER(rb, 1000, err);
 
 block_rq_issue_cleanup:

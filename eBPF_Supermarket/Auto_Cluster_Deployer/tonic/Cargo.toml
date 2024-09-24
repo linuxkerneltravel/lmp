@@ -1,0 +1,9 @@
+[workspace]
+members = [
+  "tonic",
+  "tonic-build",
+  "tonic-web", # Non-published crates
+  "server_tonic",
+  "tonic-web/tests/integration",
+]
+resolver = "2"

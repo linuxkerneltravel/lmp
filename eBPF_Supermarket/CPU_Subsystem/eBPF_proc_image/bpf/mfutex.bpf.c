@@ -73,13 +73,18 @@ struct {
 	__uint(max_entries,528 * 10240);
 } mfutex_rb SEC(".maps");
 
-// struct {
-// 	__uint(type, BPF_MAP_TYPE_HASH);
-// 	__uint(max_entries, 10240);
-// 	__type(key, struct record_lock_key);
-// 	__type(value, struct per_request);
-// } futex_wait_queue SEC(".maps");//记录futex陷入内核
-
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 10240);
+	__type(key, struct lock_record_key);
+	__type(value, struct per_request);
+} futex_wait_queue SEC(".maps");//记录futex陷入内核
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 10240);
+	__type(key, struct lock_record_key);
+	__type(value, struct per_request);
+} futex_wake_queue SEC(".maps");//记录futex陷入内核
 
 #define MUTEX_FLAG  1
 #define RWLOCK_FLAG  2
@@ -280,15 +285,164 @@ int BPF_KPROBE(pthread_mutex_unlock_enter, void *__mutex)
 //     return 0;
 // }
 
-
-// /*获取到要加入等待队列的线程，拿到时间*/
-// SEC("kprobe/futex_wait")
-// int BPF_KPROBE(trace_futex_wait, 
-//                 u32 __user *uaddr, unsigned int flags, 
-//                 u32 val, ktime_t *abs_time, u32 bitset) 
-// {
-
-    
-
+// SEC("tracepoint/syscall/sys_enter_futex")
+// int trace_sys_enter_futex(struct sys_futex_args ctx){
 
 // }
+
+/*1.将线程加入等待队列，并记录*/
+SEC("kprobe/futex_wait")
+int BPF_KPROBE(trace_futex_wait, 
+                u32 *uaddr, unsigned int flags, 
+                u32 val, ktime_t *abs_time, u32 bitset) 
+{
+    struct mfutex_ctrl *mfutex_ctrl = get_mfutex_ctrl();
+    if(!mfutex_ctrl) 
+        return 0;
+    pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(mfutex_ctrl->target_pid == -1 && mfutex_ctrl->target_tgid == -1)//未指定目标进程或线程
+        return 0;
+    if((mfutex_ctrl->target_pid != -1 && pid!=mfutex_ctrl->target_pid)||
+        (mfutex_ctrl->target_tgid != -1 && tgid != mfutex_ctrl->target_tgid))//当前进程或线程非目标进程或线程
+        return 0;
+
+    u64 lock_ptr = (u64)uaddr;
+    int cpu = bpf_get_smp_processor_id();//获取当前cpu
+
+    /*1.将 单个线程请求信息块 放入 请求等待队列futex_wait_queue*/
+    struct per_request per_request = {};
+    per_request.pid = pid;
+    per_request.start_request_time = bpf_ktime_get_ns();
+    per_request.cpu_id = cpu;
+    struct lock_record_key key = {};
+    key.lock_ptr = lock_ptr;
+    key.pid = pid;
+    bpf_map_update_elem(&futex_wait_queue, &key, &per_request, BPF_ANY);
+    // bpf_printk("Push_info:pid:%d ,lock_ptr:%lu, cnt:%d\n",per_request.pid,key.lock_ptr,key.cnt);
+    return 0;
+}
+
+/*2.将线程加入唤醒队列，从等待队列中删除
+ *2.1 将执行futex_wake的线程pid与锁地址进行匹配，便于在后面futex_wake_mark找到锁地址
+ */
+SEC("kprobe/futex_wake")
+int BPF_KPROBE(trace_futex_wake_enter, 
+                u32 *uaddr, unsigned int flags, 
+                int nr_wake, u32 bitset) 
+{
+    struct mfutex_ctrl *mfutex_ctrl = get_mfutex_ctrl();
+    if(!mfutex_ctrl) 
+        return 0;
+    pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(mfutex_ctrl->target_pid == -1 && mfutex_ctrl->target_tgid == -1)//未指定目标进程或线程
+        return 0;
+    if((mfutex_ctrl->target_pid != -1 && pid!=mfutex_ctrl->target_pid)||
+        (mfutex_ctrl->target_tgid != -1 && tgid != mfutex_ctrl->target_tgid))//当前进程或线程非目标进程或线程
+        return 0;
+
+    u64 lock_ptr = (u64)uaddr;
+    struct proc_flag key={};
+    key.pid = pid;
+    key.flag = FUTEX_FLAG;
+    bpf_map_update_elem(&proc_unlock, &key, &lock_ptr, BPF_ANY);//将锁地址存在proc_unlock map中
+    return 0;
+}
+/*2.将线程加入唤醒队列，从等待队列中删除
+ *2.2 将要被唤醒的线程加入唤醒队列，并从等待队列中删除掉；
+ */
+SEC("kprobe/futex_wake_mark")
+int BPF_KPROBE(trace_futex_wake_mark, struct wake_q_head *wake_q, struct futex_q *q) 
+{
+    struct mfutex_ctrl *mfutex_ctrl = get_mfutex_ctrl();
+    if(!mfutex_ctrl) 
+        return 0;
+    pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(mfutex_ctrl->target_pid == -1 && mfutex_ctrl->target_tgid == -1)//未指定目标进程或线程
+        return 0;
+    if((mfutex_ctrl->target_pid != -1 && pid!=mfutex_ctrl->target_pid)||
+        (mfutex_ctrl->target_tgid != -1 && tgid != mfutex_ctrl->target_tgid))//当前进程或线程非目标进程或线程
+        return 0;
+
+    u64 *lock_ptr;
+    u64 temp_lock_ptr;
+    u64 ts = bpf_ktime_get_ns();
+
+    /*1.找到锁的地址*/
+    struct proc_flag proc_flag = {};
+    proc_flag.pid = pid;
+    proc_flag.flag = FUTEX_FLAG;
+    lock_ptr = bpf_map_lookup_elem(&proc_unlock, &proc_flag);
+    if(!lock_ptr) return 0;
+    temp_lock_ptr = *lock_ptr;
+
+    /*2.make key*/
+    struct lock_record_key key = {};
+    key.lock_ptr = temp_lock_ptr;
+    key.pid = BPF_CORE_READ(q,task,pid);
+
+    /*3.将线程从等待队列中删除*/
+    struct per_request *per_request;
+    per_request = bpf_map_lookup_elem(&futex_wait_queue, &key);
+    if(per_request) {//如果等待队列中找到该task 则尝试删除
+        bpf_map_delete_elem(&futex_wait_queue, &key);
+        per_request->start_hold_time = ts;
+        per_request->wait_delay = ts - per_request->start_hold_time;
+    }else{//如果没找到，说明该任务陷入阻塞时未记录，则创建per_request
+        struct per_request new_per_request = {};
+        new_per_request.pid = key.pid;
+        new_per_request.start_hold_time = ts;
+        per_request = &new_per_request;
+    }
+    /*4.将任务放到唤醒队列中*/
+    bpf_map_update_elem(&futex_wake_queue, &key, per_request, BPF_ANY);
+    return 0;
+}
+
+/*2.将线程加入唤醒队列，从等待队列中删除
+ *2.1 将执行futex_wake的线程pid与锁地址进行匹配，便于在后面futex_wake_mark找到锁地址
+ */
+SEC("kretprobe/futex_wake")
+int BPF_KRETPROBE(trace_futex_wake_exit) 
+{
+    struct mfutex_ctrl *mfutex_ctrl = get_mfutex_ctrl();
+    if(!mfutex_ctrl) 
+        return 0;
+    pid_t pid = bpf_get_current_pid_tgid();
+    int tgid = bpf_get_current_pid_tgid() >> 32;
+    
+    if(mfutex_ctrl->target_pid == -1 && mfutex_ctrl->target_tgid == -1)//未指定目标进程或线程
+        return 0;
+    if((mfutex_ctrl->target_pid != -1 && pid!=mfutex_ctrl->target_pid)||
+        (mfutex_ctrl->target_tgid != -1 && tgid != mfutex_ctrl->target_tgid))//当前进程或线程非目标进程或线程
+        return 0;
+
+    u64 *lock_ptr;
+    u64 temp_lock_ptr;
+    u64 ts = bpf_ktime_get_ns();
+
+    /*1.找到锁的地址*/
+    struct proc_flag proc_flag = {};
+    proc_flag.pid = pid;
+    proc_flag.flag = FUTEX_FLAG;
+    lock_ptr = bpf_map_lookup_elem(&proc_unlock, &proc_flag);
+    if(!lock_ptr) return 0;
+    temp_lock_ptr = *lock_ptr;
+    bpf_map_delete_elem(&proc_unlock, &proc_flag);
+
+    /*2.传入rb*/
+    struct per_lock_event *e;
+    e = bpf_ringbuf_reserve(&mfutex_rb, sizeof(*e), 0);
+    if(!e)
+        return 0;
+    e->lock_ptr = temp_lock_ptr;
+    e->start_hold_time = bpf_ktime_get_ns();
+    e->type = FUTEX_FLAG;
+    bpf_ringbuf_submit(e, 0);
+    return 0;   
+}
