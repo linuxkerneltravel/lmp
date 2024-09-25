@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.examples.helloworld";
+option java_outer_classname = "HelloWorldProto";
+
+package sacontrol;
+
+service SAControl {
+  rpc DeployPackages (Empty) returns (Ack);
+  rpc SARegist (SAInfo) returns (Ack);
+  rpc GetPackageInfoByIP (IpRequest) returns (PackageInfoResponse);
+  rpc SendPackageFile(PackageRequest) returns (stream FileChunk);
+}
+
+message Empty {}
+
+message IpRequest {
+  string ip_address = 1;
+}
+
+message SAInfo {
+  string server_ip = 1;
+  int32 category = 2;
+}
+
+message Ack {
+  bool success = 1;
+}
+
+message ProgramDirectory {
+  string name = 1;
+  repeated string subdirectories = 2;
+}
+
+message TasksList {
+  repeated string tasks = 1;
+}
+
+message TaskRequest {
+  repeated string tasks = 1;
+}
+
+message Data {
+  string data = 1;
+}
+
+message VersionInfo {
+  string version = 1;
+}
+
+message PackageRequest {
+  int32 category = 1;
+}
+
+message FileChunk {
+  bytes content = 1;
+  string file_type = 2;
+}
+
+message PackageInfoResponse {
+  int32 id = 1; 
+  string version = 2;
+  string software_name = 3;
+  string description = 4;
+}

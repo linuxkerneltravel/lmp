@@ -54,13 +54,14 @@ PROJ_CLEAN = $(addsuffix _clean,$(PROJ))
 .PHONY: clean clobber distclean $(PROJ) $(PROJ_CLEAN) $(CLANG) $(LLC)
 
 # Default Target
-all: lib $(PROJ) net_manager
+# all: lib $(PROJ) net_manager 
+all: lib $(PROJ) netmanager_kern.o netmanager_kern.skel.h net_manager
 
 # Clean Target
 clean: $(PROJ_CLEAN)
 	@echo; echo common; $(MAKE) -C common clean
 	@echo; echo lib; $(MAKE) -C lib clean
-	$(Q)rm -f $(USER_TARGETS) $(XDP_OBJ) $(USER_OBJ) $(COPY_LOADER) $(COPY_STATS) *.ll $(XLB_OBJS)
+	$(Q)rm -f $(USER_TARGETS) $(XDP_OBJ) $(USER_OBJ) $(COPY_LOADER) $(COPY_STATS) *.ll $(XLB_OBJS) netmanager_kern.skel.h
 	
 # Build Library
 lib: config.mk check_submodule
@@ -72,6 +73,9 @@ $(PROJ):
 
 # Main Target
 net_manager: llvm-check $(USER_TARGETS) $(XDP_OBJ) $(COPY_LOADER) $(COPY_STATS)
+
+netmanager_kern.skel.h: netmanager_kern.o
+	sudo bpftool gen skeleton netmanager_kern.o > netmanager_kern.skel.h
 
 # Copy Loader
 ifdef COPY_LOADER
@@ -129,9 +133,12 @@ $(COMMON_H): %.h: %.c
 $(COMMON_OBJS):	%.o: %.h
 	$(Q)$(MAKE) -C $(COMMON_DIR)
 
-$(USER_TARGETS): %: %.c  $(OBJECT_LIBBPF) $(OBJECT_LIBXDP) Makefile $(COMMON_MK) $(COMMON_OBJS) $(KERN_USER_H) $(EXTRA_DEPS) $(XLB_OBJS)
+# $(USER_TARGETS): %: %.c  $(OBJECT_LIBBPF) $(OBJECT_LIBXDP) Makefile $(COMMON_MK) $(COMMON_OBJS) $(KERN_USER_H) $(EXTRA_DEPS) $(XLB_OBJS)
+# 	$(QUIET_CC)$(CC) -Wall $(CFLAGS) $(LDFLAGS) -o $@ $(COMMON_OBJS) $(XLB_OBJS) $(LIB_OBJS) \
+# 	 $< $(LDLIBS)
+$(USER_TARGETS): %: %.c netmanager_kern.skel.h $(OBJECT_LIBBPF) $(OBJECT_LIBXDP) Makefile $(COMMON_MK) $(COMMON_OBJS) $(KERN_USER_H) $(EXTRA_DEPS) $(XLB_OBJS)
 	$(QUIET_CC)$(CC) -Wall $(CFLAGS) $(LDFLAGS) -o $@ $(COMMON_OBJS) $(XLB_OBJS) $(LIB_OBJS) \
-	 $< $(LDLIBS)
+	$< $(LDLIBS)
 
 $(XDP_OBJ): %.o: %.c  Makefile $(COMMON_MK) $(KERN_USER_H) $(EXTRA_DEPS) $(OBJECT_LIBBPF)
 	$(QUIET_CLANG)$(CLANG) -S \

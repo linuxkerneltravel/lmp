@@ -13,8 +13,7 @@
 // limitations under the License.
 //
 // author: albert_xuu@163.com zhangxy1016304@163.com zhangziheng0525@163.com
-//
-// used to control the execution of proc_image tool
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <argp.h>

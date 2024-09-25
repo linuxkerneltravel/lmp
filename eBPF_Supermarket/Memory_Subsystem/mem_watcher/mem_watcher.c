@@ -33,8 +33,11 @@
 #include "procstat.skel.h"
 #include "sysstat.skel.h"
 #include "fraginfo.skel.h"
+#include "numafraginfo.skel.h"
 #include "memleak.skel.h"
 #include "vmasnap.skel.h"
+#include "drsnoop.skel.h"
+
 #include "mem_watcher.h"
 #include "fraginfo.h"
 #include "oomkiller.skel.h"
@@ -262,7 +265,9 @@ static struct env
     bool sysstat;        // 是否启用系统内存状态报告
     bool memleak;        // 是否启用内核态/用户态内存泄漏检测
     bool fraginfo;       // 是否启用内存碎片信息
+	bool numafraginfo;
     bool vmasnap;        // 是否启用虚拟内存区域信息
+    bool drsnoop;
     bool kernel_trace;   // 是否启用内核态跟踪
     bool print_time;     // 是否打印地址申请时间
     int interval;        // 打印间隔，单位为秒
@@ -280,7 +285,9 @@ static struct env
     .sysstat = false,      // 默认关闭系统内存状态报告
     .memleak = false,      // 默认关闭内存泄漏检测
     .fraginfo = false,     // 默认关闭内存碎片信息
+	.numafraginfo=false,
     .vmasnap = false,      // 默认关闭虚拟内存区域信息
+    .drsnoop = false,
     .kernel_trace = true,  // 默认启用内核态跟踪
     .print_time = false,   // 默认不打印地址申请时间
     .rss = false,          // 默认不打印进程页面信息
@@ -328,8 +335,15 @@ static const struct argp_option opts[] = {
 	{0, 0, 0, 0, "vmasnap:", 13},
 	{"vmasnap", 'v', 0, 0, "print vmasnap (虚拟内存区域信息)"},
 
-	{0, 0, 0, 0, "oomkiller:", 14},  // 新增的 oomkiller 选项
+	{0, 0, 0, 0, "drsnoop:", 14},
+	{"drsnoop", 'b', 0, 0, "print drsnoop (直接回收追踪信息)"},
+	{"choose_pid", 'P', "PID", 0, "选择要检测直接回收信息的进程号"},
+
+	{0, 0, 0, 0, "oomkiller:", 15},  // 新增的 oomkiller 选项
 	{"oomkiller", 'o', 0, 0, "print oomkiller (内存不足时被杀死的进程信息)"},
+	{0, 0, 0, 0, "numafraginfo:", 16},
+	{"numafraginfo", 'N', 0, 0, "print numafraginfo"},
+	
 
 	{NULL, 'h', NULL, OPTION_HIDDEN, "show the full help"},
 	{0},
@@ -374,6 +388,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 	case 'l':
 		env.memleak = true;
 		break;
+	case 'b':
+		env.drsnoop = true;
+		break;
 	case 'm':
 		env.print_time = true;
 		break;
@@ -388,6 +405,9 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
 		break;
 	case 'd':
 		env.duration = atoi(arg);
+		break;
+	case 'N':
+		env.numafraginfo = true;
 		break;
 	default:
 		return ARGP_ERR_UNKNOWN;
@@ -411,10 +431,12 @@ static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, 
 static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid);
 static int print_outstanding_allocs(struct memleak_bpf *skel);
 static int print_outstanding_combined_allocs(struct memleak_bpf *skel, pid_t pid);
+static int get_vm_stat_addr(__u64 *addr);
 static int handle_event_paf(void *ctx, void *data, size_t data_sz);
 static int handle_event_pr(void *ctx, void *data, size_t data_sz);
 static int handle_event_procstat(void *ctx, void *data, size_t data_sz);
 static int handle_event_sysstat(void *ctx, void *data, size_t data_sz);
+static int handle_event_drsnoop(void *ctx, void *data, size_t data_sz);
 static int attach_uprobes(struct memleak_bpf *skel);
 static void print_flag_modifiers(int flag);
 static int process_paf(struct paf_bpf *skel_paf);
@@ -423,7 +445,9 @@ static int process_procstat(struct procstat_bpf *skel_procstat);
 static int process_sysstat(struct sysstat_bpf *skel_sysstat);
 static int process_memleak(struct memleak_bpf *skel_memleak, struct env);
 static int process_fraginfo(struct fraginfo_bpf *skel_fraginfo);
+static int process_numafraginfo(struct numafraginfo_bpf *skel_numafraginfo);
 static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap);
+static int process_drsnoop(struct drsnoop_bpf *skel_drsnoop);
 static int process_oomkiller(struct oomkiller_bpf *skel_oomkiller);  // 新增的oomkiller处理函数原型
 static int handle_event_oomkiller(void *ctx, void *data, size_t data_sz);  // 新增的oomkiller事件处理函数
 static __u64 adjust_time_to_program_start_time(__u64 first_query_time);
@@ -442,8 +466,10 @@ int main(int argc, char **argv)
     struct sysstat_bpf *skel_sysstat;
     struct memleak_bpf *skel_memleak;
     struct fraginfo_bpf *skel_fraginfo;
+	struct numafraginfo_bpf *skel_numafraginfo;
     struct vmasnap_bpf *skel_vmasnap;
     struct oomkiller_bpf *skel_oomkiller;
+    struct drsnoop_bpf *skel_drsnoop;
 
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
     if (err)
@@ -470,6 +496,9 @@ int main(int argc, char **argv)
     {
         PROCESS_SKEL(skel_fraginfo, fraginfo);
     }
+	else if(env.numafraginfo){
+		PROCESS_SKEL(skel_numafraginfo, numafraginfo);
+	}
     else if (env.vmasnap)
     {
         PROCESS_SKEL(skel_vmasnap, vmasnap);
@@ -505,6 +534,10 @@ int main(int argc, char **argv)
     {
         PROCESS_SKEL(skel_oomkiller, oomkiller);  // 使用处理 oomkiller 的函数
     }
+    else if (env.drsnoop)
+	{
+		PROCESS_SKEL(skel_drsnoop, drsnoop);
+	}
 
     return 0;
 }
@@ -884,6 +917,31 @@ void disable_kernel_tracepoints(struct memleak_bpf *skel)
 	bpf_program__set_autoload(skel->progs.memleak__mm_page_free, false);
 }
 
+static int get_vm_stat_addr(__u64 *addr)
+{
+    FILE *file = fopen(KALLSYMS_PATH, "r");
+    if (!file) {
+        perror("fopen");
+        return -1;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        unsigned long address;
+        char symbol[256];
+        if (sscanf(line, "%lx %*s %s", &address, symbol) == 2) {
+            if (strcmp(symbol, VM_STAT_SYMBOL) == 0 || strcmp(symbol, VM_ZONE_STAT_SYMBOL) == 0) {
+                *addr = address;
+                fclose(file);
+                return 0;
+            }
+        }
+    }
+
+    fclose(file);
+    return -1; // Symbol not found
+}
+
 // static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 // {
 // 	return vfprintf(stderr, format, args);
@@ -1029,6 +1087,31 @@ static int handle_event_sysstat(void *ctx, void *data, size_t data_sz)
 	return 0;
 }
 
+static int handle_event_drsnoop(void *ctx, void *data, size_t data_sz)
+{
+    const struct data_t *e = data;
+    struct tm *tm;
+    char ts[32];
+	time_t t;
+
+	// 检查是否选择了特定的 PID，并且事件的 PID 是否匹配
+    if (env.choose_pid != 0 && e->id >> 32 != env.choose_pid) {
+        return 0;  // 忽略不匹配的事件
+    }
+
+    time(&t);
+    tm = localtime(&t);
+    strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+
+    __u64 delta_us = e->delta / 1000;
+    __u64 delta_ms = delta_us / 1000;
+    __u64 fractional_us = delta_us % 1000;
+
+    printf("%-8s %-16s %-7llu %-9llu %llu.%02llu\n", ts, e->name, e->id >> 32, K(e->vm_stat[NR_FREE_PAGES]), delta_ms, fractional_us);
+
+    return 0;
+}
+
 static int handle_event_oomkiller(void *ctx, void *data, size_t data_sz)
 {
     const struct event *e = data;  // 假设事件结构为 struct event
@@ -1056,7 +1139,6 @@ static int handle_event_oomkiller(void *ctx, void *data, size_t data_sz)
 
     return 0;
 }
-
 
 int attach_uprobes(struct memleak_bpf *skel)
 {
@@ -1423,6 +1505,35 @@ fraginfo_cleanup:
 	fraginfo_bpf__destroy(skel_fraginfo);
 	return -err;
 }
+// =========================================numafraginfo=================================================
+static int process_numafraginfo(struct numafraginfo_bpf *skel_numafraginfo)
+{
+
+	int err = numafraginfo_bpf__load(skel_numafraginfo);
+	if (err)
+	{
+		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+		goto numafraginfo_cleanup;
+	}
+
+	err = numafraginfo_bpf__attach(skel_numafraginfo);
+	if (err)
+	{
+		fprintf(stderr, "Failed to attach BPF skeleton\n");
+		goto numafraginfo_cleanup;
+	}
+	while (1)
+	{
+		sleep(env.interval);
+		print_nodes(bpf_map__fd(skel_numafraginfo->maps.nodes));
+		printf("\n");
+		break;
+	}
+
+numafraginfo_cleanup:
+	numafraginfo_bpf__destroy(skel_numafraginfo);
+	return -err;
+}
 
 // ================================================== vmasnap ====================================================================
 static void print_find_event_data(int map_fd)
@@ -1542,6 +1653,56 @@ static int process_vmasnap(struct vmasnap_bpf *skel_vmasnap)
 	}
 
 vmasnap_cleanup:
-	vmasnap_bpf__destroy(skel_vmasnap);
-	return 0;
+    vmasnap_bpf__destroy(skel_vmasnap);
+    return 0;
+}
+
+static int process_drsnoop(struct drsnoop_bpf *skel_drsnoop) {
+	int err;
+	struct ring_buffer *rb;
+
+	__u64 vm_stat_addr;
+    __u32 key = 0;  // Key for the vm_stat_map
+
+	if (get_vm_stat_addr(&vm_stat_addr) != 0) {
+        fprintf(stderr, "Failed to get vm_stat or vm_zone_stat address\n");
+        return 1;
+    }
+
+	err = drsnoop_bpf__load(skel_drsnoop);
+    if (err) {
+        fprintf(stderr, "Failed to load and verify BPF skeleton\n");
+        return 1;
+    }
+
+    // Update BPF map with the address of vm_stat
+    err = bpf_map_update_elem(bpf_map__fd(skel_drsnoop->maps.vm_stat_map), &key, &vm_stat_addr, BPF_ANY);
+    if (err) {
+        fprintf(stderr, "Failed to update BPF map: %s\n", strerror(errno));
+        goto drsnoop_cleanup;
+    }
+
+    err = drsnoop_bpf__attach(skel_drsnoop);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto drsnoop_cleanup;
+    }
+
+	rb = ring_buffer__new(bpf_map__fd(skel_drsnoop->maps.rb), handle_event_drsnoop, NULL, NULL);
+	if (!rb) {
+		err = -1;
+		fprintf(stderr, "Failed to create ring buffer\n");
+		goto drsnoop_cleanup;
+	}
+
+	printf("%-8s %-16s %-7s %-9s %-7s\n", "TIME", "COMM", "PID", "FREE(KB)", "LAT(ms)");
+
+	POLL_RING_BUFFER(rb, 1000, err);\
+
+drsnoop_cleanup:
+    /* 清理 */
+    ring_buffer__free(rb);
+    drsnoop_bpf__destroy(skel_drsnoop);
+
+    return err < 0 ? -err : 0;
 }
