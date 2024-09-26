@@ -54,3 +54,39 @@ set(CPU_WATCHER_INSTALL_DIR backend/${TOOL_BELONG_TO_MODULE}/${TOOL_NAME})
 install(TARGETS ${TOOL_NAME}
         RUNTIME DESTINATION ${CPU_WATCHER_INSTALL_DIR}/bin)
 # 安装配置文件到 ${CPU_WATCHER_INSTALL_DIR}/etc
+
+# 获取内核版本信息
+execute_process(
+    COMMAND uname -r  # 运行命令 'uname -r' 来获取内核版本
+    OUTPUT_VARIABLE VERSION_INFO  # 将输出结果存储在变量 VERSION_INFO 中
+    OUTPUT_STRIP_TRAILING_WHITESPACE  # 去除输出末尾的空白字符
+)
+
+# 输出原始内核版本信息
+message(STATUS "Raw Kernel Version: ${VERSION_INFO}")
+
+# 使用 '-' 分隔版本信息，存储到 VERSION_PARTS 列表中
+string(REPLACE "-" ";" VERSION_PARTS ${VERSION_INFO})
+
+list(GET VERSION_PARTS 0 VERSION_BASE)
+
+# 从 VERSION_BASE 中提取主、次和补丁版本号
+string(REPLACE "." ";" VERSION_NUMBERS ${VERSION_BASE})  # 用 '.' 分隔
+list(GET VERSION_NUMBERS 0 VERSION_MAJOR)  # 获取主版本号
+list(GET VERSION_NUMBERS 1 VERSION_MINOR)  # 获取次版本号
+list(GET VERSION_NUMBERS 2 VERSION_PATCH)  # 获取补丁版本号
+
+# 输出解析后的版本号信息
+message(STATUS "Kernel Major: ${VERSION_MAJOR}, Minor: ${VERSION_MINOR}, Patch: ${VERSION_PATCH}")
+
+# 定义最小支持的版本
+set(MIN_MAJOR 6)  # 最小主版本号
+set(MIN_MINOR 4)  # 最小次版本号
+set(MIN_PATCH 0)  # 最小补丁版本号
+
+# 根据版本比较结果来定义宏
+if(VERSION_MAJOR GREATER ${MIN_MAJOR} OR  # 如果主版本号大于最小主版本号
+   (VERSION_MAJOR EQUAL ${MIN_MAJOR} AND VERSION_MINOR GREATER ${MIN_MINOR}) OR  # 或者主版本号等于最小主版本号且次版本号大于最小次版本号
+   (VERSION_MAJOR EQUAL ${MIN_MAJOR} AND VERSION_MINOR EQUAL ${MIN_MINOR} AND VERSION_PATCH GREATER_EQUAL ${MIN_PATCH}))  # 或者主、次版本号均相等且补丁版本号大于或等于最小补丁版本号
+    add_definitions(-DUSE_NEW_GET_USER_DATA)  # 如果满足条件，则定义宏 USE_NEW_GET_USER_DATA
+endif()
