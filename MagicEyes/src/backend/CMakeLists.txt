@@ -45,7 +45,7 @@ if (BUILD_ALL)
     add_subdirectory(process/cpu_watcher)
     add_subdirectory(process/proc_image)
     # TODO(fzy, 2024.03.13) 没有kvm的环境
-    # add_subdirectory(hypervisor/kvm_watcher)
+    add_subdirectory(hypervisor/kvm_watcher)
     add_subdirectory(system_diagnosis/stack_analyzer)
 else ()
     message(STATUS "----------------------------------------")
