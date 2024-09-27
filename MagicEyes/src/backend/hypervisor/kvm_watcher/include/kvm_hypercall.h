@@ -19,7 +19,7 @@
 #ifndef __KVM_HYPERCALL_H
 #define __KVM_HYPERCALL_H
 
-#include "kvm_watcher.h"
+#include "common.h"
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -53,9 +53,9 @@ struct {
     __type(value, u32);
 } hc_count SEC(".maps");
 
-static int entry_emulate_hypercall(struct kvm_vcpu *vcpu, void *rb,
-                                   struct common_event *e, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int trace_emulate_hypercall(struct kvm_vcpu *vcpu, void *rb,
+                                   struct common_event *e) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     u64 nr, a0, a1, a2, a3;
     nr = kvm_rax_read(vcpu);  // 超级调用号
     // 超级调用参数

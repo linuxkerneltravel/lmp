@@ -11,7 +11,7 @@
 #      mem_watcher 工具 CMakeLists 文件
 # -----------------------------------------------------------------------------------------
 # TODO(fzy,2024.03.13): 名字应该为mem_watcher，page_fault可以作为功能块
-set(TOOL_NAME page_fault)
+set(TOOL_NAME mem_watcher)
 set(TOOL_BELONG_TO_MODULE memory)
 
 file(GLOB apps ${CMAKE_CURRENT_SOURCE_DIR}/bpf/*.bpf.c)
@@ -53,3 +53,6 @@ endforeach ()
 set(CPU_WATCHER_INSTALL_DIR backend/${TOOL_BELONG_TO_MODULE}/${TOOL_NAME}/)
 install(TARGETS ${TOOL_NAME}
         RUNTIME DESTINATION ${CPU_WATCHER_INSTALL_DIR}/bin)
+
+
+
