@@ -5,14 +5,14 @@ on:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/old_project/LSM_BPF/lsm_bpf_monitoring/**'
-      - '.github/workflows/ebpf_lsm.yml'
+      - 'eBPF_Supermarket/old_project/**'
+      - '.github/workflows/old_project.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/old_project/LSM_BPF/lsm_bpf_monitoring/**'
-      - '.github/workflows/ebpf_lsm.yml'
+      - 'eBPF_Supermarket/old_project/**'
+      - '.github/workflows/old_project.yml'
 
 jobs:
   LSM_BPF_build-and-test:
