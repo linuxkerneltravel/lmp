@@ -60,49 +60,6 @@ sidecar_build-and-test:
           sudo make install
           popd
 
-#      - name: Build Bpftrace
-#        run: |
-#          sudo apt-get update && sudo apt-get upgrade
-#          sudo apt remove libllvm12 libllvm13
-#          sudo apt-get install -y libbpfcc-dev
-#          sudo apt-get install -y \
-#          bison \
-#          cmake \
-#          flex \
-#          g++ \
-#          git \
-#          libelf-dev \
-#          zlib1g-dev \
-#          libfl-dev \
-#          systemtap-sdt-dev \
-#          binutils-dev \
-#          libcereal-dev \
-#          llvm-14-dev \
-#          llvm-14-runtime \
-#          libclang-14-dev \
-#          clang-14 \
-#          libpcap-dev \
-#          libgtest-dev \
-#          libgmock-dev \
-#          asciidoctor
-#          git clone https://github.com/iovisor/bpftrace
-#          cd bpftrace
-#          git checkout v0.16.0
-#          mkdir build; cd build;
-#          git clone http://github.com/libbpf/libbpf
-#          cd libbpf
-#          git checkout v1.0.0
-#          cd src
-#          make
-#          sudo make install
-#          cd ../..
-#          cmake -DCMAKE_BUILD_TYPE=Release ..
-#          # cmake -DKERNEL_INCLUDE_DIRS=libbpf/include/uapi/ -DLIBCEREAL_INCLUDE_DIRS:PATH=/usr/include ..
-#          make -j8
-#          sudo make install
-#          bpftrace --version
-#          sudo bpftrace -l "tracepoint:net*"
-
       - name: Build
         run: |
           cd eBPF_Supermarket/old_project/kernel_and_user_pod_observation/
@@ -114,7 +71,7 @@ sidecar_build-and-test:
           cd eBPF_Supermarket/old_project/kernel_and_user_pod_observation/
           sudo go test ./...
 
-  integration-test-with-minikube-and-istio:
+integration-test-with-minikube-and-istio:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
