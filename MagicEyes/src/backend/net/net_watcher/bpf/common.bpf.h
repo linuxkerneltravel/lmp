@@ -499,6 +499,15 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
         .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                       \
         .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),        \
         .tran_flag = UDP}
+
+
+//http data
+#if defined(USE_NEW_GET_USER_DATA)
+#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.iov, iov_base)
+#else
+#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.__iov, iov_base)
+#endif
+
 /* help macro end */
 
 /* help functions */
@@ -614,12 +623,6 @@ int getstack(void *ctx) {
 
     return 0;
 }
-#if KERNEL_VERSION(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH) >=             \
-    KERNEL_VERSION(6, 3, 1)
-#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.__iov, iov_base)
-#else
-#define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.iov, iov_base)
-#endif
 
 /*
 例子： log2(16384)  =14
