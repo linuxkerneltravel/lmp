@@ -202,44 +202,7 @@ jobs:
       run: |
         cd eBPF_Supermarket/old_project/cilium_ebpf_probe
         go build main.go
-
-  sidecar_build-and-test:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.18
-
-      - name: Build BCC
-        run: |
-          sudo apt update
-          sudo apt remove libllvm12 libllvm13
-          sudo apt install -y bison build-essential cmake flex git libedit-dev \
-          libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
-          mkdir bcc/build; cd bcc/build
-          cmake ..
-          make
-          sudo make install
-          cmake -DPYTHON_CMD=python3 .. # build python3 binding
-          pushd src/python/
-          make
-          sudo make install
-          popd
-      - name: Build
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar/
-          go build -o pmoas .
-          go build -v ./...
-
-      - name: Test
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar/
-          sudo go test ./...
-
+        
   integration-test-with-sidecar-demo:
     runs-on: ubuntu-22.04
     steps:
