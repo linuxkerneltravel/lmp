@@ -14,7 +14,6 @@ on:
       - 'eBPF_Supermarket/old_project/LSM_BPF/lsm_bpf_monitoring/**'
       - '.github/workflows/ebpf_lsm.yml'
 
-  
 jobs:
   LSM_BPF_build-and-test:
     runs-on: ubuntu-22.04
