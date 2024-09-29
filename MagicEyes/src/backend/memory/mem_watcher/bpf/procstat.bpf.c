@@ -11,9 +11,16 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
-#include "procstat.h"
+#include "mem_watcher.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(max_entries, 256 * 1024);
+	__type(key, pid_t);
+	__type(value, int);
+} last_val SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -32,6 +39,21 @@ int BPF_KPROBE(finish_task_switch, struct task_struct *prev) {
 	pid_t pid = bpf_get_current_pid_tgid() >> 32;
 	if (pid == user_pid)
 		return 0;
+
+	pid_t p_pid = BPF_CORE_READ(prev, pid);
+	if (p_pid == user_pid)
+		return 0;
+	
+	int val = 1;
+	int *last_pid;
+	last_pid = bpf_map_lookup_elem(&last_val, &p_pid);
+	if (!last_pid) {
+		bpf_map_update_elem(&last_val, &p_pid, &val, BPF_ANY);
+	}
+	else if(*last_pid == val) {
+		return 0;
+	}
+
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;

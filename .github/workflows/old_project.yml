@@ -1,39 +1,21 @@
-name: LSM
+name: Old_project
 
 on:
   push:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/old_project/LSM_BPF/lsm_bpf_monitoring/**'
-      - '.github/workflows/ebpf_lsm.yml'
+      - 'eBPF_Supermarket/old_project/**'
+      - '.github/workflows/old_project.yml'
   pull_request:
     branches:
       - "*"
     paths:
-      - 'eBPF_Supermarket/old_project/LSM_BPF/lsm_bpf_monitoring/**'
-      - '.github/workflows/ebpf_lsm.yml'
+      - 'eBPF_Supermarket/old_project/**'
+      - '.github/workflows/old_project.yml'
 
-  
 jobs:
-  LSM_BPF_build-and-test:
-    runs-on: ubuntu-22.04
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-          python-version: "3.10"
-      
-    - name: make
-      run: make
-      
-    - name: run
-      run: |
-        sudo ./deny_unshare
-
-sidecar_build-and-test:
+  sidecar_build-and-test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -59,49 +41,6 @@ sidecar_build-and-test:
           make
           sudo make install
           popd
-
-#      - name: Build Bpftrace
-#        run: |
-#          sudo apt-get update && sudo apt-get upgrade
-#          sudo apt remove libllvm12 libllvm13
-#          sudo apt-get install -y libbpfcc-dev
-#          sudo apt-get install -y \
-#          bison \
-#          cmake \
-#          flex \
-#          g++ \
-#          git \
-#          libelf-dev \
-#          zlib1g-dev \
-#          libfl-dev \
-#          systemtap-sdt-dev \
-#          binutils-dev \
-#          libcereal-dev \
-#          llvm-14-dev \
-#          llvm-14-runtime \
-#          libclang-14-dev \
-#          clang-14 \
-#          libpcap-dev \
-#          libgtest-dev \
-#          libgmock-dev \
-#          asciidoctor
-#          git clone https://github.com/iovisor/bpftrace
-#          cd bpftrace
-#          git checkout v0.16.0
-#          mkdir build; cd build;
-#          git clone http://github.com/libbpf/libbpf
-#          cd libbpf
-#          git checkout v1.0.0
-#          cd src
-#          make
-#          sudo make install
-#          cd ../..
-#          cmake -DCMAKE_BUILD_TYPE=Release ..
-#          # cmake -DKERNEL_INCLUDE_DIRS=libbpf/include/uapi/ -DLIBCEREAL_INCLUDE_DIRS:PATH=/usr/include ..
-#          make -j8
-#          sudo make install
-#          bpftrace --version
-#          sudo bpftrace -l "tracepoint:net*"
 
       - name: Build
         run: |
@@ -195,72 +134,7 @@ sidecar_build-and-test:
           ps axjf
           sudo -E timeout 300 ./kupod monitor kernel all --pod-label 'app=productpage,version=v1' --namespace default || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
 
-  integration-test-with-sidecar-demo:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.18
-
-      - name: Start minikube
-        id: minikube
-        uses: medyagh/setup-minikube@master
-
-      - name: Build BCC
-        run: |
-          sudo apt update
-          sudo apt remove libllvm12 libllvm13
-          sudo apt install -y bison build-essential cmake flex git libedit-dev \
-          libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
-          mkdir bcc/build; cd bcc/build
-          cmake ..
-          make
-          sudo make install
-          cmake -DPYTHON_CMD=python3 .. # build python3 binding
-          pushd src/python/
-          make
-          sudo make install
-          popd
-
-      - name: Build kernel_and_user_pod_observation
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar/dev
-          eval $(minikube -p minikube docker-env)
-          make
-          kubectl label nodes minikube sidecar-demo-node=dev
-          kubectl apply -f sidecar-demo.yaml
-          cd ..
-          unset DOCKER_TLS_VERIFY
-          unset DOCKER_HOST
-          unset DOCKER_CERT_PATH
-          unset MINIKUBE_ACTIVE_DOCKERD
-
-      - name: Build kupod
-        run: |
-          cd eBPF_Supermarket/old_project/kernel_and_user_pod_observation
-          go build -o kupod .
-          ./kupod version
-          ./kupod monitor
-          ./kupod monitor --help
-
-      - name: Run
-        run: |
-          cd eBPF_Supermarket/old_project/kernel_and_user_pod_observation
-          kubectl get pods -A
-          docker ps -a
-          export MINIKUBE_ROOT_PID=$(docker inspect $(docker ps | grep minikube | awk -F ' ' '{print $1}') -f '{{.State.Pid}}')
-          export MINIKUBE_STARTED=TRUE
-          eval $(minikube -p minikube docker-env)
-          env
-          docker ps -a
-          ps axjf
-          sudo -E timeout 300 ./kupod monitor kernel all --pod 'sidecar-demo' --namespace default || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
-
-   cilium_ebpf_probe_build:
+  cilium_ebpf_probe_build:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3    
@@ -310,170 +184,7 @@ sidecar_build-and-test:
       run: |
         cd eBPF_Supermarket/old_project/cilium_ebpf_probe
         go build main.go
-      
-      
-  sidecar_build-and-test:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.18
-
-      - name: Build BCC
-        run: |
-          sudo apt update
-          sudo apt remove libllvm12 libllvm13
-          sudo apt install -y bison build-essential cmake flex git libedit-dev \
-          libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
-          mkdir bcc/build; cd bcc/build
-          cmake ..
-          make
-          sudo make install
-          cmake -DPYTHON_CMD=python3 .. # build python3 binding
-          pushd src/python/
-          make
-          sudo make install
-          popd
-
-#      - name: Build Bpftrace
-#        run: |
-#          sudo apt-get update && sudo apt-get upgrade
-#          sudo apt remove libllvm12 libllvm13
-#          sudo apt-get install -y libbpfcc-dev
-#          sudo apt-get install -y \
-#          bison \
-#          cmake \
-#          flex \
-#          g++ \
-#          git \
-#          libelf-dev \
-#          zlib1g-dev \
-#          libfl-dev \
-#          systemtap-sdt-dev \
-#          binutils-dev \
-#          libcereal-dev \
-#          llvm-14-dev \
-#          llvm-14-runtime \
-#          libclang-14-dev \
-#          clang-14 \
-#          libpcap-dev \
-#          libgtest-dev \
-#          libgmock-dev \
-#          asciidoctor
-#          git clone https://github.com/iovisor/bpftrace
-#          cd bpftrace
-#          git checkout v0.16.0
-#          mkdir build; cd build;
-#          git clone http://github.com/libbpf/libbpf
-#          cd libbpf
-#          git checkout v1.0.0
-#          cd src
-#          make
-#          sudo make install
-#          cd ../..
-#          cmake -DCMAKE_BUILD_TYPE=Release ..
-#          # cmake -DKERNEL_INCLUDE_DIRS=libbpf/include/uapi/ -DLIBCEREAL_INCLUDE_DIRS:PATH=/usr/include ..
-#          make -j8
-#          sudo make install
-#          bpftrace --version
-#          sudo bpftrace -l "tracepoint:net*"
-
-      - name: Build
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar/
-          go build -o pmoas .
-          go build -v ./...
-
-      - name: Test
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar/
-          sudo go test ./...
-
-  integration-test-with-minikube-and-istio:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.18
-
-      - name: Start minikube
-        id: minikube
-        uses: medyagh/setup-minikube@master
-
-      - name: Set Up istio
-        run : |
-          # https://istio.io/latest/docs/setup/getting-started/
-          curl -L https://istio.io/downloadIstio | sh -
-          cd istio-*
-          export PATH=$PWD/bin:$PATH
-          istioctl install --set profile=demo -y
-          kubectl label namespace default istio-injection=enabled
-          kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-
-      - name: Build BCC
-        run: |
-          sudo apt update
-          sudo apt remove libllvm12 libllvm13
-          sudo apt install -y bison build-essential cmake flex git libedit-dev \
-          libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-distutils
-          git clone --depth 1 --branch v0.24.0 https://github.com/iovisor/bcc.git
-          mkdir bcc/build; cd bcc/build
-          cmake ..
-          make
-          sudo make install
-          cmake -DPYTHON_CMD=python3 .. # build python3 binding
-          pushd src/python/
-          make
-          sudo make install
-          popd
-
-      - name: Build PMOAS
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar/
-          go build -o pmoas .
-          ./pmoas version
-          ./pmoas monitor
-          ./pmoas monitor --help
-
-      - name: Wait for istio
-        run: |
-          kubectl get nodes
-          kubectl get pods -owide -A
-          kubectl get services
-          test_pod() {
-            while [[ $(kubectl get pods -l $1 -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]
-              do 
-                echo "waiting for pod"
-                sleep 5
-                kubectl get pods -owide -A; 
-              done
-            return 0
-          }
-          test_pod app=ratings
-          echo "ratings is done"
-          test_pod app=productpage
-          echo "productpage is done"
-          kubectl exec "$(kubectl get pod -l app=ratings -o jsonpath='{.items[0].metadata.name}')" -c ratings -- curl -sS productpage:9080/productpage | grep -o "<title>.*</title>"
-
-      - name: Run
-        run: |
-          cd eBPF_Supermarket/old_project/sidecar
-          docker ps -a
-          export MINIKUBE_ROOT_PID=$(docker inspect $(docker ps | grep minikube | awk -F ' ' '{print $1}') -f '{{.State.Pid}}')
-          export MINIKUBE_STARTED=TRUE
-          eval $(minikube -p minikube docker-env)
-          env
-          docker ps -a
-          ps axjf
-          sudo -E timeout 300 ./pmoas monitor all --pod-label 'app=productpage,version=v1' --namespace default || if [[ $? != 124 && $? != 0 ]]; then exit $?; fi
-
+        
   integration-test-with-sidecar-demo:
     runs-on: ubuntu-22.04
     steps:
