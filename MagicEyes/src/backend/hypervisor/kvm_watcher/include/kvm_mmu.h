@@ -19,13 +19,11 @@
 #ifndef __KVM_MMU_H
 #define __KVM_MMU_H
 
-#include "kvm_watcher.h"
+#include "common.h"
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
-
-#define PAGE_SHIFT 12
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -50,8 +48,7 @@ struct page_fault {
     char __data[0];
 };
 
-static int trace_page_fault(struct page_fault *ctx, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int trace_page_fault(struct page_fault *ctx) {
     u64 ts = bpf_ktime_get_ns();
     u64 addr = ctx->fault_address;
     bpf_map_update_elem(&pf_delay, &addr, &ts, BPF_ANY);
@@ -63,16 +60,18 @@ static int trace_tdp_page_fault(struct kvm_vcpu *vcpu,
                                 struct common_event *e) {
     u64 addr;
     bpf_probe_read_kernel(&addr, sizeof(u64), &fault->addr);
-    u64 *ts;
-    ts = bpf_map_lookup_elem(&pf_delay, &addr);
-    if (!ts) {
-        return 0;
-    }
     u32 *count;
     u32 new_count = 1;
     u32 error_code;
     u64 hva, pfn;
     bpf_probe_read_kernel(&error_code, sizeof(u32), &fault->error_code);
+    u64 *ts;
+    ts = bpf_map_lookup_elem(&pf_delay, &addr);
+    if (!ts) {
+        int a = *ts;
+        bpf_printk("trace_tdp_page_fault:ts = %d", a);
+        return 0;
+    }
     bpf_probe_read_kernel(&hva, sizeof(u64), &fault->hva);
     bpf_probe_read_kernel(&pfn, sizeof(u64), &fault->pfn);
     short memslot_id = BPF_CORE_READ(fault, slot, id);
@@ -101,8 +100,7 @@ static int trace_tdp_page_fault(struct kvm_vcpu *vcpu,
 }
 
 static int trace_kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
-                                    u64 error_code, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+                                    u64 error_code) {
     if (error_code & PFERR_RSVD_MASK) {
         u64 ts = bpf_ktime_get_ns();
         u64 gfn = cr2_or_gpa >> PAGE_SHIFT;
@@ -141,7 +139,7 @@ static int trace_handle_mmio_page_fault(struct mmio_page_fault *ctx, void *rb,
         bpf_map_update_elem(&pf_count, &gfn, &new_count, BPF_ANY);
     }
     e->page_fault_data.delay = delay;
-    e->page_fault_data.addr = gfn;
+    e->page_fault_data.addr = gfn << PAGE_SHIFT;
     e->page_fault_data.error_code = PFERR_RSVD_MASK;
     e->process.pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(&e->process.comm, sizeof(e->process.comm));

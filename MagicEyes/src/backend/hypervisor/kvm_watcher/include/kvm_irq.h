@@ -18,7 +18,7 @@
 #ifndef __KVM_IRQ_H
 #define __KVM_IRQ_H
 
-#include "kvm_watcher.h"
+#include "common.h"
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -38,8 +38,14 @@ struct {
     __type(value, u64);
 } irq_inject_delay SEC(".maps");
 
-static int entry_kvm_pic_set_irq(int irq, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 8192);
+    __type(key, struct timer_key);
+    __type(value, struct timer_value);
+} timer_map SEC(".maps");
+
+static int entry_kvm_pic_set_irq(int irq) {
     if (irq < 0 || irq >= PIC_NUM_PINS) {
         return 0;
     }
@@ -77,8 +83,7 @@ static int exit_kvm_pic_set_irq(struct kvm_pic *s, int irq, int ret, void *rb,
     return 0;
 }
 
-static int entry_kvm_ioapic_set_irq(int irq, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_kvm_ioapic_set_irq(int irq) {
     if (irq < 0 || irq >= IOAPIC_NUM_PINS) {
         return 0;
     }
@@ -118,17 +123,25 @@ static int exit_kvm_ioapic_set_irq(struct kvm_ioapic *ioapic, int irq, int ret,
     return 0;
 }
 
-static int entry_kvm_set_msi_irq(struct kvm *kvm, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_kvm_set_msi(struct kvm *kvm,
+                             struct kvm_kernel_irq_routing_entry *routing_entry,
+                             int level) {
+    bool x2apic_format;
+    bpf_probe_read_kernel(&x2apic_format, sizeof(bool),
+                          &kvm->arch.x2apic_format);
+    if (x2apic_format && (routing_entry->msi.address_hi & 0xff))
+        return 0;
+    if (!level)
+        return 0;
     pid_t tid = (u32)bpf_get_current_pid_tgid();
     u64 ts = bpf_ktime_get_ns();
     bpf_map_update_elem(&irq_set_delay, &tid, &ts, BPF_ANY);
     return 0;
 }
 
-static int exit_kvm_set_msi_irq(
-    struct kvm *kvm, struct kvm_kernel_irq_routing_entry *routing_entry,
-    void *rb, struct common_event *e) {
+static int exit_kvm_set_msi(struct kvm *kvm,
+                            struct kvm_kernel_irq_routing_entry *routing_entry,
+                            void *rb, struct common_event *e) {
     struct msi_msg msg = {.address_lo = routing_entry->msi.address_lo,
                           .address_hi = routing_entry->msi.address_hi,
                           .data = routing_entry->msi.data};
@@ -156,8 +169,7 @@ static int exit_kvm_set_msi_irq(
     return 0;
 }
 
-static int entry_vmx_inject_irq(struct kvm_vcpu *vcpu, pid_t vm_pid) {
-    CHECK_PID(vm_pid);
+static int entry_vmx_inject_irq(struct kvm_vcpu *vcpu) {
     u32 irq_nr;
     bool rei;
     bpf_probe_read_kernel(&irq_nr, sizeof(u32), &vcpu->arch.interrupt.nr);
@@ -193,4 +205,56 @@ static int exit_vmx_inject_irq(struct kvm_vcpu *vcpu, void *rb,
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
+
+static int update_timer_map(struct kvm_timer *ktimer) {
+    enum TimerMode {
+        ONESHOT,
+        PERIODIC,
+        TSCDEADLINE,
+    };
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 timer_mode;
+    struct timer_value timer_value = {.counts = 1};
+
+    bpf_probe_read_kernel(&timer_mode, sizeof(u32), &ktimer->timer_mode);
+    enum TimerMode tm;
+    if (timer_mode == APIC_LVT_TIMER_ONESHOT) {
+        tm = ONESHOT;
+    } else if (timer_mode == APIC_LVT_TIMER_PERIODIC) {
+        tm = PERIODIC;
+    } else if (timer_mode == APIC_LVT_TIMER_TSCDEADLINE) {
+        tm = TSCDEADLINE;
+    } else {
+        return 0;
+    }
+
+    struct timer_key timer_key = {
+        .pid = pid, .hv = ktimer->hv_timer_in_use, .timer_mode = tm};
+    struct timer_value *tv_p;
+    tv_p = bpf_map_lookup_elem(&timer_map, &timer_key);
+    if (tv_p) {
+        __sync_fetch_and_add(&tv_p->counts, 1);
+    } else {
+        bpf_map_update_elem(&timer_map, &timer_key, &timer_value, BPF_NOEXIST);
+    }
+    return 0;
+}
+
+static int trace_start_hv_timer(struct kvm_lapic *apic) {
+    struct kvm_timer ktimer;
+    bpf_probe_read_kernel(&ktimer, sizeof(struct kvm_timer),
+                          &apic->lapic_timer);
+    if (!ktimer.tscdeadline)  // 检查tscdeadline模式定时器是否过期
+        return 0;
+    return update_timer_map(&ktimer);
+}
+
+static int trace_start_sw_timer(struct kvm_lapic *apic) {
+    struct kvm_timer ktimer;
+    bpf_probe_read_kernel(&ktimer, sizeof(struct kvm_timer),
+                          &apic->lapic_timer);
+    return update_timer_map(&ktimer);
+}
+
 #endif /* __KVM_IRQ_H */
