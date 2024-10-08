@@ -19,8 +19,46 @@
 #ifndef __KVM_WATCHER_H
 #define __KVM_WATCHER_H
 
+#define SET_KP_OR_FENTRY_LOAD(function_name, module_name)                    \
+    bpf_program__set_autoload(skel->progs.kp_##function_name, true);    
+
+static const char binary_path[] = "/bin/qemu-system-x86_64";
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
+    do {                                                                      \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,     \
+                    .retprobe = is_retprobe);                                 \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts(              \
+            skel->progs.prog_name, env.vm_pid, binary_path, 0, &uprobe_opts); \
+    } while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                   \
+    do {                                                   \
+        if (!skel->links.prog_name) {                      \
+            perror("no program attached for " #prog_name); \
+            return -errno;                                 \
+        }                                                  \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do {                                                                \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
+
+#define PAGE_SHIFT 12
 
 #define NS_TO_US_FACTOR 1000.0
 #define NS_TO_MS_FACTOR 1000000.0
@@ -30,7 +68,7 @@
 
 #define OUTPUT_INTERVAL(SECONDS) sleep(SECONDS)
 
-#define OPTIONS_LIST "-w, -p, -d, -f, -c, -i, ,-h or -e"
+#define OPTIONS_LIST "-w, -d, -f, -c, -i, -l , -o , -h , -T or -e"
 
 #define PFERR_PRESENT_BIT 0
 #define PFERR_WRITE_BIT 1
@@ -49,6 +87,25 @@
 
 #define PFERR_RSVD_MASK (1UL << 3)  // mmio
 
+
+// 定时器模式
+#define APIC_LVT_TIMER_ONESHOT (0 << 17)      // 单次触发
+#define APIC_LVT_TIMER_PERIODIC (1 << 17)     // 周期性触发模式
+#define APIC_LVT_TIMER_TSCDEADLINE (2 << 17)  // TSC 截止模式
+
+// IOCTL
+#include <asm-generic/ioctl.h>
+#define KVMIO 0xAE
+#define KVM_CREATE_VM _IO(KVMIO, 0x01)
+#define KVM_CREATE_VCPU _IO(KVMIO, 0x41)
+#define KVM_GET_VCPU_EVENTS _IOR(KVMIO, 0x9f, struct kvm_vcpu_events)
+#define KVM_SET_VCPU_EVENTS _IOW(KVMIO, 0xa0, struct kvm_vcpu_events)
+#define KVM_SET_USER_MEMORY_REGION \
+    _IOW(KVMIO, 0x46, struct kvm_userspace_memory_region)
+#define KVM_TRANSLATE _IOWR(KVMIO, 0x85, struct kvm_translation)
+#define KVM_INTERRUPT _IOW(KVMIO, 0x86, struct kvm_interrupt)
+#define KVM_RUN _IO(KVMIO, 0x80)
+
 #define PRINT_USAGE_ERR()                                               \
     do {                                                                \
         fprintf(stderr, "Please specify exactly one option from %s.\n", \
@@ -66,9 +123,6 @@
         }                                         \
     } while (0)
 
-// 定义清屏宏
-#define CLEAR_SCREEN() printf("\033[2J\033[H\n")
-
 #define RING_BUFFER_TIMEOUT_MS 100
 
 #define RESERVE_RINGBUF_ENTRY(rb, e)                             \
@@ -79,23 +133,50 @@
         e = _tmp;                                                \
     } while (0)
 
-#define CHECK_PID(vm_pid)                         \
-    __u32 pid = bpf_get_current_pid_tgid() >> 32; \
-    if ((vm_pid) > 0 && pid != (vm_pid)) {        \
-        return 0;                                 \
+#define CHECK_PID(vm_pid)                                                 \
+    if ((vm_pid) > 0 && (bpf_get_current_pid_tgid() >> 32) != (vm_pid)) { \
+        return 0;                                                         \
     }
+#define LOGO_STRING                                                \
+    " _  ____     ____  __  __        ___  _____ ____ _   _ "      \
+    "_____ ____  \n"                                               \
+    "| |/ /\\ \\   / /  \\/  | \\ \\      / / \\|_   _/ "          \
+    "___| | | | ____|  _ \\ \n"                                    \
+    "| ' /  \\ \\ / /| |\\/| |  \\ \\ /\\ / / _ \\ | || |   "      \
+    "| |_| |  _| | |_) |\n"                                        \
+    "| . \\   \\ V / | |  | |   \\ V  V / ___ \\| || "             \
+    "|___|  _  | |___|  _ < \n"                                    \
+    "|_|\\_\\   \\_/  |_|  |_|    \\_/\\_/_/   \\_\\_| \\____|_| " \
+    "|_|_____|_| \\_|\\\n"
 
 struct reason_info {
     __u64 time;
     __u64 reason;
 };
-
 struct exit_key {
     __u64 reason;
     __u32 pid;
     __u32 tid;
 };
 
+struct load_key {
+    __u32 pid;
+    __u32 tid;
+};
+struct load_value {
+    __u64 max_time;
+    __u64 total_time;
+    __u64 min_time;
+    __u32 count;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+    __u32 pad;
+};
+struct time_value {
+    __u64 time;
+    __u32 vcpu_id;
+    __u32 pcpu_id;
+};
 struct exit_value {
     __u64 max_time;
     __u64 total_time;
@@ -103,7 +184,9 @@ struct exit_value {
     __u32 count;
     __u32 pad;
 };
-
+struct container_id{
+    char container_id[20];
+};
 struct dirty_page_info {
     __u64 gfn;
     __u64 rel_gfn;
@@ -128,15 +211,28 @@ struct hc_key {
     __u32 vcpu_id;
 };
 
+struct timer_key {
+    pid_t pid;
+    __u32 timer_mode;
+    bool hv;
+    bool pad[3];
+};
+
+struct timer_value {
+    __u32 counts;
+};
+
 struct process {
     __u32 pid;
     __u32 tid;
     char comm[TASK_COMM_LEN];
 };
 
+
 enum EventType {
     NONE_TYPE,
     VCPU_WAKEUP,
+    VCPU_LOAD,
     EXIT,
     HALT_POLL,
     MARK_PAGE_DIRTY,
@@ -145,7 +241,17 @@ enum EventType {
     IRQ_INJECT,
     HYPERCALL,
     IOCTL,
+    CONTAINER_SYSCALL,
+    TIMER,
 } event_type;
+
+enum NameType {
+    UNKNOWN_NAME_TYPE,
+    HYPERCALL_NR,
+    EXIT_NR,
+    EXIT_USERSPACE_NR,
+    TIMER_MODE_NR,
+} name_type;
 
 struct common_event {
     struct process process;
@@ -234,6 +340,14 @@ struct common_event {
             __u32 vcpu_id;
             // HYPERCALL 特有成员
         } hypercall_data;
+
+        struct{
+            __u64 pid;
+            __u64 syscall_id;
+            __u64 delay;
+            char comm[20];
+            char container_id[20];
+        } syscall_data;
     };
 };
 
