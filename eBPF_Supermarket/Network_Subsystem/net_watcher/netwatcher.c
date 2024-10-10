@@ -1753,6 +1753,34 @@ int main(int argc, char **argv) {
             }
     }
 cleanup:
+    if(rb)
+        ring_buffer__free(rb);
+    if(udp_rb)
+        ring_buffer__free(udp_rb);
+    if(netfilter_rb)
+        ring_buffer__free(netfilter_rb);
+    if(kfree_rb)
+        ring_buffer__free(kfree_rb);
+    if(icmp_rb)
+        ring_buffer__free(icmp_rb);
+    if(tcp_rb)
+        ring_buffer__free(tcp_rb);
+    if(dns_rb)
+        ring_buffer__free(dns_rb);
+    if(trace_rb)
+        ring_buffer__free(trace_rb);
+    if(mysql_rb)
+        ring_buffer__free(mysql_rb);
+    if(redis_rb)
+        ring_buffer__free(redis_rb);
+    if(redis_stat_rb)
+        ring_buffer__free(redis_stat_rb);
+    if(rtt_rb)
+        ring_buffer__free(rtt_rb);
+    if(events)
+        ring_buffer__free(events);
+    if(port_rb)
+        ring_buffer__free(port_rb);
     netwatcher_bpf__destroy(skel);
     return err < 0 ? -err : 0;
 }
