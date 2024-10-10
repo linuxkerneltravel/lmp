@@ -1653,7 +1653,7 @@ void print_top_5_keys()
         }
     }
     printf("----------------------------\n");
-    // 打印前 5 个元素
+    
     printf("Top 5 Keys:\n");
     for (int i = 0; i < 5 && i < index; i++)
     {
