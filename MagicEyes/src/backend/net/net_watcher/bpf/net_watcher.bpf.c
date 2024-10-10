@@ -317,14 +317,15 @@ int BPF_KPROBE(icmp_reply, struct icmp_bxm *icmp_param, struct sk_buff *skb) {
 
 // mysql
 SEC("uprobe/_Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command")
-int BPF_KPROBE(query__start) { return __handle_mysql_start(ctx); }
+int BPF_UPROBE(query__start) { return __handle_mysql_start(ctx); }
 
 SEC("uretprobe/_Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command")
-int BPF_KPROBE(query__end) { return __handle_mysql_end(ctx); }
+int BPF_UPROBE(query__end) { return __handle_mysql_end(ctx); }
 
 //redis
 SEC("uprobe/processCommand")
-int BPF_KPROBE(redis_processCommand) { return __handle_redis_start(ctx); }
+int BPF_KPROBE(redis_processCommand) { 
+    return __handle_redis_start(ctx); }
 
 SEC("uretprobe/call")
 int BPF_KPROBE(redis_call) { return __handle_redis_end(ctx); }

@@ -37,17 +37,11 @@ static volatile bool exiting = false;
 struct packet_count proto_stats[256] = {0};
 static u64 rst_count = 0;
 static struct reset_event_t event_store[MAX_EVENTS];
-static int event_count = 0;
-static char connects_file_path[1024];
-static char err_file_path[1024];
-static char packets_file_path[1024];
-static char udp_file_path[1024];
+static int event_count = 0, num_symbols = 0, cache_size = 0;
 static char binary_path[64] = "";
-int num_symbols = 0;
-int cache_size = 0;
 
-// 用于存储从 eBPF map 读取的数据
-typedef struct {
+typedef struct
+{
     char key[256];
     u32 value;
 } kv_pair;
@@ -60,7 +54,7 @@ static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            drop_reason = 0, addr_to_func = 0, icmp_info = 0, tcp_info = 0,
            time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
            redis_info = 0, count_info = 0, rtt_info = 0, rst_info = 0,
-           protocol_count = 0,redis_stat = 0; // flag
+           protocol_count = 0, redis_stat = 0; // flag
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 static const struct argp_option opts[] = {
@@ -96,9 +90,11 @@ static const struct argp_option opts[] = {
     {"protocol_count", 'p', 0, 0, "set to trace protocol count"},
     {}};
 
-static error_t parse_arg(int key, char *arg, struct argp_state *state) {
+static error_t parse_arg(int key, char *arg, struct argp_state *state)
+{
     char *end;
-    switch (key) {
+    switch (key)
+    {
     case 'a':
         all_conn = 1;
         break;
@@ -181,7 +177,8 @@ static const struct argp argp = {
     .parser = parse_arg,
     .doc = argp_program_doc,
 };
-enum MonitorMode {
+enum MonitorMode
+{
     MODE_UDP,
     MODE_NET_FILTER,
     MODE_DROP_REASON,
@@ -194,34 +191,80 @@ enum MonitorMode {
     MODE_RST,
     MODE_PROTOCOL_COUNT,
     MODE_REDIS_STAT,
+    MODE_EXTRA_CONN,
+    MODE_RETRANS,
+    MODE_CONN,
+    MODE_ERROR,
     MODE_DEFAULT
 };
-enum MonitorMode get_monitor_mode() {
-    if (udp_info) {
+enum MonitorMode get_monitor_mode()
+{
+    if (udp_info)
+    {
         return MODE_UDP;
-    } else if (net_filter) {
+    }
+    else if (net_filter)
+    {
         return MODE_NET_FILTER;
-    } else if (drop_reason) {
+    }
+    else if (drop_reason)
+    {
         return MODE_DROP_REASON;
-    } else if (icmp_info) {
+    }
+    else if (icmp_info)
+    {
         return MODE_ICMP;
-    } else if (tcp_info) {
+    }
+    else if (tcp_info)
+    {
         return MODE_TCP;
-    } else if (dns_info) {
+    }
+    else if (dns_info)
+    {
         return MODE_DNS;
-    } else if (mysql_info) {
+    }
+    else if (mysql_info)
+    {
         return MODE_MYSQL;
-    } else if (redis_info) {
+    }
+    else if (redis_info)
+    {
         return MODE_REDIS;
-    } else if (redis_stat) {
+    }
+    else if (redis_stat)
+    {
         return MODE_REDIS_STAT;
-    } else if (rtt_info) {
+    }
+    else if (rtt_info)
+    {
         return MODE_RTT;
-    } else if (rst_info) {
+    }
+    else if (rst_info)
+    {
         return MODE_RST;
-    } else if (protocol_count) {
+    }
+    else if (protocol_count)
+    {
         return MODE_PROTOCOL_COUNT;
-    } else {
+    }
+    else if (extra_conn_info)
+    {
+        return MODE_EXTRA_CONN;
+    }
+    else if (retrans_info)
+    {
+        return MODE_RETRANS;
+    }
+    else if (all_conn)
+    {
+        return MODE_CONN;
+    }
+    else if (err_packet)
+    {
+        return MODE_ERROR;
+    }
+    else
+    {
         return MODE_DEFAULT;
     }
 }
@@ -242,16 +285,19 @@ enum MonitorMode get_monitor_mode() {
     " \\/_/\\/_/\\/____/ \\/__/ \\/__//__ /  \\/_/  \\/_/\\/__/\\/____/ "      \
     "\\/_/\\/_/\\/____/ \\/_/  \n\n"
 
-void print_logo() {
+void print_logo()
+{
     char *logo = LOGO_STRING;
     int i = 0;
     FILE *lolcat_pipe = popen("/usr/games/lolcat", "w");
-    if (lolcat_pipe == NULL) {
+    if (lolcat_pipe == NULL)
+    {
         printf("Error: Unable to execute lolcat command.\n");
         return;
     }
     // 像lolcat管道逐个字符写入字符串
-    while (logo[i] != '\0') {
+    while (logo[i] != '\0')
+    {
         fputc(logo[i], lolcat_pipe);
         fflush(lolcat_pipe); // 刷新管道，确保字符被立即发送给lolcat
         usleep(150);
@@ -260,49 +306,57 @@ void print_logo() {
 
     pclose(lolcat_pipe);
 }
-#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)                \
-    do {                                                                       \
-        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,      \
-                    .retprobe = is_retprobe);                                  \
-        skel->links.prog_name = bpf_program__attach_uprobe_opts(               \
-            skel->progs.prog_name, -1, binary_path, 0, &uprobe_opts);          \
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)           \
+    do                                                                    \
+    {                                                                     \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name, \
+                    .retprobe = is_retprobe);                             \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts(          \
+            skel->progs.prog_name, -1, binary_path, 0, &uprobe_opts);     \
     } while (false)
 
-#define __CHECK_PROGRAM(skel, prog_name)                                       \
-    do {                                                                       \
-        if (!skel->links.prog_name) {                                          \
-            perror("no program attached for " #prog_name);                     \
-            return -errno;                                                     \
-        }                                                                      \
+#define __CHECK_PROGRAM(skel, prog_name)                   \
+    do                                                     \
+    {                                                      \
+        if (!skel->links.prog_name)                        \
+        {                                                  \
+            perror("no program attached for " #prog_name); \
+            return -errno;                                 \
+        }                                                  \
     } while (false)
 
-#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe)        \
-    do {                                                                       \
-        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);               \
-        __CHECK_PROGRAM(skel, prog_name);                                      \
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do                                                                  \
+    {                                                                   \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
     } while (false)
 
-#define ATTACH_UPROBE(skel, sym_name, prog_name)                               \
+#define ATTACH_UPROBE(skel, sym_name, prog_name) \
     __ATTACH_UPROBE(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE(skel, sym_name, prog_name)                            \
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) \
     __ATTACH_UPROBE(skel, sym_name, prog_name, true)
 
-#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name)                       \
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name)                    \
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
 struct SymbolEntry symbols[300000];
 struct SymbolEntry cache[CACHEMAXSIZE];
 // LRU算法查找函数
-struct SymbolEntry find_in_cache(unsigned long int addr) {
+struct SymbolEntry find_in_cache(unsigned long int addr)
+{
     // 查找地址是否在快表中
-    for (int i = 0; i < cache_size; i++) {
-        if (cache[i].addr == addr) {
+    for (int i = 0; i < cache_size; i++)
+    {
+        if (cache[i].addr == addr)
+        {
             // 更新访问时间
             struct SymbolEntry temp = cache[i];
             // 将访问的元素移动到快表的最前面，即最近使用的位置
-            for (int j = i; j > 0; j--) {
+            for (int j = i; j > 0; j--)
+            {
                 cache[j] = cache[j - 1];
             }
             cache[0] = temp;
@@ -315,55 +369,72 @@ struct SymbolEntry find_in_cache(unsigned long int addr) {
     return empty_entry;
 }
 // 将新的符号条目加入快表
-void add_to_cache(struct SymbolEntry entry) {
+void add_to_cache(struct SymbolEntry entry)
+{
     // 如果快表已满，则移除最久未使用的条目
-    if (cache_size == CACHEMAXSIZE) {
-        for (int i = cache_size - 1; i > 0; i--) {
+    if (cache_size == CACHEMAXSIZE)
+    {
+        for (int i = cache_size - 1; i > 0; i--)
+        {
             cache[i] = cache[i - 1];
         }
         cache[0] = entry;
-    } else {
+    }
+    else
+    {
         // 否则，直接加入快表
-        for (int i = cache_size; i > 0; i--) {
+        for (int i = cache_size; i > 0; i--)
+        {
             cache[i] = cache[i - 1];
         }
         cache[0] = entry;
         cache_size++;
     }
 }
-struct SymbolEntry findfunc(unsigned long int addr) {
+struct SymbolEntry findfunc(unsigned long int addr)
+{
     // 先在快表中查找
     struct SymbolEntry entry = find_in_cache(addr);
-    if (entry.addr != 0) {
+    if (entry.addr != 0)
+    {
         return entry;
     }
     unsigned long long low = 0, high = num_symbols - 1;
     unsigned long long result = -1;
 
-    while (low <= high) {
+    while (low <= high)
+    {
         int mid = low + (high - low) / 2;
-        if (symbols[mid].addr < addr) {
+        if (symbols[mid].addr < addr)
+        {
             result = mid;
             low = mid + 1;
-        } else {
+        }
+        else
+        {
             high = mid - 1;
         }
     }
     add_to_cache(symbols[result]);
     return symbols[result];
 };
-void readallsym() {
+
+void readallsym()
+{
     FILE *file = fopen("/proc/kallsyms", "r");
-    if (!file) {
+    if (!file)
+    {
         perror("Error opening file");
         exit(EXIT_FAILURE);
     }
     char line[256];
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), file))
+    {
         unsigned long addr;
         char type, name[30];
         int ret = sscanf(line, "%lx %c %s", &addr, &type, name);
-        if (ret == 3) {
+        if (ret == 3)
+        {
             symbols[num_symbols].addr = addr;
             strncpy(symbols[num_symbols].name, name, 30);
             num_symbols++;
@@ -387,17 +458,20 @@ float ewma_values[NUM_LAYERS] = {0};
 int count[NUM_LAYERS] = {0};
 
 // 指数加权移动平均算法
-float calculate_ewma(float new_value, float old_ewma) {
+float calculate_ewma(float new_value, float old_ewma)
+{
     return ALPHA * new_value + (1 - ALPHA) * old_ewma;
 }
 
 // 收集时延数据并检测异常
-int process_delay(float layer_delay, int layer_index) {
+int process_delay(float layer_delay, int layer_index)
+{
 
     if (layer_delay == 0)
         return 0;
     count[layer_index]++;
-    if (ewma_values[layer_index] == 0) {
+    if (ewma_values[layer_index] == 0)
+    {
         ewma_values[layer_index] = layer_delay;
         return 0;
     }
@@ -405,19 +479,24 @@ int process_delay(float layer_delay, int layer_index) {
     ewma_values[layer_index] =
         calculate_ewma(layer_delay, ewma_values[layer_index]);
     float threshold = ewma_values[layer_index] * GRANULARITY;
-    if (count[layer_index] > 30) {
+    if (count[layer_index] > 30)
+    {
         // 判断当前时延是否超过阈值
         //   printf("%d %d:%f %f
         //   ",layer_index,count[layer_index]++,threshold,layer_delay);
-        if (layer_delay > threshold) { // 异常
+        if (layer_delay > threshold)
+        { // 异常
             return 1;
-        } else {
+        }
+        else
+        {
             return 0;
         }
     }
     return 0;
 }
-static void set_rodata_flags(struct net_watcher_bpf *skel) {
+static void set_rodata_flags(struct net_watcher_bpf *skel)
+{
     skel->rodata->filter_dport = dport;
     skel->rodata->filter_sport = sport;
     skel->rodata->all_conn = all_conn;
@@ -440,7 +519,8 @@ static void set_rodata_flags(struct net_watcher_bpf *skel) {
     skel->rodata->rst_info = rst_info;
     skel->rodata->protocol_count = protocol_count;
 }
-static void set_disable_load(struct net_watcher_bpf *skel) {
+static void set_disable_load(struct net_watcher_bpf *skel)
+{
 
     bpf_program__set_autoload(skel->progs.inet_csk_accept_exit,
                               (all_conn || err_packet || extra_conn_info ||
@@ -614,8 +694,10 @@ static void set_disable_load(struct net_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.handle_receive_reset,
                               rst_info ? true : false);
 }
-static void print_header(enum MonitorMode mode) {
-    switch (mode) {
+static void print_header(enum MonitorMode mode)
+{
+    switch (mode)
+    {
     case MODE_UDP:
         printf("==============================================================="
                "UDP "
@@ -681,12 +763,12 @@ static void print_header(enum MonitorMode mode) {
         printf("%-20s %-20s %-20s %-20s %-20s \n", "Pid", "Comm", "Size",
                "Redis", "duration/μs");
         break;
-     case MODE_REDIS_STAT:
+    case MODE_REDIS_STAT:
         printf("==============================================================="
                "====================REDIS "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-20s %-20s %-20s %-20s\n", "Pid", "Comm", "key", "Key_count","Value_Type","Value");
+        printf("%-20s %-20s %-20s %-20s %-20s %-20s\n", "Pid", "Comm", "key", "Key_count", "Value_Type", "Value");
         break;
     case MODE_RTT:
         printf("==============================================================="
@@ -699,16 +781,44 @@ static void print_header(enum MonitorMode mode) {
                "====================RST "
                "INFORMATION===================================================="
                "============================\n");
-        printf("%-20s %-20s %-20s %-20s %-20s  %-20s %-20s \n", "Pid", "Comm",
+        printf("%-10s %-20s %-10s %-10s %-10s %-10s %-20s \n", "Pid", "Comm",
                "Saddr", "Daddr", "Sport", "Dport", "Time");
+        break;
+    case MODE_EXTRA_CONN:
+        printf("==============================================================="
+               "====================EXTRA CONN "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-15s %-15s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-13s %-10s %-10s %-10s %-10s\n", "Saddr", "Daddr", "Sport", "Dport", "backlog", "maxbacklog", "rwnd", "cwnd", "ssthresh", "sndbuf", "wmem_queued", "rx_bytes", "tx_bytes", "srtt", "duration");
+        break;
+    case MODE_RETRANS:
+        printf("==============================================================="
+               "====================RETRANS "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-15s %-15s %-10s %-10s %-10s %-10s %-10s\n", "Saddr", "Daddr", "Sport", "Dport", "fastRe", "total_retrans", "timeout");
+        break;
+    case MODE_CONN:
+        printf("==============================================================="
+               "====================CONN "
+               "INFORMATION===================================================="
+               "============================\n");
+        printf("%-15s %-20s %-15s %-15s %-10s %-10s %-10s\n", "Pid", "Sock", "Saddr", "Daddr", "Sport", "Dport", "Is_Server");
         break;
     case MODE_DEFAULT:
         printf("==============================================================="
                "=INFORMATION==================================================="
                "======================\n");
-        printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-15s %-15s \n",
+        printf("%-22s %-20s %-8s %-20s %-8s %-15s %-15s %-15s %-14s %-14s %-14s %-16s \n",
                "SOCK", "Saddr", "Sport", "Daddr", "Dport", "MAC_TIME/μs",
-               "IP_TIME/μs", "TRAN_TIME/μs", "RX/direction", "HTTP");
+               "IP_TIME/μs", "TRAN_TIME/μs", "Seq", "Ack", "RX/direction", "HTTP");
+        break;
+    case MODE_ERROR:
+        printf("==============================================================="
+               "=ERROR INFORMATION==================================================="
+               "======================\n");
+        printf("%-22s %-20s %-8s %-20s %-8s %-14s %-14s %-15s \n",
+               "SOCK", "Saddr", "Sport", "Daddr", "Dport", "Seq", "Ack", "Reason");
         break;
     case MODE_PROTOCOL_COUNT:
         printf("==============================================================="
@@ -718,64 +828,40 @@ static void print_header(enum MonitorMode mode) {
         break;
     }
 }
-static void open_log_files() {
-    FILE *connect_file = fopen(connects_file_path, "w+");
-    if (connect_file == NULL) {
-        fprintf(stderr, "Failed to open connect.log: (%s)\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    fclose(connect_file);
-
-    FILE *err_file = fopen(err_file_path, "w+");
-    if (err_file == NULL) {
-        fprintf(stderr, "Failed to open err.log: (%s)\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    fclose(err_file);
-
-    FILE *packet_file = fopen(packets_file_path, "w+");
-    if (packet_file == NULL) {
-        fprintf(stderr, "Failed to open packets.log: (%s)\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    fclose(packet_file);
-
-    FILE *udp_file = fopen(udp_file_path, "w+");
-    if (udp_file == NULL) {
-        fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    fclose(udp_file);
-}
 
 static void sig_handler(int signo) { exiting = true; }
-static void bytes_to_str(char *str, unsigned long long num) {
-    if (num > 1e9) {
+static void bytes_to_str(char *str, unsigned long long num)
+{
+    if (num > 1e9)
+    {
         sprintf(str, "%.8lfG", (double)num / 1e9);
-    } else if (num > 1e6) {
+    }
+    else if (num > 1e6)
+    {
         sprintf(str, "%.6lfM", (double)num / 1e6);
-    } else if (num > 1e3) {
+    }
+    else if (num > 1e3)
+    {
         sprintf(str, "%.3lfK", (double)num / 1e3);
-    } else {
+    }
+    else
+    {
         sprintf(str, "%llu", num);
     }
 }
-static int print_conns(struct net_watcher_bpf *skel) {
-
-    FILE *file = fopen(connects_file_path, "w");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open connects.log: (%s)\n", strerror(errno));
-        return 0;
-    }
+static int print_conns(struct net_watcher_bpf *skel)
+{
 
     int map_fd = bpf_map__fd(skel->maps.conns_info);
     struct sock *sk = NULL;
 
-    while (bpf_map_get_next_key(map_fd, &sk, &sk) == 0) {
+    while (bpf_map_get_next_key(map_fd, &sk, &sk) == 0)
+    {
         // fprintf(stdout, "next_sk: (%p)\n", sk);
         struct conn_t d = {};
         int err = bpf_map_lookup_elem(map_fd, &sk, &d);
-        if (err) {
+        if (err)
+        {
             fprintf(stderr, "Failed to read value from the conns map: (%s)\n",
                     strerror(errno));
             return 0;
@@ -791,72 +877,59 @@ static int print_conns(struct net_watcher_bpf *skel) {
         if ((d.saddr & 0x0000FFFF) == 0x0000007F ||
             (d.daddr & 0x0000FFFF) == 0x0000007F)
             return 0;
-        if (d.family == AF_INET) {
-            sprintf(s_ip_port_str, "%s:%d",
-                    inet_ntop(AF_INET, &d.saddr, s_str, sizeof(s_str)),
-                    d.sport);
-            sprintf(d_ip_port_str, "%s:%d",
-                    inet_ntop(AF_INET, &d.daddr, d_str, sizeof(d_str)),
-                    d.dport);
-        } else { // AF_INET6
-            sprintf(
-                s_ip_port_str, "%s:%d",
-                inet_ntop(AF_INET6, &d.saddr_v6, s_str_v6, sizeof(s_str_v6)),
-                d.sport);
-            sprintf(
-                d_ip_port_str, "%s:%d",
-                inet_ntop(AF_INET6, &d.daddr_v6, d_str_v6, sizeof(d_str_v6)),
-                d.dport);
+        if (d.family == AF_INET)
+        {
+            inet_ntop(AF_INET, &d.saddr, s_str, sizeof(s_str));
+            inet_ntop(AF_INET, &d.daddr, d_str, sizeof(d_str));
+            sprintf(s_ip_port_str, "%s:%d", s_str, d.sport);
+            sprintf(d_ip_port_str, "%s:%d", d_str, d.dport);
         }
+        else
+        {
+            inet_ntop(AF_INET6, &d.saddr_v6, s_str_v6, sizeof(s_str_v6));
+            inet_ntop(AF_INET6, &d.daddr_v6, d_str_v6, sizeof(d_str_v6));
+            sprintf(s_ip_port_str, "%s:%d", s_str_v6, d.sport);
+            sprintf(d_ip_port_str, "%s:%d", d_str_v6, d.dport);
+        }
+
+        char s_ip_only[INET_ADDRSTRLEN];
+        char d_ip_only[INET_ADDRSTRLEN];
+        strncpy(s_ip_only, s_str, sizeof(s_ip_only));
+        strncpy(d_ip_only, d_str, sizeof(d_ip_only));
+
         char received_bytes[11], acked_bytes[11];
         bytes_to_str(received_bytes, d.bytes_received);
         bytes_to_str(acked_bytes, d.bytes_acked);
-        fprintf(file,
-                "connection{pid=\"%d\",sock=\"%p\",src=\"%s\",dst=\"%s\","
-                "is_server=\"%d\"",
-                d.pid, d.sock, s_ip_port_str, d_ip_port_str, d.is_server);
-        if (extra_conn_info) {
-            fprintf(file,
-                    ",backlog=\"%u\""
-                    ",maxbacklog=\"%u\""
-                    ",rwnd=\"%u\""
-                    ",cwnd=\"%u\""
-                    ",ssthresh=\"%u\""
-                    ",sndbuf=\"%u\""
-                    ",wmem_queued=\"%u\""
-                    ",rx_bytes=\"%s\""
-                    ",tx_bytes=\"%s\""
-                    ",srtt=\"%u\""
-                    ",duration=\"%llu\""
-                    ",total_retrans=\"%u\"",
-                    d.tcp_backlog, d.max_tcp_backlog, d.rcv_wnd, d.snd_cwnd,
-                    d.snd_ssthresh, d.sndbuf, d.sk_wmem_queued, received_bytes,
-                    acked_bytes, d.srtt, d.duration, d.total_retrans);
-        } else {
-            fprintf(file,
-                    ",backlog=\"-\",maxbacklog=\"-\",cwnd=\"-\",ssthresh=\"-\","
-                    "sndbuf=\"-\",wmem_queued=\"-\",rx_bytes=\"-\",tx_bytes=\"-"
-                    "\",srtt=\"-\",duration=\"-\",total_retrans=\"-\"");
+
+        if (extra_conn_info)
+        {
+            printf("%-15s %-15s %-10d %-10d %-10u %-10u %-10u %-10u %-10u %-10u %-13u %-10s %-10s %-10u %-10llu\n",
+                   s_ip_only, d_ip_only, d.sport, d.dport, d.tcp_backlog,
+                   d.max_tcp_backlog, d.rcv_wnd, d.snd_cwnd, d.snd_ssthresh,
+                   d.sndbuf, d.sk_wmem_queued, received_bytes, acked_bytes, d.srtt,
+                   d.duration);
         }
-        if (retrans_info) {
-            fprintf(file, ",fast_retrans=\"%u\",timeout_retrans=\"%u\"",
-                    d.fastRe, d.timeout);
-        } else {
-            fprintf(file, ",fast_retrans=\"-\",timeout_retrans=\"-\"");
+        if (retrans_info)
+        {
+            printf("%-15s %-15s %-10d %-10d %-10u %-14u %-10u\n", s_ip_only, d_ip_only, d.sport, d.dport, d.fastRe, d.total_retrans, d.timeout);
         }
-        fprintf(file, "}\n");
+        if (all_conn)
+        {
+            printf("%-15d %-20p %-15s %-15s %-10d %-10d %-10u\n", d.pid, d.sock, s_ip_only, d_ip_only, d.sport, d.dport, d.is_server);
+        }
     }
-    fflush(file);
-    fclose(file);
     return 0;
 }
-static int print_packet(void *ctx, void *packet_info, size_t size) {
-    if (udp_info || net_filter || drop_reason || icmp_info || tcp_info ||
-        dns_info || mysql_info || redis_info || rtt_info || protocol_count||redis_stat)
+static int print_packet(void *ctx, void *packet_info, size_t size)
+{
+    if (udp_info || net_filter || drop_reason || icmp_info || tcp_info || all_conn ||
+        dns_info || mysql_info || redis_info || rtt_info || protocol_count || redis_stat || extra_conn_info || retrans_info)
         return 0;
+    char http_data[256];
     const struct pack_t *pack_info = packet_info;
     if (pack_info->mac_time > MAXTIME || pack_info->ip_time > MAXTIME ||
-        pack_info->tran_time > MAXTIME) {
+        pack_info->tran_time > MAXTIME)
+    {
         return 0;
     }
     char d_str[INET_ADDRSTRLEN];
@@ -872,104 +945,95 @@ static int print_packet(void *ctx, void *packet_info, size_t size) {
     if (sport)
         if (pack_info->sport != sport)
             return 0;
-    if (pack_info->err) {
-        FILE *file = fopen(err_file_path, "a");
-        char reason[20];
-        if (pack_info->err == 1) {
-            printf("[X] invalid SEQ: sock = %p,seq= %u,ack = %u\n",
-                   pack_info->sock, pack_info->seq, pack_info->ack);
-            sprintf(reason, "Invalid SEQ");
-        } else if (pack_info->err == 2) {
-            printf("[X] invalid checksum: sock = %p\n", pack_info->sock);
-            sprintf(reason, "Invalid checksum");
-        } else {
-            printf("UNEXPECTED packet error %d.\n", pack_info->err);
-            sprintf(reason, "Unkonwn");
-        }
-        fprintf(file,
-                "error{sock=\"%p\",seq=\"%u\",ack=\"%u\","
-                "reason=\"%s\"} \n",
-                pack_info->sock, pack_info->seq, pack_info->ack, reason);
-        fclose(file);
-    } else {
-        FILE *file = fopen(packets_file_path, "a");
-        char http_data[256];
+    if (strstr((char *)pack_info->data, "HTTP/1"))
+    {
 
-        if (strstr((char *)pack_info->data, "HTTP/1")) {
-
-            for (int i = 0; i < sizeof(pack_info->data); ++i) {
-                if (pack_info->data[i] == '\r') {
-                    http_data[i] = '\0';
-                    break;
-                }
-                http_data[i] = pack_info->data[i];
+        for (int i = 0; i < sizeof(pack_info->data); ++i)
+        {
+            if (pack_info->data[i] == '\r')
+            {
+                http_data[i] = '\0';
+                break;
             }
-        } else {
-
-            sprintf(http_data, "-");
+            http_data[i] = pack_info->data[i];
         }
-        if (layer_time) {
-            printf("%-22p %-20s %-8d %-20s %-8d %-14llu %-14llu %-14llu %-15d "
-                   "%-16s",
-                   pack_info->sock,
-                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-                   pack_info->sport,
-                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-                   pack_info->dport, pack_info->mac_time, pack_info->ip_time,
-                   pack_info->tran_time, pack_info->rx, http_data);
-            fprintf(
-                file,
-                "packet{sock=\"%p\",saddr=\"%s\",sport=\"%d\",daddr=\"%s\","
-                "dport=\"%d\",seq=\"%u\",ack=\"%u\","
-                "mac_time=\"%llu\",ip_time=\"%llu\",tran_time=\"%llu\",http_"
-                "info=\"%s\",rx=\"%d\"} \n",
-                pack_info->sock,
-                inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-                pack_info->sport,
-                inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-                pack_info->dport, pack_info->seq, pack_info->ack,
-                pack_info->mac_time, pack_info->ip_time, pack_info->tran_time,
-                http_data, pack_info->rx);
-        } else {
-            printf("%-22p %-20s %-8d %-20s %-8d %-10d %-10d %-10d %-5d %-10s",
-                   pack_info->sock,
-                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-                   pack_info->sport,
-                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-                   pack_info->dport, 0, 0, 0, pack_info->rx, http_data);
-            fprintf(file,
-                    "packet{sock=\"%p\",saddr=\"%s\",sport=\"%d\",daddr=\"%s\","
-                    "dport=\"%d\",seq=\"%u\",ack=\"%u\","
-                    "mac_time=\"%d\",ip_time=\"%d\",tran_time=\"%d\",http_"
-                    "info=\"%s\",rx=\"%d\"} \n",
-                    pack_info->sock,
-                    inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-                    pack_info->sport,
-                    inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
-                    pack_info->dport, pack_info->seq, pack_info->ack, 0, 0, 0,
-                    http_data, pack_info->rx);
-        }
-        fclose(file);
     }
-    if (time_load) {
+    else
+    {
+        sprintf(http_data, "-");
+    }
+    if (layer_time)
+    {
+        printf("%-22p %-20s %-8d %-20s %-8d %-14llu %-14llu %-14llu %-14u %-14u %-14d "
+               "%-16s",
+               pack_info->sock,
+               inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+               pack_info->sport,
+               inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+               pack_info->dport, pack_info->mac_time, pack_info->ip_time,
+               pack_info->tran_time, pack_info->seq, pack_info->ack, pack_info->rx, http_data);
+    }
+    else if (err_packet)
+    {
+        if (pack_info->err)
+        {
+            char reason[20];
+            if (pack_info->err == 1)
+            {
+                printf("[X] invalid SEQ: sock = %p,seq= %u,ack = %u\n",
+                       pack_info->sock, pack_info->seq, pack_info->ack);
+                sprintf(reason, "Invalid SEQ");
+            }
+            else if (pack_info->err == 2)
+            {
+                printf("[X] invalid checksum: sock = %p\n", pack_info->sock);
+                sprintf(reason, "Invalid checksum");
+            }
+            else
+            {
+                printf("UNEXPECTED packet error %d.\n", pack_info->err);
+                sprintf(reason, "Unkonwn");
+            }
+            printf("%-22p %-20s %-8d %-20s %-8d %-14u %-14u %-14s ",
+                   pack_info->sock,
+                   inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+                   pack_info->sport,
+                   inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+                   pack_info->dport, pack_info->seq, pack_info->ack, reason);
+        }
+    }
+    else
+    {
+        printf("%-22p %-20s %-8d %-20s %-8d %-14u %-14u %-14u %-14u %-14u %-14d %-16s\n",
+               pack_info->sock,
+               inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+               pack_info->sport,
+               inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
+               pack_info->dport, 0, 0, 0, pack_info->seq, pack_info->ack, pack_info->rx, http_data);
+    }
+    if (time_load)
+    {
         int mac = process_delay(pack_info->mac_time, 0);
         int ip = process_delay(pack_info->ip_time, 1);
         int tran = process_delay(pack_info->tran_time, 2);
-        if (mac || ip || tran) {
+        if (mac || ip || tran)
+        {
             printf("%-15s", "abnormal data");
         }
     }
     printf("\n");
     return 0;
 }
-static int print_udp(void *ctx, void *packet_info, size_t size) {
+static int print_udp(void *ctx, void *packet_info, size_t size)
+{
     if (!udp_info)
         return 0;
-    FILE *file = fopen(udp_file_path, "a+"); // 追加
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
-        return 0;
-    }
+    // FILE *file = fopen(udp_file_path, "a+"); // 追加
+    // if (file == NULL)
+    // {
+    //     fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
+    //     return 0;
+    // }
     char d_str[INET_ADDRSTRLEN];
     char s_str[INET_ADDRSTRLEN];
     const struct udp_message *pack_info = packet_info;
@@ -983,15 +1047,16 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
            pack_info->dport, pack_info->tran_time, pack_info->rx,
            pack_info->len);
-    fprintf(file,
-            "packet{saddr=\"%s\",daddr=\"%s\",sport=\"%u\","
-            "dport=\"%u\",udp_time=\"%llu\",rx=\"%d\",len=\"%d\"} \n",
-            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
-            pack_info->dport, pack_info->tran_time, pack_info->rx,
-            pack_info->len);
-    fclose(file);
-    if (time_load) {
+    // fprintf(file,
+    //         "packet{saddr=\"%s\",daddr=\"%s\",sport=\"%u\","
+    //         "dport=\"%u\",udp_time=\"%llu\",rx=\"%d\",len=\"%d\"} \n",
+    //         inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
+    //         inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
+    //         pack_info->dport, pack_info->tran_time, pack_info->rx,
+    //         pack_info->len);
+    // fclose(file);
+    if (time_load)
+    {
         int flag = process_delay(pack_info->tran_time, 3);
         if (flag)
             printf("%-15s", "abnormal data");
@@ -999,7 +1064,8 @@ static int print_udp(void *ctx, void *packet_info, size_t size) {
     printf("\n");
     return 0;
 }
-static int print_netfilter(void *ctx, void *packet_info, size_t size) {
+static int print_netfilter(void *ctx, void *packet_info, size_t size)
+{
     if (!net_filter)
         return 0;
     char d_str[INET_ADDRSTRLEN];
@@ -1030,9 +1096,11 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
         {pack_info->forward_time, 6},
         {pack_info->post_routing_time, 7},
         {pack_info->local_out_time, 8}};
-    if (time_load) {
+    if (time_load)
+    {
         // 循环遍历数组
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++)
+        {
             // 数组的总字节数除以第一个元素的字节数得到元素的个数
             float delay = layer_delay_infos[i].delay;
             int layer_net = layer_delay_infos[i].layer_index;
@@ -1045,7 +1113,8 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size) {
 
     return 0;
 }
-static int print_tcpstate(void *ctx, void *packet_info, size_t size) {
+static int print_tcpstate(void *ctx, void *packet_info, size_t size)
+{
     if (!tcp_info)
         return 0;
     char d_str[INET_ADDRSTRLEN];
@@ -1062,60 +1131,80 @@ static int print_tcpstate(void *ctx, void *packet_info, size_t size) {
     return 0;
 }
 static void calculate_protocol_usage(struct packet_count proto_stats[],
-                                     int num_protocols, int interval) {
+                                     int num_protocols, int interval)
+{
     static uint64_t last_rx[256] = {0}, last_tx[256] = {0};
     uint64_t current_rx = 0, current_tx = 0;
     uint64_t delta_rx[256] = {0}, delta_tx[256] = {0};
-    //遍历所有的协议
-    for (int i = 0; i < num_protocols; i++) {
-        //计算数据包增量
-        if (proto_stats[i].rx_count >= last_rx[i]) {
+    // 遍历所有的协议
+    for (int i = 0; i < num_protocols; i++)
+    {
+        // 计算数据包增量
+        if (proto_stats[i].rx_count >= last_rx[i])
+        {
             delta_rx[i] = proto_stats[i].rx_count - last_rx[i];
-        } else {
+        }
+        else
+        {
             delta_rx[i] = proto_stats[i].rx_count;
         }
 
-        if (proto_stats[i].tx_count >= last_tx[i]) {
+        if (proto_stats[i].tx_count >= last_tx[i])
+        {
             delta_tx[i] = proto_stats[i].tx_count - last_tx[i];
-        } else {
+        }
+        else
+        {
             delta_tx[i] = proto_stats[i].tx_count;
         }
-        //时间段内总的接收和发送包数
+        // 时间段内总的接收和发送包数
         current_rx += delta_rx[i];
         current_tx += delta_tx[i];
-        //更新上次统计的包数
+        // 更新上次统计的包数
         last_rx[i] = proto_stats[i].rx_count;
         last_tx[i] = proto_stats[i].tx_count;
     }
     printf("Protocol Usage in Last %d Seconds:\n", interval);
     printf("Total_rx_count:%ld Total_tx_count:%ld\n", current_rx, current_tx);
 
-    if (current_rx > 0) {
+    if (current_rx > 0)
+    {
         printf("Receive Protocol Usage:\n");
-        for (int i = 0; i < num_protocols; i++) {
-            if (delta_rx[i] > 0) {
+        for (int i = 0; i < num_protocols; i++)
+        {
+            if (delta_rx[i] > 0)
+            {
                 double rx_percentage = (double)delta_rx[i] / current_rx * 100;
-                if (rx_percentage >= 80.0) {
+                if (rx_percentage >= 80.0)
+                {
                     printf(RED_TEXT
                            "Protocol %s: %.2f%% Rx_count:%ld\n" RESET_TEXT,
                            protocol[i], rx_percentage, delta_rx[i]);
-                } else {
+                }
+                else
+                {
                     printf("Protocol %s: %.2f%% Rx_count:%ld\n", protocol[i],
                            rx_percentage, delta_rx[i]);
                 }
             }
         }
     }
-    if (current_tx > 0) {
+    if (current_tx > 0)
+    {
         printf("Transmit Protocol Usage:\n");
-        for (int i = 0; i < num_protocols; i++) {
-            if (delta_tx[i] > 0) {
+        for (int i = 0; i < num_protocols; i++)
+        {
+            if (delta_tx[i] > 0)
+            {
                 double tx_percentage = (double)delta_tx[i] / current_tx * 100;
-                if (tx_percentage >= 80.0) {
+                if (tx_percentage >= 80.0)
+                {
                     printf(RED_TEXT
                            "Protocol %s: %.2f%% Tx_count:%ld\n" RESET_TEXT,
                            protocol[i], tx_percentage, delta_tx[i]);
-                } else {
+                }
+                else
+                {
                     printf("Protocol %s: %.2f%% Tx_count:%ld\n", protocol[i],
                            tx_percentage, delta_tx[i]);
                 }
@@ -1124,10 +1213,12 @@ static void calculate_protocol_usage(struct packet_count proto_stats[],
     }
     memset(proto_stats, 0, num_protocols * sizeof(struct packet_count));
 }
-static int print_protocol_count(void *ctx, void *packet_info, size_t size) {
+static int print_protocol_count(void *ctx, void *packet_info, size_t size)
+{
     const struct packet_info *pack_protocol_info =
         (const struct packet_info *)packet_info;
-    if (!protocol_count) {
+    if (!protocol_count)
+    {
         return 0;
     }
     proto_stats[pack_protocol_info->proto].rx_count =
@@ -1136,7 +1227,8 @@ static int print_protocol_count(void *ctx, void *packet_info, size_t size) {
         pack_protocol_info->count.tx_count;
     return 0;
 }
-static int print_kfree(void *ctx, void *packet_info, size_t size) {
+static int print_kfree(void *ctx, void *packet_info, size_t size)
+{
     if (!drop_reason)
         return 0;
     char d_str[INET_ADDRSTRLEN];
@@ -1144,15 +1236,21 @@ static int print_kfree(void *ctx, void *packet_info, size_t size) {
     const struct reasonissue *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
-    if (saddr == 0 && daddr == 0) {
+    if (saddr == 0 && daddr == 0)
+    {
         return 0;
     }
     char prot[6];
-    if (pack_info->protocol == 2048) {
+    if (pack_info->protocol == 2048)
+    {
         strcpy(prot, "ipv4");
-    } else if (pack_info->protocol == 34525) {
+    }
+    else if (pack_info->protocol == 34525)
+    {
         strcpy(prot, "ipv6");
-    } else {
+    }
+    else
+    {
         // 其他协议
         strcpy(prot, "other");
     }
@@ -1165,7 +1263,8 @@ static int print_kfree(void *ctx, void *packet_info, size_t size) {
            pack_info->dport, prot);
     if (!addr_to_func)
         printf("%-34lx", pack_info->location);
-    else {
+    else
+    {
         struct SymbolEntry data = findfunc(pack_info->location);
         char result[40];
         sprintf(result, "%s+0x%lx", data.name, pack_info->location - data.addr);
@@ -1174,13 +1273,15 @@ static int print_kfree(void *ctx, void *packet_info, size_t size) {
     printf("%s\n", SKB_Drop_Reason_Strings[pack_info->drop_reason]);
     return 0;
 }
-static int print_icmptime(void *ctx, void *packet_info, size_t size) {
+static int print_icmptime(void *ctx, void *packet_info, size_t size)
+{
     if (!icmp_info)
         return 0;
     char d_str[INET_ADDRSTRLEN];
     char s_str[INET_ADDRSTRLEN];
     const struct icmptime *pack_info = packet_info;
-    if (pack_info->icmp_tran_time > MAXTIME) {
+    if (pack_info->icmp_tran_time > MAXTIME)
+    {
         return 0;
     }
     unsigned int saddr = pack_info->saddr;
@@ -1189,23 +1290,28 @@ static int print_icmptime(void *ctx, void *packet_info, size_t size) {
            inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)),
            pack_info->icmp_tran_time, pack_info->flag);
-    if (time_load) {
+    if (time_load)
+    {
         int icmp_data = process_delay(pack_info->icmp_tran_time, 9);
-        if (icmp_data) {
+        if (icmp_data)
+        {
             printf("%-15s\n", "abnormal data");
         }
     }
     printf("\n");
     return 0;
 }
-static int print_rst(void *ctx, void *packet_info, size_t size) {
-    if (!rst_info) {
+static int print_rst(void *ctx, void *packet_info, size_t size)
+{
+    if (!rst_info)
+    {
         return 0;
     }
     struct reset_event_t *event = packet_info;
 
     // 将事件存储到全局存储中
-    if (event_count < MAX_EVENTS) {
+    if (event_count < MAX_EVENTS)
+    {
         memcpy(&event_store[event_count], event, sizeof(struct reset_event_t));
         event_count++;
     }
@@ -1213,53 +1319,67 @@ static int print_rst(void *ctx, void *packet_info, size_t size) {
     rst_count++;
     return 0;
 }
-static void print_stored_events() {
+static void print_stored_events()
+{
     char s_str[INET_ADDRSTRLEN];
     char d_str[INET_ADDRSTRLEN];
-
-    for (int i = 0; i < event_count; i++) {
+    char saddr_v6[INET6_ADDRSTRLEN];
+    char daddr_v6[INET6_ADDRSTRLEN];
+    
+    for (int i = 0; i < event_count; i++)
+    {
         struct reset_event_t *event = &event_store[i];
         unsigned int saddr = event->saddr;
         unsigned int daddr = event->daddr;
 
-        if (event->family == AF_INET) {
+        if (event->family == AF_INET)
+        {
             inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
-            printf("%-20llu %-20s %-20s %-20s %-20u %-20u %-20llu\n",
-                   (unsigned long long)event->pid, event->comm, s_str, d_str,
+            printf("%-10d %-10s %-10s %-10s %-10u %-10u %-20llu",
+                   event->pid, event->comm, s_str, d_str,
                    event->sport, event->dport,
-                   (unsigned long long)event->timestamp);
-        } else if (event->family == AF_INET6) {
-            char saddr_v6[INET6_ADDRSTRLEN];
-            char daddr_v6[INET6_ADDRSTRLEN];
+                   event->timestamp);
+        }
+        else if (event->family == AF_INET6)
+        {
+
             inet_ntop(AF_INET6, &event->saddr_v6, saddr_v6, sizeof(saddr_v6));
             inet_ntop(AF_INET6, &event->daddr_v6, daddr_v6, sizeof(daddr_v6));
-            printf("%-10llu %-16s %-16s %-16s %-8u %-8u %-20llu\n",
-                   (unsigned long long)event->pid, event->comm, saddr_v6,
+            printf("%-10d %10s %-10s %-10s %-10u %-10u %-20llu\n",
+                   event->pid, event->comm, saddr_v6,
                    daddr_v6, event->sport, event->dport,
-                   (unsigned long long)event->timestamp);
+                   event->timestamp);
         }
+        printf("\n");
     }
 }
-static void print_domain_name(const unsigned char *data, char *output) {
+static void print_domain_name(const unsigned char *data, char *output)
+{
     const unsigned char *next = data;
     int pos = 0, first = 1;
     // 循环到尾部，标志0
-    while (*next != 0) {
-        if (!first) {
+    while (*next != 0)
+    {
+        if (!first)
+        {
             output[pos++] = '.'; // 在每个段之前添加点号
-        } else {
+        }
+        else
+        {
             first = 0; // 第一个段后清除标志
         }
         int len = *next++; // 下一个段长度
 
-        for (int i = 0; i < len; ++i) {
+        for (int i = 0; i < len; ++i)
+        {
             output[pos++] = *next++;
         }
     }
     output[pos] = '\0'; // 确保字符串正确结束
 }
-static int print_dns(void *ctx, void *packet_info, size_t size) {
+static int print_dns(void *ctx, void *packet_info, size_t size)
+{
     if (!packet_info)
         return 0;
     char d_str[INET_ADDRSTRLEN];
@@ -1274,7 +1394,8 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
     print_domain_name((const unsigned char *)pack_info->data, domain_name);
-    if (pack_info->daddr == 0) {
+    if (pack_info->daddr == 0)
+    {
         return 0;
     }
     printf("%-20s %-20s %-#12x %-#12x %-5x %-5x %-5x %-5x %-47s %-10d %-10d "
@@ -1285,27 +1406,34 @@ static int print_dns(void *ctx, void *packet_info, size_t size) {
            pack_info->rx);
     return 0;
 }
-static int print_mysql(void *ctx, void *packet_info, size_t size) {
-    if (!mysql_info) {
+static int print_mysql(void *ctx, void *packet_info, size_t size)
+{
+    if (!mysql_info)
+    {
         return 0;
     }
 
     const mysql_query *pack_info = packet_info;
     printf("%-20d %-20d %-20s %-20u %-41s", pack_info->pid, pack_info->tid,
            pack_info->comm, pack_info->size, pack_info->msql);
-    if (pack_info->duratime > count_info) {
+    if (pack_info->duratime > count_info)
+    {
         printf("%-21llu", pack_info->duratime);
-    } else {
+    }
+    else
+    {
         printf("%-21s", "");
     }
     printf("%-20d\n", pack_info->count);
     return 0;
 }
-static int print_redis(void *ctx, void *packet_info, size_t size) {
+static int print_redis(void *ctx, void *packet_info, size_t size)
+{
     const struct redis_query *pack_info = packet_info;
     int i = 0;
     char redis[64];
-    for (i = 0; i < pack_info->argc; i++) {
+    for (i = 0; i < pack_info->argc; i++)
+    {
         strcat(redis, pack_info->redis[i]);
         strcat(redis, " ");
     }
@@ -1314,74 +1442,85 @@ static int print_redis(void *ctx, void *packet_info, size_t size) {
     strcpy(redis, "");
     return 0;
 }
-static int process_redis_first(char flag,char *message) {
-    if(flag=='+')
+static int process_redis_first(char flag, char *message)
+{
+    if (flag == '+')
     {
         strcpy(message, "Status Reply");
     }
-    else if (flag=='-')
+    else if (flag == '-')
     {
         strcpy(message, "Error Reply");
     }
-    else if (flag==':')
+    else if (flag == ':')
     {
         strcpy(message, "Integer Reply");
     }
-    else if (flag=='$')
+    else if (flag == '$')
     {
         strcpy(message, "Bulk String Reply");
     }
-    else if (flag=='*')
+    else if (flag == '*')
     {
         strcpy(message, "Array Reply");
     }
-    else{
+    else
+    {
         strcpy(message, "Unknown Type");
     }
     return 0;
 }
 
-static int print_redis_stat(void *ctx, void *packet_info, size_t size) {
-    if (!redis_stat) {
+static int print_redis_stat(void *ctx, void *packet_info, size_t size)
+{
+    if (!redis_stat)
+    {
         return 0;
     }
-    char message[20]={};
+    char message[20] = {};
     const struct redis_stat_query *pack_info = packet_info;
-    if(pack_info->key_count)
+    if (pack_info->key_count)
     {
         printf("%-20d %-20s %-20s %-20d %-20s %-20s\n", pack_info->pid, pack_info->comm,
-            pack_info->key,pack_info->key_count,"-","-");
+               pack_info->key, pack_info->key_count, "-", "-");
     }
     else
     {
-        process_redis_first(pack_info->value[0],message);
+        process_redis_first(pack_info->value[0], message);
         printf("%-20d %-20s %-20s %-20s %-20s %-20s\n", pack_info->pid, pack_info->comm,
-            "-","-",message,pack_info->value);
+               "-", "-", message, pack_info->value);
     }
-   
+
     return 0;
 }
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format,
-                           va_list args) {
+                           va_list args)
+{
     return vfprintf(stderr, format, args);
 }
-static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid) {
+static void show_stack_trace(__u64 *stack, int stack_sz, pid_t pid)
+{
     int i;
     printf("-----------------------------------\n");
-    for (i = 1; i < stack_sz; i++) {
-        if (addr_to_func) {
+    for (i = 1; i < stack_sz; i++)
+    {
+        if (addr_to_func)
+        {
             struct SymbolEntry data = findfunc(stack[i]);
             char result[40];
             sprintf(result, "%s+0x%llx", data.name, stack[i] - data.addr);
             printf("%-10d [<%016llx>]=%s\n", i, stack[i], result);
-        } else {
+        }
+        else
+        {
             printf("%-10d [<%016llx>]\n", i, stack[i]);
         }
     }
     printf("-----------------------------------\n");
 }
-static int print_trace(void *_ctx, void *data, size_t size) {
+static int print_trace(void *_ctx, void *data, size_t size)
+{
     struct stacktrace_event *event = data;
 
     if (event->kstack_sz <= 0 && event->ustack_sz <= 0)
@@ -1390,16 +1529,20 @@ static int print_trace(void *_ctx, void *data, size_t size) {
     printf("COMM: %s (pid=%d) @ CPU %d\n", event->comm, event->pid,
            event->cpu_id);
 
-    if (event->kstack_sz > 0) {
+    if (event->kstack_sz > 0)
+    {
         printf("Kernel:\n");
         show_stack_trace(event->kstack, event->kstack_sz / sizeof(__u64), 0);
-    } else {
+    }
+    else
+    {
         printf("No Kernel Stack\n");
     }
     printf("\n");
     return 0;
 }
-static int print_rtt(void *ctx, void *data, size_t size) {
+static int print_rtt(void *ctx, void *data, size_t size)
+{
     if (!rtt_info)
         return 0;
     struct RTT *rtt_tuple = data;
@@ -1412,7 +1555,8 @@ static int print_rtt(void *ctx, void *data, size_t size) {
     if ((rtt_tuple->saddr & 0x0000FFFF) == 0x0000007F ||
         (rtt_tuple->daddr & 0x0000FFFF) == 0x0000007F ||
         rtt_tuple->saddr == htonl(0xC0A83C01) ||
-        rtt_tuple->daddr == htonl(0xC0A83C01)) {
+        rtt_tuple->daddr == htonl(0xC0A83C01))
+    {
         return 0; // 如果匹配任一过滤条件，放弃处理这些数据包
     }
     // 打印源地址和目的地址
@@ -1431,25 +1575,28 @@ static int print_rtt(void *ctx, void *data, size_t size) {
     // 计算和打印RTT分布图
     printf(" usecs               : count     distribution\n");
     int bucket_size = 1;
-    for (int i = 0; i < MAX_SLOTS; i++) {
+    for (int i = 0; i < MAX_SLOTS; i++)
+    {
         int start_range = bucket_size == 1 ? 0 : bucket_size;
         int end_range = bucket_size * 2 - 1;
         printf("%8d -> %-8d : %-8llu |", start_range, end_range,
                rtt_tuple->slots[i]);
         int bar_length =
             rtt_tuple->slots[i] /
-            10; //计算该延迟范围内的计数对应的直方图条形长度,每个'*'
-                //表示 10 个计数
-        for (int j = 0; j < bar_length; j++) {
+            10; // 计算该延迟范围内的计数对应的直方图条形长度,每个'*'
+                // 表示 10 个计数
+        for (int j = 0; j < bar_length; j++)
+        {
             printf("*");
         }
         printf("\n");
-        bucket_size *= 2; //以对数方式扩展
+        bucket_size *= 2; // 以对数方式扩展
     }
     printf("===============================================================\n");
     return 0;
 }
-int attach_uprobe_mysql(struct net_watcher_bpf *skel) {
+int attach_uprobe_mysql(struct net_watcher_bpf *skel)
+{
 
     ATTACH_UPROBE_CHECKED(
         skel, _Z16dispatch_commandP3THDPK8COM_DATA19enum_server_command,
@@ -1459,48 +1606,58 @@ int attach_uprobe_mysql(struct net_watcher_bpf *skel) {
         query__end);
     return 0;
 }
-int attach_uprobe_redis(struct net_watcher_bpf *skel) {
-    if(redis_info){
+int attach_uprobe_redis(struct net_watcher_bpf *skel)
+{
+    if (redis_info)
+    {
         ATTACH_UPROBE_CHECKED(skel, call, redis_call);
         ATTACH_UPROBE_CHECKED(skel, processCommand, redis_processCommand);
     }
-    if(redis_stat){
+    if (redis_stat)
+    {
         ATTACH_UPROBE_CHECKED(skel, lookupKey, redis_lookupKey);
         ATTACH_UPROBE_CHECKED(skel, addReply, redis_addReply);
     }
     return 0;
 }
 
-void print_top_5_keys() {
+void print_top_5_keys()
+{
     kv_pair *pairs;
     pairs = malloc(sizeof(kv_pair) * 1024);
-    if (!pairs) {
+    if (!pairs)
+    {
         perror("Failed to allocate memory");
         exit(EXIT_FAILURE);
     }
     int index = 0;
     char *key = NULL;
-     while (bpf_map_get_next_key(map_fd, &key, &key) == 0) {
+    while (bpf_map_get_next_key(map_fd, &key, &key) == 0)
+    {
         // fprintf(stdout, "next_sk: (%p)\n", sk);
         int count;
         int err = bpf_map_lookup_elem(map_fd, &key, &count);
-        if (err) {
+        if (err)
+        {
             fprintf(stderr, "Failed to read value from the conns map: (%s)\n",
                     strerror(errno));
-            return ;
+            return;
         }
         memcpy(pairs[index].key, &key, 256);
         pairs[index].value = count;
-        //printf("Key: %s, Count: %u\n", pairs[index].key, pairs[index].value);
+        // printf("Key: %s, Count: %u\n", pairs[index].key, pairs[index].value);
         index++;
-     }
+    }
     // 获取所有键值对
 
     // 排序前 5 个元素
     // 简单选择排序（可替换为其他高效排序算法）
-    for (int i = 0; i < index - 1; i++) {
-        for (int j = i + 1; j < index; j++) {
-            if (pairs[j].value > pairs[i].value) {
+    for (int i = 0; i < index - 1; i++)
+    {
+        for (int j = i + 1; j < index; j++)
+        {
+            if (pairs[j].value > pairs[i].value)
+            {
                 kv_pair temp = pairs[i];
                 pairs[i] = pairs[j];
                 pairs[j] = temp;
@@ -1510,28 +1667,31 @@ void print_top_5_keys() {
     printf("----------------------------\n");
     // 打印前 5 个元素
     printf("Top 5 Keys:\n");
-    for (int i = 0; i < 5 && i < index; i++) {
+    for (int i = 0; i < 5 && i < index; i++)
+    {
         printf("Key: %s, Count: %u\n", pairs[i].key, pairs[i].value);
     }
     free(pairs);
 }
-int main(int argc, char **argv) {
-    char *last_slash = strrchr(argv[0], '/');
-    if (last_slash) {
-        *(last_slash + 1) = '\0';
-    }
-    strcpy(connects_file_path, argv[0]);
-    strcpy(err_file_path, argv[0]);
-    strcpy(packets_file_path, argv[0]);
-    strcpy(udp_file_path, argv[0]);
-    if (connects_file_path[strlen(connects_file_path) - 1] != '/')
-        strcat(connects_file_path, "/connects.log");
-    else
-        strcat(connects_file_path, "connects.log");
+int main(int argc, char **argv)
+{
+    // char *last_slash = strrchr(argv[0], '/');
+    // if (last_slash)
+    // {
+    //     *(last_slash + 1) = '\0';
+    // }
+    // strcpy(connects_file_path, argv[0]);
+    // strcpy(err_file_path, argv[0]);
+    // strcpy(packets_file_path, argv[0]);
+    // strcpy(udp_file_path, argv[0]);
+    // if (connects_file_path[strlen(connects_file_path) - 1] != '/')
+    //     strcat(connects_file_path, "/connects.log");
+    // else
+    //     strcat(connects_file_path, "connects.log");
     // strcat(connects_file_path, "./connects.log");
-    strcat(err_file_path, "./err.log");
-    strcat(packets_file_path, "./packets.log");
-    strcat(udp_file_path, "./udp.log");
+    // strcat(err_file_path, "./err.log");
+    // strcat(packets_file_path, "./packets.log");
+    // strcat(udp_file_path, "./udp.log");
     struct ring_buffer *rb = NULL;
     struct ring_buffer *udp_rb = NULL;
     struct ring_buffer *netfilter_rb = NULL;
@@ -1549,7 +1709,8 @@ int main(int argc, char **argv) {
     struct net_watcher_bpf *skel;
     int err;
     /* Parse command line arguments */
-    if (argc > 1) {
+    if (argc > 1)
+    {
         err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
         if (err)
             return err;
@@ -1560,7 +1721,8 @@ int main(int argc, char **argv) {
     signal(SIGTERM, sig_handler);
     /* Open load and verify BPF application */
     skel = net_watcher_bpf__open();
-    if (!skel) {
+    if (!skel)
+    {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return 1;
     }
@@ -1571,120 +1733,141 @@ int main(int argc, char **argv) {
     if (addr_to_func)
         readallsym();
     err = net_watcher_bpf__load(skel);
-    if (err) {
+    if (err)
+    {
         fprintf(stderr, "Failed to load and verify BPF skeleton\n");
         goto cleanup;
     }
     /* Attach tracepoint handler */
-    if (mysql_info) {
+    if (mysql_info)
+    {
         strcpy(binary_path, "/usr/sbin/mysqld");
         err = attach_uprobe_mysql(skel);
-        if (err) {
+        if (err)
+        {
             fprintf(stderr, "failed to attach uprobes\n");
 
             goto cleanup;
         }
-    } else if (redis_info||redis_stat) {
+    }
+    else if (redis_info || redis_stat)
+    {
         strcpy(binary_path, "/usr/bin/redis-server");
         err = attach_uprobe_redis(skel);
-        if (err) {
+        if (err)
+        {
             fprintf(stderr, "failed to attach uprobes\n");
 
             goto cleanup;
         }
-    } else {
+    }
+    else
+    {
         err = net_watcher_bpf__attach(skel);
-        if (err) {
+        if (err)
+        {
             fprintf(stderr, "Failed to attach BPF skeleton\n");
             goto cleanup;
         }
     }
     enum MonitorMode mode = get_monitor_mode();
 
-    // print_logo();
+    print_logo();
 
     print_header(mode);
 
     udp_rb =
         ring_buffer__new(bpf_map__fd(skel->maps.udp_rb), print_udp, NULL, NULL);
-    if (!udp_rb) {
+    if (!udp_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(udp)\n");
         goto cleanup;
     }
     netfilter_rb = ring_buffer__new(bpf_map__fd(skel->maps.netfilter_rb),
                                     print_netfilter, NULL, NULL);
-    if (!netfilter_rb) {
+    if (!netfilter_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(netfilter)\n");
         goto cleanup;
     }
     kfree_rb = ring_buffer__new(bpf_map__fd(skel->maps.kfree_rb), print_kfree,
                                 NULL, NULL);
-    if (!kfree_rb) {
+    if (!kfree_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(kfree)\n");
         goto cleanup;
     }
     icmp_rb = ring_buffer__new(bpf_map__fd(skel->maps.icmp_rb), print_icmptime,
                                NULL, NULL);
-    if (!icmp_rb) {
+    if (!icmp_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(icmp)\n");
         goto cleanup;
     }
     tcp_rb = ring_buffer__new(bpf_map__fd(skel->maps.tcp_rb), print_tcpstate,
                               NULL, NULL);
-    if (!tcp_rb) {
+    if (!tcp_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(tcp)\n");
         goto cleanup;
     }
     dns_rb =
         ring_buffer__new(bpf_map__fd(skel->maps.dns_rb), print_dns, NULL, NULL);
-    if (!dns_rb) {
+    if (!dns_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(dns)\n");
         goto cleanup;
     }
     trace_rb = ring_buffer__new(bpf_map__fd(skel->maps.trace_rb), print_trace,
                                 NULL, NULL);
-    if (!trace_rb) {
+    if (!trace_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
     mysql_rb = ring_buffer__new(bpf_map__fd(skel->maps.mysql_rb), print_mysql,
                                 NULL, NULL);
-    if (!mysql_rb) {
+    if (!mysql_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
     redis_rb = ring_buffer__new(bpf_map__fd(skel->maps.redis_rb), print_redis,
                                 NULL, NULL);
-    if (!redis_rb) {
+    if (!redis_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
     redis_stat_rb = ring_buffer__new(bpf_map__fd(skel->maps.redis_stat_rb), print_redis_stat,
-                                NULL, NULL);
-    if (!redis_stat_rb) {
+                                     NULL, NULL);
+    if (!redis_stat_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
     rtt_rb =
         ring_buffer__new(bpf_map__fd(skel->maps.rtt_rb), print_rtt, NULL, NULL);
-    if (!rtt_rb) {
+    if (!rtt_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(connect_rb)\n");
         goto cleanup;
     }
     events =
         ring_buffer__new(bpf_map__fd(skel->maps.events), print_rst, NULL, NULL);
-    if (!events) {
+    if (!events)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(rst_rb)\n");
         goto cleanup;
@@ -1692,24 +1875,27 @@ int main(int argc, char **argv) {
 
     port_rb = ring_buffer__new(bpf_map__fd(skel->maps.port_rb),
                                print_protocol_count, NULL, NULL);
-    if (!port_rb) {
+    if (!port_rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(trace)\n");
         goto cleanup;
     }
     /* Set up ring buffer polling */
     rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), print_packet, NULL, NULL);
-    if (!rb) {
+    if (!rb)
+    {
         err = -1;
         fprintf(stderr, "Failed to create ring buffer(packet)\n");
         goto cleanup;
     }
 
-    //open_log_files();
+    // open_log_files();
     struct timeval start, end;
     gettimeofday(&start, NULL);
     /* Process events */
-    while (!exiting) {
+    while (!exiting)
+    {
         err = ring_buffer__poll(rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(udp_rb, 100 /* timeout, ms */);
         err = ring_buffer__poll(netfilter_rb, 100 /* timeout, ms */);
@@ -1727,37 +1913,59 @@ int main(int argc, char **argv) {
         print_conns(skel);
         sleep(1);
         /* Ctrl-C will cause -EINTR */
-        if (err == -EINTR) {
+        if (err == -EINTR)
+        {
             err = 0;
             break;
         }
-        if (err < 0) {
+        if (err < 0)
+        {
             printf("Error polling perf buffer: %d\n", err);
             break;
         }
 
         gettimeofday(&end, NULL);
-        if ((end.tv_sec - start.tv_sec) >= 5) {
-            if (rst_info) {
+        if ((end.tv_sec - start.tv_sec) >= 5)
+        {
+            if (rst_info)
+            {
                 print_stored_events();
-                printf("Total RSTs in the last 5 seconds: %llu\n\n",rst_count);
-                        rst_count = 0;
-                        event_count = 0;
-                }else if (protocol_count) {
-                    calculate_protocol_usage(proto_stats, 256, 5);
-                }else if(redis_stat)
-                {
-                    map_fd = bpf_map__fd(skel->maps.key_count);
-                    if (map_fd < 0) {
-                        perror("Failed to get map FD");
-                        return 1;
-                    }
-                    print_top_5_keys();
-                }
-                gettimeofday(&start, NULL);
+                printf("Total RSTs in the last 5 seconds: %llu\n\n", rst_count);
+                rst_count = 0;
+                event_count = 0;
             }
+            else if (protocol_count)
+            {
+                calculate_protocol_usage(proto_stats, 256, 5);
+            }
+            else if (redis_stat)
+            {
+                map_fd = bpf_map__fd(skel->maps.key_count);
+                if (map_fd < 0)
+                {
+                    perror("Failed to get map FD");
+                    return 1;
+                }
+                print_top_5_keys();
+            }
+            gettimeofday(&start, NULL);
+        }
     }
 cleanup:
+    ring_buffer__free(rb);
+    ring_buffer__free(udp_rb);
+    ring_buffer__free(netfilter_rb);
+    ring_buffer__free(kfree_rb);
+    ring_buffer__free(icmp_rb);
+    ring_buffer__free(tcp_rb);
+    ring_buffer__free(dns_rb);
+    ring_buffer__free(trace_rb);
+    ring_buffer__free(mysql_rb);
+    ring_buffer__free(redis_rb);
+    ring_buffer__free(rtt_rb);
+    ring_buffer__free(events);
+    ring_buffer__free(port_rb);
+    ring_buffer__free(redis_stat_rb);
     net_watcher_bpf__destroy(skel);
     return err < 0 ? -err : 0;
 }

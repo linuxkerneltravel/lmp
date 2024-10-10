@@ -97,7 +97,7 @@ int store_nf_time(struct sk_buff *skb, int hook)
 {
     if(!net_filter)
         return 0;
-    if (skb == NULL) // 判断是否为空
+    if (skb == NULL) 
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);

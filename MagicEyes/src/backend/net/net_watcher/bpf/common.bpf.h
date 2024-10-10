@@ -28,7 +28,8 @@
 #include <bpf/bpf_tracing.h>
 #include <string.h>
 
-struct ktime_info { // us time stamp info发送数据包
+struct ktime_info
+{                   // us time stamp info发送数据包
     u64 qdisc_time; // tx包离开mac层时间戳
     u64 mac_time;   // tx、rx包到达mac层时间戳
     u64 ip_time;    // tx、rx包到达ip层时间戳
@@ -39,7 +40,8 @@ struct ktime_info { // us time stamp info发送数据包
     u8 data[MAX_HTTP_HEADER]; // 用户层数据
 };
 
-struct packet_tuple {
+struct packet_tuple
+{
     unsigned __int128 saddr_v6; // ipv6 源地址
     unsigned __int128 daddr_v6; // ipv6 目的地址
     u32 saddr;                  // 源地址
@@ -52,7 +54,8 @@ struct packet_tuple {
     u32 len;
 };
 
-struct tcpstate {
+struct tcpstate
+{
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -63,7 +66,8 @@ struct tcpstate {
     u64 time;
 };
 
-enum {
+enum
+{
     e_ip_rcv = 0,
     e_ip_local_deliver,
     e_ip_local_deliver_finish,
@@ -75,7 +79,8 @@ enum {
     nf_max
 } nf_hook;
 
-enum {
+enum
+{
     PROTO_TCP = 0,
     PROTO_UDP,
     PROTO_ICMP,
@@ -83,18 +88,21 @@ enum {
     PROTO_MAX,
 };
 
-struct filtertime {
+struct filtertime
+{
     struct packet_tuple init;
     struct packet_tuple done;
     u64 time[nf_max];
 };
 
-struct ip_packet {
+struct ip_packet
+{
     unsigned int saddr; // 源地址
     unsigned int daddr; // 目的地址
 };
 
-struct dns_header {
+struct dns_header
+{
     u16 id;      // 事务ID
     u16 flags;   // 标志字段
     u16 qdcount; // 问题部分计数
@@ -103,29 +111,34 @@ struct dns_header {
     u16 arcount; // 附加记录计数
 };
 
-struct dns_query {
+struct dns_query
+{
     struct dns_header header; // DNS头部
     char data[64];            // 可变长度数据（域名+类型+类）
 };
 
-struct dns {
+struct dns
+{
     u32 saddr;
     u32 daddr;
 };
 
-struct query_info {
+struct query_info
+{
     char msql[256];
     u32 size;
     u64 start_time;
 };
 
-struct hist {
+struct hist
+{
     u64 slots[MAX_SLOTS];
     u64 latency;
     u64 cnt;
 };
 
-struct trace_event_raw_tcp_send_reset {
+struct trace_event_raw_tcp_send_reset
+{
     unsigned short common_type;
     unsigned char common_flags;
     unsigned char common_preempt_count;
@@ -142,7 +155,8 @@ struct trace_event_raw_tcp_send_reset {
     __u8 daddr_v6[16];
 };
 
-struct trace_event_raw_tcp_receive_reset {
+struct trace_event_raw_tcp_receive_reset
+{
     unsigned short common_type;
     unsigned char common_flags;
     unsigned char common_preempt_count;
@@ -159,16 +173,17 @@ struct trace_event_raw_tcp_receive_reset {
 };
 #define MAX_CONN 1000
 #define MAX_SLOTS 27
-// 操作BPF映射的一个辅助函数
-static __always_inline void * //__always_inline强制内联
-bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
+
+static __always_inline void *
+bpf_map_lookup_or_try_init(void *map, const void *key, const void *init)
+{
     void *val;
     long err;
 
-    val = bpf_map_lookup_elem(map, key); // 在BPF映射中查找具有给定键的条目
+    val = bpf_map_lookup_elem(map, key);
     if (val)
         return val;
-    // 此时没有对应key的value
+
     err = bpf_map_update_elem(map, key, init,
                               BPF_NOEXIST); // 向BPF映射中插入或更新一个条目
     if (err && err != -EEXIST)              // 插入失败
@@ -180,7 +195,8 @@ bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 // 存储每个packet_tuple包所对应的ktime_info时间戳
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, struct packet_tuple);
@@ -188,78 +204,93 @@ struct {
 } timestamps SEC(".maps");
 
 // 包相关信息通过此buffer提供给userspace
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } rtt_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } udp_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } netfilter_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } mysql_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } redis_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } kfree_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } icmp_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } tcp_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } dns_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } trace_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } redis_stat_rb SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024);
 } port_rb SEC(".maps");
 
 // 存储每个tcp连接所对应的conn_t
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN);
     __type(key, struct sock *);
@@ -267,7 +298,8 @@ struct {
 } conns_info SEC(".maps");
 
 // 根据ptid存储sock指针，从而在上下文无sock的内核探测点获得sock
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN);
     __type(key, u64);
@@ -275,35 +307,40 @@ struct {
 } sock_stores SEC(".maps");
 
 // 存储每个pid所对应的udp包
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, int);
     __type(value, struct packet_tuple);
 } pid_UDP SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, struct sk_buff *);
     __type(value, struct filtertime);
 } netfilter_time SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, int);
     __type(value, struct packet_tuple);
 } kfree SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_CONN *MAX_PACKET);
     __type(key, struct ip_packet);
     __type(value, unsigned long long);
 } icmp_time SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 256 * 1024);
     __type(key, struct sock *);
@@ -311,7 +348,8 @@ struct {
 } tcp_state SEC(".maps");
 
 // sql 耗时
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 256 * 1024);
     __type(key, __u32);
@@ -319,7 +357,8 @@ struct {
 } mysql_time SEC(".maps");
 
 // redis 耗时
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 256 * 1024);
     __type(key, __u32);
@@ -327,7 +366,8 @@ struct {
 } redis_time SEC(".maps");
 
 // sql请求数
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, __u32);
@@ -335,21 +375,24 @@ struct {
 } sql_count SEC(".maps");
 
 // dns计数根据每个saddr、daddr
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, struct dns);
     __type(value, __u64);
 } dns_request_count SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, struct dns);
     __type(value, __u64);
 } dns_response_count SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, __u32);
@@ -357,31 +400,35 @@ struct {
 } queries SEC(".maps");
 
 // 定义一个哈希映射，用于存储直方图数据
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 256 * 1024);
     __type(key, struct ip_packet);
     __type(value, struct hist);
 } hists SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u32);
     __type(value, u64);
     __uint(max_entries, 1024);
 } counters SEC(".maps");
 
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(max_entries, MAX_COMM *MAX_PACKET);
     __type(key, u32);
     __type(value, struct packet_count);
 } proto_stats SEC(".maps");
-struct {
+struct
+{
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, char*);  // 键的最大长度，假设为 256 字节
-    __type(value, u32);     // 计数值
-    __uint(max_entries, 1024);  // 最大条目数
+    __type(key, char *);       // 键的最大长度，假设为 256 字节
+    __type(value, u32);        // 计数值
+    __uint(max_entries, 1024); // 最大条目数
 } key_count SEC(".maps");
 
 const volatile int filter_dport = 0;
@@ -391,117 +438,126 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
                    udp_info = 0, net_filter = 0, drop_reason = 0, icmp_info = 0,
                    tcp_info = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
                    redis_info = 0, rtt_info = 0, rst_info = 0,
-                   protocol_count = 0,redis_stat = 0;;
+                   protocol_count = 0, redis_stat = 0;
+;
 
 /* help macro */
 
-#define FILTER                                                                 \
-    if (filter_dport && filter_dport != pkt_tuple.dport)                       \
-        return 0;                                                              \
-    if (filter_sport && filter_sport != pkt_tuple.sport)                       \
+#define FILTER                                           \
+    if (filter_dport && filter_dport != pkt_tuple.dport) \
+        return 0;                                        \
+    if (filter_sport && filter_sport != pkt_tuple.sport) \
         return 0;
 
 // 连接的目标端口是否匹配于filter_dport的值
-#define FILTER_DPORT                                                           \
-    if (filter_dport) {                                                        \
-        if (conn.dport != filter_dport) {                                      \
-            return 0;                                                          \
-        }                                                                      \
+#define FILTER_DPORT                    \
+    if (filter_dport)                   \
+    {                                   \
+        if (conn.dport != filter_dport) \
+        {                               \
+            return 0;                   \
+        }                               \
     }
 // 连接的源端口是否匹配于filter_sport的值
-#define FILTER_SPORT                                                           \
-    if (filter_sport) {                                                        \
-        if (conn.sport != filter_sport) {                                      \
-            return 0;                                                          \
-        }                                                                      \
+#define FILTER_SPORT                    \
+    if (filter_sport)                   \
+    {                                   \
+        if (conn.sport != filter_sport) \
+        {                               \
+            return 0;                   \
+        }                               \
     }
 
 // 初始化conn_t结构
-#define CONN_INIT                                                              \
-    struct conn_t conn = {0};                                                  \
-    conn.pid = ptid >> 32;                                                     \
-    conn.ptid = ptid;                                                          \
-    u16 protocol = BPF_CORE_READ(sk, sk_protocol);                             \
-    if (protocol != IPPROTO_TCP)                                               \
-        return 0;                                                              \
-    bpf_get_current_comm(&conn.comm, sizeof(conn.comm));                       \
-    conn.sock = sk;                                                            \
-    u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);                    \
-    __be16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);                   \
-    u16 sport = BPF_CORE_READ(sk, __sk_common.skc_num);                        \
-    conn.family = family;                                                      \
-    conn.sport = sport;                                                        \
-    conn.dport = __bpf_ntohs(dport);                                           \
+#define CONN_INIT                                            \
+    struct conn_t conn = {0};                                \
+    conn.pid = ptid >> 32;                                   \
+    conn.ptid = ptid;                                        \
+    u16 protocol = BPF_CORE_READ(sk, sk_protocol);           \
+    if (protocol != IPPROTO_TCP)                             \
+        return 0;                                            \
+    bpf_get_current_comm(&conn.comm, sizeof(conn.comm));     \
+    conn.sock = sk;                                          \
+    u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);  \
+    __be16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport); \
+    u16 sport = BPF_CORE_READ(sk, __sk_common.skc_num);      \
+    conn.family = family;                                    \
+    conn.sport = sport;                                      \
+    conn.dport = __bpf_ntohs(dport);                         \
     conn.init_timestamp = bpf_ktime_get_ns() / 1000;
 
-//初始化conn_t地址相关信息
-#define CONN_ADD_ADDRESS                                                       \
-    if (family == AF_INET) {                                                   \
-        conn.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);             \
-        conn.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);                 \
-    } else if (family == AF_INET6) {                                           \
-        bpf_probe_read_kernel(                                                 \
-            &conn.saddr_v6,                                                    \
-            sizeof(sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32),          \
-            &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);                \
-        bpf_probe_read_kernel(                                                 \
-            &conn.daddr_v6,                                                    \
-            sizeof(sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32),              \
-            &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);                    \
+// 初始化conn_t地址相关信息
+#define CONN_ADD_ADDRESS                                              \
+    if (family == AF_INET)                                            \
+    {                                                                 \
+        conn.saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);    \
+        conn.daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr);        \
+    }                                                                 \
+    else if (family == AF_INET6)                                      \
+    {                                                                 \
+        bpf_probe_read_kernel(                                        \
+            &conn.saddr_v6,                                           \
+            sizeof(sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32), \
+            &sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);       \
+        bpf_probe_read_kernel(                                        \
+            &conn.daddr_v6,                                           \
+            sizeof(sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32),     \
+            &sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);           \
     }
 
-//初始化conn其余额外信息
-#define CONN_ADD_EXTRA_INFO                                                    \
-    if (extra_conn_info) {                                                     \
-        struct tcp_sock *tp = (struct tcp_sock *)sk;                           \
-        conn->srtt = BPF_CORE_READ(tp, srtt_us);                               \
-        conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp;     \
-        conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);                    \
-        conn->bytes_received = BPF_CORE_READ(tp, bytes_received);              \
-        conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);                          \
-        conn->rcv_wnd = BPF_CORE_READ(tp, rcv_wnd);                            \
-        conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);                  \
-        conn->total_retrans = BPF_CORE_READ(tp, total_retrans);                \
-        conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);                           \
-        conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);              \
-        conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);                 \
-        conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);         \
+// 初始化conn其余额外信息
+#define CONN_ADD_EXTRA_INFO                                                \
+    if (extra_conn_info)                                                   \
+    {                                                                      \
+        struct tcp_sock *tp = (struct tcp_sock *)sk;                       \
+        conn->srtt = BPF_CORE_READ(tp, srtt_us);                           \
+        conn->duration = bpf_ktime_get_ns() / 1000 - conn->init_timestamp; \
+        conn->bytes_acked = BPF_CORE_READ(tp, bytes_acked);                \
+        conn->bytes_received = BPF_CORE_READ(tp, bytes_received);          \
+        conn->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);                      \
+        conn->rcv_wnd = BPF_CORE_READ(tp, rcv_wnd);                        \
+        conn->snd_ssthresh = BPF_CORE_READ(tp, snd_ssthresh);              \
+        conn->total_retrans = BPF_CORE_READ(tp, total_retrans);            \
+        conn->sndbuf = BPF_CORE_READ(sk, sk_sndbuf);                       \
+        conn->sk_wmem_queued = BPF_CORE_READ(sk, sk_wmem_queued);          \
+        conn->tcp_backlog = BPF_CORE_READ(sk, sk_ack_backlog);             \
+        conn->max_tcp_backlog = BPF_CORE_READ(sk, sk_max_ack_backlog);     \
     }
 
 #define CONN_INFO_TRANSFER tinfo->sk = conn->sock; // 将conn->sock赋给tinfo->sk
 
-#define PACKET_INIT_WITH_COMMON_INFO                                           \
-    struct pack_t *packet;                                                     \
-    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0);                     \
-    if (!packet) {                                                             \
-        return 0;                                                              \
-    }                                                                          \
-    packet->err = 0;                                                           \
-    packet->sock = sk;                                                         \
-    packet->ack = pkt_tuple.ack;                                               \
+#define PACKET_INIT_WITH_COMMON_INFO                       \
+    struct pack_t *packet;                                 \
+    packet = bpf_ringbuf_reserve(&rb, sizeof(*packet), 0); \
+    if (!packet)                                           \
+    {                                                      \
+        return 0;                                          \
+    }                                                      \
+    packet->err = 0;                                       \
+    packet->sock = sk;                                     \
+    packet->ack = pkt_tuple.ack;                           \
     packet->seq = pkt_tuple.seq;
 
 #define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
 #define WRITE_ONCE(x, val) ((*(volatile typeof(x) *)&(x)) = val)
 
-#define INIT_PACKET_TCP_TUPLE(sk, pkt)                                         \
-    struct packet_tuple pkt = {                                                \
-        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),                 \
-        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),                     \
-        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                       \
-        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),        \
+#define INIT_PACKET_TCP_TUPLE(sk, pkt)                                  \
+    struct packet_tuple pkt = {                                         \
+        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),          \
+        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),              \
+        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                \
+        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)), \
         .tran_flag = TCP}
 
-#define INIT_PACKET_UDP_TUPLE(sk, pkt)                                         \
-    struct packet_tuple pkt = {                                                \
-        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),                 \
-        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),                     \
-        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                       \
-        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)),        \
+#define INIT_PACKET_UDP_TUPLE(sk, pkt)                                  \
+    struct packet_tuple pkt = {                                         \
+        .saddr = BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr),          \
+        .daddr = BPF_CORE_READ(sk, __sk_common.skc_daddr),              \
+        .sport = BPF_CORE_READ(sk, __sk_common.skc_num),                \
+        .dport = __bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport)), \
         .tran_flag = UDP}
 
-
-//http data
+// http data
 #if defined(USE_NEW_GET_USER_DATA)
 #define GET_USER_DATA(msg) BPF_CORE_READ(msg, msg_iter.iov, iov_base)
 #else
@@ -512,34 +568,40 @@ const volatile int all_conn = 0, err_packet = 0, extra_conn_info = 0,
 
 /* help functions */
 // 将struct sock类型的指针转化为struct tcp_sock类型的指针
-static __always_inline struct tcp_sock *tcp_sk(const struct sock *sk) {
+static __always_inline struct tcp_sock *tcp_sk(const struct sock *sk)
+{
     return (struct tcp_sock *)sk;
 }
 // 将struct sk_buff类型的指针转化为struct udphdr类型的指针
-static __always_inline struct udphdr *skb_to_udphdr(const struct sk_buff *skb) {
+static __always_inline struct udphdr *skb_to_udphdr(const struct sk_buff *skb)
+{
     return (struct udphdr *)((
-        BPF_CORE_READ(skb, head) +              // 报文头部偏移
-        BPF_CORE_READ(skb, transport_header))); // 传输层部分偏移
+        BPF_CORE_READ(skb, head) +
+        BPF_CORE_READ(skb, transport_header)));
 }
 // 将struct sk_buff类型的指针转化为struct tcphdr类型的指针
-static __always_inline struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb) {
+static __always_inline struct tcphdr *skb_to_tcphdr(const struct sk_buff *skb)
+{
     return (struct tcphdr *)((
-        BPF_CORE_READ(skb, head) +              // 报文头部偏移
-        BPF_CORE_READ(skb, transport_header))); // 传输层部分偏移
+        BPF_CORE_READ(skb, head) +
+        BPF_CORE_READ(skb, transport_header)));
 }
 // 将struct sk_buff类型的指针转化为struct iphdr类型的指针
-static __always_inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb) {
+static __always_inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb)
+{
     return (struct iphdr *)(BPF_CORE_READ(skb, head) +
                             BPF_CORE_READ(skb, network_header));
 }
 // 将struct sk_buff类型的指针转化为struct ipv6hdr类型的指针
 static __always_inline struct ipv6hdr *
-skb_to_ipv6hdr(const struct sk_buff *skb) {
+skb_to_ipv6hdr(const struct sk_buff *skb)
+{
     return (struct ipv6hdr *)(BPF_CORE_READ(skb, head) +
                               BPF_CORE_READ(skb, network_header));
 }
 // 初始化ip_packet
-static void get_ip_pkt_tuple(struct ip_packet *ipk, struct iphdr *ip) {
+static void get_ip_pkt_tuple(struct ip_packet *ipk, struct iphdr *ip)
+{
     ipk->saddr = BPF_CORE_READ(ip, saddr);
     ipk->daddr = BPF_CORE_READ(ip, daddr);
 }
@@ -547,7 +609,8 @@ static void get_ip_pkt_tuple(struct ip_packet *ipk, struct iphdr *ip) {
 // 初始化packet_tuple结构指针pkt_tuple
 static __always_inline void get_pkt_tuple(struct packet_tuple *pkt_tuple,
                                           struct iphdr *ip,
-                                          struct tcphdr *tcp) {
+                                          struct tcphdr *tcp)
+{
     pkt_tuple->saddr = BPF_CORE_READ(ip, saddr);
     pkt_tuple->daddr = BPF_CORE_READ(ip, daddr);
     u16 sport = BPF_CORE_READ(tcp, source);
@@ -570,7 +633,8 @@ static __always_inline void get_pkt_tuple(struct packet_tuple *pkt_tuple,
 // 初始化packet_tuple结构指针pkt_tuple
 static __always_inline void get_udp_pkt_tuple(struct packet_tuple *pkt_tuple,
                                               struct iphdr *ip,
-                                              struct udphdr *udp) {
+                                              struct udphdr *udp)
+{
     pkt_tuple->saddr = BPF_CORE_READ(ip, saddr);
     pkt_tuple->daddr = BPF_CORE_READ(ip, daddr);
     u16 sport = BPF_CORE_READ(udp, source);
@@ -585,7 +649,8 @@ static __always_inline void get_udp_pkt_tuple(struct packet_tuple *pkt_tuple,
 
 static __always_inline void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
                                              struct ipv6hdr *ip6h,
-                                             struct tcphdr *tcp) {
+                                             struct tcphdr *tcp)
+{
     bpf_probe_read_kernel(&pkt_tuple->saddr_v6, sizeof(pkt_tuple->saddr_v6),
                           &ip6h->saddr.in6_u.u6_addr32);
     bpf_probe_read_kernel(&pkt_tuple->daddr_v6, sizeof(pkt_tuple->daddr_v6),
@@ -601,7 +666,8 @@ static __always_inline void get_pkt_tuple_v6(struct packet_tuple *pkt_tuple,
 
     pkt_tuple->tran_flag = 1; // tcp包
 }
-int getstack(void *ctx) {
+int getstack(void *ctx)
+{
     int pid = bpf_get_current_pid_tgid() >> 32;
     int cpu_id = bpf_get_smp_processor_id();
     struct stacktrace_event *event;
@@ -635,11 +701,12 @@ int getstack(void *ctx) {
 5、v=4,右移1位10,r|=2>>1=1  r=14|1=14
 */
 
-static __always_inline u64 log2(u32 v) {
+static __always_inline u64 log2(u32 v)
+{
     u32 shift, r;
-    //检测v是否大于0xFFFF（65535），如果是，则将r设置为16
+    // 检测v是否大于0xFFFF（65535），如果是，则将r设置为16
     r = (v > 0xFFFF) << 4;
-    v >>= r; //右移
+    v >>= r; // 右移
     shift = (v > 0xFF) << 3;
     v >>= shift;
     r |= shift;
@@ -649,7 +716,7 @@ static __always_inline u64 log2(u32 v) {
     shift = (v > 0x3) << 1;
     v >>= shift;
     r |= shift;
-    //右移v一位并将结果累加到r中
+    // 右移v一位并将结果累加到r中
     r |= (v >> 1);
     return r;
 }
@@ -659,8 +726,9 @@ static __always_inline u64 log2(u32 v) {
 1、v右移32位 1
 2、log2(1)=0  计算得0+32=32
 */
-static __always_inline u64 log2l(u64 v) {
-    u32 hi = v >> 32; //取v的高32位
+static __always_inline u64 log2l(u64 v)
+{
+    u32 hi = v >> 32; // 取v的高32位
     // 如果高32位非0，计算高32位的对数并加32
     if (hi)
         return log2(hi) + 32;
