@@ -1028,17 +1028,12 @@ static int print_udp(void *ctx, void *packet_info, size_t size)
 {
     if (!udp_info)
         return 0;
-    // FILE *file = fopen(udp_file_path, "a+"); // 追加
-    // if (file == NULL)
-    // {
-    //     fprintf(stderr, "Failed to open udp.log: (%s)\n", strerror(errno));
-    //     return 0;
-    // }
     char d_str[INET_ADDRSTRLEN];
     char s_str[INET_ADDRSTRLEN];
     const struct udp_message *pack_info = packet_info;
     unsigned int saddr = pack_info->saddr;
     unsigned int daddr = pack_info->daddr;
+
     if (pack_info->tran_time > MAXTIME || (daddr & 0x0000FFFF) == 0x0000007F ||
         (saddr & 0x0000FFFF) == 0x0000007F)
         return 0;
@@ -1047,14 +1042,7 @@ static int print_udp(void *ctx, void *packet_info, size_t size)
            inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
            pack_info->dport, pack_info->tran_time, pack_info->rx,
            pack_info->len);
-    // fprintf(file,
-    //         "packet{saddr=\"%s\",daddr=\"%s\",sport=\"%u\","
-    //         "dport=\"%u\",udp_time=\"%llu\",rx=\"%d\",len=\"%d\"} \n",
-    //         inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str)),
-    //         inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str)), pack_info->sport,
-    //         pack_info->dport, pack_info->tran_time, pack_info->rx,
-    //         pack_info->len);
-    // fclose(file);
+
     if (time_load)
     {
         int flag = process_delay(pack_info->tran_time, 3);
@@ -1376,7 +1364,7 @@ static void print_domain_name(const unsigned char *data, char *output)
             output[pos++] = *next++;
         }
     }
-    output[pos] = '\0'; // 确保字符串正确结束
+    output[pos] = '\0'; 
 }
 static int print_dns(void *ctx, void *packet_info, size_t size)
 {
@@ -1673,25 +1661,10 @@ void print_top_5_keys()
     }
     free(pairs);
 }
+
 int main(int argc, char **argv)
 {
-    // char *last_slash = strrchr(argv[0], '/');
-    // if (last_slash)
-    // {
-    //     *(last_slash + 1) = '\0';
-    // }
-    // strcpy(connects_file_path, argv[0]);
-    // strcpy(err_file_path, argv[0]);
-    // strcpy(packets_file_path, argv[0]);
-    // strcpy(udp_file_path, argv[0]);
-    // if (connects_file_path[strlen(connects_file_path) - 1] != '/')
-    //     strcat(connects_file_path, "/connects.log");
-    // else
-    //     strcat(connects_file_path, "connects.log");
-    // strcat(connects_file_path, "./connects.log");
-    // strcat(err_file_path, "./err.log");
-    // strcat(packets_file_path, "./packets.log");
-    // strcat(udp_file_path, "./udp.log");
+
     struct ring_buffer *rb = NULL;
     struct ring_buffer *udp_rb = NULL;
     struct ring_buffer *netfilter_rb = NULL;
