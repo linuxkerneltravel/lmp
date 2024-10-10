@@ -35,7 +35,7 @@ static __always_inline int __handle_mysql_start(struct pt_regs *ctx) {
     bpf_probe_read(&info.size, sizeof(info.size), &com_data->com_query.length);
     bpf_probe_read(&sql, sizeof(sql), &com_data->com_query.query);
     bpf_probe_read(&info.msql, sizeof(info.msql), sql);
-    bpf_printk("sql1==%s size1==%lu", info.msql,info.size);
+   // bpf_printk("sql1==%s size1==%lu", info.msql,info.size);
     info.start_time = bpf_ktime_get_ns() / 1000;
 
     bpf_map_update_elem(&queries, &tid, &info, BPF_ANY);
