@@ -1688,7 +1688,9 @@ int main(int argc, char **argv)
         if (err)
             return err;
     }
-    libbpf_set_print(libbpf_print_fn);
+    
+   // libbpf_set_print(libbpf_print_fn);
+
     /* Cleaner handling of Ctrl-C */
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
