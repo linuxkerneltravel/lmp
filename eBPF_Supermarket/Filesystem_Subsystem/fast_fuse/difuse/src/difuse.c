@@ -64,6 +64,9 @@ struct dfs_dentry *lru_head = NULL;         //LRU 链表头
 struct dfs_dentry *lru_tail = NULL;         //LRU 链表尾
 struct dfs_dentry *hash_table[HASH_SIZE];   //哈希表
 
+// inode回收队列
+struct dfs_inode *inode_recycle_list = NULL;  // inode 回收队列头
+
 /*缓存管理*/
 
 static unsigned int hash(const char *path)
@@ -130,11 +133,35 @@ static void lru_evict()
     }
 }
 
+/* 回收 inode 相关函数 */
+static void add_to_inode_recycle_list(struct dfs_inode *inode)
+{
+    inode->next = inode_recycle_list;
+    inode_recycle_list = inode;
+}
+
+static struct dfs_inode *get_recycled_inode()
+{
+    if (inode_recycle_list)
+    {
+        struct dfs_inode *inode = inode_recycle_list;
+        inode_recycle_list = inode->next;
+        inode->next = NULL;  // 复用 inode 时，清除 next 指针
+        return inode;
+    }
+    return NULL;
+}
+
 /*过程函数*/
 static struct dfs_inode *new_inode(int size, int dir_cnt)
 {
-    struct dfs_inode *inode = (struct dfs_inode *)malloc(sizeof(struct dfs_inode));
-    inode->ino = next_ino++;
+    struct dfs_inode *inode = get_recycled_inode();  // 优先从回收队列中获取 inode
+    if (!inode)
+    {
+        inode = (struct dfs_inode *)malloc(sizeof(struct dfs_inode));
+        inode->ino = next_ino++;
+    }
+
     inode->size = size;
     inode->dir_cnt = dir_cnt;
     inode->data_pointer = NULL;
@@ -249,6 +276,19 @@ struct dfs_dentry *lookup_or_create_dentry(const char *path, struct dfs_dentry *
     return dentry;
 }
 
+static void free_inode(struct dfs_inode *inode)
+{
+    struct dfs_data *data_block = inode->data_pointer;
+    while (data_block)
+    {
+        struct dfs_data *next = data_block->next;
+        free(data_block->data);
+        free(data_block);
+        data_block = next;
+    }
+    add_to_inode_recycle_list(inode);  // 将inode添加到回收队列
+}
+
 
 /*功能函数*/
 static int di_unlink(const char *path)
@@ -265,7 +305,7 @@ static int di_unlink(const char *path)
         lru_remove(dentry);
         unsigned int index = hash(dentry->fname);
         hash_table[index] = NULL;
-        free(dentry->inode);
+        free_inode(dentry->inode);  // 释放inode添加到回收队列
         free(dentry);
         return 0;
     }
@@ -325,7 +365,7 @@ static int di_mkdir(const char *path, mode_t mode)
     return 0;
 }
 
-static int dfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+static int di_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     (void)mode;
     (void)fi;
@@ -536,7 +576,7 @@ static struct fuse_operations difs_ops = {
     .read = di_read,
     .write = di_write,
     .mkdir = di_mkdir,
-    .create = dfs_create,
+    .create = di_create,
     .utimens = di_utimens,
     .unlink = di_unlink,
     .rmdir = di_rmdir,
