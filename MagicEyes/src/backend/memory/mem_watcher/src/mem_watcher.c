@@ -1417,12 +1417,12 @@ void print_zones(int fd)
 {
 	struct zone_info zinfo;
 	__u64 key = 0, next_key;
-	printf("%-20s %-20s %-25s %-20s %-20s", " COMM", "ZONE_PTR", "ZONE_PFN ", " SUM_PAGES", "FACT_PAGES ");
+	printf("%-15s %-30s %-23s %-23s %-20s %-20s", "NODE_ID","ZONE_COMM", "ZONE_PTR", "ZONE_PFN ", " SUM_PAGES", "FACT_PAGES ");
 	printf("\n");
 	while (bpf_map_get_next_key(fd, &key, &next_key) == 0)
 	{
 		bpf_map_lookup_elem(fd, &next_key, &zinfo);
-		printf(" %-15s 0x%-25llx %-25llu %-20llu %-15llu\n", zinfo.comm, zinfo.zone_ptr, zinfo.zone_start_pfn, zinfo.spanned_pages, zinfo.present_pages);
+		printf(" %-15d %-25s 0x%-25llx %-25llu %-20llu %-15llu\n",zinfo.node_id, zinfo.comm, zinfo.zone_ptr, zinfo.zone_start_pfn, zinfo.spanned_pages, zinfo.present_pages);
 		key = next_key;
 	}
 }
@@ -1430,11 +1430,12 @@ void print_nodes(int fd)
 {
 	struct pgdat_info pinfo;
 	__u64 key = 0, next_key;
-	printf(" Node ID          PGDAT_PTR       NR_ZONES \n");
+	printf("%-25s %-30s %-23s", "NODE_ID","PGDAT_PTR", "NR_ZONES");
+	printf("\n");
 	while (bpf_map_get_next_key(fd, &key, &next_key) == 0)
 	{
 		bpf_map_lookup_elem(fd, &next_key, &pinfo);
-		printf(" %5d       0x%llx  %5d\n",
+		printf(" %-15d       0x%-33llx  %-25d\n",
 			   pinfo.node_id, pinfo.pgdat_ptr, pinfo.nr_zones);
 		key = next_key;
 	}
@@ -1460,16 +1461,16 @@ void print_orders(int fd)
 	qsort(entries, entry_count, sizeof(struct order_entry), compare_entries);
 
 	// 打印排序后的
-	printf(" Order     Zone_PTR                Free Pages         Free Blocks Total    Free Blocks Suitable      SCOREA     SCOREB\n");
+	printf("%-13s %-32s %-20s %-21s %-20s %-24s %-15s %-20s", "NODE_ID"," Order", "ZONE_PTR", "Free Pages  ", "Free Blocks Total", "Free Blocks Suitable","SCOREA","SCOREB");
+	printf("\n");
 	for (int i = 0; i < entry_count; i++)
 	{
 		int res = __fragmentation_index(entries[i].okey.order, entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable, entries[i].oinfo.free_pages);
 		int tmp = unusable_free_index(entries[i].okey.order, entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable, entries[i].oinfo.free_pages);
-		// int part1 = res / 1000;
-		// int dec1 = res % 1000;
+	
 		int part2 = tmp / 1000;
 		int dec2 = tmp % 1000;
-		printf(" %-8u 0x%-25llx %-20lu %-20lu %-20lu %d   %d.%03d\n",
+		printf(" %-15d %-25u 0x%-25llx %-25lu %-20lu %-15lu  %-15d   %d.%03d\n",entries[i].okey.node_id,
 			   entries[i].okey.order, entries[i].okey.zone_ptr, entries[i].oinfo.free_pages,
 			   entries[i].oinfo.free_blocks_total, entries[i].oinfo.free_blocks_suitable, res, part2, dec2);
 	}
@@ -1527,6 +1528,10 @@ static int process_numafraginfo(struct numafraginfo_bpf *skel_numafraginfo)
 	{
 		sleep(env.interval);
 		print_nodes(bpf_map__fd(skel_numafraginfo->maps.nodes));
+		printf("\n");
+		print_zones(bpf_map__fd(skel_numafraginfo->maps.zones));
+		printf("\n");
+		print_orders(bpf_map__fd(skel_numafraginfo->maps.orders));
 		printf("\n");
 		break;
 	}

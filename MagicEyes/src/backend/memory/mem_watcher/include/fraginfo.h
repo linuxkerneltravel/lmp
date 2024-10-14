@@ -6,6 +6,7 @@ typedef __u64 u64;
 struct order_zone{
     unsigned int order;
     u64 zone_ptr;
+    int node_id;
 };
 struct ctg_info {
 	long unsigned int free_pages;
@@ -23,6 +24,7 @@ struct zone_info
     u64 present_pages;
     char comm[32];
     unsigned int order;
+    int node_id;
 };
 
 struct pgdat_info
