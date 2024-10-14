@@ -16,22 +16,22 @@
 // net_watcher libbpf 丢包
 
 #include "common.bpf.h"
-static __always_inline
-int __tp_kfree(struct trace_event_raw_kfree_skb *ctx)
+static __always_inline int __tp_kfree(struct trace_event_raw_kfree_skb *ctx)
 {
-    if(!drop_reason)
+    if (!drop_reason)
         return 0;
-    struct sk_buff *skb=ctx->skbaddr;
-    if (skb == NULL) // 判断是否为空
+    struct sk_buff *skb = ctx->skbaddr;
+    if (skb == NULL)
         return 0;
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {0};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
-    struct reasonissue  *message;
+    struct reasonissue *message;
     message = bpf_ringbuf_reserve(&kfree_rb, sizeof(*message), 0);
-    if(!message){
+    if (!message)
+    {
         return 0;
     }
     message->saddr = pkt_tuple.saddr;
@@ -41,8 +41,8 @@ int __tp_kfree(struct trace_event_raw_kfree_skb *ctx)
     message->protocol = ctx->protocol;
     message->location = (long)ctx->location;
     message->drop_reason = ctx->reason;
-    bpf_ringbuf_submit(message,0);
-    if(stack_info)
+    bpf_ringbuf_submit(message, 0);
+    if (stack_info)
         getstack(ctx);
     return 0;
-} 
+}
