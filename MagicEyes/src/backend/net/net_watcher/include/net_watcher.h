@@ -57,7 +57,8 @@ typedef unsigned long long u64;
 #define CACHEMAXSIZE 5
 typedef u64 stack_trace_t[MAX_STACK_DEPTH];
 
-struct conn_t {
+struct conn_t
+{
     void *sock;          // 此tcp连接的 socket 地址
     int pid;             // pid
     u64 ptid;            // 此tcp连接的 ptid(ebpf def)
@@ -90,7 +91,8 @@ struct conn_t {
     u64 duration;       // 连接已建立时长
 };
 
-struct pack_t {
+struct pack_t
+{
     int err;      // no err(0) invalid seq(1) invalid checksum(2)
     u64 mac_time; // mac layer 处理时间(us)
     u64 ip_time;  // ip layer 处理时间(us)
@@ -109,7 +111,8 @@ struct pack_t {
     u16 dport;
 };
 
-struct udp_message {
+struct udp_message
+{
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -118,7 +121,8 @@ struct udp_message {
     int rx;
     int len;
 };
-struct netfilter {
+struct netfilter
+{
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -130,7 +134,8 @@ struct netfilter {
     u64 post_routing_time;
     u32 rx;
 };
-struct reasonissue {
+struct reasonissue
+{
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -139,14 +144,16 @@ struct reasonissue {
     u16 protocol;
     int drop_reason;
 };
-struct icmptime {
+struct icmptime
+{
     unsigned int saddr;
     unsigned int daddr;
     unsigned long long icmp_tran_time;
     unsigned int flag; // 0 send 1 rcv
 };
 
-struct tcp_state {
+struct tcp_state
+{
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -155,7 +162,8 @@ struct tcp_state {
     int newstate;
     u64 time;
 };
-struct dns_information {
+struct dns_information
+{
     u32 saddr;
     u32 daddr;
     u16 id;
@@ -169,7 +177,8 @@ struct dns_information {
     int response_count;
     int request_count;
 };
-struct stacktrace_event {
+struct stacktrace_event
+{
     u32 pid;
     u32 cpu_id;
     char comm[16];
@@ -178,7 +187,9 @@ struct stacktrace_event {
     stack_trace_t kstack;
     stack_trace_t ustack;
 };
-typedef struct mysql_query {
+
+typedef struct mysql_query
+{
     int pid;
     int tid;
     char comm[20];
@@ -187,7 +198,8 @@ typedef struct mysql_query {
     u64 duratime;
     int count;
 } mysql_query;
-struct redis_query {
+struct redis_query
+{
     int pid;
     int tid;
     char comm[20];
@@ -198,7 +210,8 @@ struct redis_query {
     u64 begin_time;
     int argc;
 };
-struct redis_stat_query {
+struct redis_stat_query
+{
     int pid;
     char comm[20];
     char key[20];
@@ -207,14 +220,16 @@ struct redis_stat_query {
     int value_type;
 };
 
-struct RTT {
+struct RTT
+{
     u32 saddr;
     u32 daddr;
     u64 slots[64];
     u64 latency;
     u64 cnt;
 };
-struct reset_event_t {
+struct reset_event_t
+{
     int pid;
     char comm[16];
     u16 family;
@@ -229,11 +244,13 @@ struct reset_event_t {
     u64 timestamp;
     u8 state;
 };
-struct packet_count {
+struct packet_count
+{
     u64 rx_count;
     u64 tx_count;
 };
-struct packet_info {
+struct packet_info
+{
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -241,7 +258,8 @@ struct packet_info {
     u16 proto;
     struct packet_count count;
 };
-struct SymbolEntry {
+struct SymbolEntry
+{
     unsigned long addr;
     char name[30];
 };
@@ -253,13 +271,22 @@ static const char *protocol[] = {
     [3] = "UNKNOWN",
 };
 static const char *tcp_states[] = {
-    [1] = "ESTABLISHED", [2] = "SYN_SENT",   [3] = "SYN_RECV",
-    [4] = "FIN_WAIT1",   [5] = "FIN_WAIT2",  [6] = "TIME_WAIT",
-    [7] = "CLOSE",       [8] = "CLOSE_WAIT", [9] = "LAST_ACK",
-    [10] = "LISTEN",     [11] = "CLOSING",   [12] = "NEW_SYN_RECV",
+    [1] = "ESTABLISHED",
+    [2] = "SYN_SENT",
+    [3] = "SYN_RECV",
+    [4] = "FIN_WAIT1",
+    [5] = "FIN_WAIT2",
+    [6] = "TIME_WAIT",
+    [7] = "CLOSE",
+    [8] = "CLOSE_WAIT",
+    [9] = "LAST_ACK",
+    [10] = "LISTEN",
+    [11] = "CLOSING",
+    [12] = "NEW_SYN_RECV",
     [13] = "UNKNOWN",
 };
-struct LayerDelayInfo {
+struct LayerDelayInfo
+{
     float delay;     // 时延数据
     int layer_index; // 层索引
 };
