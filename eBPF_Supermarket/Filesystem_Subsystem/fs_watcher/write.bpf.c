@@ -20,16 +20,13 @@ struct {
 SEC("kprobe/do_sys_openat2")
 int BPF_KPROBE(do_sys_openat2)
 {
-  int value = 1;
-  struct fs_t *e;
   pid_t pid;
-
   pid = bpf_get_current_pid_tgid() >> 32;
+
   int fd = PT_REGS_RC(ctx);
   if(fd >= 0){
     //将PID和文件描述符存入哈希映射
-    e->fd = fd;
-    bpf_map_update_elem(&data,&pid,&value,BPF_ANY);
+    bpf_map_update_elem(&data,&pid,&fd,BPF_ANY);
   }
   return 0;
 }
@@ -49,14 +46,14 @@ int kprobe_vfs_write(struct pt_regs *ctx)
 
   //探测的是第三个参数，要写入的字节数
   size_t count = (size_t)PT_REGS_PARM3(ctx);
-  
+
   //这是vfs_write的返回值，它是一个实际写入的字节数
   size_t real_count = PT_REGS_RC(ctx);
-  
+
   pid = bpf_get_current_pid_tgid() >> 32;
 
   fd_ptr = bpf_map_lookup_elem(&data,&pid);
-  
+
   e = bpf_ringbuf_reserve(&rb,sizeof(*e),0);
 
   if(!e)
@@ -68,6 +65,7 @@ int kprobe_vfs_write(struct pt_regs *ctx)
     e->real_count = real_count;
     e->count = count;
     e->pid = pid;
+    bpf_ringbuf_submit(e, 0);
   }
   return 0;
 }
