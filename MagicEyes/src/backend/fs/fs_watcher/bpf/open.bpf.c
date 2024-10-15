@@ -1,63 +1,71 @@
-#include "vmlinux.h"
-#include <bpf/bpf_helpers.h>		//包含了BPF 辅助函数
+#define BPF_NO_GLOBAL_DATA
+#include <vmlinux.h>
+#include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include "open.h"
+#include <bpf/bpf_core_read.h>
+#include "fs_watcher.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
+#define TASK_COMM_LEN 100
+#define path_size 256
 
-// 定义哈希映射
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 1024);
 	__type(key, pid_t);
-	__type(value, u64);
-} fdtmp SEC(".maps");
+	__type(value, char[TASK_COMM_LEN]);
+} data SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 256 * 1024);
-} rb SEC(".maps");
+} rb SEC(".maps"); // 环形缓冲区
 
-SEC("kprobe/do_sys_openat2")
-int BPF_KPROBE(do_sys_openat2)
-{	
-    	struct fs_t fs; 
-    	pid_t pid;
 
-    	//pid
-    	pid = bpf_get_current_pid_tgid() >> 32;
-    	fs.pid = pid;
-    	
-    	//uid
-    	fs.uid = bpf_get_current_uid_gid();
-
-	//fd,file descriptor
-    	int fd = PT_REGS_RC(ctx);
-    	if (fd >= 0)
-        	fs.fd = fd;
-    	else
-        	fs.fd= -1;
-        	
-        //time
-        unsigned long long ts = bpf_ktime_get_ns();
-	fs.ts = ts;
-    	bpf_map_update_elem(&fdtmp, &pid, &ts, BPF_ANY);
-	
-	//从环形缓冲区（ring buffer）中分配一块内存来存储一个名为 struct fs_t 类型的数据，并将该内存块的指针赋值给指针变量 e
-	struct fs_t *e;
+SEC("tracepoint/syscalls/sys_enter_openat")
+int do_syscall_trace(struct trace_event_raw_sys_enter *ctx)
+{
+	struct event_open *e;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm,sizeof(comm));
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
-	if (!e)	return 0;	
-	
-	//给变量e赋值
-	e->pid = fs.pid;
-	e->uid = fs.uid;
-	e->fd = fs.fd;
-	e->ts = fs.ts;
-	bpf_get_current_comm(e->comm, sizeof(e->comm));
-	
-	// 成功地将其提交到用户空间进行后期处理
+	if (!e)
+		return 0;
+
+	char filename[path_size];
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task(),
+			   *real_parent;
+	if (task == NULL) {
+		bpf_printk("task\n");
+		bpf_ringbuf_discard(e, 0);
+		return 0;
+	}
+	int pid = bpf_get_current_pid_tgid() >> 32, tgid;
+
+    bpf_map_update_elem(&data, &pid, &comm, BPF_ANY);
+
+	int ppid = BPF_CORE_READ(task, real_parent, tgid);
+
+	bpf_probe_read_str(e->path_name_, sizeof(e->path_name_),
+			   (void *)(ctx->args[1]));
+
+	bpf_printk("path name: %s,pid:%d,ppid:%d\n", e->path_name_, pid, ppid);
+
+	struct fdtable *fdt = BPF_CORE_READ(task, files, fdt);
+	if (fdt == NULL) {
+		bpf_printk("fdt\n");
+		bpf_ringbuf_discard(e, 0);
+		return 0;
+	}
+
+	unsigned int i = 0, count = 0, n = BPF_CORE_READ(fdt, max_fds);
+	bpf_printk("n:%d\n", n);
+
+	e->n_ = n;
+	e->pid_ = pid;
+
 	bpf_ringbuf_submit(e, 0);
 
-    	return 0;
+	return 0;
 }
 
+char LICENSE[] SEC("license") = "GPL";
