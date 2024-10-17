@@ -24,7 +24,7 @@
 #include <signal.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
-#include "cpu_watcher_helper.h"
+#include "../include/cpu_watcher_helper.h"
 
 static struct env {
     // 1代表activate；2代表unactivate；3代表finish
