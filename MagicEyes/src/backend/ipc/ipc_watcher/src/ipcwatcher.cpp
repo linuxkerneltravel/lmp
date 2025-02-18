@@ -1,76 +1,145 @@
 /*!
-\brief Linux kernel IPC 观测工具
+\brief Linux kernel IPC 观测工具, 使用 Linux eBPF 技术
 \TODO
     1. 将抓取到的数据，在终端输出
     2. 将抓取到的数据，存入pcap文件中，并可以使用wireshark进行分析
 */
+#include <iostream>
+#include <csignal>
 
-// 使用fmt进行格式化输出
-// 使用argparse库进行命令行解析
+#include "argparse/argparse.hpp"
 
-#include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
+#include "spdlog/spdlog.h"  /** 注意 spdlog与fmt的顺序 */
+#if __cplusplus >= 202002L
+#include <format>
+namespace fmt = std;
+#else
+#include "fmt/format.h"
+#endif
 
-extern "C" {
-#include <bpf/libbpf.h>
-#include "ipc/ipcwatcher/ipcwatcher.skel.h"
+#include "UdsBpf.h"
+#include "Version.h"
+#include "ConfigArgs.h"
+
+std::atomic<bool> g_interrupted(false);
+
+void signalHandler(int signum) {
+    if (signum == SIGINT) {
+        SPDLOG_INFO("Received SIGINT, preparing to exit...");
+        g_interrupted = true;
+    }
 }
 
-#include "ipcwatcher.h"
-
-
-// 事件处理回调
-static void handle_event(void *ctx, int cpu, void *data, __u32 size) {
-    struct uds_event *e = reinterpret_cast<uds_event*>(data);
-    const char *dir = e->direction == 0 ? "Send" : "Recv";
-    printf("%s: PID=%lld Path=%s Len=%u\n", dir, e->pid, e->path, e->len);
+void initSignalHandling() noexcept {
+    bool success{true};
+    sigset_t signals;
+    success = success && (0 == sigfillset(&signals));
+    success = success && (0 == sigdelset(&signals, SIGABRT));
+    success = success && (0 == sigdelset(&signals, SIGBUS));
+    success = success && (0 == sigdelset(&signals, SIGFPE));
+    success = success && (0 == sigdelset(&signals, SIGILL));
+    success = success && (0 == sigdelset(&signals, SIGSEGV));
+    success = success && (0 == pthread_sigmask(SIG_SETMASK, &signals, nullptr));
+    if (!success) {
+        SPDLOG_ERROR("Failed to initialize signal handling");
+    }
+    // 注册 SIGINT 信号处理函数
+    signal(SIGINT, signalHandler);
 }
 
-int main() {
-    struct ipcwatcher_bpf *skel;
-    struct perf_buffer *pb = NULL;
-    int err;
 
-    // 1. 加载并验证BPF程序
-    skel = ipcwatcher_bpf__open_and_load();
-    if (!skel) {
-        fprintf(stderr, "Failed to open BPF skeleton\n");
+int cmdParser(argparse::ArgumentParser& parser, ipc::ipcWatcher::ConfigArgs& config) {
+    parser.add_argument("-u", "--uds")
+        .help("Trace unix domain socket")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.traceUds);
+    parser.add_argument("-m", "--mmap")
+        .help("Trace mmap")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.traceMmap);
+    parser.add_argument("--filterPath")
+        .help("Filter path")
+        .default_value("")
+        .action([&config](const std::string& path) {
+            /** --filter_path=/tmp/uds.socket
+             * path: /tmp/uds.socket */
+            config.filterPath = path;
+        });
+    parser.add_argument("--traceNoAnonUds")
+        .help("only trace no anon uds like /tmp/sample.uds")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.traceNoAnonUds);
+    parser.add_argument("--payload")
+        .help("Print payload")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.printPayload);
+    parser.add_argument("--force")
+        .help("Force enable payload printing")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.forcePayload);
+    parser.add_argument("--pcapFile")
+        .help("Save output to pcap file")
+        .default_value("")
+        .store_into(config.pcapFile);
+    parser.add_argument("--fromJson")
+        .help("read config args from json file")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.readFromJson);
+    parser.add_argument("--vvv", "--verbose")
+        .help("Output more information")
+        .default_value(false)
+        .implicit_value(true)
+        .store_into(config.verbose);
+    parser.add_argument("-v", "--version")
+        .help("Output version information")
+        .default_value(false)
+        .implicit_value(true)
+        .action(
+                [](const std::string& value) {
+                    ipc::ipcWatcher::printVersion();
+                    exit(0);
+                }
+                );
+//    parser.add_argument("reserve_sample_int")
+//        .help("Positional Arguments sample like: <...>/ipcwatcher 10")
+//        .scan<'i', int>();
+    //config.reserve = parser.get<int>("reserve_int");
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    spdlog::set_level(spdlog::level::info);
+    //initSignalHandling();
+    ipc::ipcWatcher::ConfigArgs config;
+    argparse::ArgumentParser parser("ipc_watcher");
+    cmdParser(parser, config);
+    try {
+        parser.parse_args(argc, argv);
+    } catch (const std::runtime_error& err) {
+        SPDLOG_ERROR("{}", err.what());
         return 1;
     }
-
-    // 2. 附加kprobe
-    err = ipcwatcher_bpf__attach(skel);
-    if (err) {
-        fprintf(stderr, "Failed to attach BPF program: %d\n", err);
-        goto cleanup;
-    }
-
-    // 3. 设置Perf Buffer
-    pb = perf_buffer__new(bpf_map__fd(skel->maps.events), 8, handle_event, NULL, NULL, NULL);
-    if (!pb) {
-        fprintf(stderr, "Failed to create perf buffer\n");
-        err = -1;
-        goto cleanup;
-    }
-
-    printf("Tracing UDS send/recv events... Ctrl+C to exit.\n");
-
-    // 4. 轮询事件
-    while (true) {
-        err = perf_buffer__poll(pb, 100 /* timeout_ms */);
-        if (err == -EINTR) {
-            err = 0;
-            break;
-        }
-        if (err < 0) {
-            fprintf(stderr, "Error polling perf buffer: %d\n", err);
-            break;
+    if (config.traceUds) {
+        ipc::ipcWatcher::UdsBpf udsBpf(config);
+        udsBpf.open();
+        udsBpf.load();
+        udsBpf.attach();
+        while (!g_interrupted) {
+            udsBpf.poll();
         }
     }
+    else if (config.traceMmap) {
+        fmt::print("do not support right now, exiting...\n");
+     }
+    else {
+        fmt::print("No trace type selected, exiting...\n");
+    }
 
-cleanup:
-    perf_buffer__free(pb);
-    ipcwatcher_bpf__destroy(skel);
-    return err;
+
 }

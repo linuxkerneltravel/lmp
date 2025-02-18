@@ -17,7 +17,8 @@
 #ifndef IPC_IPC_WATCHER_BPF__COMMON_BPF_H
 #define IPC_IPC_WATCHER_BPF__COMMON_BPF_H
 
-#include "ipcwatcher.h"
+#include "../include/ipcwatcher.h"
+
 #include "vmlinux.h"
 #include <asm-generic/errno.h>
 #include <bpf/bpf_core_read.h>
@@ -26,8 +27,11 @@
 #include <bpf/bpf_tracing.h>
 #include <string.h>
 
-const volatile int filter_dport = 0;
-const volatile int filter_sport = 0;
+/** user option */
+const volatile char*  filter_uds_path= NULL;
+const volatile int filter_is_exist_path = 1;
+
+
 #define AF_UNIX		1	/* Unix domain sockets 		*/
 #define AF_LOCAL	1	/* POSIX name for AF_UNIX	*/
 #define PF_UNIX		AF_UNIX
@@ -38,12 +42,19 @@ struct {
     __uint(max_entries, 256 * 1024);
 } uds_events SEC(".maps");
 
-// 定义Perf Buffer用于向用户态传输事件
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(__u32));
-    __uint(value_size, sizeof(__u32));
-} events SEC(".maps");
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(max_entries, 256 * 1024);
+    __type(key, struct sock*);   /** fixme： 怎么唯一标识数据包？ sock? */
+    __type(value, struct uds_event);
+} uds_data_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256 * 1024);
+    __type(key, struct sock*);
+    __type(value, struct uds_payload);
+} uds_payload_map SEC(".maps");
 
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联

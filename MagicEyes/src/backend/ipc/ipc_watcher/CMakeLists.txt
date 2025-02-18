@@ -13,6 +13,24 @@
 set(TOOL_NAME ipcwatcher)
 set(TOOL_BELONG_TO_MODULE ipc)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(ARG_PARSE_DIR ${CMAKE_SOURCE_DIR}/third_party/argparse/include)
+set(FMT_DIR ${CMAKE_SOURCE_DIR}/third_party/fmt/include)
+set(SPDLOG_DIR ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
+if (NOT EXISTS ${ARG_PARSE_DIR} OR NOT EXISTS ${FMT_DIR} OR NOT EXISTS ${SPDLOG_DIR})
+    message(FATAL_ERROR "third party include directory does not exist.")
+endif ()
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${ARG_PARSE_DIR})  # cmd parser
+include_directories(${FMT_DIR}) # fmt
+include_directories(${SPDLOG_DIR})  # for log
+
+file(GLOB_RECURSE ${TOOL_NAME}_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+
+find_package(Threads REQUIRED)
+
 file(GLOB apps ${CMAKE_CURRENT_SOURCE_DIR}/bpf/*.bpf.c)
 # 若不用Rust，则排除 profile.bpf.c
 if(NOT CARGO_EXISTS)
@@ -26,7 +44,7 @@ if (NOT EXISTS ${SRC_GEN_TARGET_DIR})
     message(STATUS "directory create success")
 endif ()
 
-# 遍历文件夹内所有的bpf.c
+# 遍历bpf文件夹内所有的bpf.c
 foreach(app ${apps})
     get_filename_component(app_stem ${app} NAME_WE)
     # Build object skeleton and depend skeleton on libbpf build
@@ -34,8 +52,9 @@ foreach(app ${apps})
     add_dependencies(${app_stem}_skel libbpf-build bpftool-build)
 endforeach()
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-add_executable(${TOOL_NAME} src/${TOOL_NAME}.cpp)
+
+add_executable(${TOOL_NAME} ${${TOOL_NAME}_SRCS})
+target_link_libraries(${TOOL_NAME} ${CMAKE_THREAD_LIBS_INIT} pcap)
 foreach (app ${apps})
     get_filename_component(app_stem ${app} NAME_WE)
     target_link_libraries(${TOOL_NAME} ${app_stem}_skel)

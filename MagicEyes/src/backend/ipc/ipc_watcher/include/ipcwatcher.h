@@ -13,34 +13,34 @@
 // limitations under the License.
 //
 
-// ipcwatcher libbpf 内核<->用户 传递信息相关结构体
+/*!
+ * \brief ipcwatcher工具的头文件，定义内核态与用户态数据传递的结构体
+ * \file ipcwatcher.h
+ * */
 
-#ifndef IPC_IPC_WATCHER__IPC_WATCHER_H
-#define IPC_IPC_WATCHER__IPC_WATCHER_H
+#ifndef IPC_IPC_WATCHER_IPC_WATCHER_H
+#define IPC_IPC_WATCHER_IPC_WATCHER_H
 
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-/*
-struct event {
-    u32 pid;
-    char comm[TASK_COMM_LEN];
-    u32 saddr_len;
-    struct sockaddr_un saddr;
-    u32 daddr_len;
-    struct sockaddr_un daddr;
-    u32 len;
-    u64 timestamp;
-};
-*/
-// 定义事件数据结构
+#define MAX_PAYLOAD_LEN 512
+
 struct uds_event {
-    u64 pid;
-    char path[108];     // UNIX_PATH_MAX = 108
-    u32 len;
-    u8 direction;     // 0:发送, 1:接收
+    u32 send_pid;                       /** 发送进程 */
+    u32 recv_pid;                       /** 接收进程 */
+    char path[108];                     /** UNIX域socket路径最大长度（sun_path长度） */
+    u32 size;                           /** 发送/接收的数据大小 */
+    u16 type;                           /** SOCK_STREAM(1) / SOCK_DGRAM(2) / ... */
+    u64 timestamp;                      /** 记录发送的时间戳 */
+};
+/** 定义通过 ringbuffer 传递到用户态的数据结构 */
+struct uds_transfer_data {
+    struct uds_event event;
+    char payload[MAX_PAYLOAD_LEN]; /** 记录发送/接收的实际数据 */
 };
 
-#endif /* IPC_IPC_WATCHER__IPC_WATCHER_H */
+
+#endif /* IPC_IPC_WATCHER_IPC_WATCHER_H */
