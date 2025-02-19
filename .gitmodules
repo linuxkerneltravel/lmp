@@ -76,3 +76,12 @@
 [submodule "eBPF_Supermarket/lib/libbpf"]
 	path = eBPF_Supermarket/lib/libbpf
 	url = https://github.com/libbpf/libbpf.git
+[submodule "MagicEyes/third_party/fmt"]
+	path = MagicEyes/third_party/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "MagicEyes/third_party/spdlog"]
+	path = MagicEyes/third_party/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "MagicEyes/third_party/argparse"]
+	path = MagicEyes/third_party/argparse
+	url = https://github.com/p-ranav/argparse.git
