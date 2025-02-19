@@ -19,6 +19,7 @@
 #include "net_watcher/include/net_watcher.h"
 #include "net_watcher/include/dropreason.h"
 #include "net/net_watcher/net_watcher.skel.h"
+#include "../include/net_watcher_hepler.h"
 #include <argp.h>
 #include <arpa/inet.h>
 #include <bpf/bpf.h>
@@ -35,19 +36,10 @@
 
 static volatile bool exiting = false;
 struct packet_count proto_stats[256] = {0};
-static u64 rst_count = 0;
 static struct reset_event_t event_store[MAX_EVENTS];
-static int event_count = 0, num_symbols = 0, cache_size = 0;
-static char binary_path[64] = "";
-
-typedef struct
-{
-    char key[256];
-    u32 value;
-} kv_pair;
-
-static int map_fd;
-
+int event_count = 0, num_symbols = 0, cache_size = 0, map_fd, count[NUM_LAYERS] = {0};
+static u64 sample_period = TIME_THRESHOLD_NS, rst_count = 0;
+static char binary_path[64] = "", *dst_ip = NULL, *src_ip = NULL;
 static int sport = 0, dport = 0; // for filter
 static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            http_info = 0, retrans_info = 0, udp_info = 0, net_filter = 0,
@@ -55,7 +47,9 @@ static int all_conn = 0, err_packet = 0, extra_conn_info = 0, layer_time = 0,
            time_load = 0, dns_info = 0, stack_info = 0, mysql_info = 0,
            redis_info = 0, count_info = 0, rtt_info = 0, rst_info = 0,
            protocol_count = 0, redis_stat = 0, overrun_time = 0; // flag
-static char *dst_ip = NULL, *src_ip = NULL;
+struct SymbolEntry symbols[300000];
+struct SymbolEntry cache[CACHEMAXSIZE];
+float ewma_values[NUM_LAYERS] = {0};
 
 static const char argp_program_doc[] = "Watch tcp/ip in network subsystem \n";
 static const struct argp_option opts[] = {
@@ -95,7 +89,6 @@ static const struct argp_option opts[] = {
     {NULL, 'h', NULL, OPTION_HIDDEN, "Show the full help"},
     {}};
 
-static u64 sample_period = TIME_THRESHOLD_NS;
 static error_t parse_arg(int key, char *arg, struct argp_state *state)
 {
     char *end;
@@ -292,271 +285,6 @@ enum MonitorMode get_monitor_mode()
         return MODE_DEFAULT;
     }
 }
-#define LOGO_STRING                                                            \
-    " "                                                                        \
-    "              __                          __           __               " \
-    "        \n"                                                               \
-    "             /\\ \\__                      /\\ \\__       /\\ \\        " \
-    "              \n"                                                         \
-    "  ___      __\\ \\  _\\  __  __  __     __  \\ \\  _\\   ___\\ \\ \\___ " \
-    "     __   _ __   \n"                                                      \
-    "/  _  \\  / __ \\ \\ \\/ /\\ \\/\\ \\/\\ \\  / __ \\ \\ \\ \\/  / ___\\ " \
-    "\\  _  \\  / __ \\/\\  __\\ \n"                                           \
-    "/\\ \\/\\ \\/\\  __/\\ \\ \\_\\ \\ \\_/ \\_/ \\/\\ \\_\\ \\_\\ \\ "       \
-    "\\_/\\ \\__/\\ \\ \\ \\ \\/\\  __/\\ \\ \\/  \n"                          \
-    "\\ \\_\\ \\_\\ \\____\\ \\__\\ \\_______ / /\\ \\__/\\ \\_\\ \\__\\ "     \
-    "\\____/\\ \\_\\ \\_\\ \\____ \\ \\_\\  \n"                                \
-    " \\/_/\\/_/\\/____/ \\/__/ \\/__//__ /  \\/_/  \\/_/\\/__/\\/____/ "      \
-    "\\/_/\\/_/\\/____/ \\/_/  \n\n"
-
-void print_logo()
-{
-    char *logo = LOGO_STRING;
-    int i = 0;
-    FILE *lolcat_pipe = popen("/usr/games/lolcat", "w");
-    if (lolcat_pipe == NULL)
-    {
-        printf("Error: Unable to execute lolcat command.\n");
-        return;
-    }
-    // 像lolcat管道逐个字符写入字符串
-    while (logo[i] != '\0')
-    {
-        fputc(logo[i], lolcat_pipe);
-        fflush(lolcat_pipe); // 刷新管道，确保字符被立即发送给lolcat
-        usleep(150);
-        i++;
-    }
-
-    pclose(lolcat_pipe);
-}
-#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)           \
-    do                                                                    \
-    {                                                                     \
-        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name, \
-                    .retprobe = is_retprobe);                             \
-        skel->links.prog_name = bpf_program__attach_uprobe_opts(          \
-            skel->progs.prog_name, -1, binary_path, 0, &uprobe_opts);     \
-    } while (false)
-
-#define __CHECK_PROGRAM(skel, prog_name)                   \
-    do                                                     \
-    {                                                      \
-        if (!skel->links.prog_name)                        \
-        {                                                  \
-            perror("no program attached for " #prog_name); \
-            return -errno;                                 \
-        }                                                  \
-    } while (false)
-
-#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
-    do                                                                  \
-    {                                                                   \
-        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
-        __CHECK_PROGRAM(skel, prog_name);                               \
-    } while (false)
-
-#define ATTACH_UPROBE(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE(skel, sym_name, prog_name, true)
-
-#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
-
-struct SymbolEntry symbols[300000];
-struct SymbolEntry cache[CACHEMAXSIZE];
-// LRU算法查找函数
-struct SymbolEntry find_in_cache(unsigned long int addr)
-{
-    // 查找地址是否在快表中
-    for (int i = 0; i < cache_size; i++)
-    {
-        if (cache[i].addr == addr)
-        {
-            // 更新访问时间
-            struct SymbolEntry temp = cache[i];
-            // 将访问的元素移动到快表的最前面，即最近使用的位置
-            for (int j = i; j > 0; j--)
-            {
-                cache[j] = cache[j - 1];
-            }
-            cache[0] = temp;
-            return temp;
-        }
-    }
-    // 如果地址不在快表中，则返回空
-    struct SymbolEntry empty_entry;
-    empty_entry.addr = 0;
-    return empty_entry;
-}
-// 将新的符号条目加入快表
-void add_to_cache(struct SymbolEntry entry)
-{
-    // 如果快表已满，则移除最久未使用的条目
-    if (cache_size == CACHEMAXSIZE)
-    {
-        for (int i = cache_size - 1; i > 0; i--)
-        {
-            cache[i] = cache[i - 1];
-        }
-        cache[0] = entry;
-    }
-    else
-    {
-        // 否则，直接加入快表
-        for (int i = cache_size; i > 0; i--)
-        {
-            cache[i] = cache[i - 1];
-        }
-        cache[0] = entry;
-        cache_size++;
-    }
-}
-struct SymbolEntry findfunc(unsigned long int addr)
-{
-    // 先在快表中查找
-    struct SymbolEntry entry = find_in_cache(addr);
-    if (entry.addr != 0)
-    {
-        return entry;
-    }
-    unsigned long long low = 0, high = num_symbols - 1;
-    unsigned long long result = -1;
-
-    while (low <= high)
-    {
-        int mid = low + (high - low) / 2;
-        if (symbols[mid].addr < addr)
-        {
-            result = mid;
-            low = mid + 1;
-        }
-        else
-        {
-            high = mid - 1;
-        }
-    }
-    add_to_cache(symbols[result]);
-    return symbols[result];
-};
-
-void readallsym()
-{
-    FILE *file = fopen("/proc/kallsyms", "r");
-    if (!file)
-    {
-        perror("Error opening file");
-        exit(EXIT_FAILURE);
-    }
-    char line[256];
-    while (fgets(line, sizeof(line), file))
-    {
-        unsigned long addr;
-        char type, name[30];
-        int ret = sscanf(line, "%lx %c %s", &addr, &type, name);
-        if (ret == 3)
-        {
-            symbols[num_symbols].addr = addr;
-            strncpy(symbols[num_symbols].name, name, 30);
-            num_symbols++;
-        }
-    }
-
-    fclose(file);
-}
-/*
-    指数加权移动平均算法（EWMA）
-    1.使用指数加权移动平均算法（EWMA）来计算每层的指数加权移动平均值，
-    公式EWMA_new = alpha * new_value + (1 - alpha) * old_ewma ,alpha
-   指数加权系数，表示新数据点的权重，new_value 当前时延，old_ewma
-   旧的指数加权移动平均值
-    2.根据当前时延和指数加权移动平均值*预先设定的粒度阈值（GRANULARITY）对比，来判断时延是否异常
-    3.可以快速适应数据的变化，并能够有效地检测异常时延
-
-*/
-// 全局变量用于存储每层的移动平均值
-float ewma_values[NUM_LAYERS] = {0};
-int count[NUM_LAYERS] = {0};
-
-// 指数加权移动平均算法
-float calculate_ewma(float new_value, float old_ewma)
-{
-    return ALPHA * new_value + (1 - ALPHA) * old_ewma;
-}
-
-// 收集时延数据并检测异常
-int process_delay(float layer_delay, int layer_index)
-{
-
-    if (layer_delay == 0)
-        return 0;
-    count[layer_index]++;
-    if (ewma_values[layer_index] == 0)
-    {
-        ewma_values[layer_index] = layer_delay;
-        return 0;
-    }
-    // 计算阈值,指数加权移动平均值乘以粒度因子
-    ewma_values[layer_index] =
-        calculate_ewma(layer_delay, ewma_values[layer_index]);
-    float threshold = ewma_values[layer_index] * GRANULARITY;
-    if (count[layer_index] > 30)
-    {
-        // 判断当前时延是否超过阈值
-        //   printf("%d %d:%f %f
-        //   ",layer_index,count[layer_index]++,threshold,layer_delay);
-        if (layer_delay > threshold)
-        { // 异常
-            return 1;
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    return 0;
-}
-
-static int should_filter(const char *src, const char *dst, const char *filter_src_ip, const char *filter_dst_ip)
-{
-    // 均未指定
-    if (!filter_src_ip && !filter_dst_ip)
-    {
-        return 1;
-    }
-
-    // 指定源IP和目的IP
-    if (filter_src_ip && filter_dst_ip)
-    {
-        if (strcmp(src, filter_src_ip) == 0 && strcmp(dst, filter_dst_ip) == 0)
-        {
-            return 1;
-        }
-    }
-    // 只指定源IP
-    else if (filter_src_ip)
-    {
-
-        if (strcmp(src, filter_src_ip) == 0)
-        {
-            return 1;
-        }
-    }
-    // 只指定目的IP
-    else if (filter_dst_ip)
-    {
-        if (strcmp(dst, filter_dst_ip) == 0)
-        {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
 static void set_rodata_flags(struct net_watcher_bpf *skel)
 {
     skel->rodata->filter_dport = dport;
@@ -902,25 +630,6 @@ static void print_header(enum MonitorMode mode)
 }
 
 static void sig_handler(int signo) { exiting = true; }
-static void bytes_to_str(char *str, unsigned long long num)
-{
-    if (num > 1e9)
-    {
-        sprintf(str, "%.8lfG", (double)num / 1e9);
-    }
-    else if (num > 1e6)
-    {
-        sprintf(str, "%.6lfM", (double)num / 1e6);
-    }
-    else if (num > 1e3)
-    {
-        sprintf(str, "%.3lfK", (double)num / 1e3);
-    }
-    else
-    {
-        sprintf(str, "%llu", num);
-    }
-}
 
 static int print_conns(struct net_watcher_bpf *skel)
 {
@@ -975,7 +684,7 @@ static int print_conns(struct net_watcher_bpf *skel)
         if (extra_conn_info)
         {
             printf("%-15s %-10d %-15s %-10d %-10u %-10u %-10u %-10u %-10u %-10u %-13u %-10s %-10s %-10u %-10llu\n",
-                   s_ip_only, d.sport,d_ip_only, d.dport, d.tcp_backlog,
+                   s_ip_only, d.sport, d_ip_only, d.dport, d.tcp_backlog,
                    d.max_tcp_backlog, d.rcv_wnd, d.snd_cwnd, d.snd_ssthresh,
                    d.sndbuf, d.sk_wmem_queued, received_bytes, acked_bytes, d.srtt,
                    d.duration);
@@ -1009,16 +718,10 @@ static int print_packet(void *ctx, void *packet_info, size_t size)
     unsigned int daddr = pack_info->daddr;
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
-    if (should_filter(s_str, d_str, src_ip, dst_ip))
+    if (!should_filter_t(s_str, d_str, pack_info->sport, pack_info->dport, src_ip, dst_ip, sport, dport))
     {
         return 0;
     }
-    if (dport)
-        if (pack_info->dport != dport)
-            return 0;
-    if (sport)
-        if (pack_info->sport != sport)
-            return 0;
     if (strstr((char *)pack_info->data, "HTTP/1"))
     {
 
@@ -1038,6 +741,7 @@ static int print_packet(void *ctx, void *packet_info, size_t size)
     }
     if (layer_time)
     {
+
         printf("%-22p %-20s %-8d %-20s %-8d %-14llu %-14llu %-14llu %-14u %-14u %-14d "
                "%-16s",
                pack_info->sock,
@@ -1111,14 +815,12 @@ static int print_udp(void *ctx, void *packet_info, size_t size)
 
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
-
-    if (!should_filter(s_str, d_str, src_ip, dst_ip))
+    if (!should_filter_t(s_str, d_str, pack_info->sport, pack_info->dport, src_ip, dst_ip, sport, dport))
     {
         return 0;
     }
-
     printf("%-20s %-20u %-20s %-20u %-20llu %-20d %-20d\n",
-           s_str, pack_info->sport,d_str, pack_info->dport,
+           s_str, pack_info->sport, d_str, pack_info->dport,
            pack_info->tran_time, pack_info->rx, pack_info->len);
 
     if (time_load)
@@ -1127,7 +829,6 @@ static int print_udp(void *ctx, void *packet_info, size_t size)
         if (flag)
             printf("%-15s", "abnormal data");
     }
-    printf("\n");
     return 0;
 }
 
@@ -1152,13 +853,13 @@ static int print_netfilter(void *ctx, void *packet_info, size_t size)
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
-    if (!should_filter(s_str, d_str, src_ip, dst_ip))
+    if (!should_filter_t(s_str, d_str, pack_info->sport, pack_info->dport, src_ip, dst_ip, sport, dport))
     {
         return 0;
     }
 
     printf("%-20s %-12d %-20s %-12d %-8lld %-8lld% -8lld %-8lld %-8lld %-8d",
-           s_str, pack_info->sport,d_str,
+           s_str, pack_info->sport, d_str,
            pack_info->dport, pack_info->pre_routing_time,
            pack_info->local_input_time, pack_info->forward_time,
            pack_info->post_routing_time, pack_info->local_out_time,
@@ -1198,13 +899,13 @@ static int print_tcpstate(void *ctx, void *packet_info, size_t size)
     unsigned int daddr = pack_info->daddr;
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
-    if (!should_filter(s_str, d_str, src_ip, dst_ip))
+    if (!should_filter_t(s_str, d_str, pack_info->sport, pack_info->dport, src_ip, dst_ip, sport, dport))
     {
         return 0;
     }
 
     printf("%-20s %-20d %-20s %-20d %-20s %-20s  %-20lld\n",
-           s_str, pack_info->sport,d_str,
+           s_str, pack_info->sport, d_str,
            pack_info->dport, tcp_states[pack_info->oldstate],
            tcp_states[pack_info->newstate], pack_info->time);
 
@@ -1319,7 +1020,7 @@ static int print_kfree(void *ctx, void *packet_info, size_t size)
     unsigned int daddr = pack_info->daddr;
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
-    if (!should_filter(s_str, d_str, src_ip, dst_ip))
+    if (!should_filter_t(s_str, d_str, pack_info->sport, pack_info->dport, src_ip, dst_ip, sport, dport))
     {
         return 0;
     }
@@ -1340,7 +1041,7 @@ static int print_kfree(void *ctx, void *packet_info, size_t size)
     struct tm *localTime = localtime(&now);
     printf("%02d:%02d:%02d      %-17s %-10u %-17s %-10u %-10s",
            localTime->tm_hour, localTime->tm_min, localTime->tm_sec,
-           s_str, pack_info->sport,d_str,
+           s_str, pack_info->sport, d_str,
            pack_info->dport, prot);
     if (!addr_to_func)
         printf("%-34lx", pack_info->location);
@@ -1424,7 +1125,7 @@ static void print_stored_events()
             inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
             printf("%-10d %-10s %-10s %-10u %-10s %-10u %-20llu",
                    event->pid, event->comm, s_str,
-                   event->sport, d_str,event->dport,
+                   event->sport, d_str, event->dport,
                    event->timestamp);
         }
         else if (event->family == AF_INET6)
@@ -1434,35 +1135,11 @@ static void print_stored_events()
             inet_ntop(AF_INET6, &event->daddr_v6, daddr_v6, sizeof(daddr_v6));
             printf("%-10d %10s %-10s %-10u %-10s %-10u %-20llu\n",
                    event->pid, event->comm, saddr_v6,
-                    event->sport,daddr_v6, event->dport,
+                   event->sport, daddr_v6, event->dport,
                    event->timestamp);
         }
         printf("\n");
     }
-}
-static void print_domain_name(const unsigned char *data, char *output)
-{
-    const unsigned char *next = data;
-    int pos = 0, first = 1;
-    // 循环到尾部，标志0
-    while (*next != 0)
-    {
-        if (!first)
-        {
-            output[pos++] = '.'; // 在每个段之前添加点号
-        }
-        else
-        {
-            first = 0; // 第一个段后清除标志
-        }
-        int len = *next++; // 下一个段长度
-
-        for (int i = 0; i < len; ++i)
-        {
-            output[pos++] = *next++;
-        }
-    }
-    output[pos] = '\0';
 }
 static int print_dns(void *ctx, void *packet_info, size_t size)
 {
@@ -1529,35 +1206,6 @@ static int print_redis(void *ctx, void *packet_info, size_t size)
     strcpy(redis, "");
     return 0;
 }
-static int process_redis_first(char flag, char *message)
-{
-    if (flag == '+')
-    {
-        strcpy(message, "Status Reply");
-    }
-    else if (flag == '-')
-    {
-        strcpy(message, "Error Reply");
-    }
-    else if (flag == ':')
-    {
-        strcpy(message, "Integer Reply");
-    }
-    else if (flag == '$')
-    {
-        strcpy(message, "Bulk String Reply");
-    }
-    else if (flag == '*')
-    {
-        strcpy(message, "Array Reply");
-    }
-    else
-    {
-        strcpy(message, "Unknown Type");
-    }
-    return 0;
-}
-
 static int print_redis_stat(void *ctx, void *packet_info, size_t size)
 {
     if (!redis_stat)
@@ -1643,13 +1291,13 @@ static int print_rate(void *ctx, void *data, size_t size)
     inet_ntop(AF_INET, &saddr, s_str, sizeof(s_str));
     inet_ntop(AF_INET, &daddr, d_str, sizeof(d_str));
 
-    if (!should_filter(s_str, d_str, src_ip, dst_ip))
+    if (!should_filter_t(s_str, d_str, pack_info->skbap.sport, pack_info->skbap.dport, src_ip, dst_ip, sport, dport))
     {
         return 0;
     }
 
     printf("%-20s %-20d %-20s %-20d %-20lld %-20lld\n", s_str,
-           pack_info->skbap.sport, d_str,pack_info->skbap.dport, pack_info->tcp_rto,
+           pack_info->skbap.sport, d_str, pack_info->skbap.dport, pack_info->tcp_rto,
            pack_info->tcp_delack_max);
 
     return 0;
@@ -1759,8 +1407,7 @@ void print_top_5_keys()
         index++;
     }
 
-    // 排序前 5 个元素
-    // 简单选择排序
+    // 简单选择排序前 5 个元素
     for (int i = 0; i < index - 1; i++)
     {
         for (int j = i + 1; j < index; j++)
@@ -1783,6 +1430,7 @@ void print_top_5_keys()
     free(pairs);
 }
 
+// free
 int main(int argc, char **argv)
 {
 
