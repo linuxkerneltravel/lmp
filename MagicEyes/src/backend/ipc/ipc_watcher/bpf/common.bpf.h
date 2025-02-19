@@ -49,13 +49,6 @@ struct {
     __type(value, struct uds_event);
 } uds_data_map SEC(".maps");
 
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 256 * 1024);
-    __type(key, struct sock*);
-    __type(value, struct uds_payload);
-} uds_payload_map SEC(".maps");
-
 // 操作BPF映射的一个辅助函数
 static __always_inline void * //__always_inline强制内联
 bpf_map_lookup_or_try_init(void *map, const void *key, const void *init) {
