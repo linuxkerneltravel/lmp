@@ -226,9 +226,7 @@ int main(int argc,char **argv){
     struct block_rq_issue_bpf *skel_block_rq_issue;
     struct CacheTrack_bpf *skel_CacheTrack;
 
-
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-
 
     /* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
@@ -239,7 +237,7 @@ int main(int argc,char **argv){
     signal(SIGALRM, sig_handler);
 
     err = argp_parse(&argp, argc, argv, 0, 0, NULL);
-    //   printf("success!\n");
+
     if (err)
         return err;
 
@@ -314,6 +312,25 @@ const char* flags_to_str(int flags) {
     
     return str;
 }
+
+const char* mode_to_str(mode_t mode) {
+    static char str[11];
+    
+    str[0] = (S_ISDIR(mode)) ? 'd' : '-';  // 如果是目录，表示为 'd'，否则为 '-'
+    str[1] = (mode & S_IRUSR) ? 'r' : '-';  // 用户读权限
+    str[2] = (mode & S_IWUSR) ? 'w' : '-';  // 用户写权限
+    str[3] = (mode & S_IXUSR) ? 'x' : '-';  // 用户执行权限
+    str[4] = (mode & S_IRGRP) ? 'r' : '-';  // 组读权限
+    str[5] = (mode & S_IWGRP) ? 'w' : '-';  // 组写权限
+    str[6] = (mode & S_IXGRP) ? 'x' : '-';  // 组执行权限
+    str[7] = (mode & S_IROTH) ? 'r' : '-';  // 其他人读权限
+    str[8] = (mode & S_IWOTH) ? 'w' : '-';  // 其他人写权限
+    str[9] = (mode & S_IXOTH) ? 'x' : '-';  // 其他人执行权限
+    str[10] = '\0';  // 结束符
+    
+    return str;
+}
+
 
 static const char *file_type_to_str(unsigned short file_type)
 {
@@ -397,9 +414,25 @@ static int handle_event_write(void *ctx, void *data, size_t data_sz)
     time(&t);
     tm = localtime(&t);
     strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-	printf("%-8s %-8ld %-8ld %-8ld %-8ld\n", ts, e->pid,e->inode_number,e->count,e->real_count);
+    //进行PID和文件名过滤
+    if ((env.pid != -1 && env.pid != e->pid)) {
+        return 0;  // 如果不匹配PID或文件名，则跳过此事件
+    }
+
+    char *error_message;
+    if (e->real_count < 0) {
+        error_message = strerror(-e->real_count);  // 负数表示错误码
+        printf("%-8s %-10ld %-10ld %-15s %-15ld %-15s %-15s %-15s\n",
+               ts, e->pid, e->inode_number, error_message, e->count,
+               e->filename,  mode_to_str(e->mode), flags_to_str(e->flags), e->comm);
+    } else {
+        printf("%-8s %-10ld %-10ld %-15ld %-15ld %-15s %-40s %-15s\n",
+               ts, e->pid, e->inode_number, e->real_count, e->count,
+               mode_to_str(e->mode), flags_to_str(e->flags), e->comm);
+    }
     return 0;
 }
+
 
 static int handle_event_disk_io_visit(void *ctx, void *data,unsigned long data_sz) {
     const struct event_disk_io_visit *e = data;
@@ -476,7 +509,10 @@ static int process_write(struct write_bpf *skel_write){
 
     LOAD_AND_ATTACH_SKELETON(skel_write,write);
 
-    printf("%-8s    %-8s    %-8s    %-8s    %-8s\n","ds","inode_number","pid","real_count","count");
+    printf("%-8s %-10s %-10s %-15s %-15s %-15s %-40s %-15s\n",
+       "TIMESTAMP", "INODE", "PID", "REAL_COUNT", "COUNT",
+        "MODE", "FLAGS", "COMM");
+
     POLL_RING_BUFFER(rb, 1000, err);
 
 write_cleanup:
