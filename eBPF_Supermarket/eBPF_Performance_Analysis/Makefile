@@ -21,18 +21,28 @@ default: bpf
 # 安装必要的依赖
 .PHONY: deps
 deps:
-	sudo apt-get update && \
-	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
-		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) \
-		 libpcap-dev gcc-multilib build-essential lolcat 
+	@if [ -f /etc/fedora-release ]; then \
+		sudo dnf update && \
+		sudo dnf install -y clang llvm libbpf-devel elfutils-libelf-devel \
+			zlib-devel libzstd-devel bpftool libpcap-devel; \
+	else \
+		sudo apt-get update && \
+		sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
+			linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) \
+			libpcap-dev gcc-multilib build-essential lolcat; \
+	fi
 
 # 头文件目录
 INCLUDE_DIRS=-I/usr/include/x86_64-linux-gnu -I. -I./include -I./include/bpf -I./include/helpers
 # 生成 vmlinux.h
 .PHONY: vmlinux
 vmlinux:
-	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
-	
+	@if [ -f /sys/kernel/btf/kvm ]; then \
+		bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h; \
+	else \
+		bpftool btf dump file /sys/kernel/btf/vmlinux format c > ./include/vmlinux.h; \
+	fi
+
 # 编译BPF程序
 $(APP).bpf.o: $(APP).bpf.c vmlinux
 	clang $(BPF_CFLAGS) -D__TARGET_ARCH_$(ARCH) $(INCLUDE_DIRS) -c $< -o $@

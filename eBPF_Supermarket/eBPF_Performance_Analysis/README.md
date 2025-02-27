@@ -37,7 +37,7 @@ python3 --version
 #下载pandas库
 sudo pip3 install pandas -i https://pypi.tuna.tsinghua.edu.cn/simple
 #下载matplotlib库
-pip3 install matplotlib
+sudo pip3 install matplotlib
 ```
 
 2.运行：
