@@ -34,6 +34,8 @@ option(BUILD_PROC_IMAGE "is build proc_image? "             OFF)
 option(BUILD_KVM_WATCHER "is build kvm_watcher? "           OFF)
 # system_diagnosis
 option(BUILD_STACK_ANALYZER "is build stack_analyzer? "     OFF)
+# IPC
+option(BUILD_IPC_WATCHER "is build ipc_watcher? "     OFF)
 
 if (BUILD_ALL)
     message(STATUS "build all tools")
@@ -47,6 +49,7 @@ if (BUILD_ALL)
     # TODO(fzy, 2024.03.13) 没有kvm的环境
     add_subdirectory(hypervisor/kvm_watcher)
     add_subdirectory(system_diagnosis/stack_analyzer)
+    add_subdirectory(ipc/ipc_watcher)
 else ()
     message(STATUS "----------------------------------------")
     message(STATUS "build fs_watcher? ${BUILD_FS_WATCHER}")
@@ -87,6 +90,11 @@ else ()
     message(STATUS "build stack_analyzer? ${BUILD_STACK_ANALYZER}")
     if (BUILD_STACK_ANALYZER)
         add_subdirectory(system_diagnosis/stack_analyzer)
+    endif ()
+    
+    message(STATUS "build ipc_watcher? ${BUILD_IPC_WATCHER}")
+    if (BUILD_IPC_WATCHER)
+        add_subdirectory(ipc/ipc_watcher)
     endif ()
     message(STATUS "----------------------------------------")
 endif ()
