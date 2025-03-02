@@ -14,27 +14,34 @@
 //
 // author: blown.away@qq.com
 // mysql
-
 #include "common.bpf.h"
 #include "mysql_helper.bpf.h"
+
 static __always_inline int __handle_mysql_start(struct pt_regs *ctx) {
-    // dispatch_command(THD *thd, const COM_DATA *com_data, enum
     enum enum_server_command command = PT_REGS_PARM3(ctx);
     union COM_DATA *com_data = (union COM_DATA *)PT_REGS_PARM2(ctx);
     pid_t pid = bpf_get_current_pid_tgid() >> 32;
     pid_t tid = bpf_get_current_pid_tgid();
     void *thd = (void *)PT_REGS_PARM1(ctx);
-    struct query_info info;
+    struct query_info info = {0};
     u32 size = 0;
-    char *sql;
+    char *sql = NULL;
 
-    bpf_probe_read(&info.size, sizeof(info.size), &com_data->com_query.length);
-    bpf_probe_read(&sql, sizeof(sql), &com_data->com_query.query);
-    bpf_probe_read(&info.msql, sizeof(info.msql), sql);
-    //bpf_printk("sql==%s size1==%lu", info.msql,info.size);
+    if (bpf_probe_read(&info.size, sizeof(info.size), &com_data->com_query.length) < 0) {
+        return 0;
+    }
+
+    if (bpf_probe_read(&sql, sizeof(sql), &com_data->com_query.query) < 0) {
+        return 0;
+    }
+
+    if (sql && bpf_probe_read(&info.msql, sizeof(info.msql), sql) < 0) {
+        return 0;
+    }
+
     info.start_time = bpf_ktime_get_ns() / 1000;
-
     bpf_map_update_elem(&queries, &tid, &info, BPF_ANY);
+
     return 0;
 }
 
