@@ -511,6 +511,8 @@ static __always_inline int __tcp_sendmsg(struct sock *sk, struct msghdr *msg,
             return 0;
         }
         tinfo->tran_time = bpf_ktime_get_ns() / 1000;
+    }else{
+        return 0;
     }
 
     CONN_INFO_TRANSFER
