@@ -36,7 +36,7 @@ full = ["gcp", "routeguide", "autoreload", "grpc-web", "tracing", "uds", "stream
 default = ["full"]
 
 [dependencies]
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 tokio-postgres = "0.7"
 prost = "0.13"
 tonic = { path = "../tonic" }
