@@ -1,3 +1,28 @@
+# Copyright 2023 The LMP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# https://github.com/linuxkerneltravel/lmp/blob/develop/LICENSE
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing`
+# permissions and limitations under the License.
+#
+# author: nanshuaibo811@163.com
+#
+# Compile scripts for kvm_watcher
+
+OUTPUT := .output
+CLANG ?= clang
+LIBBPF_SRC := $(abspath ../lib/libbpf/src)
+BPFTOOL_SRC := $(abspath ../lib/bpftool/src)
+LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
+BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
+BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/arm.*/arm/' \
 			 | sed 's/aarch64/arm64/' \
@@ -5,115 +30,173 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-APP = src/kvm_watcher
-
+# Use our own libbpf API headers and Linux UAPI headers distributed with
+# libbpf to avoid dependency on system-wide headers, which could be missing or
+# outdated
+INCLUDES := -I$(OUTPUT) -I../lib/libbpf/include/uapi -Iinclude/  -Iinclude/bpf -Iinclude/commons
+CFLAGS := -g -Wall
+ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
+SRC_DIR = src
+COMMON_DIR = commons
+APP = kvm_watcher
 OPTIONS = -fm -w -n -d -e -h -c -i
 
-# 编译器标志
-CFLAGS=-g -O2 -Wall
-BPF_CFLAGS=-g -O2 -target bpf
-
-# 要链接的库
-LIBS=-lbpf -lelf -lz -lzstd
-
-# 头文件目录
-INCLUDE_DIRS=-I/usr/include/x86_64-linux-gnu -I. -I./include -I./include/bpf -I./include/helpers
-
-# 帮助函数
-HELPERS_OBJ_DIR := src/helpers
-HELPERS_FILES := $(wildcard $(HELPERS_OBJ_DIR)/*.c)
-HELPERS_OBJ_FILES := $(patsubst $(HELPERS_OBJ_DIR)/%.c,$(HELPERS_OBJ_DIR)/%.o,$(HELPERS_FILES))
-
-# 默认目标
-.PHONY: default
-default: bpf
-
-# 安装必要的依赖
-.PHONY: deps
-deps:
-	sudo apt-get update && \
-	sudo apt-get install -y clang libelf1 libelf-dev zlib1g-dev libbpf-dev \
-		 linux-tools-$$(uname -r) linux-cloud-tools-$$(uname -r) \
-		 libpcap-dev gcc-multilib build-essential lolcat qemu-kvm wget
-
-# 生成 vmlinux.h
-.PHONY: vmlinux
-vmlinux:
-	bpftool btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
-
-# 编译helpers目录下的所有.c文件
-$(HELPERS_OBJ_DIR)/%.o: $(HELPERS_OBJ_DIR)/%.c
-	clang $(CFLAGS) $(INCLUDE_DIRS) -c $< -o $@
-
-# 编译BPF程序
-$(APP).bpf.o: $(APP).bpf.c vmlinux
-	clang $(BPF_CFLAGS) -D__TARGET_ARCH_$(ARCH) $(INCLUDE_DIRS) -c $< -o $@
-
-# 生成BPF骨架文件
-$(APP).skel.h: $(APP).bpf.o
-	bpftool gen skeleton $< > $@
-
-# 编译用户空间应用程序
-${APP}.o: ${APP}.c
-	clang $(CFLAGS) $(INCLUDE_DIRS) -c $< -o $@
-
-# 链接用户空间应用程序与库
-$(notdir $(APP)): ${APP}.o $(HELPERS_OBJ_FILES)
-	clang -Wall $(CFLAGS) ${APP}.o $(HELPERS_OBJ_FILES) $(LIBS) -o $@
-	@echo "BPF program compiled successfully."
-
-# bpf 目标
-.PHONY: bpf
-bpf: $(APP).skel.h $(APP).bpf.o ${APP}.o $(HELPERS_OBJ_FILES) $(notdir $(APP))
-
-
-# qemu 命令行参数变量化
+# QEMU command line arguments variable
 QEMU_CMD=sudo qemu-system-x86_64 -enable-kvm -cpu host -m 2048 -smp 4 -drive file=cirros-0.5.2-x86_64-disk.img,format=qcow2 -boot c -nographic
 
 CIRROS_IMG_URL=https://gitee.com/nan-shuaibo/cirros/releases/download/0.5.2/cirros-0.5.2-x86_64-disk.img
 CIRROS_IMG_FILE=cirros-0.5.2-x86_64-disk.img
 
-# 定义检查虚拟化支持的命令
+# Define command to check for virtualization support
 CHECK_VIRT_SUPPORT = [ $$(grep -Eoc '(vmx|svm)' /proc/cpuinfo) -eq 0 ]
 
-# 定义检查 qemu-system-x86_64 进程是否存在的命令
-CHECK_QEMU_RUNNING = [ "$$(pgrep -f qemu-system-x86_64)" ]
+# Define command to check if qemu-system-x86_64 process is running
+CHECK_QEMU_RUNNING = pgrep -f qemu-system-x86_64 > /dev/null
 
-.PHONY: test
-test: bpf
+CARGO ?= $(shell which cargo)
+
+# Get Clang's default includes on this system. We'll explicitly add these dirs
+# to the includes list when compiling with `-target bpf` because otherwise some
+# architecture-specific dirs will be "missing" on some architectures/distros -
+# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
+# sys/cdefs.h etc. might be missing.
+#
+# Use '-idirafter': Don't interfere with include mechanics except where the
+# build would have failed anyways.
+CLANG_BPF_SYS_INCLUDES ?= $(shell $(CLANG) -v -E - </dev/null 2>&1 \
+	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
+
+ifeq ($(V),1)
+	Q =
+	msg =
+else
+	Q = @
+	msg = @printf '  %-8s %s%s\n'					\
+		      "$(1)"						\
+		      "$(patsubst $(abspath $(OUTPUT))/%,%,$(2))"	\
+		      "$(if $(3), $(3))";
+	MAKEFLAGS += --no-print-directory
+endif
+
+COMMON_OBJ = \
+	$(OUTPUT)/trace_helpers.o \
+	$(OUTPUT)/uprobe_helpers.o \
+
+define allow-override
+  $(if $(or $(findstring environment,$(origin $(1))),\
+            $(findstring command line,$(origin $(1)))),,\
+    $(eval $(1) = $(2)))
+endef
+
+$(call allow-override,CC,$(CROSS_COMPILE)cc)
+$(call allow-override,LD,$(CROSS_COMPILE)ld)
+
+.PHONY: all
+all: $(APP)
+
+.PHONY: clean
+clean:
+	$(call msg,CLEAN)
+	$(Q)rm -rf $(OUTPUT) $(APP)
+
+$(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
+	$(call msg,MKDIR,$@)
+	$(Q)mkdir -p $@
+
+vmlinux: $(BPFTOOL)
+	$(call msg,GEN-VMLINUX_H,$@)
+	$(Q)$(BPFTOOL) btf dump file /sys/kernel/btf/kvm format c > ./include/vmlinux.h
+
+.PHONY: deps
+deps:
+	$(call msg,INSTALL,$@)
+	$(Q)sudo apt-get update && \
+	 sudo apt-get install -y clang libelf-dev libpcap-dev gcc-multilib build-essential lolcat qemu-kvm wget
+
+# Build libbpf
+$(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
+	$(call msg,LIB,$@)
+	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1		      \
+		    OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@)		      \
+		    INCLUDEDIR= LIBDIR= UAPIDIR=			      \
+		    install
+
+# Build bpftool
+$(BPFTOOL): | $(BPFTOOL_OUTPUT)
+	$(call msg,BPFTOOL,$@)
+	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
+	
+# Build BPF code
+$(OUTPUT)/%.bpf.o: $(SRC_DIR)/%.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) vmlinux | $(OUTPUT) $(BPFTOOL)
+	$(call msg,BPF,$@)
+	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)		      \
+		     $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES)		      \
+		     -c $(filter %.c,$^) -o $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
+	$(Q)$(BPFTOOL) gen object $@ $(patsubst %.bpf.o,%.tmp.bpf.o,$@)
+
+# Generate BPF skeletons
+$(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
+	$(call msg,GEN-SKEL,$@)
+	$(Q)$(BPFTOOL) gen skeleton $< > $@
+
+
+# Build user-space code
+$(patsubst %,$(OUTPUT)/%.o,$(APP)):%.o: %.skel.h
+
+$(OUTPUT)/%.o: $(SRC_DIR)/$(COMMON_DIR)/%.c $(wildcard %.h) $(LIBBPF_OBJ) | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+
+$(OUTPUT)/%.o: $(SRC_DIR)/%.c $(wildcard %.h) | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+
+
+# Build application binary
+$(APP): %: $(OUTPUT)/%.o  $(LIBBPF_OBJ) $(COMMON_OBJ)  | $(OUTPUT)
+	$(call msg,BINARY,$@)
+	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -lzstd -o $@
+
+test: $(APP)
 	@if $(CHECK_VIRT_SUPPORT); then \
 		echo "The CPU in your device does not support virtualization!"; \
 		exit 1; \
 	fi
-	# 加载KVM模块
-	sudo modprobe kvm && sudo modprobe kvm-intel
+
+	$(Q)#Load KVM modules
+	$(Q)sudo modprobe kvm && sudo modprobe kvm-intel
 	@if [ ! -f ./${CIRROS_IMG_FILE} ]; then \
-		wget $(CIRROS_IMG_URL) -O $(CIRROS_IMG_FILE); \
+		echo "Downloading CirrOS image $(CIRROS_IMG_FILE)..."; \
+		$(Q)wget $(CIRROS_IMG_URL) -O $(CIRROS_IMG_FILE) || { echo "Download failed!" >&2; exit 1; }; \
 	fi
-	# 启动虚拟机
-	@if $(CHECK_QEMU_RUNNING); then \
-		echo "\nWaiting for the virtual machine to start..."; \
+	$(Q)# Start the virtual machine
+	@if ! $(CHECK_QEMU_RUNNING); then \
+		echo "\nQEMU not detected. Starting virtual machine..."; \
 		$(QEMU_CMD) >/dev/null 2>&1 & \
+		echo "Waiting for VM to boot (8 seconds)..."; \
 		sleep 8; \
-		echo "\nVirtual machine is running..."; \
+		if $(CHECK_QEMU_RUNNING); then \
+		    echo "Virtual machine is now running."; \
+		else \
+		    echo "Failed to start virtual machine!" >&2; \
+		    exit 1; \
+		fi \
 	else \
 		echo "\nVirtual machine is already running..."; \
 	fi
-	# 运行kvm_watcher
-	echo "\nPreparing to run the $(notdir $(APP)) program..."; \
-	for opt in $(OPTIONS); do \
+	$(Q)# Run kvm_watcher
+	$(Q)echo "\nPreparing to run the $(notdir $(APP)) program..."
+	$(Q)for opt in $(OPTIONS); do \
 		echo "\nrunning $(notdir $(APP)) with option: $$opt"; \
 		sleep 2; \
 		sudo ./$(notdir $(APP)) $$opt -t 3; \
 	done
-	# 结束qemu虚拟机进程
-	-sudo pkill -f "$(QEMU_CMD)"
-	echo "\nSuccessful test run of the $(notdir $(APP)) program."
+	$(Q)# Terminate the QEMU virtual machine process
+	$(Q)-sudo pkill -f "$(QEMU_CMD)"
+	$(Q)echo "\nSuccessful test run of the $(notdir $(APP)) program."
 
+# delete failed targets
+.DELETE_ON_ERROR:
 
-
-clean:
-	rm -f src/*.o src/*.skel.h src/helpers/*.o
-	sudo rm -rf $(notdir $(APP)) include/vmlinux.h temp
-
-
+# keep intermediate (.skel.h, .bpf.o, etc) targets
+.SECONDARY:
