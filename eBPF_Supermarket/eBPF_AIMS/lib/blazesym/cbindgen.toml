@@ -1,0 +1,33 @@
+# See https://github.com/eqrion/cbindgen/blob/master/docs.md#cbindgentoml
+
+language = "C"
+cpp_compat = true
+include_guard = "__blazesym_h_"
+usize_is_size_t = true
+
+[export]
+item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "functions"]
+exclude = ["Addr"]
+
+[export.rename]
+"Addr" = "uintptr_t"
+"Inspector" = "blaze_inspector"
+"Normalizer" = "blaze_normalizer"
+"Symbolizer" = "blaze_symbolizer"
+
+[fn]
+args = "Vertical"
+rename_args = "none"
+
+[struct]
+associated_constants_in_body = true
+derive_eq = true
+derive_ostream = true
+
+[enum]
+add_sentinel = false
+derive_helper_methods = true
+derive_ostream = true
+
+[macro_expansion]
+bitflags = true
