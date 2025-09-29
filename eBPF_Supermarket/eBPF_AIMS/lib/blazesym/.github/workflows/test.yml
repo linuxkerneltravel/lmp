@@ -1,0 +1,214 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: '-D warnings'
+
+jobs:
+  build:
+    name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}, ${{ matrix.args }}]
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-latest, macos-latest]
+        rust: [1.64.0, stable]
+        profile: [dev, release]
+        args: ["--workspace"]
+        include:
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
+            # Make sure to build *without* `--workspace` or feature
+            # unification may mean that `--no-default-features` goes
+            # without effect.
+            args: "--no-default-features"
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        profile: minimal
+        override: true
+    - name: Build ${{ matrix.profile }}
+      run: |
+        cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
+  nop-rebuilds:
+    name: No-op rebuilds
+    runs-on: ubuntu-22.04
+    env:
+       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        profile: minimal
+        override: true
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14
+    - name: Check incremental rebuilds
+      run: |
+        cargo check --features=generate-unit-test-files --quiet --tests
+        # We need another build here to have the reference `output` file
+        # present. As long as we converge eventually it's probably good
+        # enough...
+        cargo check --features=generate-unit-test-files --quiet --tests
+        output=$(CARGO_LOG=cargo::core::compiler::fingerprint=info cargo check --features=generate-unit-test-files --quiet --tests 2>&1)
+        [ -z "${output}" ] || (echo "!!!! cargo check --tests rebuild was not a no-op: ${output} !!!!" && false)
+  test-coverage:
+    name: Test and coverage
+    runs-on: ubuntu-22.04
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        profile: minimal
+        override: true
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+    - name: Test and gather coverage
+      run: cargo llvm-cov --all-targets --features=generate-large-test-files --lcov --output-path lcov.info
+    - name: Upload code coverage results
+      uses: codecov/codecov-action@v3
+      with:
+        files: lcov.info
+  test-sanitizers:
+    name: Test with ${{ matrix.sanitizer }} sanitizer
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, leak]
+    runs-on: ubuntu-latest
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        profile: minimal
+        override: true
+    - name: Enable debug symbols
+      run: |
+          # to get the symbolizer for debug symbol resolution
+          sudo apt-get install -y llvm-14
+          # to fix buggy leak analyzer:
+          # https://github.com/japaric/rust-san#unrealiable-leaksanitizer
+          sed -i '/\[features\]/i [profile.dev]' Cargo.toml
+          sed -i '/profile.dev/a opt-level = 1' Cargo.toml
+          cat Cargo.toml
+    - name: cargo test -Zsanitizer=${{ matrix.sanitizer }}
+      env:
+        CFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
+        CXXFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
+        RUSTFLAGS: "-Zsanitizer=${{ matrix.sanitizer }}"
+        ASAN_OPTIONS: "detect_odr_violation=0:detect_leaks=0"
+        LSAN_OPTIONS: ""
+      run: cargo test --lib --tests --target x86_64-unknown-linux-gnu
+  test-release:
+    name: Test with release build
+    runs-on: ubuntu-22.04
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+    - run: cargo test --workspace --release
+  c-header:
+    name: Check generated C header
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+    - run: cargo check --workspace --features=generate-c-header
+    - name: Check that C header is up-to-date
+      run: git diff --exit-code ||
+             (echo "!!!! CHECKED IN C HEADER IS OUTDATED !!!!" && false)
+  bench:
+    name: Benchmark
+    runs-on: ubuntu-22.04
+    env:
+       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        profile: minimal
+        override: true
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14
+    - uses: Swatinem/rust-cache@v2
+    - name: Run benchmarks
+      shell: bash
+      run: |
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cargo bench --features=nightly -- bench_ | tee --append $GITHUB_STEP_SUMMARY
+        # We use bencher format here for better relation to the above
+        # but also because it emits less other crap into our summary.
+        # Note that because libtest does not understand the
+        # `--output-format` option, we need to specify the benchmark
+        # binary (`main`) here and have a different invocation for
+        # libtest style benchmarks above. Sigh.
+        cargo bench --bench=main --features=generate-large-test-files,dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+
+  clippy:
+    name: Lint with clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: clippy
+          override: true
+      - run: cargo clippy --workspace --no-deps --all-targets --features=dont-generate-unit-test-files -- -A unknown_lints
+  rustfmt:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          components: rustfmt
+          override: true
+      - run: cargo +nightly fmt --all -- --check
+  cargo-doc:
+    name: Generate documentation
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: '-D warnings'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - run: cargo doc --no-deps

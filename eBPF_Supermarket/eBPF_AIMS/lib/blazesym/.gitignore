@@ -1,0 +1,9 @@
+/data/*.bin
+/data/*.gsym
+/data/*.so
+/data/*.zip
+/data/kallsyms
+/data/vmlinux-5.17.12-100.fc34.x86_64*
+/data/zip-dir
+/target
+Cargo.lock

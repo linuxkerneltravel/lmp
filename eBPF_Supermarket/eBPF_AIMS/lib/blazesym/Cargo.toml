@@ -1,0 +1,100 @@
+[workspace]
+members = [
+  ".",
+  "cli",
+]
+
+[package]
+name = "blazesym"
+description = "blazesym is a library for address symbolization and related tasks."
+version = "0.2.0-alpha.7"
+edition = "2021"
+rust-version = "1.64"
+authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
+license-file = "LICENSE"
+repository = "https://github.com/libbpf/blazesym"
+readme = "README.md"
+categories = [
+  "algorithms",
+  "api-bindings",
+  "development-tools::debugging",
+  "os::unix-apis",
+  "value-formatting",
+]
+keywords = [
+  "dwarf",
+  "elf",
+  "gsym",
+  "stacktrace",
+  "tracing",
+]
+exclude = ["data/kallsyms.xz"]
+autobenches = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "blazesym"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[features]
+default = ["demangle", "dwarf"]
+# Enable this feature to enable DWARF support.
+dwarf = ["gimli"]
+# Enable this feature to get transparent symbol demangling.
+demangle = ["cpp_demangle", "rustc-demangle"]
+# Enable this feature to re-generate the library's C header file. An
+# up-to-date version of this header should already be available in the
+# include/ directory, so this feature is only necessary when APIs are
+# changed.
+generate-c-header = ["cbindgen", "which"]
+# Enable this feature to opt in to the generation of unit test files.
+# Having these test files created is necessary for running tests.
+generate-unit-test-files = ["xz2", "zip"]
+# Enable this feature to opt in to the generation of large benchmark
+# files (also used for regression testing).
+generate-large-test-files = ["reqwest", "xz2"]
+# Disable generation of test files. This feature takes preference over
+# `generate-unit-test-files`.
+dont-generate-unit-test-files = []
+# Enable code paths requiring a nightly toolchain. This feature is only meant to
+# be used for testing and benchmarking purposes, not for the core library, which
+# is expected to work on stable.
+nightly = []
+
+[[bench]]
+name = "main"
+harness = false
+
+[profile.bench]
+debug = true
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[dependencies]
+cpp_demangle = {version = "0.4", optional = true}
+gimli = {version = "0.28", optional = true}
+libc = "0.2.137"
+rustc-demangle = {version = "0.1", optional = true}
+tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
+
+[dev-dependencies]
+# For performance comparison; pinned, because we use #[doc(hidden)]
+# APIs.
+addr2line = "=0.21.0"
+anyhow = "1.0.71"
+blazesym = {path = ".", features = ["generate-unit-test-files", "tracing"]}
+criterion = {version = "0.5.1", default-features = false, features = ["rayon", "cargo_bench_support"]}
+env_logger = "0.10"
+tempfile = "3.4"
+test-log = {version = "0.2", default-features = false, features = ["trace"]}
+tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
+
+[build-dependencies]
+cbindgen = {version = "0.26", optional = true}
+libc = "0.2.137"
+reqwest = {version = "0.11.18", optional = true, features = ["blocking"]}
+xz2 = {version = "0.1.7", optional = true}
+which = {version = "5.0.0", optional = true}
+zip = {version = "0.6.4", optional = true, default-features = false}

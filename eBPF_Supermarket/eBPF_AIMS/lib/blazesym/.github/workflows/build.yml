@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build statically linked binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get install musl-tools
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: x86_64-unknown-linux-musl
+      - run: |
+          cargo install --path=cli --root=. --target x86_64-unknown-linux-musl
+          strip bin/blazecli
+      - uses: actions/upload-artifact@v3
+        with:
+          name: blazecli
+          path: bin/blazecli

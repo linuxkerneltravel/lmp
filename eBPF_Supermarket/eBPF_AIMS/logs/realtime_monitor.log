@@ -1,0 +1,316 @@
+日志同时输出到终端与文件: /home/abc/os/eBPF-AIMS-main/logs/realtime_monitor.log
+✅ 实时监控已启动：模型已训练，开始流式检测...
+[2025-09-21 13:43:15] 状态:正常 特征:[13.0, 0.0, 0.49, 34.61, 826.76, 751.79, 1892.0, 2706.0]
+[2025-09-21 13:43:24] 状态:正常 特征:[12.0, 0.0, 0.49, 22.48, 821.91, 691.89, 0.0, 0.0]
+[2025-09-21 13:43:43] 状态:正常 特征:[7.0, 0.0, 0.49, 22.25, 812.38, 685.04, 0.0, 0.0]
+[2025-09-21 13:47:14] 已通知用户态: IO
+[2025-09-21 13:47:14] 状态:异常:IO 特征:[34.0, 0.0, 0.54, 302.56, 727.56, 109341.9, 0.0, 0.0]
+[2025-09-21 13:48:04] 状态:正常 特征:[16.0, 0.0, 0.5, 102.95, 853.27, 5738.43, 4091.0, 4522.0]
+[2025-09-21 13:48:50] 状态:正常 特征:[6.0, 0.0, 0.49, 93.81, 691.0, 5599.13, 0.0, 0.0]
+[2025-09-21 13:49:23] 状态:正常 特征:[10.0, 0.0, 0.49, 92.25, 679.23, 5504.03, 1276.0, 1850.0]
+[2025-09-21 13:50:54] 状态:正常 特征:[8.0, 0.0, 0.49, 90.17, 648.85, 5266.4, 0.0, 0.0]
+[2025-09-21 13:51:08] 状态:正常 特征:[15.0, 0.0, 0.49, 87.56, 644.27, 5221.34, 4050.0, 4816.0]
+[2025-09-21 13:51:11] 状态:正常 特征:[17.0, 0.0, 0.49, 87.42, 643.29, 5213.46, 5262.0, 19334.0]
+[2025-09-21 13:51:25] 状态:正常 特征:[6.0, 0.0, 0.49, 86.87, 639.1, 5179.68, 1284.0, 1850.0]
+[2025-09-21 13:51:28] 状态:正常 特征:[9.0, 0.0, 0.49, 88.74, 638.14, 5219.9, 3550.0, 2190.0]
+[2025-09-21 13:51:31] 状态:正常 特征:[6.0, 0.0, 0.49, 86.62, 637.19, 5164.2, 1696.0, 2270.0]
+[2025-09-21 13:51:34] 状态:正常 特征:[6.0, 0.0, 0.49, 93.49, 636.24, 5208.51, 6538.0, 7406.0]
+[2025-09-21 13:51:37] 状态:正常 特征:[7.0, 0.0, 0.49, 86.36, 635.28, 5148.82, 0.0, 0.0]
+[2025-09-21 13:53:38] 状态:正常 特征:[5.0, 0.0, 0.5, 85.72, 600.32, 4898.52, 1560.0, 1958.0]
+[2025-09-21 13:53:49] 状态:正常 特征:[9.0, 0.0, 0.5, 81.31, 597.22, 4841.5, 1216.0, 1688.0]
+[2025-09-21 13:53:52] 状态:正常 特征:[12.0, 0.0, 0.5, 81.2, 596.38, 4834.72, 2664.0, 2862.0]
+日志同时输出到终端与文件: /home/abc/os/eBPF-AIMS-main/logs/realtime_monitor.log
+✅ 实时监控已启动：模型已训练，开始流式检测...
+[2025-09-21 13:59:11] 状态:正常 特征:[13.0, 0.0, 0.5, 71.1, 521.24, 4226.4, 1868.0, 2722.0]
+[2025-09-21 13:59:33] 状态:正常 特征:[9.0, 0.0, 0.5, 89.52, 517.22, 12482.7, 0.0, 0.0]
+[2025-09-21 14:00:01] 状态:正常 特征:[8.0, 0.0, 0.5, 73.81, 511.63, 4213.33, 0.0, 0.0]
+[2025-09-21 14:01:18] 已通知用户态: NET
+[2025-09-21 14:01:18] 状态:异常:NET 特征:[35.0, 0.0, 0.52, 69.2, 536.24, 4095.13, 710479.0, 138478.0]
+[2025-09-21 14:01:41] 状态:正常 特征:[13.0, 0.0, 0.51, 70.65, 531.74, 4088.63, 0.0, 0.0]
+[2025-09-21 14:01:46] 已通知用户态: NET
+[2025-09-21 14:01:46] 状态:异常:NET 特征:[17.0, 0.0, 0.5, 68.52, 530.71, 4052.82, 525066.0, 138234.0]
+[2025-09-21 14:04:54] 状态:正常 特征:[8.0, 0.0, 0.5, 66.14, 495.86, 3827.74, 1816.0, 2528.0]
+[2025-09-21 14:04:58] 状态:正常 特征:[20.0, 0.0, 0.5, 69.05, 495.15, 3826.33, 0.0, 0.0]
+[2025-09-21 14:05:23] 已通知用户态: NET_OFF
+[2025-09-21 14:05:23] 状态:正常 特征:[18.0, 0.0, 0.5, 63.53, 490.93, 3750.31, 0.0, 0.0]
+[2025-09-21 14:06:39] 状态:正常 特征:[4.0, 0.0, 0.5, 66.93, 478.35, 3690.57, 0.0, 0.0]
+[2025-09-21 14:07:35] 状态:正常 特征:[9.0, 0.0, 0.51, 60.83, 469.58, 3587.82, 1516.0, 2120.0]
+[2025-09-21 14:07:38] 状态:正常 特征:[12.0, 0.0, 0.5, 60.76, 469.1, 3584.16, 2404.0, 3110.0]
+[2025-09-21 14:09:16] 状态:正常 特征:[7.0, 0.0, 0.51, 60.89, 454.44, 3488.52, 0.0, 0.0]
+[2025-09-21 14:09:19] 状态:正常 特征:[9.0, 0.0, 0.51, 58.84, 453.99, 3469.1, 0.0, 0.0]
+[2025-09-21 14:09:22] 状态:正常 特征:[9.0, 0.0, 0.51, 58.78, 453.55, 3465.69, 0.0, 0.0]
+[2025-09-21 14:09:53] 状态:正常 特征:[6.0, 0.0, 0.5, 58.21, 449.12, 3432.0, 0.0, 0.0]
+[2025-09-21 14:11:38] 状态:正常 特征:[5.0, 0.0, 0.5, 58.37, 434.7, 3350.11, 0.0, 0.0]
+[2025-09-21 14:12:09] 状态:正常 特征:[17.0, 0.0, 0.5, 55.86, 430.63, 3291.16, 0.0, 0.0]
+[2025-09-21 14:12:11] 状态:正常 特征:[3.0, 0.0, 0.5, 55.83, 430.36, 3289.1, 4894.0, 19096.0]
+[2025-09-21 14:12:39] 状态:正常 特征:[9.0, 0.0, 0.51, 60.31, 426.64, 3375.65, 1516.0, 2152.0]
+[2025-09-21 14:16:08] 状态:正常 特征:[19.0, 0.0, 0.56, 71.71, 455.95, 4237.35, 1860.0, 2596.0]
+[2025-09-21 14:16:39] 状态:正常 特征:[8.0, 0.0, 0.55, 73.12, 452.02, 4228.92, 1516.0, 2112.0]
+[2025-09-21 14:16:41] 状态:正常 特征:[12.0, 0.0, 0.55, 71.08, 451.75, 4198.5, 4296.0, 18642.0]
+[2025-09-21 14:17:07] 状态:正常 特征:[10.0, 0.0, 0.55, 70.59, 448.53, 4168.64, 1576.0, 1982.0]
+[2025-09-21 14:17:35] 状态:正常 特征:[16.0, 0.0, 0.55, 81.94, 445.09, 4235.76, 1876.0, 2674.0]
+[2025-09-21 14:18:20] 状态:正常 特征:[8.0, 0.0, 0.55, 69.23, 439.62, 4086.03, 6614.0, 6782.0]
+日志同时输出到终端与文件: /home/abc/os/eBPF-AIMS-main/logs/realtime_monitor.log
+✅ 实时监控已启动：模型已训练，开始流式检测...
+[2025-09-21 14:24:35] 状态:正常 特征:[18.0, 0.0, 0.54, 63.51, 407.04, 3744.06, 0.0, 0.0]
+[2025-09-21 14:25:00] 状态:正常 特征:[17.0, 0.0, 0.54, 136.31, 809.08, 7956.58, 0.0, 0.0]
+[2025-09-21 14:27:03] 状态:正常 特征:[19.0, 0.0, 0.54, 122.78, 785.36, 7323.1, 0.0, 0.0]
+[2025-09-21 14:30:04] 状态:正常 特征:[9.0, 0.0, 0.54, 123.88, 752.94, 7454.28, 0.0, 0.0]
+[2025-09-21 14:30:41] 状态:正常 特征:[16.0, 0.0, 0.54, 120.9, 746.57, 7075.27, 0.0, 0.0]
+[2025-09-21 14:30:46] 已通知用户态: NET
+[2025-09-21 14:30:46] 状态:异常:NET 特征:[18.0, 0.0, 0.55, 146.78, 745.69, 7147.13, 612730.0, 115546.0]
+[2025-09-21 14:31:32] 状态:正常 特征:[18.0, 0.0, 0.54, 123.64, 738.12, 6980.83, 0.0, 0.0]
+[2025-09-21 14:31:34] 状态:正常 特征:[10.0, 0.0, 0.54, 115.59, 737.78, 6881.66, 5240.0, 20538.0]
+[2025-09-21 14:31:58] 已通知用户态: NET_OFF
+[2025-09-21 14:31:58] 状态:正常 特征:[12.0, 0.0, 0.54, 61.5, 366.93, 3470.67, 2816.0, 3608.0]
+[2025-09-21 14:33:16] 状态:正常 特征:[9.0, 0.0, 0.54, 113.11, 721.28, 6728.77, 2240.0, 3142.0]
+[2025-09-21 14:33:43] 状态:正常 特征:[14.0, 0.0, 0.54, 112.46, 717.07, 6689.65, 4282.0, 4392.0]
+[2025-09-21 14:34:05] 状态:正常 特征:[23.0, 0.0, 0.54, 57.97, 356.85, 3345.12, 0.0, 0.0]
+[2025-09-21 14:34:07] 状态:正常 特征:[8.0, 0.0, 0.55, 55.94, 356.69, 3327.64, 5846.0, 21634.0]
+[2025-09-21 14:34:33] 状态:正常 特征:[9.0, 0.0, 0.55, 55.63, 354.64, 3308.66, 2532.0, 3224.0]
+[2025-09-21 14:37:49] 状态:正常 特征:[30.0, 0.0, 0.54, 112.92, 680.67, 6456.06, 2148.0, 2968.0]
+[2025-09-21 14:38:18] 状态:正常 特征:[26.0, 0.0, 0.55, 53.16, 338.32, 3157.29, 0.0, 0.0]
+日志同时输出到终端与文件: /home/cuijian/Desktop/eBPF-AIMS-v2/logs/realtime_monitor.log
+✅ 实时监控已启动：模型已训练，开始流式检测...
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:72: FutureWarning: The 'delim_whitespace' keyword in pd.read_csv is deprecated and will be removed in a future version. Use ``sep='\s+'`` instead
+  df = pd.read_csv(path, delim_whitespace=True)
+/home/cuijian/Desktop/eBPF-AIMS-v2/./ml/realtime_monitor.py:74: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+  df["timestamp"] = pd.to_datetime(df["timestamp"])
+日志同时输出到终端与文件: /home/cuijian/Desktop/eBPF-AIMS-v2/logs/realtime_monitor.log
+✅ 实时监控已启动：模型已训练，开始流式检测...
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+实时监控异常: time data "13:10:54" doesn't match format "%Y-%m-%d %H:%M:%S", at position 0. You might want to try:
+    - passing `format` if your strings have a consistent format;
+    - passing `format='ISO8601'` if your strings are all ISO8601 but not necessarily in exactly the same format;
+    - passing `format='mixed'`, and the format will be inferred for each element individually. You might want to use `dayfirst` alongside this.
+日志同时输出到终端与文件: /home/cuijian/Desktop/eBPF-AIMS-v2/logs/realtime_monitor.log
+✅ 实时监控已启动：模型已训练，开始流式检测...
+[2025-09-27 13:15:05] 状态:正常 特征:[14.0, 0.0, 0.53, 373.79, 1716.14, 10629.74, 0.0, 0.0]
+[2025-09-27 13:15:06] 状态:正常 特征:[15.0, 0.0, 0.53, 363.79, 1863.25, 6903.25, 776.0, 588.0]
+[2025-09-27 13:15:07] 状态:正常 特征:[20.0, 0.0, 0.53, 387.79, 1714.42, 10814.75, 636.0, 524.0]
+[2025-09-27 13:16:38] 状态:正常 特征:[12.0, 0.0, 0.52, 755.32, 3273.64, 21482.75, 174.0, 106.0]
+[2025-09-27 13:16:39] 状态:正常 特征:[17.0, 0.0, 0.52, 744.34, 3271.99, 13809.85, 0.0, 0.0]
+[2025-09-27 13:19:51] 状态:正常 特征:[17.0, 0.0, 0.52, 375.1, 1493.3, 10854.41, 256.0, 218.0]
+[2025-09-27 13:19:52] 状态:正常 特征:[14.0, 0.0, 0.52, 746.21, 2985.19, 13971.6, 396.0, 580.0]
+[2025-09-27 13:19:53] 状态:正常 特征:[21.0, 0.0, 0.52, 773.22, 2983.82, 21950.82, 336.0, 374.0]
+[2025-09-27 13:20:07] 状态:正常 特征:[17.0, 0.0, 0.52, 316.29, 1482.7, 6226.82, 60.0, 98.0]
+[2025-09-27 13:20:08] 状态:正常 特征:[16.0, 0.0, 0.52, 837.96, 2963.89, 17935.09, 380.0, 426.0]
+[2025-09-27 13:20:09] 已通知用户态: IO
+[2025-09-27 13:20:09] 状态:异常:IO 特征:[15.0, 0.0, 0.52, 1181.94, 4443.69, 25517.07, 328.0, 374.0]
+[2025-09-27 13:22:28] 状态:正常 特征:[17.0, 0.0, 0.53, 669.67, 2788.01, 12833.67, 0.0, 0.0]
+[2025-09-27 13:22:53] 状态:正常 特征:[14.0, 0.0, 0.52, 335.57, 1379.46, 7299.93, 2078.0, 656.0]
+[2025-09-27 13:22:54] 状态:正常 特征:[17.0, 0.0, 0.52, 715.11, 2757.62, 16415.41, 612.0, 556.0]
+[2025-09-27 13:22:55] 已通知用户态: IO
+[2025-09-27 13:22:55] 状态:异常:IO 特征:[16.0, 0.0, 0.53, 1045.19, 4134.57, 22839.67, 1484.0, 1362.0]
+[2025-09-27 13:25:17] 状态:正常 特征:[14.0, 0.0, 0.52, 389.31, 1347.64, 10884.37, 60.0, 98.0]
+[2025-09-27 13:25:18] 状态:正常 特征:[19.0, 0.0, 0.52, 779.64, 2694.08, 14362.89, 452.0, 490.0]
+[2025-09-27 13:25:19] 已通知用户态: IO
+[2025-09-27 13:25:19] 状态:异常:IO 特征:[24.0, 0.0, 0.53, 1567.98, 4039.4, 33191.76, 344.0, 374.0]
+[2025-09-27 13:25:27] 状态:正常 特征:[16.0, 0.0, 0.53, 381.48, 1342.3, 10824.16, 60.0, 98.0]
+[2025-09-27 13:25:28] 状态:正常 特征:[19.0, 0.0, 0.52, 375.48, 1341.77, 7105.2, 388.0, 366.0]
+[2025-09-27 13:25:29] 已通知用户态: IO
+[2025-09-27 13:25:29] 状态:异常:IO 特征:[21.0, 0.0, 0.52, 1251.12, 4023.4, 33128.16, 320.0, 366.0]
+[2025-09-27 13:25:37] 状态:正常 特征:[17.0, 0.0, 0.52, 388.55, 1337.0, 10899.35, 0.0, 0.0]
+[2025-09-27 13:25:39] 已通知用户态: IO
+[2025-09-27 13:25:39] 状态:异常:IO 特征:[18.0, 0.0, 0.52, 1074.09, 2671.74, 18727.78, 0.0, 0.0]
+[2025-09-27 13:25:40] 已通知用户态: IO
+[2025-09-27 13:25:40] 状态:异常:IO 特征:[17.0, 0.0, 0.52, 1120.84, 4005.94, 23006.45, 1166.0, 988.0]
+[2025-09-27 13:28:19] 已通知用户态: IO
+[2025-09-27 13:28:19] 状态:异常:IO 特征:[15.0, 0.0, 0.53, 1175.11, 3771.83, 29814.23, 60.0, 60.0]
