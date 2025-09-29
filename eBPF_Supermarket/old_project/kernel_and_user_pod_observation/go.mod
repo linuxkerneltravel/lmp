@@ -3,7 +3,7 @@ module github.com/linuxkerneltravel/lmp/eBPF_Supermarket/kernel_and_user_pod_obs
 go 1.23.0
 
 require (
-	github.com/docker/docker v26.1.5+incompatible
+	github.com/docker/docker v28.0.0+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/iovisor/gobpf v0.2.0
 	github.com/linuxkerneltravel/lmp/eBPF_Supermarket/sidecar v0.0.0-20220930025803-b7349a833321
