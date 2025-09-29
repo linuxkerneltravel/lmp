@@ -1,0 +1,100 @@
+sysbench 1.0.20 (using system LuaJIT 2.1.0-beta3)
+
+Running the test with following options:
+Number of threads: 128
+Report intermediate results every 10 second(s)
+Initializing random number generator from current time
+
+
+Initializing worker threads...
+
+FATAL: mysql_stmt_prepare() failed
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: mysql_stmt_prepare() failed
+(last message repeated 1 times)
+FATAL: mysql_stmt_prepare() failed
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: mysql_stmt_prepare() failed
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: mysql_stmt_prepare() failed
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+(last message repeated 1 times)
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+(last message repeated 2 times)
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+(last message repeated 1 times)
+FATAL: mysql_stmt_prepare() failed
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: mysql_stmt_prepare() failed
+(last message repeated 1 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+(last message repeated 4 times)
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+(last message repeated 1 times)
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+(last message repeated 1 times)
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:284: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: mysql_stmt_prepare() failed
+FATAL: MySQL error: 1461 "Can't create more than max_prepared_stmt_count statements (current value: 16382)"
+FATAL: `thread_init' function failed: /usr/share/sysbench/oltp_common.lua:275: SQL API error
+FATAL: Thread initialization failed!
