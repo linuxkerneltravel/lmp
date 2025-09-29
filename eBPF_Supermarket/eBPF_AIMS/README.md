@@ -1,102 +1,87 @@
+# 基于eBPF的系统性能自适应观测
 
-IO：如果未装 fio，先安装：sudo apt-get update && sudo apt-get install -y fio
+## 🎯简介
+
+​	本项目以自适应性能观测为核心目标，构建了一个面向系统运行态的实时自适应监测框架。该框架通过**性能数据采集-发现异常-自适应观测-深度采集异常定位**四个环节，实现了一个端到端的系统状态智能化感知闭环系统。整体思路首先是以轻量化的方式采集全局性能关键指标，当检测到异常波动或存在潜在性能瓶颈时，系统自动触发自适应机制，动态调整观测的粒度和范围，在异常发生的关键时刻自动加深采集，定位异常根因，构建了一种高效、智能、具备自适应能力的系统性能观测方法。
+
+## 🏗框架设计
+
+​	本项目是一个端到端的自适应性能观测的闭环系统，整体工作流程如下图所示：
+
+<img src="D:/文档/Linux内核/picture/image-20250929112146746.png" alt="image-20250929112146746" style="zoom:67%;" />
+
+- **数据采集层**：周期性采集系统基础性能指标。
+- **决策层**：分析数据，判断系统状态并决定是否、以及如何触发深度采集。
+- **采集层**：根据指令，动态加载eBPF程序，执行深度追踪。
+
+## 📦 快速开始
+
+**1. 克隆项目**
+
+```shell
+git clone <your-project-repo-url>
+cd ebpf-adaptive-observation
+```
+
+**2. 安装依赖**
+
+```shell
+# 安装系统依赖
+sudo apt update && sudo apt install -y clang llvm libelf-dev zlib1g-dev python3-pip
+
+# 安装Python依赖
+pip3 install -r requirements.txt
+```
+
+**3. 运行系统**
 
 ```
-fio --name=aims --filename=/var/tmp/aims_io.bin --size=2G --rw=randwrite --bs=64k --iodepth=32 --numjobs=2 --time_based --runtime=45 --direct=1
+sudo ./start_collect.sh
 ```
 
-CPU：
+## 🚀 使用方法
 
-```
-sudo apt-get install -y stress-ng && stress-ng --cpu 4 --timeout 45s
-```
+运行系统后，它将自动进入静默监控状态。可以通过以下方式测试其功能：
 
-内存：
+**1. 制造CPU异常**：
 
-```
-stress-ng --vm 2 --vm-bytes 80% --timeout 45s
+```shell
+stress-ng --cpu 4 --timeout 60
 ```
 
-网络：
+观察控制台输出，系统应检测到CPU压力并自动触发CPU调度延迟的深度采集。
 
-（1）第一种
+**2. 制造I/O异常**：
 
-- 在另一台主机跑 
+```
+fio --name=test --ioengine=sync --rw=randwrite --bs=4k --size=1G --runtime=30
+```
 
-  ```
-  iperf3 -s
-  ```
+系统应检测到I/O压力并触发I/O读写监控，输出是哪个进程在进行大量I/O操作。
 
-  
+**3. 查看结果**：
 
-- 本机跑
+- 所有监控数据、异常事件和深度采集结果均保存在 `data/metrics_with_bpf.csv`中。
+- 实时日志请查看 `logs/realtime_monitor.log`。
 
-  ```
-   iperf3 -c <server> -t 45
-  ```
+## 📁 项目结构
 
-  （2）第二种：或者直接下载大文件，下载完删除
-
-  ```
-  wget --no-check-certificate -O /tmp/aims_net_test.bin https://speed.hetzner.de/1GB.bin && rm -f /tmp/aims_net_test.bin
-  ```
-  （3）
-  # 网络负载测试命令集合
-
-## 1. HTTP 请求测试
-# 使用 curl 发送大量 HTTP 请求
-for i in {1..100}; do curl -s http://httpbin.org/get > /dev/null & done
-
-# 使用 wget 测试
-for i in {1..50}; do wget -q -O /dev/null http://httpbin.org/get & done
-
-## 2. TCP 连接测试
-# 使用 nc (netcat) 建立多个 TCP 连接
-for i in {1..20}; do nc -z google.com 80 & done
-
-# 使用 telnet 测试
-for i in {1..10}; do timeout 5 telnet google.com 80 & done
-
-## 3. 网络带宽测试
-# 使用 iperf3 (需要安装)
-# 服务器端: iperf3 -s
-# 客户端: iperf3 -c <server_ip> -t 60
-
-# 使用 dd 和 nc 传输数据
-dd if=/dev/zero bs=1M count=100 | nc <target_ip> 8080
-
-## 4. DNS 查询测试
-# 大量 DNS 查询
-for i in {1..50}; do nslookup google.com & done
-
-## 5. 端口扫描测试
-# 使用 nmap 扫描
-nmap -p 1-1000 localhost
-
-# 使用 nc 扫描端口
-for port in {1..100}; do nc -z localhost  & done
-
-## 6. 持续网络活动
-# 持续 ping
-ping -c 1000 google.com
-
-# 持续 HTTP 请求
-while true; do curl -s http://httpbin.org/get > /dev/null; sleep 0.1; done
-
-## 7. 并发连接测试
-# 使用 ab (Apache Bench) 进行压力测试
-ab -n 1000 -c 10 http://httpbin.org/get
-
-# 使用 wrk 进行高并发测试
-wrk -t12 -c400 -d30s http://httpbin.org/get
-
-## 8. 文件传输测试
-# 使用 scp 传输大文件
-dd if=/dev/zero of=testfile bs=1M count=100
-scp testfile user@remote_host:/tmp/
-
-# 使用 rsync 同步
-rsync -avz --progress testfile user@remote_host:/tmp/
-
-
-  
+```
+.
+├── docs/                    # 项目文档、说明书
+├── src/
+│   ├── ebpf/                # eBPF内核程序源码
+│   │   ├── cpu_monitor.c    # CPU调度延迟追踪
+│   │   ├── mem_monitor.c    # Slab内存分配追踪
+│   │   ├── io_monitor.c     # 进程级I/O追踪
+│   │   └── net_monitor.c    # TCP连接生命周期追踪
+│   ├── collection/          # 基础数据采集模块
+│   ├── ml/                  # 机器学习模型与异常检测模块
+│   └── adaptive_monitor.py  # 自适应主控程序
+├── data/                    # 数据目录（自动生成）
+│   ├── cpu_metrics.csv
+│   ├── metrics_with_bpf.csv # 综合输出结果
+│   └── ...
+├── logs/                    # 日志目录（自动生成）
+└── README.md
+```
