@@ -29,38 +29,39 @@
         }                                                                    \
     } while (0)
 
-static const char binary_path[] = "/bin/qemu-system-x86_64";
-#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
-    do {                                                                      \
-        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,     \
-                    .retprobe = is_retprobe);                                 \
-        skel->links.prog_name = bpf_program__attach_uprobe_opts(              \
-            skel->progs.prog_name, env.vm_pid, binary_path, 0, &uprobe_opts); \
-    } while (false)
+// static const char binary_path[] = "/bin/qemu-system-x86_64";
+// #define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
+//     do {                                                                      \
+//         LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts, .func_name = #sym_name,     \
+//                      .retprobe = is_retprobe);
+//                                  \
+//         skel->links.prog_name = bpf_program__attach_uprobe_opts(              \
+//             skel->progs.prog_name, env.vm_pid, binary_path, 0, &uprobe_opts); \
+//     } while (false)
 
-#define __CHECK_PROGRAM(skel, prog_name)                   \
-    do {                                                   \
-        if (!skel->links.prog_name) {                      \
-            perror("no program attached for " #prog_name); \
-            return -errno;                                 \
-        }                                                  \
-    } while (false)
+// #define __CHECK_PROGRAM(skel, prog_name)                   \
+//     do {                                                   \
+//         if (!skel->links.prog_name) {                      \
+//             perror("no program attached for " #prog_name); \
+//             return -errno;                                 \
+//         }                                                  \
+//     } while (false)
 
-#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
-    do {                                                                \
-        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
-        __CHECK_PROGRAM(skel, prog_name);                               \
-    } while (false)
+// #define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+//     do {                                                                \
+//         __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+//         __CHECK_PROGRAM(skel, prog_name);                               \
+//     } while (false)
 
-#define ATTACH_UPROBE(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+// #define ATTACH_UPROBE(skel, sym_name, prog_name) \
+//     __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+// #define ATTACH_URETPROBE(skel, sym_name, prog_name) \
+//     __ATTACH_UPROBE(skel, sym_name, prog_name, true)
 
-#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
-#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
-    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+// #define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
+//     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+// #define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
+//     __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
 
 #define TASK_COMM_LEN 16
 #define KVM_MEM_LOG_DIRTY_PAGES (1UL << 0)
