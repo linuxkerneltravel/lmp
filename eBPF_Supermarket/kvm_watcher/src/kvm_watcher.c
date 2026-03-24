@@ -31,6 +31,75 @@
 #include "trace_helpers.h"
 #include "uprobe_helpers.h"
 #include "kvm_watcher.skel.h"
+#include "amd_svm_exit.h"
+static const char binary_path[] = "/bin/qemu-system-x86_64";
+
+#define __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe)               \
+    do {                                                                      \
+        LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts,                             \
+                    .func_name = #sym_name,                                   \
+                    .retprobe = is_retprobe);                                 \
+        skel->links.prog_name = bpf_program__attach_uprobe_opts(              \
+            skel->progs.prog_name, env.vm_pid, binary_path, 0, &uprobe_opts); \
+    } while (false)
+
+#define __CHECK_PROGRAM(skel, prog_name)                   \
+    do {                                                   \
+        if (!skel->links.prog_name) {                      \
+            perror("no program attached for " #prog_name); \
+            return -errno;                                 \
+        }                                                  \
+    } while (false)
+
+#define __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, is_retprobe) \
+    do {                                                                \
+        __ATTACH_UPROBE(skel, sym_name, prog_name, is_retprobe);        \
+        __CHECK_PROGRAM(skel, prog_name);                               \
+    } while (false)
+
+#define ATTACH_UPROBE(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, false)
+
+#define ATTACH_URETPROBE(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE(skel, sym_name, prog_name, true)
+
+#define ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, false)
+
+#define ATTACH_URETPROBE_CHECKED(skel, sym_name, prog_name) \
+    __ATTACH_UPROBE_CHECKED(skel, sym_name, prog_name, true)
+
+
+
+enum KvmVendor {
+    KVM_VENDOR_INTEL = 0,
+    KVM_VENDOR_AMD = 1,
+};
+
+static enum KvmVendor current_vendor = KVM_VENDOR_INTEL;
+
+static enum KvmVendor detect_kvm_vendor(void)
+{
+    FILE *fp = fopen("/proc/cpuinfo", "r");
+    char buf[256];
+
+    if (!fp)
+        return KVM_VENDOR_INTEL;
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        if (strstr(buf, "AuthenticAMD")) {
+            fclose(fp);
+            return KVM_VENDOR_AMD;
+        }
+        if (strstr(buf, "GenuineIntel")) {
+            fclose(fp);
+            return KVM_VENDOR_INTEL;
+        }
+    }
+
+    fclose(fp);
+    return KVM_VENDOR_INTEL;
+}
 
 
 //可视化调整输出格式
@@ -58,6 +127,8 @@ FILE *create_temp_file(const char *filename) {
 
     return output;
 }
+
+
 
 const char *getName(int number, enum NameType type) {
     struct NameMapping {
@@ -127,6 +198,70 @@ const char *getName(int number, enum NameType type) {
                                         {68, "TPAUSE"},
                                         {74, "BUS_LOCK"},
                                         {75, "NOTIFY"}};
+    struct NameMapping svmExitReasons[] = {
+    { SVM_EXIT_READ_CR0, "read_cr0" },
+    { SVM_EXIT_READ_CR2, "read_cr2" },
+    { SVM_EXIT_READ_CR3, "read_cr3" },
+    { SVM_EXIT_READ_CR4, "read_cr4" },
+    { SVM_EXIT_READ_CR8, "read_cr8" },
+
+    { SVM_EXIT_WRITE_CR0, "write_cr0" },
+    { SVM_EXIT_WRITE_CR2, "write_cr2" },
+    { SVM_EXIT_WRITE_CR3, "write_cr3" },
+    { SVM_EXIT_WRITE_CR4, "write_cr4" },
+    { SVM_EXIT_WRITE_CR8, "write_cr8" },
+
+    { SVM_EXIT_READ_DR0, "read_dr0" },
+    { SVM_EXIT_READ_DR1, "read_dr1" },
+    { SVM_EXIT_READ_DR2, "read_dr2" },
+    { SVM_EXIT_READ_DR3, "read_dr3" },
+    { SVM_EXIT_READ_DR4, "read_dr4" },
+    { SVM_EXIT_READ_DR5, "read_dr5" },
+    { SVM_EXIT_READ_DR6, "read_dr6" },
+    { SVM_EXIT_READ_DR7, "read_dr7" },
+
+    { SVM_EXIT_WRITE_DR0, "write_dr0" },
+    { SVM_EXIT_WRITE_DR1, "write_dr1" },
+    { SVM_EXIT_WRITE_DR2, "write_dr2" },
+    { SVM_EXIT_WRITE_DR3, "write_dr3" },
+    { SVM_EXIT_WRITE_DR4, "write_dr4" },
+    { SVM_EXIT_WRITE_DR5, "write_dr5" },
+    { SVM_EXIT_WRITE_DR6, "write_dr6" },
+    { SVM_EXIT_WRITE_DR7, "write_dr7" },
+
+    { SVM_EXIT_INTR, "interrupt" },
+    { SVM_EXIT_NMI, "nmi" },
+    { SVM_EXIT_SMI, "smi" },
+    { SVM_EXIT_INIT, "init" },
+    { SVM_EXIT_VINTR, "vintr" },
+
+    { SVM_EXIT_CPUID, "cpuid" },
+    { SVM_EXIT_HLT, "hlt" },
+    { SVM_EXIT_IOIO, "io" },
+    { SVM_EXIT_MSR, "msr" },
+    { SVM_EXIT_VMMCALL, "hypercall" },
+
+    { SVM_EXIT_INVPCID, "invpcid" },
+    { SVM_EXIT_BUS_LOCK, "buslock" },
+    { SVM_EXIT_IDLE_HLT, "idle-halt" },
+    { SVM_EXIT_NPF, "npf" },
+    { SVM_EXIT_AVIC_INCOMPLETE_IPI, "avic_incomplete_ipi" },
+    { SVM_EXIT_AVIC_UNACCELERATED_ACCESS, "avic_unaccelerated_access" },
+    { SVM_EXIT_VMGEXIT, "vmgexit" },
+
+    { SVM_VMGEXIT_MMIO_READ, "vmgexit_mmio_read" },
+    { SVM_VMGEXIT_MMIO_WRITE, "vmgexit_mmio_write" },
+    { SVM_VMGEXIT_NMI_COMPLETE, "vmgexit_nmi_complete" },
+    { SVM_VMGEXIT_AP_HLT_LOOP, "vmgexit_ap_hlt_loop" },
+    { SVM_VMGEXIT_AP_JUMP_TABLE, "vmgexit_ap_jump_table" },
+    { SVM_VMGEXIT_PSC, "vmgexit_page_state_change" },
+    { SVM_VMGEXIT_GUEST_REQUEST, "vmgexit_guest_request" },
+    { SVM_VMGEXIT_EXT_GUEST_REQUEST, "vmgexit_ext_guest_request" },
+    { SVM_VMGEXIT_AP_CREATION, "vmgexit_ap_creation" },
+    { SVM_VMGEXIT_HV_FEATURES, "vmgexit_hypervisor_feature" },
+
+    { SVM_EXIT_ERR, "invalid_guest_state" },
+};
     // From include/uapi/linux/kvm.h, KVM_EXIT_xxx
     struct NameMapping exitReasons_userspace[] = {
         {0, "UNKNOWN"},
@@ -183,9 +318,16 @@ const char *getName(int number, enum NameType type) {
     int count;
     switch (type) {
         case EXIT_NR:
+            // mappings = exitReasons;
+            // count = sizeof(exitReasons) / sizeof(exitReasons[0]);
+        if (current_vendor == KVM_VENDOR_AMD) {
+            mappings = svmExitReasons;
+            count = sizeof(svmExitReasons) / sizeof(svmExitReasons[0]);
+    } else {
             mappings = exitReasons;
             count = sizeof(exitReasons) / sizeof(exitReasons[0]);
-            break;
+    }
+    break;
         case EXIT_USERSPACE_NR:
             mappings = exitReasons_userspace;
             count = sizeof(exitReasons_userspace) /
@@ -1383,6 +1525,7 @@ int attach_probe(struct kvm_watcher_bpf *skel) {
     }
     return kvm_watcher_bpf__attach(skel);
 }
+
 int main(int argc, char **argv) {
     // 定义一个环形缓冲区
     struct ring_buffer *rb = NULL;
@@ -1392,6 +1535,7 @@ int main(int argc, char **argv) {
     err = argp_parse(&argp, argc, argv, 0, NULL, NULL);
     if (err)
         return err;
+    current_vendor = detect_kvm_vendor();
     /*设置libbpf的错误和调试信息回调*/
     libbpf_set_print(libbpf_print_fn);
     /* Cleaner handling of Ctrl-C */
@@ -1442,15 +1586,22 @@ int main(int argc, char **argv) {
         print_logo();
 
     /*打印信息头*/
+
+    clear_screen();
+    fflush(stdout);
+    
     err = print_event_head(&env);
     if (err) {
         fprintf(stderr, "Please specify an option using %s.\n", OPTIONS_LIST);
         goto cleanup;
     }
     //实现刷屏操作
-    clear_screen();    
-    fflush(stdout);
-    print_description();
+    // clear_screen();    
+    // fflush(stdout);
+    // print_description();
+    if (env.execute_container_syscall) {
+        print_description();
+}
     //打印结果
     while (!exiting) {
         err = ring_buffer__poll(rb, RING_BUFFER_TIMEOUT_MS /* timeout, ms */);
