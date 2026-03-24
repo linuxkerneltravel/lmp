@@ -36,6 +36,7 @@ int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int a
 	struct paf_event *e; 
 	unsigned long *t, y;
 	int a;
+	unsigned long low,min,high,boost;
 	pid_t pid = bpf_get_current_pid_tgid() >> 32;
 	if (pid == user_pid)
 		return 0;
@@ -54,13 +55,17 @@ int BPF_KPROBE(get_page_from_freelist, gfp_t gfp_mask, unsigned int order, int a
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;
-	y = BPF_CORE_READ(ac, preferred_zoneref, zone, watermark_boost);
-	t = BPF_CORE_READ(ac, preferred_zoneref, zone, _watermark);
-
+	// y = BPF_CORE_READ(ac, preferred_zoneref, zone, watermark_boost);
+	// t = BPF_CORE_READ(ac, preferred_zoneref, zone, _watermark);
+	// bpf_printk("%lld,%lld,%lld,%lld",t[0],t[1],t[2],y);
+	boost = BPF_CORE_READ(ac, preferred_zoneref, zone, watermark_boost);
+    min = BPF_CORE_READ(ac, preferred_zoneref, zone, _watermark[0]);
+    low = BPF_CORE_READ(ac, preferred_zoneref, zone, _watermark[1]);
+    high = BPF_CORE_READ(ac, preferred_zoneref, zone, _watermark[2]);
 	e->present = BPF_CORE_READ(ac, preferred_zoneref, zone, present_pages);
-	e->min = t[0] + y;
-	e->low = t[1] + y;
-	e->high = t[2] + y;
+	e->min =min+boost;
+	e->low = low+boost;
+	e->high = high+boost;
 	e->flag = (int)gfp_mask;
 
 	bpf_ringbuf_submit(e, 0);
