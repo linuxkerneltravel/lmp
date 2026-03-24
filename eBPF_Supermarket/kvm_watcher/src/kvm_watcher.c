@@ -1006,7 +1006,13 @@ static int print_event_head(struct env *env) {
     return 0;
 }
 
-static void set_disable_load(struct kvm_watcher_bpf *skel) {
+static int set_disable_load(struct kvm_watcher_bpf *skel) {
+    //set_disable_load svm_load
+    bpf_program__set_autoload(skel->progs.fentry_svm_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.kp_svm_vcpu_load, false);
+    bpf_program__set_autoload(skel->progs.fentry_svm_vcpu_put, false);
+    bpf_program__set_autoload(skel->progs.kp_svm_vcpu_put, false);
+
     bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_load, false);
     bpf_program__set_autoload(skel->progs.kp_vmx_vcpu_load, false);
     bpf_program__set_autoload(skel->progs.fentry_vmx_vcpu_put, false);
@@ -1023,10 +1029,22 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
     bpf_program__set_autoload(skel->progs.fentry_start_sw_timer, false);
     bpf_program__set_autoload(skel->progs.kp_start_sw_timer, false);
 
+    // if (env.execute_vcpu_load) {
+    //     SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, kvm_intel);
+    //     SET_KP_OR_FENTRY_LOAD(vmx_vcpu_put, kvm_intel);
+    // }
     if (env.execute_vcpu_load) {
+    if (access("/sys/module/kvm_intel", F_OK) == 0) {
         SET_KP_OR_FENTRY_LOAD(vmx_vcpu_load, kvm_intel);
         SET_KP_OR_FENTRY_LOAD(vmx_vcpu_put, kvm_intel);
+    } else if (access("/sys/module/kvm_amd", F_OK) == 0) {
+        SET_KP_OR_FENTRY_LOAD(svm_vcpu_load, kvm_amd);
+        SET_KP_OR_FENTRY_LOAD(svm_vcpu_put, kvm_amd);
+    } else {
+        fprintf(stderr, "Unsupported KVM vendor module\n");
+        return -1;
     }
+}
     if (env.execute_vcpu_wakeup) {
         SET_KP_OR_FENTRY_LOAD(kvm_vcpu_halt, kvm);
     }
@@ -1082,6 +1100,8 @@ static void set_disable_load(struct kvm_watcher_bpf *skel) {
                               env.execute_irq_inject ? true : false);
     bpf_program__set_autoload(skel->progs.tp_ioctl,
                               env.execute_ioctl ? true : false);
+
+    return 0;
 }
 
 // 函数不接受参数，返回一个静态分配的字符串
