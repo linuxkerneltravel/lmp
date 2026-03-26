@@ -77,29 +77,29 @@ int tp_entry(struct exit *ctx) {
     return trace_kvm_entry();
 }
 
-// 记录VCPU调度的信息--进入
-SEC("fentry/vmx_vcpu_load")
-int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
-    CHECK_PID(vm_pid);
-    return trace_vmx_vcpu_load(vcpu, cpu);
-}
+// // 记录VCPU调度的信息--进入
+// SEC("fentry/vmx_vcpu_load")
+// int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+//     CHECK_PID(vm_pid);
+//     return trace_vmx_vcpu_load(vcpu, cpu);
+// }
 
-SEC("kprobe/vmx_vcpu_load")
-int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
-    CHECK_PID(vm_pid);
-    return trace_vmx_vcpu_load(vcpu, cpu);
-}
+// SEC("kprobe/vmx_vcpu_load")
+// int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+//     CHECK_PID(vm_pid);
+//     return trace_vmx_vcpu_load(vcpu, cpu);
+// }
 
-// 记录VCPU调度的信息--退出
-SEC("fentry/vmx_vcpu_put")
-int BPF_PROG(fentry_vmx_vcpu_put) {
-    return trace_vmx_vcpu_put();
-}
+// // 记录VCPU调度的信息--退出
+// SEC("fentry/vmx_vcpu_put")
+// int BPF_PROG(fentry_vmx_vcpu_put) {
+//     return trace_vmx_vcpu_put();
+// }
 
-SEC("kprobe/vmx_vcpu_put")
-int BPF_KPROBE(kp_vmx_vcpu_put) {
-    return trace_vmx_vcpu_put();
-}
+// SEC("kprobe/vmx_vcpu_put")
+// int BPF_KPROBE(kp_vmx_vcpu_put) {
+//     return trace_vmx_vcpu_put();
+// }
 
 SEC("fentry/mark_page_dirty_in_slot")
 int BPF_PROG(fentry_mark_page_dirty_in_slot, struct kvm *kvm,
@@ -261,4 +261,52 @@ int tracepoint__syscalls__sys_exit(struct trace_event_raw_sys_exit *args) {
     }else{
         return 0;
     }
+}
+
+//arch_load 
+
+SEC("fentry/vmx_vcpu_load")
+int BPF_PROG(fentry_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_arch_vcpu_load(vcpu, cpu);
+}
+
+SEC("kprobe/vmx_vcpu_load")
+int BPF_KPROBE(kp_vmx_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_arch_vcpu_load(vcpu, cpu);
+}
+
+SEC("fentry/svm_vcpu_load")
+int BPF_PROG(fentry_svm_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_arch_vcpu_load(vcpu, cpu);
+}
+
+SEC("kprobe/svm_vcpu_load")
+int BPF_KPROBE(kp_svm_vcpu_load, struct kvm_vcpu *vcpu, int cpu) {
+    CHECK_PID(vm_pid);
+    return trace_arch_vcpu_load(vcpu, cpu);
+}
+
+
+//put 
+SEC("fentry/vmx_vcpu_put")
+int BPF_PROG(fentry_vmx_vcpu_put) {
+    return trace_arch_vcpu_put();
+}
+
+SEC("kprobe/vmx_vcpu_put")
+int BPF_KPROBE(kp_vmx_vcpu_put) {
+    return trace_arch_vcpu_put();
+}
+
+SEC("fentry/svm_vcpu_put")
+int BPF_PROG(fentry_svm_vcpu_put) {
+    return trace_arch_vcpu_put();
+}
+
+SEC("kprobe/svm_vcpu_put")
+int BPF_KPROBE(kp_svm_vcpu_put) {
+    return trace_arch_vcpu_put();
 }
